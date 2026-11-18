@@ -2,13 +2,17 @@
 // version"). About's Tags fact has Edit for managers: the title's labels as chips, × takes one off, the box adds one
 // (suggesting the labels there are). Save sends only what the person changed (POST /titles/tags): a label added or
 // typed goes on every library that has the title, a label taken off comes off every one, and any other label stays
-// as each library has it. Saving sends no event.
+// as each library has it. Saving sends no event. The selection bar's Tags… (BulkTagsDialog) adds labels to, or removes
+// them from, the selected titles with the same box and the same call.
 import { Pencil, X } from "lucide-react";
 import { useId, useState } from "react";
 import { editTags, TAG_RULE, TAG_RULE_WORDS, tagOf, useTagLabels, useTagsSaved } from "@/api/tags";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
+import { toast } from "@/components/toaster";
+import { plural } from "@/lib/format";
+import { namesList } from "@/lib/sync-groups";
 
 /** The title page dialog's help line. */
 export const TAGS_HELP = "Changes apply to every library that has this title. Connected apps see these tags, and a webhook limited to a tag gets this title's future events.";
@@ -127,3 +131,57 @@ export function EditTitleTags({ titleId, name, tags }: { titleId: number; name: 
   );
 }
 
+/** The selection bar's dialog's help line. */
+export const BULK_TAGS_HELP = "Changes apply to every library that has these titles. Connected apps see these tags, and a webhook limited to a tag gets those titles' future events.";
+
+/** The selection bar's Tags…: add labels to, or remove labels from, the selected titles (no "replace all"). */
+export function BulkTagsDialog({ titleIds, onClose, onDone }: { titleIds: number[]; onClose: () => void; onDone: () => void }) {
+  const [mode, setMode] = useState<"add" | "remove">("add");
+  const [tags, setTags] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>();
+  const saved = useTagsSaved();
+  const add = mode === "add";
+  const save = async () => {
+    setBusy(true);
+    setError(undefined);
+    try {
+      const r = await editTags(titleIds, add ? tags : [], add ? [] : tags);
+      saved();
+      toast({ tone: "ok", title: `${add ? "Added" : "Removed"} ${namesList(tags)} ${add ? "to" : "from"} ${plural(r.changed, "title")}` });
+      onDone();
+    } catch (e) {
+      setError(e);
+      setBusy(false);
+    }
+  };
+  const radio = (value: "add" | "remove", words: string) => (
+    <label className="inline-flex cursor-pointer items-center gap-1.5">
+      <input type="radio" name="bulk-tags-mode" value={value} checked={mode === value} onChange={() => setMode(value)} data-testid={`bulk-tags-${value}`} />
+      {words}
+    </label>
+  );
+  return (
+    <ConfirmDialog
+      scope={{ title: `Tags for ${plural(titleIds.length, "title")}`, does: [], keeps: [], confirm: add ? "Add tags" : "Remove tags" }}
+      danger={false}
+      busy={busy}
+      disabled={tags.length === 0}
+      error={error}
+      onClose={onClose}
+      onConfirm={() => void save()}
+      testid="bulk-tags"
+      top={
+        <div className="space-y-3">
+          <div className="flex gap-4" role="radiogroup" aria-label="Add or remove">
+            {radio("add", "Add to these titles")}
+            {radio("remove", "Remove from these titles")}
+          </div>
+          <TagChips tags={tags} empty="No tags chosen" onRemove={(g) => setTags((ts) => ts.filter((t) => t !== g))} />
+          <TagBox onAdd={(g) => setTags((ts) => (ts.includes(g) ? ts : [...ts, g]))} />
+          <p className="text-xs text-[var(--ink-3)]" data-testid="bulk-tags-help">{BULK_TAGS_HELP}</p>
+        </div>
+      }
+    />
+  );
+}

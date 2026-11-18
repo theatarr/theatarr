@@ -881,7 +881,7 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
 - **Select** (managers) works on both: tick titles ("Select all 60 shown" selects the loaded rows; with more matches
   than loaded, "Select all 524 matches" loads the remaining pages of the same query with a spinner, the bar waiting
   until they are in, then selects every title; changing the selection, Done or another query meanwhile cancels it); the bar counts titles ("12 titles selected") and offers Monitor, Unmonitor, Search now, Add to a library (with the add
-  permission), Remove from a library and Remove. Household accounts have no Select.
+  permission), Tags… (with see files), Remove from a library and Remove. Household accounts have no Select.
   - **Monitor / Unmonitor** open a review: the library (**Every library** by default, or one) is picked there, and
     each change asks `POST titles/monitor` with `dry_run`, listing what changes, what is already set and what is
     excluded (titles without the copy); **Apply** sends the preview's values as `expect`, so a copy changed since is
@@ -919,6 +919,13 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
     fits the list (anime or not) and would add a selected title; when none would, nothing is preselected ("Choose a
     library", confirm disabled) and any library can still be picked. Nothing is searched. There is no bulk profile:
     a library's profile is how a title's quality changes, so moving a title between libraries is the way.
+  - **Tags…** opens **Tags for N titles**: **Add to these titles** (the default) or **Remove from these titles**,
+    the chosen labels as chips and the title page's box to add one (same suggestions, trimming, lower-casing and
+    refusal), the line "Changes apply to every library that has these titles. Connected apps see these tags, and a
+    webhook limited to a tag gets those titles' future events.", and **Add tags** / **Remove tags** (disabled until
+    a label is chosen). It sends one `POST titles/tags` per 500 titles, with only those labels (docs/design/arrview.md
+    "Tags per version"); no "replace all". The notice counts the titles that changed: "Added kids to 4 titles",
+    "Removed kids from 2 titles".
 - **Series page:** an episode cell shows its stage (and progress while downloading); an **In progress** filter sits
   beside Missing; the episode overview shows each library's acquisition (words, progress, last update, waits,
   retries) with an Activity link. Anime keep "E13 · absolute 13".

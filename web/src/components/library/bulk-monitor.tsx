@@ -2,7 +2,8 @@
 // offers, for managers, Monitor and Unmonitor (a review of POST /titles/monitor dry_run, then the apply with the
 // preview's values as expect, in every library or one picked in the review), Search now (the selection's monitored
 // libraries to POST /wanted/search, the Wanted page's queue under the hourly limit), Add to a library (with the add
-// permission), Remove from a library and Remove (bulk-actions.tsx). The bar counts titles.
+// permission), Tags… (add or remove labels, tags-editor.tsx, for managers who see files), Remove from a library and
+// Remove (bulk-actions.tsx). The bar counts titles.
 import { Loader2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
@@ -16,6 +17,7 @@ import { SELECT } from "@/components/library/filters";
 import { bulkExpect, outcomeWords, type CopyColumn } from "@/lib/copies";
 import { cn } from "@/lib/utils";
 import { BulkAddDialog, BulkRemoveDialog } from "./bulk-actions";
+import { BulkTagsDialog } from "@/components/title/tags-editor";
 import { CopyDot } from "./copy-bits";
 import { plural } from "@/lib/format";
 
@@ -52,7 +54,7 @@ function searchWords(r: SearchSum): string {
   return parts.join(". ") + ".";
 }
 
-type Open = "monitor" | "unmonitor" | "search" | "add" | "unlib" | "remove" | null;
+type Open = "monitor" | "unmonitor" | "search" | "add" | "tags" | "unlib" | "remove" | null;
 
 export function BulkBar({ titles, columns, onClear, kinds = [], anime = false }: {
   titles: TitleRow[];
@@ -112,6 +114,7 @@ export function BulkBar({ titles, columns, onClear, kinds = [], anime = false }:
         <Button variant="outline" size="sm" onClick={() => setOpen("unmonitor")}>Unmonitor</Button>
         <Button variant="outline" size="sm" disabled={busy} onClick={() => setOpen("search")}>Search now</Button>
         {perms.add ? <Button variant="outline" size="sm" onClick={() => setOpen("add")}>Add to a library</Button> : null}
+        {perms.seeFiles ? <Button variant="outline" size="sm" onClick={() => setOpen("tags")} data-testid="bulk-tags-open">Tags…</Button> : null}
         <Button variant="outline" size="sm" disabled={columns.length === 0} onClick={() => setOpen("unlib")}>Remove from a library</Button>
         <Button variant="destructive" size="sm" onClick={() => setOpen("remove")}>Remove</Button>
       </div>
@@ -131,6 +134,7 @@ export function BulkBar({ titles, columns, onClear, kinds = [], anime = false }:
         <ReviewDialog titleIds={ids} columns={columns} monitored={open === "monitor"} onClose={() => setOpen(null)} onDone={done} />
       ) : null}
       {open === "add" ? <BulkAddDialog titles={titles} kinds={kinds} anime={anime} onClose={() => setOpen(null)} onDone={done} /> : null}
+      {open === "tags" ? <BulkTagsDialog titleIds={ids} onClose={() => setOpen(null)} onDone={done} /> : null}
       {open === "unlib" ? <BulkRemoveDialog titles={titles} libraries={columns} onClose={() => setOpen(null)} onDone={done} /> : null}
       {open === "remove" ? <BulkRemoveDialog titles={titles} onClose={() => setOpen(null)} onDone={done} /> : null}
     </section>

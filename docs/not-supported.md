@@ -85,5 +85,6 @@ The Radarr- and Sonarr-compatible views do not answer every call of the arr APIs
 - **Tags.** Compatible clients such as Seerr and Ruddarr can set tags on a movie or series, per library,
   and they are kept: the client sees them again and a Connect webhook with tags gets only the events of titles
   carrying one of them. Theatarr's own pages show them (About's **Tags**, a Tags column and a Tag filter on Movies,
-  Series and Anime, for accounts that see files) and managers edit them there (About's **Tags** › Edit); nothing is routed by tag, and **Import from Sonarr/Radarr** does not bring them. Each library lists its indexers and providers instead
+  Series and Anime, for accounts that see files) and managers edit them there (About's **Tags** › Edit, the selection
+  bar's **Tags…**); nothing is routed by tag, and **Import from Sonarr/Radarr** does not bring them. Each library lists its indexers and providers instead
   ([arr-map.md](arr-map.md)).

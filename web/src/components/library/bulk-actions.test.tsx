@@ -345,3 +345,45 @@ describe("Bulk Monitor", () => {
     ]);
   });
 });
+
+describe("Bulk Tags…", () => {
+  it("adds labels to the selected titles in one call and says how many changed", async () => {
+    const { api, cleared } = setup([
+      { method: "GET", path: "/tags", reply: { tags: ["kids"] } },
+      { method: "POST", path: "/titles/tags", reply: { changed: 4 } },
+    ]);
+    const user = userEvent.setup();
+    await user.click(await within(await bar()).findByRole("button", { name: "Tags…" }));
+    const dialog = await screen.findByRole("dialog", { name: "Tags for 5 titles" });
+    expect(within(dialog).getByTestId("confirm-ok").hasAttribute("disabled")).toBe(true);
+    await user.type(within(dialog).getByTestId("tag-input"), "Kids{Enter}");
+    await user.type(within(dialog).getByTestId("tag-input"), "new{Enter}");
+    await user.click(within(dialog).getByRole("button", { name: "Add tags" }));
+    await waitFor(() => expect(api.calls("POST", "/titles/tags")).toHaveLength(1));
+    expect(api.calls("POST", "/titles/tags")[0].body).toEqual({ title_ids: [1, 2, 3, 4, 5], add: ["kids", "new"], remove: [] });
+    await waitFor(() => expect(screen.getAllByTestId("toast").at(-1)?.textContent).toContain("Added kids and new to 4 titles"));
+    expect(cleared()).toBe(1);
+  });
+
+  it("removes a label from the selected titles", async () => {
+    const { api } = setup([
+      { method: "GET", path: "/tags", reply: { tags: ["kids"] } },
+      { method: "POST", path: "/titles/tags", reply: { changed: 2 } },
+    ]);
+    const user = userEvent.setup();
+    await user.click(await within(await bar()).findByRole("button", { name: "Tags…" }));
+    const dialog = await screen.findByRole("dialog", { name: "Tags for 5 titles" });
+    await user.click(within(dialog).getByTestId("bulk-tags-remove"));
+    await user.type(within(dialog).getByTestId("tag-input"), "kids{Enter}");
+    await user.click(within(dialog).getByRole("button", { name: "Remove tags" }));
+    await waitFor(() => expect(api.calls("POST", "/titles/tags")).toHaveLength(1));
+    expect(api.calls("POST", "/titles/tags")[0].body).toEqual({ title_ids: [1, 2, 3, 4, 5], add: [], remove: ["kids"] });
+    await waitFor(() => expect(screen.getAllByTestId("toast").at(-1)?.textContent).toContain("Removed kids from 2 titles"));
+  });
+
+  it("is not offered to a manager who cannot see files", async () => {
+    setup([], ["manage"]);
+    expect(await within(await bar()).findByRole("button", { name: "Remove" })).toBeTruthy();
+    expect(within(await bar()).queryByRole("button", { name: "Tags…" })).toBeNull();
+  });
+});

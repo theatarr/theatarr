@@ -545,7 +545,8 @@ are not shown and writes leave them alone (they show again when the version is t
 versions on does so before its tags are written (`TestTagsSkipRemovedVersions`). Labels (`arrview_tag`) stay global, like an arr's tag list, and
 deleting a label removes it from every version. Theatarr's own pages show a title's tags (the union over its copies
 in the library) and filter by them, for accounts that see files. Managers (manage and see files) edit them in Theatarr
-with one call, `POST /titles/tags` (`{title_ids, add, remove}`, the title page's About **Tags** › Edit), which applies only the labels named: a label in `add` goes on every current copy of each title (not a
+with one call, `POST /titles/tags` (`{title_ids, add, remove}`, the title page's About **Tags** › Edit and the selection
+bar's **Tags…**), which applies only the labels named: a label in `add` goes on every current copy of each title (not a
 removed one), a label in `remove` comes off every copy, removed ones included (so it cannot come back with a restored
 copy), and every other label stays as each copy has it. A copy added later gets no tags by itself. Labels follow the
 compatible tag create's rule (`catalog.FindOrCreateTag`, shared by both: letters, digits and hyphens, an existing
