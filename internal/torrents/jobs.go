@@ -65,6 +65,10 @@ func EnqueueRestore(ctx context.Context, q *jobs.Queue, plan *RestorePlan, req R
 // errBackupBusy is a backup asked for while another runs.
 var errBackupBusy = errors.New("torrents: a backup is already running")
 
+// ErrNothingBackedUp: the backup was written but no provider could be read; the task and the job fail with it (the file
+// keeps the schedule on its interval, so it is not retried before the next run).
+var ErrNothingBackedUp = errors.New("torrents: backup: no provider could be read")
+
 // backup takes one backup and journals it, unless another is running (errBackupBusy).
 func backup(ctx context.Context, m *Manager, p BackupPayload) error {
 	if m.BackupLock != nil {
@@ -82,7 +86,7 @@ func backup(ctx context.Context, m *Manager, p BackupPayload) error {
 		// Written all the same (the scheduler keeps its interval), but nothing in it can be restored.
 		m.journal(ctx, JournalEntry{Action: "backup", BackupID: b.ID, Outcome: "failed", By: p.By,
 			Detail: fmt.Sprintf("%s: no provider could be read", p.Reason)})
-		return nil
+		return ErrNothingBackedUp
 	}
 	m.journal(ctx, JournalEntry{Action: "backup", BackupID: b.ID, Outcome: "ok", By: p.By,
 		Detail: fmt.Sprintf("%s: %d torrents", p.Reason, info.Torrents)})
@@ -104,6 +108,9 @@ func RegisterJobs(w *jobs.Worker, resolve Resolver) {
 		err = backup(ctx, m, p)
 		if errors.Is(err, errBackupBusy) {
 			return jobs.Later(30 * time.Second)
+		}
+		if errors.Is(err, ErrNothingBackedUp) {
+			return jobs.Permanent(err)
 		}
 		return err
 	})

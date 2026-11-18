@@ -652,8 +652,9 @@ func TestBackupPruneKeepsGoodOverFailed(t *testing.T) {
 	e.rd.listErr, e.tb.listErr = errors.New("rd down"), errors.New("tb down")
 	for range 10 {
 		e.now = e.now.Add(2 * 24 * time.Hour)
-		if err := backup(ctx, e.m, BackupPayload{Reason: ReasonScheduled}); err != nil {
-			t.Fatal(err)
+		// The scheduled task fails too (System › Tasks), after the file is written.
+		if err := scheduledTask(func(context.Context) (*Manager, error) { return e.m, nil }, time.Hour).Run(ctx); !errors.Is(err, ErrNothingBackedUp) {
+			t.Fatalf("a failed scheduled backup: %v", err)
 		}
 	}
 	list, _ := e.m.Backups()
