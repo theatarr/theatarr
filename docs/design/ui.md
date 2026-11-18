@@ -872,7 +872,9 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
   - **Monitor / Unmonitor** open a review: the library (**Every library** by default, or one) is picked there, and
     each change asks `POST titles/monitor` with `dry_run`, listing what changes, what is already set and what is
     excluded (titles without the copy); **Apply** sends the preview's values as `expect`, so a copy changed since is
-    skipped as stale, and lists each outcome. Both go in groups of 500 titles (the route's limit), the apply with
+    skipped as stale, and lists each outcome. The review, its button and the result count copies and the libraries
+    they are in ("Would unmonitor 4 copies in 2 libraries", **Apply to 4 copies in 2 libraries**, "Unmonitored 1 copy
+    in 1 library"). Both go in groups of 500 titles (the route's limit), the apply with
     the preview's groups; an apply group that fails says what the groups before it changed and that the rest was not
     changed. It only sets `monitored` on existing copies: nothing is searched or
     grabbed. The Libraries dialog's switch uses the same route for one copy.

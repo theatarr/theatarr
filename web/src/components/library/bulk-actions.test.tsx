@@ -331,12 +331,12 @@ describe("Bulk Add to a library kept in sync", () => {
 
 describe("Bulk Monitor", () => {
   it("previews every library, then the library picked in the review", async () => {
-    const preview = { dry_run: true, changed: 1, unchanged: 0, missing: 0, stale: 0, message: "Would unmonitor 1 library", items: [] };
+    const preview = { dry_run: true, changed: 1, unchanged: 0, missing: 0, stale: 0, message: "Would unmonitor 1 copy in 1 library", items: [] };
     const { api } = setup([{ method: "POST", path: "/titles/monitor", reply: preview }]);
     const user = userEvent.setup();
     await user.click(await within(await bar()).findByRole("button", { name: "Unmonitor" }));
     const dialog = await screen.findByRole("dialog", { name: "Review bulk edit" });
-    await within(dialog).findByText("Would unmonitor 1 library");
+    await within(dialog).findByText("Would unmonitor 1 copy in 1 library");
     await user.selectOptions(within(dialog).getByRole("combobox", { name: "Libraries" }), "uhd");
     await waitFor(() => expect(api.calls("POST", "/titles/monitor")).toHaveLength(2));
     expect(api.calls("POST", "/titles/monitor").map((c) => c.body)).toEqual([

@@ -295,7 +295,7 @@ func TestBulkMonitor(t *testing.T) {
 		}
 	}
 	if pre.Items[0].TitleID != 10 || pre.Changed != 3 || pre.Missing != 1 ||
-		!strings.HasPrefix(pre.Message, "Would unmonitor 3 libraries") {
+		!strings.HasPrefix(pre.Message, "Would unmonitor 3 copies in 3 libraries") {
 		t.Errorf("preview: %+v", pre)
 	}
 
@@ -331,7 +331,7 @@ func TestBulkMonitor(t *testing.T) {
 	}
 	e.call("POST", APIBase+"/titles/monitor", BulkMonitorRequest{TitleIDs: []int64{1}, Versions: []string{"movie-remux"},
 		Monitored: &tr}, 200, &out)
-	if out.Changed != 1 || out.Message != "Monitored 1 library" {
+	if out.Changed != 1 || out.Message != "Monitored 1 copy in 1 library" {
 		t.Errorf("monitor one: %+v", out)
 	}
 
@@ -664,5 +664,22 @@ func TestSeriesTypeEndpoint(t *testing.T) {
 	e.call("GET", APIBase+"/titles/1", nil, 200, &movie)
 	if movie.SeriesType != "" {
 		t.Errorf("a movie has series type %q", movie.SeriesType)
+	}
+}
+
+// The bulk monitor's words count copies and the libraries they are in: two films each in two libraries are 4 copies in
+// 2 libraries, not 4 libraries.
+func TestBulkWordsCountsCopiesAndLibraries(t *testing.T) {
+	items := []BulkItem{{TitleID: 1, Version: "movie-web", Outcome: "changed"}, {TitleID: 1, Version: "movie-remux", Outcome: "changed"},
+		{TitleID: 2, Version: "movie-web", Outcome: "changed"}, {TitleID: 2, Version: "movie-remux", Outcome: "changed"},
+		{TitleID: 3, Version: "movie-hd", Outcome: "unchanged"}}
+	if got := bulkWords(BulkMonitorResult{Items: items, Changed: 4, Unchanged: 1}, false); got != "Unmonitored 4 copies in 2 libraries · 1 already not monitored" {
+		t.Errorf("apply: %q", got)
+	}
+	if got := bulkWords(BulkMonitorResult{DryRun: true, Items: items[:1], Changed: 1}, true); got != "Would monitor 1 copy in 1 library" {
+		t.Errorf("preview: %q", got)
+	}
+	if got := bulkWords(BulkMonitorResult{Items: items[4:], Unchanged: 1}, true); got != "Monitored 0 copies · 1 already monitored" {
+		t.Errorf("nothing: %q", got)
 	}
 }

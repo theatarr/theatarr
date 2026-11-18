@@ -6,7 +6,7 @@
 import { Loader2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
-import { useBulkMonitor, type BulkItem, type BulkMonitorResult } from "@/api/copies";
+import { changedCopies, useBulkMonitor, type BulkItem, type BulkMonitorResult } from "@/api/copies";
 import { usePerms, type TitleRow } from "@/api/library";
 import { useWanted, useWantedSearch, type WantedSearchBody } from "@/api/wanted";
 import { Button } from "@/components/ui/button";
@@ -296,7 +296,7 @@ function ReviewDialog({
             onClick={() => pv && apply.mutate({ title_ids: titleIds, versions, monitored, expect: bulkExpect(pv.items) })}
           >
             {apply.isPending ? <Loader2 className="animate-spin" /> : null}
-            {changes ? `Apply to ${changes === 1 ? "1 library" : `${changes} libraries`}` : "Nothing to change"}
+            {pv && changes ? `Apply to ${changedCopies(pv)}` : "Nothing to change"}
           </Button>
         )}
       </div>

@@ -6,6 +6,7 @@ import type { TitleRow } from "@/api/library";
 import type { CopyColumn } from "@/lib/copies";
 import { json, mockFetch, renderPage, type RequestRecord, type Route } from "@/test/page";
 import { BulkBar } from "./bulk-monitor";
+import { changedCopies } from "@/api/copies";
 
 const managed = { can_edit: true, can_search: true, live_releases: true };
 const rows = (n: number) => Array.from({ length: n }, (_, i) => ({
@@ -185,7 +186,7 @@ describe("Bulk Monitor of a large selection", () => {
     const bar = await screen.findByRole("region", { name: "Bulk edit" });
     await user.click(within(bar).getByRole("button", { name: "Unmonitor" }));
     const dialog = await screen.findByRole("dialog", { name: "Review bulk edit" });
-    await waitFor(() => expect(within(dialog).getByTestId("bulk-message").textContent).toBe("Would unmonitor 1100 libraries"));
+    await waitFor(() => expect(within(dialog).getByTestId("bulk-message").textContent).toBe("Would unmonitor 1,100 copies in 1 library"));
     const sizes = () => api.calls("POST", "/titles/monitor").map((c) => (c.body as { title_ids: number[] }).title_ids.length);
     expect(sizes()).toEqual([500, 500, 100]);
     // Another library: Apply is off until its preview is in.
@@ -193,13 +194,22 @@ describe("Bulk Monitor of a large selection", () => {
     await waitFor(() => expect(sizes()).toHaveLength(4));
     expect((within(dialog).getByRole("button", { name: /Apply to|Nothing to change/ }) as HTMLButtonElement).disabled).toBe(true);
     release();
-    const applyButton = await within(dialog).findByRole("button", { name: "Apply to 1100 libraries" });
+    const applyButton = await within(dialog).findByRole("button", { name: "Apply to 1,100 copies in 1 library" });
     await waitFor(() => expect((applyButton as HTMLButtonElement).disabled).toBe(false));
     await user.click(applyButton);
-    await waitFor(() => expect(within(dialog).getByTestId("bulk-message").textContent).toBe("Unmonitored 1100 libraries"));
+    await waitFor(() => expect(within(dialog).getByTestId("bulk-message").textContent).toBe("Unmonitored 1,100 copies in 1 library"));
     const applies = api.calls("POST", "/titles/monitor").slice(6) as RequestRecord[];
     expect(applies.map((c) => (c.body as { title_ids: number[] }).title_ids.length)).toEqual([500, 500, 100]);
     expect(applies.map((c) => (c.body as { expect: unknown[] }).expect.length)).toEqual([500, 500, 100]);
     expect((applies[2].body as { title_ids: number[] }).title_ids[0]).toBe(1001);
+  });
+});
+
+describe("Bulk Monitor's count", () => {
+  it("counts copies and the libraries they are in: two films in two libraries each are 4 copies in 2 libraries", () => {
+    const it = (title_id: number, version: string, outcome: "changed" | "unchanged" = "changed") => ({ title_id, title: `Film ${title_id}`, version, label: version, outcome, to: false });
+    const items = [it(1, "movie-web"), it(1, "movie-remux"), it(2, "movie-web"), it(2, "movie-remux"), it(3, "movie-hd", "unchanged")];
+    expect(changedCopies({ items, changed: 4 })).toBe("4 copies in 2 libraries");
+    expect(changedCopies({ items: items.slice(0, 1), changed: 1 })).toBe("1 copy in 1 library");
   });
 });

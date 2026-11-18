@@ -988,7 +988,7 @@ func monitoredWord(m bool) string {
 	return "not monitored"
 }
 
-// bulkWords says what a bulk monitor did (or would do): "Monitored 3 copies · 2 already monitored".
+// bulkWords says what a bulk monitor did (or would do): "Monitored 3 copies in 2 libraries · 2 already monitored".
 func bulkWords(o BulkMonitorResult, to bool) string {
 	verb := "Monitored"
 	if !to {
@@ -1003,7 +1003,16 @@ func bulkWords(o BulkMonitorResult, to bool) string {
 		}
 		return fmt.Sprintf("%d %s", k, many)
 	}
-	parts := []string{verb + " " + n(o.Changed, "library", "libraries")}
+	libs := map[string]bool{}
+	for _, it := range o.Items {
+		if it.Outcome == "changed" {
+			libs[it.Version] = true
+		}
+	}
+	parts := []string{verb + " " + n(o.Changed, "copy", "copies")}
+	if len(libs) > 0 {
+		parts[0] += " in " + n(len(libs), "library", "libraries")
+	}
 	if o.Unchanged > 0 {
 		parts = append(parts, fmt.Sprintf("%d already %s", o.Unchanged, monitoredWord(to)))
 	}

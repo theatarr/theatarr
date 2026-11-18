@@ -230,7 +230,7 @@ describe("Library table", () => {
 
   it("opens the Libraries dialog from a pill, and its switch monitors through the bulk route, never a search", async () => {
     const fetch = mockFetch(routes([
-      { method: "POST", path: "/titles/monitor", reply: { dry_run: false, items: [], changed: 1, unchanged: 0, missing: 0, stale: 0, message: "Unmonitored 1 library" } },
+      { method: "POST", path: "/titles/monitor", reply: { dry_run: false, items: [], changed: 1, unchanged: 0, missing: 0, stale: 0, message: "Unmonitored 1 copy in 1 library" } },
     ]));
     const user = userEvent.setup();
     renderPage(<Catalog id="series" />, "/series");
@@ -378,14 +378,14 @@ describe("Library table", () => {
 
   it("selects titles, previews with unchanged copies apart, and applies with expect", async () => {
     const preview = {
-      dry_run: true, changed: 1, unchanged: 1, missing: 0, stale: 0, message: "Would monitor 1 library · 1 already monitored",
+      dry_run: true, changed: 1, unchanged: 1, missing: 0, stale: 0, message: "Would monitor 1 copy in 1 library · 1 already monitored",
       items: [
         { title_id: 1, title: "The Pellbrook Inquiries", version: "tv-2160p", label: "4K", outcome: "unchanged", from: true, to: true },
         { title_id: 2, title: "Ferrous Bay", version: "tv-2160p", label: "4K", outcome: "changed", from: false, to: true },
       ],
     };
     const fetch = mockFetch(routes([
-      { method: "POST", path: "/titles/monitor", reply: (r: { body?: { dry_run?: boolean } }) => (r.body?.dry_run ? preview : { ...preview, dry_run: false, message: "Monitored 1 library · 1 already monitored" }) },
+      { method: "POST", path: "/titles/monitor", reply: (r: { body?: { dry_run?: boolean } }) => (r.body?.dry_run ? preview : { ...preview, dry_run: false, message: "Monitored 1 copy in 1 library · 1 already monitored" }) },
     ]));
     const user = userEvent.setup();
     renderPage(<Catalog id="series" />, "/series");
@@ -401,11 +401,11 @@ describe("Library table", () => {
     const dialog = await screen.findByRole("dialog", { name: "Review bulk edit" });
     await user.selectOptions(within(dialog).getByRole("combobox", { name: "Libraries" }), "tv-2160p");
     await waitFor(() => expect(fetch.calls("POST", "/titles/monitor")).toHaveLength(2));
-    await within(dialog).findByText("Would monitor 1 library · 1 already monitored");
+    await within(dialog).findByText("Would monitor 1 copy in 1 library · 1 already monitored");
     expect(within(within(dialog).getByTestId("bulk-same")).getByText("The Pellbrook Inquiries")).toBeTruthy();
     expect(fetch.calls("POST", "/titles/monitor")[1].body).toEqual({ title_ids: [1, 2], versions: ["tv-2160p"], monitored: true, dry_run: true });
-    await user.click(within(dialog).getByRole("button", { name: "Apply to 1 library" }));
-    await within(dialog).findByText("Monitored 1 library · 1 already monitored");
+    await user.click(within(dialog).getByRole("button", { name: "Apply to 1 copy in 1 library" }));
+    await within(dialog).findByText("Monitored 1 copy in 1 library · 1 already monitored");
     const calls = fetch.calls("POST", "/titles/monitor");
     expect(calls[calls.length - 1].body).toEqual({ title_ids: [1, 2], versions: ["tv-2160p"], monitored: true, expect: [{ title_id: 2, version: "tv-2160p", monitored: false }] });
     expect(fetch.requests.filter((r) => r.method !== "GET").every((r) => r.path === "/titles/monitor")).toBe(true);
@@ -444,15 +444,15 @@ describe("Library table", () => {
     expect(fetch.calls("GET", "/titles").map((c) => new URLSearchParams(c.search).get("offset"))).toEqual(["0", "60", "120", "180", "240", "300", "360", "420", "480"]);
     await user.click(within(bar).getByRole("button", { name: "Monitor" }));
     const dialog = await screen.findByRole("dialog", { name: "Review bulk edit" });
-    await within(dialog).findByText("Would monitor 524 libraries");
-    await user.click(within(dialog).getByRole("button", { name: "Apply to 524 libraries" }));
+    await within(dialog).findByText("Would monitor 524 copies in 1 library");
+    await user.click(within(dialog).getByRole("button", { name: "Apply to 524 copies in 1 library" }));
     return { fetch, dialog };
   };
 
   // 524 rows: slow under a full parallel run.
   it("selects all matches: loads the remaining pages, counts them all, and monitors in groups of 500 with the same ids", { timeout: 30_000 }, async () => {
     const { fetch, dialog } = await selectAllMatches();
-    await within(dialog).findByText("Monitored 524 libraries");
+    await within(dialog).findByText("Monitored 524 copies in 1 library");
     const calls = fetch.calls("POST", "/titles/monitor").map((c) => c.body as { title_ids: number[]; dry_run?: boolean; expect?: { title_id: number }[] });
     expect(calls.map((c) => [c.title_ids.length, !!c.dry_run])).toEqual([[500, true], [24, true], [500, false], [24, false]]);
     expect(calls[2].title_ids).toEqual(calls[0].title_ids);
@@ -462,7 +462,7 @@ describe("Library table", () => {
 
   it("says what was done and what was not when a later group of the apply fails", { timeout: 30_000 }, async () => {
     const { dialog } = await selectAllMatches(501);
-    await within(dialog).findByText("Monitored 500 libraries for the first 500 of 524 titles; the other 24 were not changed: database is locked");
+    await within(dialog).findByText("Monitored 500 copies in 1 library for the first 500 of 524 titles; the other 24 were not changed: database is locked");
   });
 
   for (const how of ["Clear selection", "Done"]) {
