@@ -5,14 +5,17 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { useLocation } from "react-router";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { json, mockFetch, renderPage } from "@/test/page";
 import { Toaster } from "@/components/toaster";
 import { noteLocation } from "@/lib/last-list";
 import { KeptFiles } from "./copy-actions";
 import { LibraryRows } from "./library-rows";
 
-afterEach(() => window.localStorage.clear());
+afterEach(() => {
+  window.localStorage.clear();
+  vi.unstubAllGlobals();
+});
 
 const live = { can_edit: true, can_search: true, live_releases: true, grab_state: { paused: false, pause_forced: false, will_grab: true } };
 const watch = { can_edit: true, can_search: false, live_releases: false, search_reason: "held by the server", grab_state: { paused: false, pause_forced: false, will_grab: false } };
@@ -406,5 +409,44 @@ describe("Library files (J5)", () => {
     renderPage(<LibraryRows title={title as never} versions={[web] as never} />);
     await waitFor(() => expect(screen.getAllByTestId("library-row")).toHaveLength(1));
     expect(screen.getByRole("columnheader", { name: "Monitored" })).toBeTruthy();
+  });
+});
+
+describe("a file's media (Y6)", () => {
+  const phone = () => vi.stubGlobal("matchMedia", (q: string) => ({ matches: !q.includes("min-width"), media: q, addEventListener() {}, removeEventListener() {} }));
+  const subs = ["eng", "ara", "zho", "hrv", "ces", "dan", "nld", "fin", "fre", "ger", "ell", "heb", "hin", "hun", "ind", "ita", "jpn", "kor", "msa", "nor", "pol", "por", "ron", "rus", "spa", "swe", "tha", "tur", "ukr", "vie"];
+  const media = { resolution: "3840x2160", video_codec: "x265", video_bit_depth: 10, video_dynamic_range: "DV HDR10", audio_codec: "TrueHD Atmos", audio_channels: 7.1,
+    audio_languages: "eng/jpn", subtitles: subs.join("/"), run_time: "2:03:04",
+    audio_tracks: [{ codec: "TrueHD Atmos", channels: 7.1, language: "eng" }, { codec: "FLAC", channels: 2, language: "jpn" }] };
+  const probed = { ...web, current: { ...web.current, media } };
+
+  it("adds the media line to a movie's phone card, and none for a file without media", async () => {
+    phone();
+    manager();
+    renderPage(<LibraryRows title={title as never} versions={[probed, remux] as never} />);
+    await waitFor(() => expect(screen.getAllByTestId("library-row")).toHaveLength(2));
+    expect(within(rowOf("movie-web")).getByTestId("library-media").textContent)
+      .toBe("3840x2160 · x265 10-bit · DV HDR10 · TrueHD Atmos 7.1 · English, Japanese · subtitles English, Arabic, Chinese, Croatian +26 · 2:03:04");
+    expect(within(rowOf("movie-remux")).queryByTestId("library-media")).toBeNull();
+  });
+
+  it("shows a Media group in a movie row's Details: every subtitle once in full, each audio track on a line, no tooltip", async () => {
+    phone();
+    manager();
+    const user = userEvent.setup();
+    renderPage(<LibraryRows title={title as never} versions={[probed, remux] as never} />);
+    await user.click(await screen.findByTestId("copy-details-movie-web"));
+    const group = within(screen.getByTestId("library-row-details-movie-web")).getByTestId("media-group");
+    const value = (label: string) => within(group).getByText(label).nextElementSibling as HTMLElement;
+    expect(value("Video").textContent).toBe("3840x2160 · x265 10-bit · DV HDR10");
+    expect([...value("Audio").querySelectorAll("span > span")].map((s) => s.textContent)).toEqual(["English · TrueHD Atmos 7.1", "Japanese · FLAC 2.0"]);
+    expect(within(group).queryByText("Audio languages")).toBeNull();
+    expect(value("Subtitles").textContent?.split(", ")).toHaveLength(30);
+    expect(value("Subtitles").textContent).not.toContain("+");
+    expect(value("Runtime").textContent).toBe("2:03:04");
+    expect(group.querySelector("[title]")).toBeNull();
+    // A file without media has no group.
+    await user.click(screen.getByTestId("copy-details-movie-remux"));
+    expect(within(screen.getByTestId("library-row-details-movie-remux")).queryByTestId("media-group")).toBeNull();
   });
 });

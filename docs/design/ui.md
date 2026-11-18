@@ -476,16 +476,26 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   **Details**, which opens a panel under the row: path, edition, a series' episode counts, one **Upgrade** line (the
   quality word with Why? when no Status cell gives it, the episodes under the preferred quality, and the better
   release found), minimum availability when its column is hidden, then the library key (admins) and the hash,
-  **Add to other providers** (managers, a movie's file whose torrent is not on every provider with a key; torrents.md
+  a movie's **Media** group (see "Media group" below), **Add to other providers** (managers, a movie's file whose torrent is not on every provider with a key; torrents.md
   "Add to other providers"), the library's
   restriction notes, **See in Wanted** / **See in Cutoff unmet** (managers, monitored libraries; Cutoff unmet not once the quality is met), **Last search results**
   (managers), each library link with **Unlink**, and **Remove from this library** (managers). Below 768 px each
   library is a stacked block: switch, name, tag and status; quality · score · size, and the provider pills when any
-  provider holds the file; the file name; then
+  provider holds the file; a movie file's media line as the Media column writes it (wrapping, nothing without media);
+  the file name; then
   Search now, Interactive search and Details with their words. There is no Columns button there. A library the
   title was removed from has no row; if it still has links, one line under the table says "Still linked from a
   library this title was removed from: <library> (N files)." with **Delete files…** (managers). With no library:
   "This title is in no library yet."
+- **Media group** (a movie row's Details at every width): the file's media in plain text
+  under "Media", one row per fact it has, nothing on hover: **Video** (resolution · codec and bit depth · dynamic
+  range), **Audio** ("TrueHD Atmos 7.1" for one track; with several probed tracks each on its own line, "Japanese ·
+  FLAC 2", the codec alone for a track without a language), **Audio languages** (each once, by name; only when the
+  Audio row does not list the tracks), **Subtitles** (every language once, by name, in full, wrapping) and
+  **Runtime**. The tracks come from Theatarr's own probe, which read the profile words (Atmos, DTS-HD MA) of the
+  first track only, so a later track reads as its codec family ("TrueHD 7.1"); a taken-over file has the arr's first
+  track only. A file with no media (taken over without the arr's media info) has no group, and neither has a movie
+  library with several active links (its Details lists each file). Accounts without "see files" get no media.
 - **Latest event** under the status (`latestEvent`, `web/src/lib/title-facts.ts`, from the title response's
   per-library `history`): "4K Remux: Imported yesterday", "Upgraded yesterday" for an import that replaced a file ("Re-downloaded yesterday" when every file it replaced was the same release by name, `redownload`; the
   server's `upgraded`: History has an Upgraded row for that download), or the last failed download with the server's

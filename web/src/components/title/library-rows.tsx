@@ -18,6 +18,7 @@ import { AddToProviders } from "@/components/title/add-to-providers";
 import { CopyActions, LeftoverLinks, RemoveDialog } from "@/components/title/copy-actions";
 import { InfoHash, TorrentLink } from "@/components/title/info-hash";
 import { InteractiveSearch } from "@/components/title/interactive-search";
+import { MediaGroup } from "@/components/title/media-group";
 import { ControlNote, MonitorSwitch } from "@/components/title/manage-bits";
 import { MinimumAvailabilityControl } from "@/components/title/title-choices";
 import { UpgradeStatus } from "@/components/title/upgrade-why";
@@ -213,6 +214,7 @@ function RowDetails({ v, kind, minimumShown, statusShown, onRemove }: { v: Versi
   return (
     <div className="space-y-3" data-testid={`library-row-details-${key}`}>
       <KV items={rows} />
+      {kind === "movie" && v.has_file ? <MediaGroup m={c?.media} /> : null}
       {kind === "movie" && perms.manage && v.has_file ? <AddToProviders hash={c?.info_hash} addTo={v.add_to} /> : null}
       <ControlNote c={v.control} kind="both" globalSaid verdictSaid={!!v.control?.grab_state} />
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
@@ -320,7 +322,8 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
     })),
   ];
 
-  // The phone block: switch, name, tag and status; quality · score · size · providers (when any); the file name.
+  // The phone block: switch, name, tag and status; quality · score · size · providers (when any); a movie file's media
+  // line (as the Media column writes it, wrapping); the file name.
   const cardHead = (v: Version) => {
     const c = v.current;
     const facts = [
@@ -342,6 +345,9 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
             {v.cached_on?.length ? <ProviderPills codes={v.cached_on} testid="cached-on" /> : null}
             <TorrentLink hash={c?.info_hash} />
           </div>
+        ) : null}
+        {kind === "movie" && v.has_file && mediaLine(c?.media) ? (
+          <div className="text-xs text-[var(--ink-2)] [overflow-wrap:anywhere]" data-testid="library-media">{mediaLine(c?.media)}</div>
         ) : null}
         {v.has_file && c?.path ? <div className="truncate font-mono text-[12px] text-muted-foreground" title={c.path} data-testid="library-file">{fileName(c.path)}</div> : null}
       </div>
