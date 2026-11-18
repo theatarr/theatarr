@@ -1177,7 +1177,7 @@
             "default": "30",
             "label": "Backups to keep",
             "type": "integer",
-            "help": "This is how many backups are kept (scheduled, by hand and before a delete alike); those from the last week are kept besides. Default 30."
+            "help": "This is how many good backups are kept (scheduled, by hand and before a delete alike); one no provider could be read for does not count, and those from the last week are kept besides. Default 30."
           }
         ]
       }

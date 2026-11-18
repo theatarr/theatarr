@@ -115,7 +115,7 @@ torrents:
   scan_roots: [/mnt/media/other-library]
   backup:
     every: 24h   # scheduled backups; off when unset (the default)
-    keep: 30     # newest kept; every backup from the last 7 days is kept too (default 30, max 1000)
+    keep: 30     # newest good backups kept; every backup from the last 7 days is kept too (default 30, max 1000)
 ```
 
 ## Report

@@ -19,8 +19,8 @@ type Torrents struct {
 type TorrentBackup struct {
 	// Every is the interval of scheduled backups; 0 (the default) is off. Minimum 1h.
 	Every Duration `yaml:"every"`
-	// Keep is how many backups are kept (scheduled, by hand and before a delete alike); those from the last week are
-	// kept besides. Default 30.
+	// Keep is how many good backups are kept (scheduled, by hand and before a delete alike); one no provider could be
+	// read for does not count, and those from the last week are kept besides. Default 30.
 	Keep int `yaml:"keep"`
 }
 

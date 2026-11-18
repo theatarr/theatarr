@@ -14,7 +14,7 @@ it("renders the four backup sections in order and shows the torrent schedule as 
   { method: "GET", path: "/health", reply: { checks: [] } },
  ]);
  renderPage(<BackupPage />, "/admin/system/backup");
- expect((await screen.findByTestId("torrent-backup-schedule")).textContent).toContain("Scheduled every 6 h · keeps the newest 12");
+ expect((await screen.findByTestId("torrent-backup-schedule")).textContent).toContain("Scheduled every 6 h · keeps the newest 12 good backups and every backup from the last week.");
  const names = ["Theatarr backups", "Torrent-list backups", "Settings export", "Database details"];
  const headings = screen.getAllByRole("heading").map(h => h.textContent).filter(h => names.includes(h!));
  expect(headings).toEqual(names);

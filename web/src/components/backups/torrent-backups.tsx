@@ -87,7 +87,7 @@ export function TorrentBackups() {
     >
       <p className="mb-2 text-sm text-muted-foreground">Saved lists of your debrid torrents. Restoring re-adds them to a provider; it does not touch Theatarr’s settings.</p>
       {q.data ? <p className="mb-2 text-sm text-muted-foreground">
-        <span data-testid="torrent-backup-schedule">{every > 0 ? `Scheduled every ${Math.round(every / 3600)} h` : "Scheduled backups are off"} · keeps the newest {q.data.keep} and every backup from the last week.</span>{" "}
+        <span data-testid="torrent-backup-schedule">{every > 0 ? `Scheduled every ${Math.round(every / 3600)} h` : "Scheduled backups are off"} · keeps the newest {q.data.keep} good backups and every backup from the last week.</span>{" "}
         {/* The schedule is a setting: read here, changed in Settings › Download clients › Torrents. */}
         <Link className="text-primary hover:underline" to={settingHref("torrents", "backup") ?? "/admin/settings"} data-testid="torrent-backup-edit">Change the schedule</Link>.
         {" "}A Debrid Media Manager backup imports with a provider chosen above.

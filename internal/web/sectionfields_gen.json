@@ -204,7 +204,7 @@
   },
   "TorrentBackup": {
     "every": "This is the interval of scheduled backups; 0 (the default) is off. Minimum 1h.",
-    "keep": "This is how many backups are kept (scheduled, by hand and before a delete alike); those from the last week are kept besides. Default 30."
+    "keep": "This is how many good backups are kept (scheduled, by hand and before a delete alike); one no provider could be read for does not count, and those from the last week are kept besides. Default 30."
   },
   "Torrents": {
     "backup": "This schedules backups of the provider torrent lists. Off unless backup.every is set.",
