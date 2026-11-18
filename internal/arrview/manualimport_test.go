@@ -315,6 +315,16 @@ func TestManualNativeSaysWhyNothingIsListed(t *testing.T) {
 	if code, why := native("folder=" + filepath.Join(mount, "empty")); code != 200 || why != "" {
 		t.Errorf("empty folder: %d %q", code, why)
 	}
+	// The title removed from this library: its download's files are not listed for it.
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (2, 'radarr', 0)`)
+	if code, why := native("downloadId=" + nfo); code != 409 || why != "The title was removed from this library: add it there again first" {
+		t.Errorf("removed title: %d %q", code, why)
+	}
+	var list []manualImportResource
+	e.call("GET", base+"downloadId="+nfo, nil, 200, &list)
+	if len(list) != 0 {
+		t.Errorf("arr API, removed title: %+v", list)
+	}
 }
 
 // The plan's reason for linking nothing is said as the queue says it: a title hold by its message, the release not on

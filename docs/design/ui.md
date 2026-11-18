@@ -1479,7 +1479,8 @@ says why, told apart by the native GET (the arr API keeps its empty list): "No d
 library" (404, with that pointer), "Its files cannot be listed now: <the planner's wait, or its error without
 the library's prefix>" (409: a title hold by its message, "the release folder is not on the mount yet" only when the
 plan says so, a mount mismatch or an unreadable file), "Nothing to import: <the hold or rejection reason>" (409, e.g. a
-folder with only an .nfo), "The folder cannot be read:
+folder with only an .nfo), "The title was removed from this library: add it there again first" (409, checked before
+the plan), "The folder cannot be read:
 <why>" (422), and for a readable folder without video files "No video files in this folder"; a listing says "N
 candidate files". Changing Source clears the result and the candidates, and each source keeps its own typed value;
 every new listing clears the old candidates first, so a failed one leaves none to import. Review choices refreshes

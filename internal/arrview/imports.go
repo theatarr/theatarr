@@ -435,8 +435,19 @@ func (s *Service) manualFromDownload(ctx context.Context, r *request, hash strin
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, &manualEmpty{http.StatusNotFound, "No download with this hash in this library"}
 	}
-	if err != nil || s.library == nil {
+	if err != nil {
+		return nil, err
+	}
+	if s.library == nil {
 		return out, nil
+	}
+	// The title must still be in this library before its files are planned for it.
+	e, err := s.loadOne(ctx, r.v, tid)
+	if err != nil {
+		return nil, err
+	}
+	if e == nil {
+		return nil, &manualEmpty{http.StatusConflict, "The title was removed from this library: add it there again first"}
 	}
 	plan, err := s.library.Import(ctx, id, true)
 	if err != nil {
@@ -448,10 +459,6 @@ func (s *Service) manualFromDownload(ctx context.Context, r *request, hash strin
 			return nil, &manualEmpty{http.StatusConflict, "Its files cannot be listed now: " + planWhy(plan.Why)}
 		}
 		return nil, &manualEmpty{http.StatusConflict, "Nothing to import: " + planWhy(plan.Why)}
-	}
-	e, err := s.loadOne(ctx, r.v, tid)
-	if err != nil || e == nil {
-		return out, err
 	}
 	rejected := map[string]string{}
 	for _, f := range plan.Rejected {
