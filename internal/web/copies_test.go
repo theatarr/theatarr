@@ -627,6 +627,14 @@ func TestMinimumAvailabilityEndpoint(t *testing.T) {
 	if strings.Join(got, " ") != "movie-remux=inCinemas/false movie-web=inCinemas/true" {
 		t.Errorf("after library default: %s", got)
 	}
+	// A household account (no see_files) is not told where the value comes from.
+	ur := httptest.NewRequest("GET", APIBase+"/titles/1", nil)
+	ur.Header.Set(auth.APIKeyHeader, e.key)
+	urec := httptest.NewRecorder()
+	e.userMux().ServeHTTP(urec, ur)
+	if urec.Code != 200 || strings.Contains(urec.Body.String(), "minimum_availability_default") {
+		t.Errorf("household: %d %s", urec.Code, urec.Body.String())
+	}
 }
 
 // TestSeriesTypeEndpoint: POST /titles/series-type edits the series' one type and leaves the anime flag; a movie, a
