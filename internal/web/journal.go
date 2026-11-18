@@ -33,7 +33,7 @@ func (w *Web) apiJournalFlagged(rw http.ResponseWriter, r *http.Request) {
 }
 
 // journalFilter reads since (RFC 3339, YYYY-MM-DD, or a duration back from now such as 72h), title (what a person
-// typed: a number is the id or part of the name, other text part of the name), title_id (one title exactly), version, kind (comma-separated or repeated), suspect, severity, cursor and limit (≤500).
+// typed: a number is the id or a whole title name, other text part of the name), title_id (one title exactly), version, kind (comma-separated or repeated), suspect, severity, cursor and limit (≤500).
 func (w *Web) journalFilter(r *http.Request) (journal.Filter, error) {
 	q := r.URL.Query()
 	f := journal.Filter{Title: strings.TrimSpace(q.Get("title")), Version: q.Get("version"),

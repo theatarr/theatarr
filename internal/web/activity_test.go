@@ -1525,6 +1525,14 @@ func TestHistoryTitleIDNotMatchedByName(t *testing.T) {
 	if len(one.History) != 1 || one.History[0].Title.ID != 1 {
 		t.Errorf("title 1's History: %+v", one.History)
 	}
+	// Activity › History's typed title box: a number is the id only, as before (the wider match is the journal's).
+	var typed ActivityPage
+	if code := e.getKey(APIBase+"/activity?state=history&title=1", key, &typed); code != 200 {
+		t.Fatalf("typed history: %d", code)
+	}
+	if len(typed.History) != 1 || typed.History[0].Title.ID != 1 {
+		t.Errorf("History typed 1: %+v", typed.History)
+	}
 	if code := e.getKey(APIBase+"/journal?title_id=x", key, nil); code != 400 {
 		t.Errorf("journal title_id=x: %d", code)
 	}

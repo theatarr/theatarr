@@ -53,16 +53,20 @@ func TestActionEntries(t *testing.T) {
 	}
 }
 
-// The typed title filter finds a title named by a number ("1923") by its name as well as the title with that id; a
+// The typed title filter finds a title named by a number ("1923") by its whole name as well as the title with that id
+// (not "Hollywood in 1923" or "19230"); a
 // title's own History and journal (TitleID) keep that title's entries only, even when another title is named like its
 // id (UI sweep 5, J1).
 func TestTitleFilterTypedNumberAndExactID(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
 	now := msOf(testNow)
-	e.exec(`INSERT INTO title (id, kind, name, year, tmdb_id, created_at, updated_at) VALUES (4, 'movie', '1', 2022, 104, ?, ?)`, now, now)
+	e.exec(`INSERT INTO title (id, kind, name, year, tmdb_id, created_at, updated_at) VALUES (4, 'movie', '1', 2022, 104, ?, ?),
+		(5, 'movie', 'Hollywood in 1', 2023, 105, ?, ?), (6, 'movie', '1917', 2019, 106, ?, ?)`, now, now, now, now, now, now)
 	for _, a := range []Action{{Action: ActUnblock, TitleID: 1, Version: "movie-web", Target: hashA, By: "mgr"},
-		{Action: ActUnblock, TitleID: 4, Version: "movie-web", Target: hashB, By: "mgr"}} {
+		{Action: ActUnblock, TitleID: 4, Version: "movie-web", Target: hashB, By: "mgr"},
+		{Action: ActUnblock, TitleID: 5, Version: "movie-web", Target: hashC, By: "mgr"},
+		{Action: ActUnblock, TitleID: 6, Version: "movie-web", Target: "dddddddddddddddddddddddddddddddddddddddd", By: "mgr"}} {
 		if _, err := e.j.Record(ctx, a); err != nil {
 			t.Fatal(err)
 		}
@@ -78,7 +82,8 @@ func TestTitleFilterTypedNumberAndExactID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := titles(p.Items); !got[1] || !got[4] {
+	// A typed number is the id or the whole name, never part of a name.
+	if got := titles(p.Items); len(got) != 2 || !got[1] || !got[4] {
 		t.Errorf("typed 1: titles %v, want the title with id 1 and the one named 1", got)
 	}
 	p, err = e.j.List(ctx, Filter{TitleID: 1})

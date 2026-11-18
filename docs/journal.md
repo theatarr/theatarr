@@ -19,7 +19,7 @@ Filters work the same way in the API and the CLI (`-flag` or `?param=`):
 | Filter | Value |
 |---|---|
 | `since` | RFC 3339, `YYYY-MM-DD`, or a duration back from now (`72h`; the CLI also takes `30d`) |
-| `title` | What a person typed (the list's "Title or id" box, `theatarr journal -title`): a number matches the title with that id and the titles whose name matches it (a film named "1923" is found by its name); other text, part of a title's name |
+| `title` | What a person typed (the list's "Title or id" box, `theatarr journal -title`): a number matches the title with that id and the titles whose whole name is that number (a film named "1923", not "Hollywood in 1923"); other text, part of a title's name. Activity › History's typed box keeps a number as the id only |
 | `title_id` | One title exactly, by its id: the title page's journal and its **Open in the journal** link (the list then says "Only <title>" with **Show every title**; typing a title replaces it); History by title uses it too |
 | `version` | A version key (`movie-remux`) |
 | `kind` | A comma list of kinds (table below) |
