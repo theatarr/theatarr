@@ -259,7 +259,7 @@ export function WantedPage() {
   const cells: Record<Column, DataColumn<WantedRow>> = {
     library: { id: "library", label: "Library", cell: row => <VersionTag k={row.version} label={d?.libraries[row.version]} /> },
     what: { id: "what", label: "What", cellClassName: "max-w-[22rem]", cell: row => <WhatCell row={row} /> },
-    date: { id: "date", label: "Released", sortable: true, cell: row => row.date ? fmtDay(row.date) : "—" },
+    date: { id: "date", label: "Released", sortable: true, cell: row => !row.date ? "—" : row.date_estimate ? `~${fmtDay(row.date)} (estimate)` : fmtDay(row.date) },
     next: { id: "next", label: "Next search", cell: row => <NextSearch row={row} state={states.get(row.version)} off={off} admin={perms.admin} /> },
     // The decision behind the last search sits with it, so the row's actions keep their place.
     last: { id: "last", label: "Last search", sortable: true, cell: row => {

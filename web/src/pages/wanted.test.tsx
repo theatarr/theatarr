@@ -402,6 +402,13 @@ it("shows no Missing rows under Cutoff unmet while its rows load", async () => {
   expect(screen.queryByRole("checkbox", { name: "Select Alpha, Movie, 4K WEB" })).toBeNull();
 });
 
+it("marks a film's estimated home release in Released as the title pages do", async () => {
+  mockFetch([admin, status, { method: "GET", path: "/wanted", reply: { ...page, items: [{ ...row, date: "1987-03-25", date_estimate: true }], total: 1 } }]);
+  renderPage(<WantedPage />);
+  const rows = await screen.findAllByTestId("wanted-row");
+  expect(rows[0].querySelector('[data-column="date"]')?.textContent).toBe("~Mar 25, 1987 (estimate)");
+});
+
 it("sorts on the server from the headers and the sort picker, and filters to one title with a removable chip", async () => {
   const user = userEvent.setup();
   const grabbed = { ...row, title_id: 2, waiting: "scheduled" as const, next_at: inHours(2), date: "2026-03-18",

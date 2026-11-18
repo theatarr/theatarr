@@ -84,11 +84,14 @@ type WantedRow struct {
 	Waiting string `json:"waiting"`
 	// Date is the row's air or release date, YYYY-MM-DD: the newest stored air date of its episodes, a film's home
 	// release (availability.HomeRelease); absent when unknown. Episodes counts a season row's episodes.
-	Date     string     `json:"date,omitempty"`
-	Episodes int        `json:"episodes,omitempty"`
-	NextAt   *time.Time `json:"next_at"`
-	Why      string     `json:"why,omitempty"`
-	Tries    int        `json:"tries,omitempty"`
+	Date string `json:"date,omitempty"`
+	// DateEstimate: a film's Date is its home release worked out as the cinema date plus 90 days (no digital or disc
+	// date known), as the title pages mark it.
+	DateEstimate bool       `json:"date_estimate,omitempty"`
+	Episodes     int        `json:"episodes,omitempty"`
+	NextAt       *time.Time `json:"next_at"`
+	Why          string     `json:"why,omitempty"`
+	Tries        int        `json:"tries,omitempty"`
 	// Season is the row's season (absent for a movie).
 	Season *int `json:"season,omitempty"`
 	// versionID keys the row's latest runs (sortWanted).
@@ -337,8 +340,10 @@ func (a *Acquirer) movieDates(ctx context.Context, list []WantedRow) error {
 		return err
 	}
 	for i := range list {
-		if d := availability.HomeRelease(dates[list[i].TitleID]); list[i].Season == nil && !d.IsZero() {
+		ds := dates[list[i].TitleID]
+		if d := availability.HomeRelease(ds); list[i].Season == nil && !d.IsZero() {
 			list[i].Date = d.Format(time.DateOnly)
+			list[i].DateEstimate = ds["digital"].IsZero() && ds["physical"].IsZero()
 		}
 	}
 	return nil

@@ -504,6 +504,36 @@ func TestWantedListLastRunBySeason(t *testing.T) {
 	}
 }
 
+// A film known only by its cinema date has the home release worked out as 90 days later: its row says the date is an
+// estimate, as the title pages do; a film with a digital date does not.
+func TestWantedEstimatedHomeRelease(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, &policy.Wanted{PerHour: 100, Missing: new(false), CutoffUnmet: policy.CutoffOff})
+	e.exec(`UPDATE title_release_date SET type = 'theatrical', date = '1986-12-25' WHERE title_id = 2`)
+	l, err := e.a.WantedList(e.ctx, WantedQuery{Only: OnlyMissing})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := 0
+	for _, r := range l.Items {
+		switch r.TitleID {
+		case 1:
+			seen++
+			if r.Date != "2024-01-01" || r.DateEstimate {
+				t.Errorf("digital date: %s estimate %v", r.Date, r.DateEstimate)
+			}
+		case 2:
+			seen++
+			if r.Date != "1987-03-25" || !r.DateEstimate {
+				t.Errorf("estimated home release: %s estimate %v", r.Date, r.DateEstimate)
+			}
+		}
+	}
+	if seen != 2 {
+		t.Fatalf("rows %+v", l.Items)
+	}
+}
+
 // Wanted's title filter narrows rows, counts, paging and Search all; its sorts order the whole list before paging;
 // each row carries its air or release date, a season row its episode count, and a grabbed run its download.
 func TestWantedTitleFilterSortAndDates(t *testing.T) {
