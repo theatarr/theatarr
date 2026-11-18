@@ -116,7 +116,7 @@ export type JournalPage = Get<"/journal">;
 export const useTitleJournal = (id: string, enabled: boolean) =>
   useQuery({
     queryKey: qk.journal.title(id),
-    queryFn: () => api<JournalPage>("/journal" + qs({ title: id, limit: 50 })),
+    queryFn: () => api<JournalPage>("/journal" + qs({ title_id: id, limit: 50 })),
     enabled,
   });
 

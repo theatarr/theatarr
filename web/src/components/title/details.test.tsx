@@ -6,12 +6,15 @@ import { mockFetch, renderPage } from "@/test/page";
 
 describe("Title journal", () => {
   it("links to the journal under Activity", async () => {
-    mockFetch([
+    const fetch = mockFetch([
       { method: "GET", path: "/journal", reply: { items: [{ id: "dl:4", at: "2026-11-01T10:00:00Z", kind: "grab", title: { id: 70, name: "Juniper Signal" }, summary: "Grabbed" }] } },
     ]);
     renderPage(<TitleJournal id={70} />);
     expect((await screen.findByRole("link", { name: "Grabbed" })).getAttribute("href")).toBe("/admin/system/journal/dl%3A4");
-    expect(screen.getByRole("link", { name: /Open in the journal/ }).getAttribute("href")).toBe("/admin/system/journal?title=70");
+    expect(screen.getByRole("link", { name: /Open in the journal/ }).getAttribute("href")).toBe("/admin/system/journal?title_id=70");
+    // The title's own entries by its id, never a title named like the id.
+    expect(fetch.calls("GET", "/journal")[0].search).toContain("title_id=70");
+    expect(fetch.calls("GET", "/journal")[0].search).not.toContain("title=");
   });
 
   it("shows each line's label and plain summary, the file paths as the summary's tooltip", async () => {

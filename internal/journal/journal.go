@@ -119,8 +119,12 @@ func (j *Journal) policy(ctx context.Context) *policy.Policy {
 type Filter struct {
 	// Since keeps entries at or after it.
 	Since time.Time
-	// Title is a title id, or a case-insensitive part of a title's name.
+	// Title is what a person typed: a number matches the title with that id and the titles whose name matches it;
+	// other text, words that must all be in a title's name (case-insensitive).
 	Title string
+	// TitleID keeps one title's entries, by its id (a title's own History and links from it); it takes the place of
+	// Title.
+	TitleID int64
 	// Version is a version key.
 	Version string
 	// Restricted keeps entries of the titles in Within only (none when Within is empty): an account's own titles.
@@ -352,7 +356,7 @@ func (j *Journal) heads(ctx context.Context, f Filter, titles []int64, cur *curs
 		q += ` AND at >= ?`
 		args = append(args, store.Millis(f.Since))
 	}
-	if f.Title != "" {
+	if f.byTitle() {
 		if len(titles) == 0 {
 			return nil, nil
 		}
@@ -419,30 +423,40 @@ func (j *Journal) heads(ctx context.Context, f Filter, titles []int64, cur *curs
 	return out, rows.Err()
 }
 
-// titleIDs resolves the title filter: a number is an id, anything else words that must all be in the name.
-func (j *Journal) titleIDs(ctx context.Context, s string) ([]int64, error) {
+// byTitle says whether the filter keeps some titles only (TitleID or Title).
+func (f *Filter) byTitle() bool { return f.TitleID > 0 || f.Title != "" }
+
+// titleIDs resolves the title filter: TitleID exactly; typed text as words that must all be in the name, and a number
+// also as an id (a title named "1923" is found by its name too).
+func (j *Journal) titleIDs(ctx context.Context, f Filter) ([]int64, error) {
+	if f.TitleID > 0 {
+		return []int64{f.TitleID}, nil
+	}
+	s := f.Title
 	if s == "" {
 		return nil, nil
 	}
+	var out []int64
 	if id, err := strconv.ParseInt(s, 10, 64); err == nil {
-		return []int64{id}, nil
+		out = append(out, id)
 	}
 	where, args := textsearch.Where(s, "name")
 	if where == "" {
-		return nil, nil
+		return out, nil
 	}
 	rows, err := j.st.Reader().QueryContext(ctx, `SELECT id FROM title WHERE `+where+` LIMIT 500`, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []int64
 	for rows.Next() {
 		var id int64
 		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
-		out = append(out, id)
+		if !slices.Contains(out, id) {
+			out = append(out, id)
+		}
 	}
 	return out, rows.Err()
 }
@@ -457,7 +471,7 @@ func (j *Journal) List(ctx context.Context, f Filter) (*Page, error) {
 	}
 	f.Limit = min(f.Limit, 500)
 	cur, _ := decodeCursor(f.Cursor)
-	titles, err := j.titleIDs(ctx, f.Title)
+	titles, err := j.titleIDs(ctx, f)
 	if err != nil {
 		return nil, err
 	}

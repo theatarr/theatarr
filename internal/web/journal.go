@@ -32,12 +32,19 @@ func (w *Web) apiJournalFlagged(rw http.ResponseWriter, r *http.Request) {
 	writeJSON(rw, http.StatusOK, map[string]int{"count": n})
 }
 
-// journalFilter reads since (RFC 3339, YYYY-MM-DD, or a duration back from now such as 72h), title (id or part of
-// the name), version, kind (comma-separated or repeated), suspect, severity, cursor and limit (≤500).
+// journalFilter reads since (RFC 3339, YYYY-MM-DD, or a duration back from now such as 72h), title (what a person
+// typed: a number is the id or part of the name, other text part of the name), title_id (one title exactly), version, kind (comma-separated or repeated), suspect, severity, cursor and limit (≤500).
 func (w *Web) journalFilter(r *http.Request) (journal.Filter, error) {
 	q := r.URL.Query()
 	f := journal.Filter{Title: strings.TrimSpace(q.Get("title")), Version: q.Get("version"),
 		Severity: q.Get("severity"), Cursor: q.Get("cursor")}
+	if v := q.Get("title_id"); v != "" {
+		id, err := strconv.ParseInt(v, 10, 64)
+		if err != nil || id <= 0 {
+			return f, errors.New("title_id must be a title id")
+		}
+		f.TitleID = id
+	}
 	for _, k := range q["kind"] {
 		for _, kk := range strings.Split(k, ",") {
 			if kk = strings.TrimSpace(kk); kk != "" {

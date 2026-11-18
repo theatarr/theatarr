@@ -1,7 +1,7 @@
 // The title page's details for admins (under About): the release dates, then one folded "Technical details" with the
 // identifiers in words (the TMDb collection linked to its page), every file per version with its torrent
 // (a link to Torrents filtered to it), each only when it has something; the outside links are About's buttons, not repeated here. The grab
-// journal for the title (GET /journal?title=<id>) is TitleJournal, on the History tab.
+// journal for the title (GET /journal?title_id=<id>) is TitleJournal, on the History tab.
 import { ChevronRight } from "lucide-react";
 import { Link } from "react-router";
 import { useTitleJournal, type TitleDetail, type Version } from "@/api/library";
@@ -32,7 +32,7 @@ export function outsideLinks(d: TitleDetail) {
  *  folds a download's import and links into its grab's line), its kind as the entry's label. */
 export function TitleJournal({ id }: { id: number }) {
   return (
-    <Section title="Journal" aside={<Link to={journalHome(`?title=${id}`)} className="hover:text-foreground">Open in the journal ›</Link>}>
+    <Section title="Journal" aside={<Link to={journalHome(`?title_id=${id}`)} className="hover:text-foreground">Open in the journal ›</Link>}>
       <Journal id={id} />
     </Section>
   );

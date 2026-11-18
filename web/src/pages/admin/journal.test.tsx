@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Link, Route, Routes } from "react-router";
 import { expect, it } from "vitest";
@@ -155,4 +155,21 @@ it("says a pacing attempt's message in words", async () => {
   renderPage(<Routes><Route path="/admin/system/journal/:id" element={<JournalEntryPage />} /></Routes>, "/admin/system/journal/dl:4");
   expect((await screen.findByTestId("attempt-reason-phone")).textContent).toBe("Waiting for the 20 s minimum gap between adds");
   expect(screen.queryByText(/min_gap/)).toBeNull();
+});
+
+it("keeps a title link's exact title, names it, and a typed title replaces it", async () => {
+  const fetch = mockFetch([
+    { method: "GET", path: "/journal", reply: { items: [{ id: "dl:1", kind: "grab", source: "theatarr", at: "2026-11-07T10:00:00Z", title: { id: 3, name: "Ferrous Bay" }, summary: "s" }] } },
+    { method: "GET", path: "/status", reply: {} },
+  ]);
+  const user = userEvent.setup();
+  renderPage(<JournalList />, "/admin/system/journal?title_id=3");
+  await waitFor(() => expect(screen.getByTestId("journal-title-id").textContent).toContain("Only Ferrous Bay"));
+  expect(fetch.calls("GET", "/journal").at(-1)!.search).toContain("title_id=3");
+  await user.type(screen.getByLabelText("Title"), "1923");
+  await user.click(screen.getByRole("button", { name: "Filter" }));
+  await screen.findByText("Ferrous Bay");
+  expect(fetch.calls("GET", "/journal").at(-1)!.search).toContain("title=1923");
+  expect(fetch.calls("GET", "/journal").at(-1)!.search).not.toContain("title_id");
+  expect(screen.queryByTestId("journal-title-id")).toBeNull();
 });

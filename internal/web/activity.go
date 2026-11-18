@@ -333,7 +333,8 @@ func (w *Web) apiActivity(rw http.ResponseWriter, r *http.Request) {
 		f := journal.Filter{Cursor: q.Get("cursor"), Limit: limit,
 			Title: strings.TrimSpace(q.Get("title")), Version: strings.TrimSpace(q.Get("version"))}
 		if titleID > 0 {
-			f.Title = strconv.FormatInt(titleID, 10)
+			// A title's own History: that title exactly, never one named like its id.
+			f.Title, f.TitleID = "", titleID
 		}
 		// The journal pages over the caller's titles and the kind, so every page is full until the end.
 		f.TitleKind = kind

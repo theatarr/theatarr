@@ -1062,7 +1062,7 @@ func (w *Web) episodeHistory(ctx context.Context, titleID int64, version string,
 	if w.journal == nil {
 		return []ActivityEvent{}, nil
 	}
-	jp, err := w.journal.EpisodeHistory(ctx, journal.Filter{Title: strconv.FormatInt(titleID, 10), Version: version,
+	jp, err := w.journal.EpisodeHistory(ctx, journal.Filter{TitleID: titleID, Version: version,
 		Limit: historyLimit}, eid)
 	if err != nil {
 		return nil, err

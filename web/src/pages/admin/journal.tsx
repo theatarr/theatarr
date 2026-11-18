@@ -88,12 +88,14 @@ export function JournalList() {
   const suspect = params.get("suspect") === "1";
   const kind = params.get("kind") ?? "";
   const urlTitle = params.get("title") ?? "";
+  // A title's link: that title exactly (?title_id=), not what a typed number would match.
+  const titleID = params.get("title_id") ?? "";
   const [title, setTitle] = useState(urlTitle);
   // The box follows the URL: a link or Back that changes ?title= (the tab link drops it) shows what is applied.
   useEffect(() => setTitle(urlTitle), [urlTitle]);
   // Cursor pagination: the cursors of the pages before this one, so Newer can go back. They belong to one filter: any
   // change of the URL's filters, by the controls or a link, starts at the newest page.
-  const filterKey = `${suspect}|${kind}|${urlTitle}`;
+  const filterKey = `${suspect}|${kind}|${urlTitle}|${titleID}`;
   const [paging, setPaging] = useState<{ key: string; cursors: string[] }>({ key: filterKey, cursors: [] });
   // A new filter key drops the stored cursors, so going back to an earlier filter starts at its newest page too.
   if (paging.key !== filterKey) setPaging({ key: filterKey, cursors: [] });
@@ -101,16 +103,19 @@ export function JournalList() {
   // Newer and Older return to the top, as the shared pager does, so the new page is read from its first row.
   const setCursors = (c: string[]) => { setPaging({ key: filterKey, cursors: c }); toTop(); };
   const cursor = cursors[cursors.length - 1];
-  const q = useJournal({ suspect, kind: kind || undefined, title: urlTitle || undefined, cursor });
+  const q = useJournal({ suspect, kind: kind || undefined, title: urlTitle || undefined, title_id: titleID || undefined, cursor });
   const set = (k: string, v?: string) => {
     const n = new URLSearchParams(params);
     if (v) n.set(k, v);
     else n.delete(k);
+    // A typed title replaces a title link's exact one.
+    if (k === "title" || k === "title_id") n.delete(k === "title" ? "title_id" : "title");
     setParams(n);
   };
   const items = q.data?.items ?? [];
   // An empty list under a filter or on a later page is not an empty journal.
-  const filtered = !!kind || !!urlTitle || cursors.length > 0;
+  const filtered = !!kind || !!urlTitle || !!titleID || cursors.length > 0;
+  const linkedName = items.find((e) => String(e.title?.id) === titleID)?.title?.name;
   return (
     <div>
       <p className="mb-4 text-sm text-muted-foreground">Every grab decision and what followed it, newest first: one line per thing that happened (a download's import and file changes are on its grab's line; open it for each step). Flagged shows the entries a check found suspect.</p>
@@ -127,6 +132,7 @@ export function JournalList() {
           <Input aria-label="Title" placeholder="Title or id" value={title} onChange={(e) => setTitle(e.target.value)} className="h-8 w-48" />
           <Button size="sm" variant="outline" type="submit" className="h-8">Filter</Button>
         </form>
+        {titleID ? <span className="flex items-center gap-2 text-sm" data-testid="journal-title-id">Only {linkedName ?? `title ${titleID}`}<Button size="xs" variant="ghost" onClick={() => set("title_id")}>Show every title</Button></span> : null}
       </div>
       {q.isPending ? <Loading /> : q.error ? <ErrorState error={q.error} /> : items.length === 0 && !q.data?.next_cursor ? (
         <Card><Empty>{suspect ? "Nothing flagged." : filtered ? "No entries." : "No entries yet. One appears each time a library judges a release, when it searches or grabs. A title added a moment ago may show nothing yet."}</Empty></Card>

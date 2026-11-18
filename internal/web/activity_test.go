@@ -1506,3 +1506,29 @@ func TestActivityRefusedBlocklistedLeavesQueue(t *testing.T) {
 		t.Errorf("blocklist %+v", b.Blocked)
 	}
 }
+
+// A title's History (title_id) shows its own rows only, also when another title is named like its id (UI sweep 5, J1;
+// the journal's typed box, which finds both, is internal/journal TestTitleFilterTypedNumberAndExactID).
+func TestHistoryTitleIDNotMatchedByName(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	key := e.apiKey()
+	now := store.Millis(testNow)
+	e.exec(`UPDATE title SET name = '1' WHERE id = 2`)
+	e.exec(`INSERT INTO history (ref, at, event, kind, title_id, release, info_hash, quality, score, provider, reason)
+		VALUES ('copy:1', ?, 'copy_not_cached', 'copy', 1, 'Alpha.2020.2160p.WEB', 'f1', 'WEBDL-2160p', 1500, 'rd', 'Not cached on RD'),
+		('copy:2', ?, 'copy_not_cached', 'copy', 2, 'Beta.2021.2160p.WEB', 'f2', 'WEBDL-2160p', 900, 'rd', 'Not cached on RD')`, now, now+1)
+	var one ActivityPage
+	if code := e.getKey(APIBase+"/activity?state=history&title_id=1", key, &one); code != 200 {
+		t.Fatalf("title history: %d", code)
+	}
+	if len(one.History) != 1 || one.History[0].Title.ID != 1 {
+		t.Errorf("title 1's History: %+v", one.History)
+	}
+	if code := e.getKey(APIBase+"/journal?title_id=x", key, nil); code != 400 {
+		t.Errorf("journal title_id=x: %d", code)
+	}
+	if code := e.getKey(APIBase+"/journal?title_id=1", key, nil); code != 200 {
+		t.Errorf("journal title_id=1: %d", code)
+	}
+}

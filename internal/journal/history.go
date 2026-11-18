@@ -542,11 +542,11 @@ func (j *Journal) historyFilter(ctx context.Context, f *Filter, episode int64) (
 		f.Limit = 50
 	}
 	f.Limit = min(f.Limit, 500)
-	titles, err := j.titleIDs(ctx, f.Title)
+	titles, err := j.titleIDs(ctx, *f)
 	if err != nil {
 		return "", nil, false, err
 	}
-	if (f.Title != "" && len(titles) == 0) || (f.Restricted && len(f.Within) == 0) {
+	if (f.byTitle() && len(titles) == 0) || (f.Restricted && len(f.Within) == 0) {
 		return "", nil, true, nil
 	}
 	cur, _ := decodeCursor(f.Cursor)
@@ -697,7 +697,7 @@ func historyMatch(f Filter, titles []int64) ([]string, []any) {
 	if !f.Since.IsZero() {
 		w, args = append(w, `at >= ?`), append(args, store.Millis(f.Since))
 	}
-	if f.Title != "" {
+	if f.byTitle() {
 		in("title_id", len(titles))
 		for _, t := range titles {
 			args = append(args, t)
