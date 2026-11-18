@@ -1095,7 +1095,12 @@ anime setting, or the group they are in), and saves the group with the library (
 Settings › Libraries says "In sync with …". The part's help: "A title added to one of these libraries is added to the others too; a copy removed there comes back when a person adds the title, not from lists or collections. Monitoring, removals and files stay each library's own. Only libraries of the same kind and anime setting can be kept in sync." Stored as `library.sync_groups` (lists of library keys) in the library
 settings section, which its form leaves as stored; a library that is deleted, or whose kind or anime setting no
 longer matches its group, leaves the group in the same save (also on a YAML import), and a group left with one
-library goes. Saving a group adds nothing to titles already in the library.
+library goes. Saving a group adds nothing to titles already in the library. While the draft's kind or anime setting
+excludes a saved partner, the part says "Saving this takes 4K Remux out of its sync group with 4K WEB." (not undoable
+on its own: undoing the kind or anime change ends it); Keep in sync compares the draft with the saved partners that
+still qualify, so Undo never puts an excluded partner back and the save never sends it, and Bring in sync is hidden.
+The save's answer names the partners the server took out (`sync_dropped`), and the result reads "4K Remux saved. It is
+no longer in sync with 4K WEB." (UI sweep 5, S3.)
 
 A removal follows the group too (owner, 2026-11-17: "removing the title from one library of a sync group also should
 remove it from the other"): for each library a removal names that holds a live copy of the title, the other libraries
@@ -1148,7 +1153,8 @@ page's library switch toasts "Also added to <libraries> (in sync)". Collections,
 apps say under a chosen or shown library that is in a group "Titles added to <library> are also added to <partners>
 (in sync)." naming the partners not chosen there too (their pages carry `sync_groups`).
 
-**Bring in sync.** A library's Keep in sync part, for a saved group without unsaved changes, says "N titles would
+**Bring in sync.** A library's Keep in sync part, for a saved group without unsaved changes (and a draft whose kind
+and anime setting still match it), says "N titles would
 gain a copy in this group" (hidden at 0) with **Bring in sync…** (`GET` and `POST
 settings/versions/{key}/bring-in-sync`, admin). N counts the titles with a copy in a library of the group that would
 gain copies in the others by the add rule (`catalog.SyncGains`, as if a person added the title's source copy now: a

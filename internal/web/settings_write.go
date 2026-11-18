@@ -21,6 +21,9 @@ type SettingsWrite struct {
 	Revision   string           `json:"revision"`
 	Record     *SettingsRecord  `json:"record,omitempty"`
 	Records    []SettingsRecord `json:"records,omitempty"`
+	// SyncDropped, on a library save: the libraries it is no longer kept in sync with because its new kind or anime
+	// setting no longer matches them.
+	SyncDropped []string `json:"sync_dropped,omitempty"`
 }
 
 // settingsBody is a create, update or candidate test. Omitted fields keep their stored values on update.

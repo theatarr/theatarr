@@ -67,9 +67,11 @@ function Field({ label, children, changed, onUndo, name, error, help }: { label:
  * the key has been typed in. */
 const newKeyProblem = (session: Session) => session.create ? keyProblem(session.record.key) : undefined;
 
-export function libraryChanges(record: Draft, saved: Draft): number {
+export function libraryChanges(record: Draft, saved: Draft, versions?: VersionRecord[]): number {
   const view = (r: Draft) => ({ key: r.key, config: r.config, roots: r.roots ?? [], sync: (r.sync ?? []).join(",") });
-  return changedPaths(view(record), view(saved)).length;
+  // Keep in sync counts as changed as its mark shows it: against the saved partners the draft can still keep.
+  const base = versions ? { ...saved, sync: qualifyingPartners(saved, record.config, versions) } : saved;
+  return changedPaths(view(record), view(base)).length;
 }
 
 /** The other libraries in key's sync group, sorted; none when it is in no group. */
@@ -81,6 +83,11 @@ const ANIME_RULE = (anime: boolean | null | undefined) => anime === true ? "anim
 
 /** Whether other can be kept in sync with a library of config: the same kind and the same anime rule. */
 const sameRule = (a: VersionConfig, b: VersionConfig) => a.kind === b.kind && (a.anime ?? null) === (b.anime ?? null);
+
+/** The saved partners a library of config can still be kept in sync with: Undo and the change mark compare with these,
+ * as a save takes the library out of the group of a partner its new kind or anime setting excludes. */
+const qualifyingPartners = (saved: Draft, config: VersionConfig, versions: VersionRecord[]) =>
+  (saved.sync ?? []).filter((key) => { const other = versions.find((v) => v.key === key); return other && sameRule(other.config, config); });
 
 /** with a draft: its record with the stored sync group. */
 const withSync = (record: VersionRecord, data: VersionList): Draft => ({ ...record, sync: syncPartners(data.sync_groups, record.key) });
@@ -238,7 +245,7 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
     if (inSheet && !session) return;
     setBusy(true);
     try {
-      await saveVersion(body, create);
+      const result = await saveVersion(body, create);
       void qc.invalidateQueries({ queryKey: setupKey });
       // A library change shows on the lists' row actions.
       void qc.invalidateQueries({ queryKey: qk.titles.all });
@@ -246,7 +253,9 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
       void qc.invalidateQueries({ queryKey: qk.settings.overview });
       // The name as saved (the names from auth/me still hold the old one until they reload).
       const saved = body.delete || !body.config ? nameOf(body.key ?? "") : libraryLabel(body.key ?? "", body.config.profile, body.config.name, body.config.kind);
-      setNotice(`${saved} ${body.delete ? "is no longer managed" : "saved"}.`);
+      // The partners the server took out of its sync group (its new kind or anime setting no longer matches them).
+      const dropped = (result.sync_dropped ?? []).map((key) => { const c = data?.versions.find((v) => v.key === key)?.config; return nameOf(key, libraryLabel(key, c?.profile ?? "", c?.name, c?.kind)); });
+      setNotice(`${saved} ${body.delete ? "is no longer managed" : "saved"}.${dropped.length ? ` It is no longer in sync with ${dropped.join(", ")}.` : ""}`);
       // Library names (auth/me) follow a renamed, added or removed library.
       void qc.invalidateQueries({ queryKey: qk.me });
       // A stopped version's row goes away: focus goes to Add library instead of its Edit button.
@@ -302,7 +311,7 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
       if (!current) return;
       // Keep in sync goes along only when it changed: a save of what was loaded sends the library alone.
       const sync = current.record.sync ?? [];
-      const syncChanged = sync.join(",") !== (current.saved.sync ?? []).join(",");
+      const syncChanged = data !== undefined && sync.join(",") !== qualifyingPartners(current.saved, current.record.config, data.versions).join(",");
       const body: VersionBody = { generation: current.generation, key: current.record.key, ...(deleting ? { delete: true } : { config: current.record.config, roots: current.record.roots ?? [], ...(syncChanged ? { sync_with: sync } : {}) }) };
       if (!deleting) {
         await apply(body, current.create, true);
@@ -341,10 +350,10 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
         return list.length ? <VersionGroup key={group} title={CATEGORY_LABEL[group]} versions={list} all={data.versions} groups={data.sync_groups ?? []} switches={data.switches} selected={session && !session.create ? session.record.key : undefined} readOnly={readOnly} onOpen={open} /> : null;
       })}
       {session ? <Sheet label={session.create ? "New library" : `Edit library ${nameOf(session.record.key, libraryLabel(session.record.key, session.saved.config.profile, session.saved.config.name, session.saved.config.kind))}`} onClose={close} initialFocus={heading} returnFocus={() => (stopped.current ? addButton.current : undefined)}>
-        <SheetLayout key={session.draftID} testid="version-form" headingRef={heading} onClose={close} changes={readOnly ? 0 : libraryChanges(session.record, session.saved)}
+        <SheetLayout key={session.draftID} testid="version-form" headingRef={heading} onClose={close} changes={readOnly ? 0 : libraryChanges(session.record, session.saved, data?.versions)}
           title={`${session.create ? "New library" : `Edit library ${nameOf(session.record.key, libraryLabel(session.record.key, session.saved.config.profile, session.saved.config.name, session.saved.config.kind))}`}`}
           subtitle={session.create ? "Downloads once saved, while Pause is off." : `${KIND_WORD[session.record.config.kind] ?? session.record.config.kind}${session.record.config.anime ? " · anime" : ""}`}
-          footer={<><Button onClick={() => void review()} disabled={readOnly || busy || newKeyProblem(session) !== undefined}>Save</Button><SheetCancel variant="outline" onClick={close}>Cancel</SheetCancel>{libraryChanges(session.record, session.saved) ? <><span className="text-[13px] font-medium text-[var(--ink)]" data-testid="unsaved-count" aria-live="polite">{changeCount(libraryChanges(session.record, session.saved))}</span><Button variant="ghost" size="sm" disabled={busy} data-testid="version-discard" onClick={() => { setSession({ ...session, record: copy(session.saved) }); setError(undefined); setPending(undefined); setDiscards(discards + 1); }}>Discard</Button></> : null}<Link className="text-sm text-[var(--accent-ink)] underline" to="/admin/settings/libraries/naming">Edit naming</Link>{!session.create ? <Button className="ml-auto" variant="destructive" onClick={() => void review(true)} disabled={readOnly || busy}>Stop managing library</Button> : null}</>}>
+          footer={<><Button onClick={() => void review()} disabled={readOnly || busy || newKeyProblem(session) !== undefined}>Save</Button><SheetCancel variant="outline" onClick={close}>Cancel</SheetCancel>{libraryChanges(session.record, session.saved, data?.versions) ? <><span className="text-[13px] font-medium text-[var(--ink)]" data-testid="unsaved-count" aria-live="polite">{changeCount(libraryChanges(session.record, session.saved, data?.versions))}</span><Button variant="ghost" size="sm" disabled={busy} data-testid="version-discard" onClick={() => { setSession({ ...session, record: copy(session.saved) }); setError(undefined); setPending(undefined); setDiscards(discards + 1); }}>Discard</Button></> : null}<Link className="text-sm text-[var(--accent-ink)] underline" to="/admin/settings/libraries/naming">Edit naming</Link>{!session.create ? <Button className="ml-auto" variant="destructive" onClick={() => void review(true)} disabled={readOnly || busy}>Stop managing library</Button> : null}</>}>
           {made ? <p className="mb-4 rounded-md border border-[var(--line)] px-3 py-2 text-[13px]" role="status" data-testid="preset-profile-made">The profile <span className="font-mono">{made.key}</span> was created from the TRaSH default {made.name} and is selected. The library itself is saved when Save succeeds; the profile stays either way.</p> : null}
           {error ? <div ref={errorBox} tabIndex={-1} className="mb-4"><ExplainBox error={explainError(error)} onReload={() => void reload(false)} onReloadKeep={() => void reload(true)} /></div> : null}
           <fieldset disabled={readOnly || busy}>
@@ -534,15 +543,20 @@ function SyncPart({ record, saved, data, onChange }: { record: Draft; saved: Dra
     return `${label(r)} (${why})`;
   });
   const sync = record.sync ?? [];
-  const changed = sync.join(",") !== (saved.sync ?? []).join(",");
+  const kept = qualifyingPartners(saved, config, data.versions);
+  const changed = sync.join(",") !== kept.join(",");
   const toggle = (key: string, on: boolean) => onChange({ ...record, sync: (on ? [...sync, key] : sync.filter((k) => k !== key)).sort() });
+  // The saved partners the draft's kind or anime setting no longer matches: saving takes this library out of their
+  // group whatever Keep in sync shows, so the line stays until the kind or anime setting matches again.
+  const leaving = (saved.sync ?? []).flatMap((key) => { const other = data.versions.find((v) => v.key === key); return other && !sameRule(other.config, config) ? [label(other)] : []; });
   return <section className="space-y-3" aria-label="Keep in sync" data-testid="library-sync-part">
     <div><h3 className="font-semibold">Keep in sync</h3><p className="text-xs text-muted-foreground" data-testid="library-sync-help">A title added to one of these libraries is added to the others too, and a title removed from one is removed from the others, with its files and debrid torrents when the removal deletes them. Adding a title by hand brings it back to a library it was removed from, while lists and collections leave it removed. Monitoring stays each library's own. Only libraries of the same kind and anime setting can be kept in sync.</p></div>
     {offered.length ? <fieldset className="space-y-1"><legend className="sr-only">Keep in sync with</legend><div className="flex flex-wrap gap-3">{offered.map((r) => <label key={r.key} className="flex items-center gap-1 text-sm"><input type="checkbox" checked={sync.includes(r.key)} onChange={(event) => toggle(r.key, event.target.checked)} />{label(r)}</label>)}</div></fieldset>
       : <p className="text-sm text-muted-foreground">No other library can be kept in sync with this one.</p>}
     {refused.length ? <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="library-sync-refused">Not offered: {refused.join("; ")}.</p> : null}
-    {changed ? <ChangedMark name="Keep in sync" onUndo={() => onChange({ ...record, sync: saved.sync ?? [] })} /> : null}
-    {!changed && (saved.sync ?? []).length > 0 ? <BringInSyncLine libraryKey={record.key} paused={data.switches.pause_forced ? "locked" : data.switches.paused ? "off" : undefined} /> : null}
+    {leaving.length ? <p className="text-xs text-[var(--warn-ink)] [overflow-wrap:anywhere]" data-testid="library-sync-leaving">Saving this takes {label(record)} out of its sync group with {leaving.join(", ")}.</p> : null}
+    {changed ? <ChangedMark name="Keep in sync" onUndo={() => onChange({ ...record, sync: kept })} /> : null}
+    {!changed && !leaving.length && kept.length > 0 ? <BringInSyncLine libraryKey={record.key} paused={data.switches.pause_forced ? "locked" : data.switches.paused ? "off" : undefined} /> : null}
   </section>;
 }
 

@@ -48,6 +48,42 @@ describe("Versions page", () => {
     await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(1));
     expect(fetch.calls("PUT", "/settings/versions/movie-web")[0].body).toMatchObject({ sync_with: [] });
   });
+  it("warns while the draft's anime setting takes the library out of its saved group, offers no Undo or Bring in sync for it, and the save names the partner it lost", async () => {
+    const lib = (key: string, name: string, anime = false) => ({ ...version(), key, config: { ...version().config, name, anime } });
+    const data = { ...versions(), versions: [lib("movie-remux", "4K Remux"), lib("movie-web", "4K WEB"), lib("anime-movie", "Anime", true)], sync_groups: [["movie-remux", "movie-web"]] };
+    const preview = { group: ["movie-remux", "movie-web"], titles: 1, source: "", searched: 0,
+      libraries: [{ key: "movie-remux", label: "4K Remux", count: 0, names: [], more: 0, restored: 0 }, { key: "movie-web", label: "4K WEB", count: 1, names: ["Alpha"], more: 0, restored: 0 }] };
+    const fetch = mockFetch([...getRoutes(data), { method: "GET", path: "/settings/versions/movie-remux/bring-in-sync", reply: preview },
+      { method: "PUT", path: "/settings/versions/movie-remux", reply: json({ generation: 5, revision: "r", sync_dropped: ["movie-web"] }) }]);
+    const user = userEvent.setup();
+    const page = renderPage(<VersionsPage />);
+    const row = () => page.container.querySelector<HTMLElement>('[data-record="movie-remux"]')!;
+    await waitFor(() => expect(row()).toBeTruthy());
+    await user.click(within(row()).getByRole("button", { name: "Edit" }));
+    const part = await screen.findByTestId("library-sync-part");
+    expect(within(part).queryByTestId("library-sync-leaving")).toBeNull();
+    expect(await within(part).findByTestId("bring-in-sync")).toBeTruthy();
+    const anime = screen.getByRole("combobox", { name: "Anime" });
+    await user.selectOptions(anime, "true");
+    const leaving = "Saving this takes 4K Remux out of its sync group with 4K WEB.";
+    expect(within(part).getByTestId("library-sync-leaving").textContent).toBe(leaving);
+    // Keep in sync has nothing to undo: no Undo can put back a partner the anime setting excludes.
+    expect(within(part).queryByRole("button", { name: "Undo change to Keep in sync" })).toBeNull();
+    expect(within(part).queryByTestId("bring-in-sync")).toBeNull();
+    // One change: the anime setting (Keep in sync has no change of its own to count).
+    expect(screen.getByTestId("unsaved-count").textContent).toBe("1 unsaved change");
+    // Undoing the anime setting itself ends the warning.
+    await user.click(screen.getByRole("button", { name: "Undo change to Anime" }));
+    expect(within(part).queryByTestId("library-sync-leaving")).toBeNull();
+    await user.selectOptions(anime, "true");
+    // A library the new setting allows can be picked; the excluded partner is not sent.
+    await user.click(within(part).getByRole("checkbox", { name: "Anime" }));
+    expect(within(part).getByTestId("library-sync-leaving").textContent).toBe(leaving);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-remux")).toHaveLength(1));
+    expect(fetch.calls("PUT", "/settings/versions/movie-remux")[0].body).toMatchObject({ sync_with: ["anime-movie"] });
+    await waitFor(() => expect(screen.getByTestId("version-announce").textContent).toBe("4K Remux saved. It is no longer in sync with 4K WEB."));
+  });
   it("says removals follow the group too, and Bring in sync names the copies it brings back", async () => {
     const lib = (key: string, name: string) => ({ ...version(), key, config: { ...version().config, name } });
     const data = { ...versions(), versions: [lib("movie-web", "Web"), lib("movie-remux", "Remux")], sync_groups: [["movie-web", "movie-remux"]] };

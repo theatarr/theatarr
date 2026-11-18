@@ -115,6 +115,13 @@ func (w *Web) apiSettingsVersion(rw http.ResponseWriter, r *http.Request) {
 }
 
 func versionSettingsRequest(snap *settings.Snapshot, body versionSettingsBody, create bool) (settings.SaveRequest, error) {
+	req, _, err := versionSettingsSave(snap, body, create)
+	return req, err
+}
+
+// versionSettingsSave is versionSettingsRequest that also returns the libraries the saved library is no longer kept
+// in sync with because its new kind or anime setting no longer matches them (the group's pruning), sorted.
+func versionSettingsSave(snap *settings.Snapshot, body versionSettingsBody, create bool) (settings.SaveRequest, []string, error) {
 	req := settings.SaveRequest{ExpectedGeneration: snap.Generation, Records: cloneRecords(snap.Records), ConfirmationToken: body.ConfirmationToken}
 	index := -1
 	var record settings.Version
@@ -124,10 +131,10 @@ func versionSettingsRequest(snap *settings.Snapshot, body versionSettingsBody, c
 		}
 	}
 	if create && index >= 0 {
-		return req, bodyError("library already exists")
+		return req, nil, bodyError("library already exists")
 	}
 	if !create && index < 0 {
-		return req, errNoRecord
+		return req, nil, errNoRecord
 	}
 	if body.Delete {
 		req.Records.Versions = append(req.Records.Versions[:index:index], req.Records.Versions[index+1:]...)
@@ -136,24 +143,25 @@ func versionSettingsRequest(snap *settings.Snapshot, body versionSettingsBody, c
 			req.Records.Naming = slices.DeleteFunc(req.Records.Naming, func(n settings.VersionNaming) bool { return n.Key == body.Key })
 		}
 		// And its place in a sync group.
-		return req, syncGroupsFollow(snap, &req, body)
+		_, err := syncGroupsFollow(snap, &req, body)
+		return req, nil, err
 	}
 	if create {
 		record.Record = settings.Record{Key: body.Key}
 	}
 	if len(body.Config) == 0 {
-		return req, bodyError("config is required")
+		return req, nil, bodyError("config is required")
 	}
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(body.Config, &fields); err != nil {
-		return req, bodyError("config must be a JSON object")
+		return req, nil, bodyError("config must be a JSON object")
 	}
 	if _, exists := fields["naming"]; exists {
-		return req, bodyError("naming is edited in the naming editor")
+		return req, nil, bodyError("naming is edited in the naming editor")
 	}
 	naming := record.Config.Naming
 	if err := decodeConfig(body.Config, &record.Config); err != nil {
-		return req, err
+		return req, nil, err
 	}
 	record.Config.Naming = naming
 	stored := record.Roots
@@ -175,16 +183,18 @@ func versionSettingsRequest(snap *settings.Snapshot, body versionSettingsBody, c
 	} else {
 		req.Records.Versions[index] = record
 	}
-	return req, syncGroupsFollow(snap, &req, body)
+	dropped, err := syncGroupsFollow(snap, &req, body)
+	return req, dropped, err
 }
 
 // syncGroupsFollow keeps the stored sync groups (library.sync_groups) in step with a library save: a deleted library
 // leaves its group, as does one whose new kind or anime setting no longer matches the group; then sync_with, when
-// given, sets the library's group. The save carries the library section only when its groups change.
-func syncGroupsFollow(snap *settings.Snapshot, req *settings.SaveRequest, body versionSettingsBody) error {
+// given, sets the library's group. The save carries the library section only when its groups change. It returns the
+// libraries the pruning took out of the saved library's group, sorted.
+func syncGroupsFollow(snap *settings.Snapshot, req *settings.SaveRequest, body versionSettingsBody) ([]string, error) {
 	i := slices.IndexFunc(snap.Records.Sections, func(s settings.Section) bool { return s.Key == "library" })
 	if i < 0 && body.SyncWith == nil {
-		return nil
+		return nil, nil
 	}
 	records := settings.Records{Versions: req.Records.Versions}
 	var before []byte
@@ -192,42 +202,57 @@ func syncGroupsFollow(snap *settings.Snapshot, req *settings.SaveRequest, body v
 		records.Sections = []settings.Section{snap.Records.Sections[i]}
 		before = snap.Records.Sections[i].Config
 	}
+	partners := func() []string {
+		for _, g := range settings.SyncGroupsOf(&records) {
+			if slices.Contains(g, body.Key) {
+				return slices.DeleteFunc(slices.Clone(g), func(k string) bool { return k == body.Key })
+			}
+		}
+		return nil
+	}
+	had := partners()
 	if err := settings.PruneSyncGroups(&records); err != nil {
-		return err
+		return nil, err
+	}
+	var dropped []string
+	if !body.Delete {
+		kept := partners()
+		dropped = slices.DeleteFunc(had, func(k string) bool { return slices.Contains(kept, k) })
+		slices.Sort(dropped)
 	}
 	if body.SyncWith != nil && !body.Delete {
 		if err := settings.SetSyncGroup(&records, body.Key, *body.SyncWith); err != nil {
-			return err
+			return nil, err
 		}
 	}
 	if len(records.Sections) == 1 && !bytes.Equal(records.Sections[0].Config, before) {
 		req.Records.Sections = append(req.Records.Sections, records.Sections[0])
 	}
-	return nil
+	return dropped, nil
 }
 
-func (w *Web) versionBody(rw http.ResponseWriter, r *http.Request) (*settings.Snapshot, settings.SaveRequest, bool) {
+func (w *Web) versionBody(rw http.ResponseWriter, r *http.Request) (settings.SaveRequest, []string, bool) {
 	if w.refuseUnavailable(rw) {
-		return nil, settings.SaveRequest{}, false
+		return settings.SaveRequest{}, nil, false
 	}
 	var body versionSettingsBody
 	if !decodeSettingsJSON(rw, r, &body) {
-		return nil, settings.SaveRequest{}, false
+		return settings.SaveRequest{}, nil, false
 	}
 	if key := r.PathValue("key"); key != "" {
 		if body.Key != "" && body.Key != key {
 			badRequest(rw, "key does not match path")
-			return nil, settings.SaveRequest{}, false
+			return settings.SaveRequest{}, nil, false
 		}
 		body.Key = key
 	}
 	if body.Key == "" {
 		badRequest(rw, "key is required")
-		return nil, settings.SaveRequest{}, false
+		return settings.SaveRequest{}, nil, false
 	}
 	snap, ok := w.settingsAt(rw, r, body.Generation)
 	if !ok {
-		return nil, settings.SaveRequest{}, false
+		return settings.SaveRequest{}, nil, false
 	}
 	create := r.Method == http.MethodPost && r.PathValue("key") == "" && !body.Delete
 	if r.URL.Path == APIBase+"/settings/versions/confirm" {
@@ -238,28 +263,29 @@ func (w *Web) versionBody(rw http.ResponseWriter, r *http.Request) (*settings.Sn
 			}
 		}
 	}
-	req, err := versionSettingsRequest(snap, body, create)
+	req, dropped, err := versionSettingsSave(snap, body, create)
 	if err != nil {
 		if errors.Is(err, errNoRecord) {
 			notFound(rw)
 		} else {
 			writeBodyError(rw, err, nil)
 		}
-		return nil, settings.SaveRequest{}, false
+		return settings.SaveRequest{}, nil, false
 	}
 	req.Actor = settingsActor(r)
-	return snap, req, true
+	return req, dropped, true
 }
 
 func (w *Web) apiSettingsVersionWrite(rw http.ResponseWriter, r *http.Request) {
-	_, req, ok := w.versionBody(rw, r)
+	req, dropped, ok := w.versionBody(rw, r)
 	if !ok {
 		return
 	}
-	w.saveVersionSettings(rw, r, req)
+	w.saveVersionSettings(rw, r, req, dropped)
 }
 
-func (w *Web) saveVersionSettings(rw http.ResponseWriter, r *http.Request, req settings.SaveRequest) {
+// saveVersionSettings saves a library; syncDropped (the libraries it is no longer kept in sync with) goes into the answer.
+func (w *Web) saveVersionSettings(rw http.ResponseWriter, r *http.Request, req settings.SaveRequest, syncDropped []string) {
 	req.ConfirmationToken = confirmationToken(r, req.ConfirmationToken)
 	saved, err := w.settings.SaveAndApply(r.Context(), req)
 	if err != nil {
@@ -267,7 +293,7 @@ func (w *Web) saveVersionSettings(rw http.ResponseWriter, r *http.Request, req s
 		return
 	}
 	rw.Header().Set("ETag", generationETag(saved.Generation))
-	writeJSON(rw, http.StatusOK, SettingsWrite{Generation: saved.Generation, Revision: saved.Revision})
+	writeJSON(rw, http.StatusOK, SettingsWrite{Generation: saved.Generation, Revision: saved.Revision, SyncDropped: syncDropped})
 }
 
 func (w *Web) apiSettingsVersionDelete(rw http.ResponseWriter, r *http.Request) {
@@ -295,11 +321,11 @@ func (w *Web) apiSettingsVersionDelete(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 	req.Actor = settingsActor(r)
-	w.saveVersionSettings(rw, r, req)
+	w.saveVersionSettings(rw, r, req, nil)
 }
 
 func (w *Web) apiSettingsVersionConfirm(rw http.ResponseWriter, r *http.Request) {
-	_, req, ok := w.versionBody(rw, r)
+	req, _, ok := w.versionBody(rw, r)
 	if !ok {
 		return
 	}

@@ -424,3 +424,38 @@ func TestSettingsVersionSyncWith(t *testing.T) {
 		t.Fatalf("deleted library's group kept: %v", lib.SyncGroups)
 	}
 }
+
+// A library whose new anime setting no longer matches its sync group leaves it, and the save names every partner it
+// lost: the editor's result line comes from here (S3).
+func TestSettingsVersionSyncDropped(t *testing.T) {
+	t.Parallel()
+	area := t.TempDir()
+	se := newSettingsEnvBase(t, nil, func(p *policy.Policy) { p.Library.Dangling.Roots = []string{area} }, nil)
+	config := se.want(se.call("GET", "/versions/movie-web", nil), 200, "get")["record"].(map[string]any)["config"].(map[string]any)
+	create := func(key string, with []string) {
+		root := filepath.Join(area, key)
+		if err := os.Mkdir(root, 0700); err != nil {
+			t.Fatal(err)
+		}
+		config["library"] = root
+		se.want(se.call("POST", "/versions", map[string]any{"generation": se.generation(), "key": key, "config": config,
+			"roots": []string{root}, "sync_with": with}), 200, "create "+key)
+	}
+	create("test-a", []string{"movie-web"})
+	create("test-b", []string{"test-a", "movie-web"})
+	// A save that keeps the rule loses nobody.
+	config["library"] = filepath.Join(area, "test-a")
+	if got := se.want(se.call("PUT", "/versions/test-a", map[string]any{"generation": se.generation(), "key": "test-a",
+		"config": config}), 200, "plain edit")["sync_dropped"]; got != nil {
+		t.Fatalf("plain edit dropped %v", got)
+	}
+	config["anime"] = true
+	got := se.want(se.call("PUT", "/versions/test-a", map[string]any{"generation": se.generation(), "key": "test-a",
+		"config": config}), 200, "anime only")["sync_dropped"]
+	if fmt.Sprint(got) != "[movie-web test-b]" {
+		t.Fatalf("sync_dropped %v", got)
+	}
+	if group := se.coord.Current().Policy.SyncGroup("movie-web"); !slices.Equal(group, []string{"test-b", "movie-web"}) && !slices.Equal(group, []string{"movie-web", "test-b"}) {
+		t.Fatalf("group left: %v", group)
+	}
+}

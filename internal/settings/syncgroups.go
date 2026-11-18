@@ -32,6 +32,12 @@ func syncGroups(records *Records) (groups [][]string, index int, err error) {
 	return groups, index, nil
 }
 
+// SyncGroupsOf returns the groups stored in records; none when they cannot be read (a save reports that).
+func SyncGroupsOf(records *Records) [][]string {
+	groups, _, _ := syncGroups(records)
+	return groups
+}
+
 // setSyncGroups stores groups in the library section, leaving its other fields as they are; none leaves the field
 // out. A database without a library section gets one.
 func setSyncGroups(records *Records, index int, groups [][]string) error {
