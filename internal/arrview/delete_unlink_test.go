@@ -160,7 +160,7 @@ func syncRemoveEnv(t *testing.T) *devEnv {
 
 // A compatible DELETE removes the libraries kept in sync with the view's too, also one outside the view: with
 // deleteFiles the partner's links are checked first (a refusal removes nothing) and go with the view's; without, every
-// file stays. The partner's Removed action names the library it followed, and its minimum availability choice goes.
+// file stays. The partner's Removed action names the library it followed, and every view's record of the title goes.
 func TestDeleteRemovesTheSyncPartners(t *testing.T) {
 	t.Parallel()
 	alpha := "/v/movie-web/radarr/api/v3/movie/" + strconv.Itoa(IDBase+1)
@@ -187,8 +187,9 @@ func TestDeleteRemovesTheSyncPartners(t *testing.T) {
 		AND version_key = 'movie-remux'`)); rm.Sync != "movie-web" {
 		t.Errorf("partner's action %+v", rm)
 	}
-	if got := e.str(`SELECT minimum_availability FROM arrview_title WHERE view = 'v/movie-remux' AND title_id = 1`); got != "" {
-		t.Errorf("partner's minimum availability %q", got)
+	// The title's last copies went: every view's record of it goes, the partner's choice with it.
+	if n := e.one(`SELECT COUNT(*) FROM arrview_title WHERE title_id = 1`); n != 0 {
+		t.Errorf("%d arr view records left", n)
 	}
 
 	// Without deleteFiles every file stays, the partner's too.
@@ -220,5 +221,36 @@ func TestDeleteChecksThePartnersDeadLinks(t *testing.T) {
 			e.str(`SELECT state FROM link WHERE id = 8`) != "active" {
 			t.Errorf("paused %v: removed %d, unlinked %v, clean-ups %v", paused, n, e.lib.unlinks, started)
 		}
+	}
+}
+
+// A DELETE whose libraries in sync take the title's last copies drops every view's record of it, so a later re-add
+// through the partner's own view starts fresh (no old root folder or added date); a removal that leaves a copy keeps
+// the other views' records.
+func TestDeleteOfTheLastCopiesInSyncStartsFresh(t *testing.T) {
+	t.Parallel()
+	e := syncRemoveEnv(t)
+	e.exec(`UPDATE arrview_title SET root_folder_path = '/old/movies', added_at = 7 WHERE view = 'v/movie-remux'`)
+	e.exec(`INSERT INTO arrview_title (view, title_id, minimum_availability, root_folder_path, added_at, updated_at)
+		VALUES ('radarr', 1, '', '/old/combined', 7, 7)`)
+	e.call("DELETE", "/v/movie-web/radarr/api/v3/movie/"+strconv.Itoa(IDBase+1), nil, 200, nil)
+	if n := e.one(`SELECT COUNT(*) FROM arrview_title WHERE title_id = 1`); n != 0 {
+		t.Fatalf("%d arr view records left", n)
+	}
+	e.tick()
+	var out map[string]any
+	e.call("POST", "/v/movie-remux/radarr/api/v3/movie", map[string]any{"title": "Alpha", "tmdbId": 101,
+		"qualityProfileId": e.profileID("v/movie-remux", "movie-remux"), "monitored": true}, 201, &out)
+	if want := e.now.Format("2006-01-02T15:04:05Z"); out["added"] != want || out["rootFolderPath"] == "/old/movies" {
+		t.Errorf("re-added: added %v (want %s), root %v", out["added"], want, out["rootFolderPath"])
+	}
+
+	// Without partners taking the last copy (no group), the other views keep their records.
+	g := removeEnv(t)
+	g.exec(`INSERT INTO arrview_title (view, title_id, minimum_availability, root_folder_path, added_at, updated_at)
+		VALUES ('v/movie-remux', 1, '', '/old/movies', 7, 7)`)
+	g.call("DELETE", "/v/movie-web/radarr/api/v3/movie/"+strconv.Itoa(IDBase+1), nil, 200, nil)
+	if n := g.one(`SELECT COUNT(*) FROM arrview_title WHERE view = 'v/movie-remux' AND title_id = 1`); n != 1 {
+		t.Errorf("the remaining library's record went (%d)", n)
 	}
 }

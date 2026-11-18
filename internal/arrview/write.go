@@ -1079,24 +1079,25 @@ func (s *Service) deleteTitle(w http.ResponseWriter, r *request) {
 		r.queryBool("addImportListExclusion", false)
 	deleteFiles := r.queryBool("deleteFiles", false)
 	// The whole title when no other library of it stays current (the partners go too).
-	var others int
-	if err := s.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM version v WHERE v.title_id = ?
-		AND v.policy_key NOT IN (`+store.Placeholders(len(keys))+`)
-		AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id)`,
-		append([]any{e.id}, anyKeys(keys)...)...).Scan(&others); err != nil {
-		s.internal(w, r, err)
-		return
+	others := 0
+	for k, removed := range held {
+		if !removed && !slices.Contains(keys, k) {
+			others++
+		}
 	}
 	act := journal.ActRemoveVersion
 	if others == 0 {
 		act = journal.ActRemoveTitle
 	}
+	// A view's DELETE keeps the other views' records of the title (what a re-add through them reads), except when the
+	// libraries in sync take its last copies: then every view's record goes, as the web UI's removal of the title.
+	ownRecords := len(partners) == 0 || others > 0
 	// The shared removal (internal/removal), as the web UI's: the hide, the downloads ended, the search requests,
 	// the Removed actions, and with deleteFiles the links and the debrid clean-up. The view's own rows go in its
 	// transaction.
 	res, err := removal.Run(ctx, removal.Deps{Store: s.st, Unlinker: removalUnlinker{s}, AfterRemove: s.onRemoved,
 		StartCleanup: s.cleanup, Now: s.now, Log: s.log}, removal.Spec{TitleID: e.id, Name: e.name, Keys: keys,
-		View: r.v.Key, Unlink: deleteFiles, Action: act, By: "key:" + r.client, Reason: reason, OwnViewRecords: true,
+		View: r.v.Key, Unlink: deleteFiles, Action: act, By: "key:" + r.client, Reason: reason, OwnViewRecords: ownRecords,
 		SyncOf: syncOf,
 		Extra: func(ctx context.Context, tx *sqlTx) error {
 			now := store.Millis(s.now())
@@ -1106,11 +1107,13 @@ func (s *Service) deleteTitle(w http.ResponseWriter, r *request) {
 			}
 			// The removed copies' minimum availability choices go with them, the partners' too, so a later add
 			// takes the library's rule again; whatever else a library's own row holds stays.
-			for _, k := range keys {
-				if _, err := tx.ExecContext(ctx, `UPDATE arrview_title SET minimum_availability = '' WHERE view = ?
-					AND title_id = ?`, "v/"+k, e.id); err != nil {
-					return err
-				}
+			views := make([]any, len(keys))
+			for i, k := range keys {
+				views[i] = "v/" + k
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE arrview_title SET minimum_availability = '' WHERE title_id = ?
+				AND view IN (`+store.Placeholders(len(views))+`)`, append([]any{e.id}, views...)...); err != nil {
+				return err
 			}
 			if exclude {
 				// The statement of the exclusions POST (lists.go): lists and collections skip the movie from now on.
