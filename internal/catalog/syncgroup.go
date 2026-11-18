@@ -15,6 +15,7 @@ import (
 type SyncGain struct {
 	TitleID int64
 	Name    string
+	Year    int
 	Kind    policy.Kind
 	// Source is the library whose copy the new ones follow: the group's first monitored copy of the title, else its
 	// first copy (removed copies aside); SourceID is its version id and Monitored its monitored flag.
@@ -36,7 +37,7 @@ func SyncGains(ctx context.Context, q RowsQuerier, pol *policy.Policy, group []s
 	for i, k := range group {
 		args[i] = k
 	}
-	rows, err := q.QueryContext(ctx, `SELECT t.id, t.name, t.kind, t.anime OR `+store.SeriesTypeSQL("t")+` = 'anime',
+	rows, err := q.QueryContext(ctx, `SELECT t.id, t.name, COALESCE(t.year, 0), t.kind, t.anime OR `+store.SeriesTypeSQL("t")+` = 'anime',
 		v.id, v.policy_key, v.monitored, EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id)
 		FROM title t JOIN version v ON v.title_id = t.id WHERE t.id IN (SELECT g.title_id FROM version g
 		WHERE g.policy_key IN (`+store.Placeholders(len(group))+`) AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r
@@ -54,14 +55,15 @@ func SyncGains(ctx context.Context, q RowsQuerier, pol *policy.Policy, group []s
 	var titles []*title
 	for rows.Next() {
 		var id, vid int64
+		var year int
 		var name, kind, key string
 		var anime, monitored, removed bool
-		if err := rows.Scan(&id, &name, &kind, &anime, &vid, &key, &monitored, &removed); err != nil {
+		if err := rows.Scan(&id, &name, &year, &kind, &anime, &vid, &key, &monitored, &removed); err != nil {
 			rows.Close()
 			return nil, err
 		}
 		if len(titles) == 0 || titles[len(titles)-1].gain.TitleID != id {
-			titles = append(titles, &title{gain: SyncGain{TitleID: id, Name: name, Kind: policy.Kind(kind)}, anime: anime,
+			titles = append(titles, &title{gain: SyncGain{TitleID: id, Name: name, Year: year, Kind: policy.Kind(kind)}, anime: anime,
 				held: Copies{}, monitored: map[string]bool{}, ids: map[string]int64{}})
 		}
 		t := titles[len(titles)-1]

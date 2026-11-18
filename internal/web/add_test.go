@@ -2091,8 +2091,9 @@ func TestBringInSync(t *testing.T) {
 		return fmt.Sprintf("%d %s", b.Titles, strings.Join(out, " "))
 	}
 	// A copy removed from a library of the group comes back (Removed C's and Complete's tv-c); an existing
-	// unmonitored one stays as it is (Complete's tv-b).
-	want := "5 tv-2160p:1[Only B] tv-b:2[Removed C The Show] tv-c:5[Complete Only B Removed C The Show Unmonitored]"
+	// unmonitored one stays as it is (Complete's tv-b). A title is named with its year when it has one ("Scream" is two
+	// films).
+	want := "5 tv-2160p:1[Only B] tv-b:2[Removed C The Show (2019)] tv-c:5[Complete Only B Removed C The Show (2019) Unmonitored]"
 	if got := counts(b); got != want || b.Source == "" {
 		t.Errorf("preview %s, want %s", got, want)
 	}

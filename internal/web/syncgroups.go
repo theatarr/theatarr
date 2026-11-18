@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"net/http"
 	"slices"
+	"strconv"
 
 	"github.com/theatarr/theatarr/internal/catalog"
 	"github.com/theatarr/theatarr/internal/store"
@@ -16,8 +17,8 @@ const syncSourceWords = "Each new copy is monitored like the title's first monit
 // syncPreviewNames is how many titles' names Bring in sync names per library.
 const syncPreviewNames = 5
 
-// SyncLibraryGain is what Bring in sync gives one library of a group: Count titles, the first of them named (Names)
-// and More the rest; Restored of them were removed from it before and come back.
+// SyncLibraryGain is what Bring in sync gives one library of a group: Count titles, the first of them named (Names,
+// each with its year when known) and More the rest; Restored of them were removed from it before and come back.
 type SyncLibraryGain struct {
 	Key      string   `json:"key"`
 	Label    string   `json:"label"`
@@ -58,7 +59,12 @@ func (w *Web) bringInSyncAnswer(group []string, gains []catalog.SyncGain) BringI
 					lib.Restored++
 				}
 				if len(lib.Names) < syncPreviewNames {
-					lib.Names = append(lib.Names, g.Name)
+					// With its year: two titles can share a name.
+					name := g.Name
+					if g.Year > 0 {
+						name += " (" + strconv.Itoa(g.Year) + ")"
+					}
+					lib.Names = append(lib.Names, name)
 				}
 			}
 		}

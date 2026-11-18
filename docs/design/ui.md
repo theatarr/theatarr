@@ -1123,8 +1123,8 @@ apps say under a chosen or shown library that is in a group "Titles added to <li
 gain a copy in this group" (hidden at 0) with **Bring in sync…** (`GET` and `POST
 settings/versions/{key}/bring-in-sync`, admin). N counts the titles with a copy in a library of the group that would
 gain copies in the others by the add rule (`catalog.SyncGains`, as if a person added the title's source copy now: a
-removed copy comes back, an existing unmonitored copy is left as it is). The dialog names per library the count and the first five titles
-("and 495 more") and "Each new copy is monitored like the title's first monitored copy in the group, or its first
+removed copy comes back, an existing unmonitored copy is left as it is). The dialog names per library the count and the first five titles,
+each with its year ("Scream (1996)"; "and 495 more") and "Each new copy is monitored like the title's first monitored copy in the group, or its first
 copy."; a series' new copy takes that copy's season and episode monitoring and monitor-new choice
 (`catalog.CopySeasonIntent` with its episode rows filled in; the compatible API's anime reclassify uses the same helper
 without filling, so there the episodes follow the intent at the next refresh), and a movie's its explicit minimum
