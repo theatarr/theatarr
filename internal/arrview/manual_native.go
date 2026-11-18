@@ -22,7 +22,7 @@ func (s *Service) ServeManualImport(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, "version", "Choose a version", nil)
 		return
 	}
-	req := &request{Request: r, v: view, client: "session"}
+	req := &request{Request: r, v: view, client: "session", native: true}
 	switch {
 	case strings.HasSuffix(r.URL.Path, "/options"):
 		s.manualImportOptions(w, req)

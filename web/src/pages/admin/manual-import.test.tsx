@@ -1,8 +1,12 @@
+// @vitest-environment jsdom
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { json, mockFetch, renderPage } from "@/test/page";
 import type { Schemas } from "@/api/client";
-import { importRow, listedWords, ManualImportFiles } from "./manual-import";
+import { ApiError } from "@/api/client";
+import { importRow, listedWords, listingError, ManualImportFiles, ManualImportPage } from "./manual-import";
 
 const candidate: Schemas["ManualImportCandidate"] = {
   id: 1, path: "/mount/Show/file.mkv", size: 123,
@@ -35,9 +39,64 @@ describe("manual import", () => {
     const html = renderToStaticMarkup(h(ManualImportFiles, { rows: [importRow(candidate)], options, disabled: false, change: () => {} }));
     expect(html).toContain('data-slot="select"');
   });
-  it("points an unknown download hash at Add by magnet or hash", () => {
-    expect(listedWords(0, "downloadId")).toBe("No download of Theatarr's has this hash. To add a new magnet or hash, open the title's Last search and use Add by magnet or hash.");
-    expect(listedWords(0, "folder")).toBe("0 candidate file(s)");
-    expect(listedWords(2, "downloadId")).toBe("2 candidate file(s)");
+  it("says what a listing found, and a readable folder without video files as such", () => {
+    expect(listedWords(0, "folder")).toBe("No video files in this folder");
+    expect(listedWords(1, "folder")).toBe("1 candidate file");
+    expect(listedWords(2, "downloadId")).toBe("2 candidate files");
+  });
+  it("says the server's reason for an empty listing, and points an unknown download hash at Add by magnet or hash", () => {
+    expect(listingError(new ApiError(404, "No download with this hash in this library"), "downloadId")).toBe("No download with this hash in this library. To add a new magnet or hash, open the title's Last search and use Add by magnet or hash.");
+    expect(listingError(new ApiError(409, "Its files cannot be listed now: they are not on the mount yet"), "downloadId")).toBe("Its files cannot be listed now: they are not on the mount yet");
+    expect(listingError(new ApiError(422, "The folder cannot be read: no such file or directory"), "folder")).toBe("The folder cannot be read: no such file or directory");
+  });
+});
+
+describe("manual import page", () => {
+  const movieOptions = { ...options, flavour: "radarr", titles: [{ id: 100001, name: "Alpha", episodes: [] }] };
+  const movieCandidate = { ...candidate, series: undefined, episodes: undefined, movie: { id: 100001, title: "Alpha" }, path: "/mount/Alpha/a.mkv" };
+  const page = (listings: unknown[]) => {
+    let n = 0;
+    const api = mockFetch([
+      { method: "GET", path: "/policy", reply: { versions: [{ key: "movie-web" }] } },
+      { method: "GET", path: "/manualimport/options", reply: movieOptions },
+      { method: "GET", path: "/manualimport", reply: () => listings[Math.min(n++, listings.length - 1)] },
+    ]);
+    renderPage(h(ManualImportPage));
+    return api;
+  };
+  const pick = async () => {
+    const library = await screen.findByRole("combobox", { name: "Library" });
+    await waitFor(() => expect(library.querySelectorAll("option")).toHaveLength(2));
+    fireEvent.change(library, { target: { value: "movie-web" } });
+  };
+  const listFiles = async () => {
+    const button = screen.getByRole("button", { name: "List files" });
+    await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(button);
+  };
+
+  it("clears the old result on a source change and keeps each source's own value", async () => {
+    page([json({ error: "No download with this hash in this library" }, 404)]);
+    await pick();
+    fireEvent.change(screen.getByRole("combobox", { name: "Source" }), { target: { value: "downloadId" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Download hash" }), { target: { value: "abc" } });
+    await listFiles();
+    expect((await screen.findByRole("alert")).textContent).toContain("No download with this hash in this library. To add a new magnet");
+    fireEvent.change(screen.getByRole("combobox", { name: "Source" }), { target: { value: "folder" } });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect((screen.getByRole("textbox", { name: "Folder under the mount" }) as HTMLInputElement).value).toBe("");
+    fireEvent.change(screen.getByRole("combobox", { name: "Source" }), { target: { value: "downloadId" } });
+    expect((screen.getByRole("textbox", { name: "Download hash" }) as HTMLInputElement).value).toBe("abc");
+  });
+
+  it("leaves no candidates of an earlier listing when a later one fails", async () => {
+    page([[movieCandidate], json({ error: "The folder cannot be read: permission denied" }, 422)]);
+    await pick();
+    fireEvent.change(screen.getByRole("textbox", { name: "Folder under the mount" }), { target: { value: "/mount/Alpha" } });
+    await listFiles();
+    expect(await screen.findByRole("button", { name: "Import selected files" })).toBeTruthy();
+    await listFiles();
+    expect((await screen.findByRole("alert")).textContent).toBe("The folder cannot be read: permission denied");
+    expect(screen.queryByRole("button", { name: "Import selected files" })).toBeNull();
   });
 });

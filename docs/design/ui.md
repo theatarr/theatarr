@@ -1474,7 +1474,14 @@ from them carries a header comment naming the source repo, path, commit and lice
 Wanted › Manual import (`/wanted/manual-import`, admins) lists files for a download hash or mount folder
 in a chosen version, shows decisions and rejections, and edits each file's title, episodes, quality/revision,
 languages and release group (the themed selects). A
-hash Theatarr has not seen is pointed at the title's Last search, where Add by magnet or hash is. Review choices refreshes the decisions before Import selected files; errors receive
+hash Theatarr has not seen is pointed at the title's Last search, where Add by magnet or hash is. An empty listing
+says why, told apart by the native GET (the arr API keeps its empty list): "No download with this hash in this
+library" (404, with that pointer), "Its files cannot be listed now: <the plan's reason, without the library's
+prefix>" (409; "they are not on the mount yet" for a plan still waiting for its folder), "The folder cannot be read:
+<why>" (422), and for a readable folder without video files "No video files in this folder"; a listing says "N
+candidate files". Changing Source clears the result and the candidates, and each source keeps its own typed value;
+every new listing clears the old candidates first, so a failed one leaves none to import. Review choices refreshes
+the decisions before Import selected files; errors receive
 focus and results use a live region. The admin/CSRF-protected native `/manualimport`, `/manualimport/options` and
 `/manualimport/execute` endpoints reuse the arr handlers because the SPA has a session rather than an arr API key;
 imports retain the library gate and create symlinks while preserving mount files.

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { api, qs, type Schemas } from "@/api/client";
+import { api, ApiError, qs, type Schemas } from "@/api/client";
 import { usePolicy } from "@/api/hooks";
 import { PageHeader } from "@/components/page";
 import { WantedTabs } from "@/components/wanted-tabs";
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fmtBytes } from "@/lib/format";
+import { fmtBytes, plural } from "@/lib/format";
 import { useLibraryName } from "@/lib/library-names";
 
 type Candidate = Schemas["ManualImportCandidate"];
@@ -67,17 +67,29 @@ export function ManualImportFiles({ rows, options, disabled, change }: {
 /** Where a magnet or hash Theatarr has not seen goes: this page only reads downloads Theatarr started. */
 const NEW_HASH_HELP = "To add a new magnet or hash, open the title's Last search and use Add by magnet or hash.";
 
-/** What listing a source found; a hash with no download of ours says where a new hash goes instead of "0". */
+/** What a listing found. The server says why when it found nothing for a reason (no download with the hash, files
+ *  that cannot be listed now, a folder that cannot be read); a readable folder without video files is said here. */
 export function listedWords(files: number, kind: string): string {
-  return files === 0 && kind === "downloadId" ? `No download of Theatarr's has this hash. ${NEW_HASH_HELP}` : `${files} candidate file(s)`;
+  if (files === 0 && kind === "folder") return "No video files in this folder";
+  return plural(files, "candidate file");
+}
+
+/** Why a listing failed, as the server says it; a hash with no download in this library also says where a new hash
+ *  goes. */
+export function listingError(e: unknown, kind: string): string {
+  const message = e instanceof Error ? e.message : String(e);
+  return e instanceof ApiError && e.status === 404 && kind === "downloadId" ? `${message}. ${NEW_HASH_HELP}` : message;
 }
 
 export function ManualImportPage() {
   const nameOf = useLibraryName();
   const policy = usePolicy();
   const [version, setVersion] = useState("");
-  const [source, setSource] = useState("");
+  // Each source keeps its own typed value (M2).
+  const [sources, setSources] = useState<Record<string, string>>({ folder: "", downloadId: "" });
   const [kind, setKind] = useState("folder");
+  const source = sources[kind] ?? "";
+  const setSource = (v: string) => setSources((old) => ({ ...old, [kind]: v }));
   const [rows, setRows] = useState<ImportRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -87,17 +99,20 @@ export function ManualImportPage() {
   const options = useQuery({ queryKey: ["manualimport", "options", version], queryFn: () => api<Options>("/manualimport/options" + qs({ version })), enabled: !!version });
   const problem = error || options.error?.message || policy.error?.message || "";
   useEffect(() => { if (problem) errorRef.current?.focus(); }, [problem]);
-  const run = async (action: () => Promise<void>) => {
+  const run = async (action: () => Promise<void>, words = (e: unknown) => (e instanceof Error ? e.message : String(e))) => {
     setBusy(true); setError(""); setResult("");
-    try { await action(); } catch (e) { setError(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
+    try { await action(); } catch (e) { setError(words(e)); } finally { setBusy(false); }
   };
+  /** Another source, or a new listing: the old candidates go, so a failed listing leaves none to import. */
+  const clear = () => { setRows([]); setDirty(false); setError(""); setResult(""); };
   const list = (e: FormEvent) => {
     e.preventDefault();
+    clear();
     void run(async () => {
       const files = await api<Candidate[]>("/manualimport" + qs({ version, [kind]: source.trim() }));
       setRows(files.map(importRow)); setDirty(false);
       setResult(listedWords(files.length, kind));
-    });
+    }, (err) => listingError(err, kind));
   };
   const review = () => void run(async () => {
     const files = await api<Candidate[]>("/manualimport" + qs({ version }), { method: "POST", body: rows.map((r) => r.choice) });
@@ -117,7 +132,7 @@ export function ManualImportPage() {
     <div role="status" aria-live="polite">{busy ? "Working…" : result}</div>
     <form onSubmit={list} className="my-4 flex flex-wrap items-end gap-3">
       <label>Library<Select required disabled={busy} className="block w-auto" value={version} onChange={(e) => { setVersion(e.target.value); setRows([]); setResult(""); }}><option value="">Choose a library</option>{(policy.data?.versions ?? []).map((v) => <option key={v.key} value={v.key}>{nameOf(v.key)}</option>)}</Select></label>
-      <label>Source<Select disabled={busy} className="block w-auto" value={kind} onChange={(e) => setKind(e.target.value)}><option value="folder">Mount folder</option><option value="downloadId">Download hash</option></Select></label>
+      <label>Source<Select disabled={busy} className="block w-auto" value={kind} onChange={(e) => { setKind(e.target.value); clear(); }}><option value="folder">Mount folder</option><option value="downloadId">Download hash</option></Select></label>
       <label className="min-w-64 flex-1">{kind === "folder" ? "Folder under the mount" : "Download hash"}<Input required disabled={busy} value={source} onChange={(e) => setSource(e.target.value)} /></label>
       <Button disabled={busy || !version || !source.trim() || !options.data} type="submit">List files</Button>
     </form>

@@ -2,11 +2,14 @@ package arrview
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -345,25 +348,56 @@ var videoExts = []string{".mkv", ".mp4", ".avi", ".m4v", ".ts", ".wmv", ".mov", 
 //   - movieId / seriesId (no downloadId): the title's files in the view.
 func (s *Service) manualImportList(w http.ResponseWriter, r *request) {
 	ctx := r.Context()
+	var out []manualImportResource
+	var err error
 	if d, ok := r.query("downloadId"); ok && d != "" && !(r.v.Flavour == Sonarr && r.queryInt("seriesId", 0) > 0) {
-		out, err := s.manualFromDownload(ctx, r, strings.ToLower(d))
-		if err != nil {
-			s.internal(w, r, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, out)
+		out, err = s.manualFromDownload(ctx, r, strings.ToLower(d))
+	} else if folder, ok := r.query("folder"); ok && folder != "" {
+		out, err = s.manualFromFolder(ctx, r, folder)
+	} else {
+		out = []manualImportResource{}
+	}
+	var empty *manualEmpty
+	switch {
+	case errors.As(err, &empty) && r.native:
+		// The web UI's page says why nothing is listed; the arr API keeps its empty list.
+		writeJSON(w, empty.status, map[string]string{"error": empty.reason})
+		return
+	case errors.As(err, &empty):
+		out = []manualImportResource{}
+	case err != nil:
+		s.internal(w, r, err)
 		return
 	}
-	if folder, ok := r.query("folder"); ok && folder != "" {
-		out, err := s.manualFromFolder(ctx, r, folder)
-		if err != nil {
-			s.internal(w, r, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, out)
-		return
+	writeJSON(w, http.StatusOK, out)
+}
+
+// manualEmpty is why a manual import listing has no candidates: no download with the hash in the view's libraries
+// (404), a download whose files cannot be listed now (409, with the plan's reason), a folder that cannot be read (422).
+// Only the web UI's native GET answers it; the arr API answers an empty list.
+type manualEmpty struct {
+	status int
+	reason string
+}
+
+func (e *manualEmpty) Error() string { return e.reason }
+
+// unreadableFolder is a folder the listing cannot read (missing, not allowed), said without its path.
+func unreadableFolder(err error) *manualEmpty {
+	var pe *fs.PathError
+	if errors.As(err, &pe) {
+		err = pe.Err
 	}
-	writeJSON(w, http.StatusOK, []manualImportResource{})
+	return &manualEmpty{http.StatusUnprocessableEntity, "The folder cannot be read: " + err.Error()}
+}
+
+// libraryPrefixRe is the library's own prefix on an import error ("library: download 12: "), which the page leaves
+// out as History does.
+var libraryPrefixRe = regexp.MustCompile(`^library: (download \d+: )?`)
+
+// planReason is an import error as the page says it: without the library's prefix.
+func planReason(err error) string {
+	return libraryPrefixRe.ReplaceAllString(err.Error(), "")
 }
 
 func fnv32(s string) uint32 {
@@ -383,13 +417,19 @@ func (s *Service) manualFromDownload(ctx context.Context, r *request, hash strin
 	err := s.st.Reader().QueryRowContext(ctx, `SELECT id, title_id, version_key, release_title, quality FROM download
 		WHERE info_hash = ? AND version_key IN (`+store.Placeholders(len(r.v.Versions))+`) ORDER BY id DESC LIMIT 1`,
 		append([]any{hash}, toAny(r.v.Versions)...)...).Scan(&id, &tid, &version, &rel, &quality)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, &manualEmpty{http.StatusNotFound, "No download with this hash in this library"}
+	}
 	if err != nil || s.library == nil {
 		return out, nil
 	}
 	plan, err := s.library.Import(ctx, id, true)
 	if err != nil {
 		s.log.Info("manualimport: no plan", "download", id, "err", err)
-		return out, nil
+		return nil, &manualEmpty{http.StatusConflict, "Its files cannot be listed now: " + planReason(err)}
+	}
+	if plan.Waiting && len(plan.Files) == 0 && len(plan.Rejected) == 0 {
+		return nil, &manualEmpty{http.StatusConflict, "Its files cannot be listed now: they are not on the mount yet"}
 	}
 	e, err := s.loadOne(ctx, r.v, tid)
 	if err != nil || e == nil {
@@ -555,6 +595,9 @@ func (s *Service) manualFromFolder(ctx context.Context, r *request, folder strin
 	var walk func(dir string, depth int) error
 	walk = func(dir string, depth int) error {
 		ents, err := s.library.ReadDir(ctx, dir)
+		if err != nil && depth == 0 && mountErr(err) == nil {
+			return unreadableFolder(err)
+		}
 		if err != nil {
 			return mountErr(err)
 		}
@@ -586,7 +629,10 @@ func (s *Service) manualFromFolder(ctx context.Context, r *request, folder strin
 	if err := mountErr(err); err != nil {
 		return nil, err
 	}
-	if err == nil && !fi.IsDir() {
+	if err != nil {
+		return nil, unreadableFolder(err)
+	}
+	if !fi.IsDir() {
 		files = append(files, file{folder, fi.Size()})
 		folder = filepath.Dir(folder)
 	} else if err := walk(folder, 0); err != nil {

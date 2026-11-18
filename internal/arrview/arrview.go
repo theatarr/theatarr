@@ -266,6 +266,8 @@ type request struct {
 	// client is who the request authenticated as: an API key's name, or "view:" plus the view key for the view's own
 	// key (for logs and decided_via).
 	client string
+	// native is the web UI's own Manual import (ServeManualImport): an empty listing says why (manualEmpty).
+	native bool
 }
 
 // pingBody is the arrs' PingResource.

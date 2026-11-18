@@ -3,6 +3,7 @@ package arrview
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -242,5 +243,78 @@ func TestLanguagesFromRoundTripsPerFlavour(t *testing.T) {
 	}
 	if got := languagesFrom(Sonarr, []string{"Klingon"}); len(got) != 1 || got[0].ID != 0 || got[0].Name != "Klingon" {
 		t.Errorf("unknown name: %+v", got)
+	}
+}
+
+// The web UI's Manual import says why a listing is empty (M1): no download with the hash in this library, a known
+// download whose files cannot be listed now, a folder that cannot be read; a readable folder with no video lists
+// nothing. The arr API keeps its empty list for each.
+func TestManualNativeSaysWhyNothingIsListed(t *testing.T) {
+	t.Parallel()
+	e := newDevEnv(t)
+	dir := t.TempDir()
+	mount, root := filepath.Join(dir, "mount"), filepath.Join(dir, "library")
+	for _, d := range []string{filepath.Join(mount, "__all__"), root, filepath.Join(mount, "empty")} {
+		if err := os.MkdirAll(d, 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, v := range e.pol.Versions {
+		v.Profile = "manual"
+	}
+	e.pol.Profiles = map[string]*policy.Profile{"manual": {Qualities: []policy.QualityItem{{Name: "WEBDL-2160p"}}, Cutoff: "WEBDL-2160p"}}
+	e.pol.Versions["movie-web"].Library = root
+	e.pol.Library = &policy.Library{Enabled: true, Mount: policy.LibraryMount{Path: mount},
+		Versions: map[string]*policy.LibraryVersion{"movie-web": {Roots: []string{root}}}}
+	engine, err := decide.New(e.pol, decide.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.svc.library = library.New(library.Options{Store: e.st, Policy: e.pol, Engine: engine,
+		Probe: func(string, int64) (*probe.Result, error) { return nil, probe.ErrUnknownFormat }, Now: func() time.Time { return e.now }})
+	known := strings.Repeat("b", 40)
+	e.exec(`INSERT INTO download(id,title_id,version_id,version_key,info_hash,release_title,indexer,name,state,created_at,updated_at)
+		VALUES(41,1,2,'movie-web',?,'Alpha.2020.2160p.WEB-DL-GRP','import','Alpha.2020.2160p.WEB-DL-GRP','failed',0,0)`, known)
+	native := func(q string) (int, string) {
+		w := httptest.NewRecorder()
+		e.svc.ServeManualImport(w, httptest.NewRequest("GET", "/api/theatarr/v1/manualimport?version=movie-web&"+q, nil))
+		var body struct{ Error string }
+		_ = json.Unmarshal(w.Body.Bytes(), &body)
+		return w.Code, body.Error
+	}
+	base := "/v/movie-web/radarr/api/v3/manualimport?"
+	for _, c := range []struct {
+		q, want string
+		code    int
+	}{
+		{"downloadId=" + strings.Repeat("c", 40), "No download with this hash in this library", 404},
+		{"downloadId=" + known, "Its files cannot be listed now: ", 409},
+		{"folder=" + filepath.Join(mount, "missing"), "The folder cannot be read: no such file or directory", 422},
+	} {
+		code, why := native(c.q)
+		if code != c.code || !strings.HasPrefix(why, c.want) || strings.Contains(why, "library: download") {
+			t.Errorf("native %s: %d %q, want %d %q", c.q, code, why, c.code, c.want)
+		}
+		var list []manualImportResource
+		e.call("GET", base+c.q, nil, 200, &list)
+		if len(list) != 0 {
+			t.Errorf("arr API %s: %+v", c.q, list)
+		}
+	}
+	if code, why := native("folder=" + filepath.Join(mount, "empty")); code != 200 || why != "" {
+		t.Errorf("empty folder: %d %q", code, why)
+	}
+}
+
+// An import error is said without the library's prefix, as History says reasons.
+func TestPlanReasonDropsLibraryPrefix(t *testing.T) {
+	for in, want := range map[string]string{
+		"library: download 41: version \"x\" is not in the policy": "version \"x\" is not in the policy",
+		"library: mount down": "mount down",
+		"something else":      "something else",
+	} {
+		if got := planReason(errors.New(in)); got != want {
+			t.Errorf("%q: %q", in, got)
+		}
 	}
 }
