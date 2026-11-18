@@ -927,7 +927,8 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
     webhook limited to a tag gets those titles' future events.", and **Add tags** / **Remove tags** (disabled until
     a label is chosen). It sends one `POST titles/tags` per 500 titles, with only those labels (docs/design/arrview.md
     "Tags per version"); no "replace all". The notice counts the titles that changed: "Added kids to 4 titles",
-    "Removed kids from 2 titles", or with several labels "Updated tags on 4 titles".
+    "Removed kids from 2 titles", or with several labels "Updated tags on 4 titles". When a later batch fails, the lists are refreshed and the dialog says
+    "Stopped after 500 of 700 titles (480 changed): <error>".
 - **Series page:** an episode cell shows its stage (and progress while downloading); an **In progress** filter sits
   beside Missing; the episode overview shows each library's acquisition (words, progress, last update, waits,
   retries) with an Activity link. Anime keep "E13 · absolute 13".

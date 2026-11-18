@@ -400,6 +400,23 @@ describe("Bulk Tags…", () => {
     expect(api.calls("POST", "/titles/tags")[0].body).toEqual({ title_ids: [1, 2, 3, 4, 5], add: ["kids", "new"], remove: [] });
   });
 
+  it("says how many titles changed when a later batch fails, and refreshes the lists", async () => {
+    const many = Array.from({ length: 501 }, (_, i) => ({ id: i + 1, kind: "movie", name: `Film ${i + 1}`, versions: [] })) as unknown as TitleRow[];
+    const api = mockFetch([me(["manage", "see_files"]),
+      { method: "GET", path: "/tags", reply: { tags: [] } },
+      { method: "POST", path: "/titles/tags", reply: { changed: 480 } },
+      { method: "POST", path: "/titles/tags", reply: json({ error: "database is locked" }, 500) }]);
+    renderPage(<BulkBar titles={many} columns={columns} onClear={() => {}} />);
+    const user = userEvent.setup();
+    await user.click(await within(await bar()).findByRole("button", { name: "Tags…" }));
+    const dialog = await screen.findByRole("dialog", { name: "Tags for 501 titles" });
+    await user.type(within(dialog).getByTestId("tag-input"), "kids{Enter}");
+    await user.click(within(dialog).getByRole("button", { name: "Add tags" }));
+    expect((await within(dialog).findByTestId("confirm-error")).textContent).toBe("Stopped after 500 of 501 titles (480 changed): database is locked");
+    // The suggestions are read again: the lists and labels were refreshed.
+    await waitFor(() => expect(api.calls("GET", "/tags").length).toBeGreaterThan(1));
+  });
+
   it("is not offered to a manager who cannot see files", async () => {
     setup([], ["manage"]);
     expect(await within(await bar()).findByRole("button", { name: "Remove" })).toBeTruthy();

@@ -8,7 +8,7 @@ import { Pencil, X } from "lucide-react";
 import { useId, useState } from "react";
 import { editTags, TAG_RULE, TAG_RULE_WORDS, tagOf, useTagLabels, useTagsSaved } from "@/api/tags";
 import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ConfirmDialog, errText } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/toaster";
 import { plural } from "@/lib/format";
@@ -164,6 +164,12 @@ export function BulkTagsDialog({ titleIds, onClose, onDone }: { titleIds: number
     try {
       const r = await editTags(titleIds, add ? tags : [], add ? [] : tags);
       saved();
+      if (r.error) {
+        // A later batch failed: the earlier ones are saved.
+        setError(new Error(`Stopped after ${r.done} of ${plural(titleIds.length, "title")} (${r.changed} changed): ${errText(r.error)}`));
+        setBusy(false);
+        return;
+      }
       // The count is of titles changed, not per label: with several labels only the total is true.
       const n = plural(r.changed, "title");
       toast({ tone: "ok", title: tags.length > 1 ? `Updated tags on ${n}` : `${add ? "Added" : "Removed"} ${tags[0]} ${add ? "to" : "from"} ${n}` });
