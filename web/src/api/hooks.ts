@@ -202,7 +202,7 @@ export const useTitles = (params: { kind?: string; limit?: number; offset?: numb
 
 export type JournalPage = Get<"/journal">;
 export type JournalEntry = Get<"/journal/{id}">;
-/** title is what a person typed (a number is an id or part of a name); title_id is one title exactly (a title's link). */
+/** title is what a person typed (a number is an id or a whole title name, other text part of a name); title_id is one title exactly (a title's link). */
 export type JournalFilter = { suspect?: boolean; kind?: string; version?: string; title?: string; title_id?: string; cursor?: string };
 
 export const useJournal = (f: JournalFilter) =>

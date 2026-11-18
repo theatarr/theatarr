@@ -109,9 +109,6 @@ func RegisterJobs(w *jobs.Worker, resolve Resolver) {
 		if errors.Is(err, errBackupBusy) {
 			return jobs.Later(30 * time.Second)
 		}
-		if errors.Is(err, ErrNothingBackedUp) {
-			return jobs.Permanent(err)
-		}
 		return err
 	})
 	w.Handle(JobRestore, func(ctx context.Context, j *jobs.Job) error {

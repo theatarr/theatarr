@@ -438,11 +438,14 @@ func (j *Journal) titleIDs(ctx context.Context, f Filter) ([]int64, error) {
 		return nil, nil
 	}
 	var out []int64
-	where, args := textsearch.Where(s, "name")
+	var where string
+	var args []any
 	if id, err := strconv.ParseInt(s, 10, 64); err == nil {
 		// The id counts even when its title row is gone (entries outlive a removed title), as before.
 		out = append(out, id)
 		where, args = `name = ? AND id <> ?`, []any{s, id}
+	} else {
+		where, args = textsearch.Where(s, "name")
 	}
 	if where == "" {
 		return out, nil
