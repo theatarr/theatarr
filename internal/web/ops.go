@@ -940,15 +940,21 @@ func (w *Web) removalScopes(ctx context.Context, ids []int64, keys []string) (ma
 		s.Title = len(live[id]) > 0 && len(s.Copies) == len(live[id])
 		out[id] = scopeRead{scope: s, err: bad}
 	}
-	if err := w.removalRequests(ctx, where, in, scopes); err != nil {
-		return nil, err
-	}
 	return out, nil
 }
 
 // removalRequests counts in each scope the open requests its removal cancels, by the rule the cancellation uses
-// (dropRemovedVersions): a request is canceled when every library it asks for is in the scope or removed before.
-func (w *Web) removalRequests(ctx context.Context, where string, in []any, scopes map[int64]*RemovalScope) error {
+// (dropRemovedVersions): a request is canceled when every library it asks for is in the scope or removed before. Only
+// the previews ask for it (the dialogs' line); a removal itself does not.
+func (w *Web) removalRequests(ctx context.Context, scopes map[int64]*RemovalScope) error {
+	if len(scopes) == 0 {
+		return nil
+	}
+	in := make([]any, 0, len(scopes))
+	for id := range scopes {
+		in = append(in, id)
+	}
+	where := `(` + store.Placeholders(len(in)) + `)`
 	asked := map[int64][][]string{}
 	err := scanAll(ctx, w.st.Reader(), `SELECT title_id, versions FROM request WHERE title_id IN `+where+`
 		AND status IN ('approved', 'processing', 'failed', 'available')`, in, func(r *sql.Rows) error {
@@ -1025,6 +1031,9 @@ func (w *Web) apiRemovalScope(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s, err := w.removalScope(r.Context(), id, splitKeys(r.URL.Query().Get("versions")))
+	if err == nil && s != nil {
+		err = w.removalRequests(r.Context(), map[int64]*RemovalScope{id: s})
+	}
 	switch {
 	case errors.Is(err, errBadRemoval):
 		badRequest(rw, strings.TrimPrefix(err.Error(), errBadRemoval.Error()+": "))
@@ -1087,6 +1096,16 @@ func (w *Web) apiBulkRemovalScope(rw http.ResponseWriter, r *http.Request) {
 	}
 	got, err := w.removalScopes(r.Context(), ids, req.Versions)
 	if err != nil {
+		w.internal(rw, err)
+		return
+	}
+	counted := map[int64]*RemovalScope{}
+	for id, g := range got {
+		if g.scope != nil && g.err == nil && len(g.scope.Copies) > 0 {
+			counted[id] = g.scope
+		}
+	}
+	if err := w.removalRequests(r.Context(), counted); err != nil {
 		w.internal(rw, err)
 		return
 	}
