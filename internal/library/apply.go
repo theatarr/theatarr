@@ -67,6 +67,13 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 		}
 		if v.Policy.PreferSeaDex {
 			decide.ResolveIncomingSeaDexFile(ctx, title, &file, lk.Episodes)
+			if d.Manual[lk.File].Overrides != nil && l.engine != nil && title != nil {
+				// The overrides are scored with the file's own standing, not the release's.
+				vv := decide.Version{ID: v.VersionID, Key: v.Key, Policy: v.Policy}
+				if err := l.engine.ScoreFile(title, vv, &file); err != nil {
+					return err
+				}
+			}
 		}
 		b, err := json.Marshal(&file)
 		if err != nil {

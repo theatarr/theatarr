@@ -126,3 +126,35 @@ func TestManualFactsChangeUpgradeDecision(t *testing.T) {
 		t.Fatalf("override not used: %+v %v", facts, err)
 	}
 }
+
+// TestManualOverridesScoredWithFileStanding: in a prefer-SeaDex library, a pack's file imported with manual overrides
+// is scored with its own SeaDex standing (the entry listing the pack covers E01 only, so E02 has none), not with the
+// pack's.
+func TestManualOverridesScoredWithFileStanding(t *testing.T) {
+	t.Parallel()
+	e := importUpEnv(t, "")
+	e.pol.Versions["tv"].PreferSeaDex = true
+	p := e.lib.engine.Profile(e.pol.Versions["tv"].Profile, format.Sonarr)
+	fs, err := format.ParseArrFormats(format.Sonarr, []byte(`[{"id":900,"name":"SeaDex best","specifications":[
+				{"name":"best","implementation":"SeaDexSpecification","negate":false,"required":true,"fields":{"value":"best"}}]}]`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Formats = fs
+	p.Profile.FormatItems = []format.FormatItem{{Format: 900, Score: 100}}
+	scopeEntry(e, 11, `[[1,1]]`, false, false)
+	e1, e2 := "Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-GRP", "Show.S01E02.2160p.WEB-DL.DDP5.1.H.265-GRP"
+	scopePack(e, "[201, 202]", "", e1, e2)
+	group := "GRP"
+	b, _ := json.Marshal(&decide.ManualOverrides{ReleaseGroup: &group})
+	e.exec(`INSERT INTO download_file (download_id, rel, episodes, source, how, updated_at, overrides)
+				VALUES (1, ?, '[202]', 'manual', 'manual', 0, ?)`, e2+".mkv", string(b))
+	if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+		t.Fatal(err)
+	}
+	got := e.one(`SELECT GROUP_CONCAT(le.episode_id || '=' || l.score || ' ' || json_extract(l.file_metadata, '$.SeaDex'), ', ')
+				FROM link l JOIN link_episode le ON le.link_id = l.id WHERE l.state = 'active' ORDER BY le.episode_id`)
+	if got != "202=0 0" {
+		t.Errorf("links %s", got)
+	}
+}
