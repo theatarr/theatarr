@@ -487,14 +487,15 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   title was removed from has no row; if it still has links, one line under the table says "Still linked from a
   library this title was removed from: <library> (N files)." with **Delete files…** (managers). With no library:
   "This title is in no library yet."
-- **Media group** (a movie row's Details at every width): the file's media in plain text
+- **Media group** (a movie row's Details at every width, and the episode window): the file's media in plain text
   under "Media", one row per fact it has, nothing on hover: **Video** (resolution · codec and bit depth · dynamic
   range), **Audio** ("TrueHD Atmos 7.1" for one track; with several probed tracks each on its own line, "Japanese ·
-  FLAC 2", the codec alone for a track without a language), **Audio languages** (each once, by name; only when the
+  FLAC 2.0", the codec alone for a track without a language; a taken-over file whose arr counted several tracks
+  "13 tracks; first: TrueHD Atmos 7.1"; channels always with one decimal, as everywhere), **Audio languages** (each once, by name; only when the
   Audio row does not list the tracks), **Subtitles** (every language once, by name, in full, wrapping) and
-  **Runtime**. The tracks come from Theatarr's own probe, which read the profile words (Atmos, DTS-HD MA) of the
-  first track only, so a later track reads as its codec family ("TrueHD 7.1"); a taken-over file has the arr's first
-  track only. A file with no media (taken over without the arr's media info) has no group, and neither has a movie
+  **Runtime**. The tracks come from Theatarr's own probe; a Matroska probe read the profile words (Atmos, DTS-HD MA)
+  of the first track only, so a later track there reads as its codec family ("TrueHD 7.1"); a taken-over file has
+  the arr's first track and its track count only. A file with no media (taken over without the arr's media info) has no group, and neither has a movie
   library with several active links (its Details lists each file). Accounts without "see files" get no media.
 - **Latest event** under the status (`latestEvent`, `web/src/lib/title-facts.ts`, from the title response's
   per-library `history`): "4K Remux: Imported yesterday", "Upgraded yesterday" for an import that replaced a file ("Re-downloaded yesterday" when every file it replaced was the same release by name, `redownload`; the
@@ -688,9 +689,9 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
     upgrade vocabulary, monitor switch and Search now (managers), Interactive search for that episode in that library
     (managers, a library that searches live), the download in hand, the upgrade block with Why?, and the file's facts
     (release, quality, score, size, group, **Held on** with the admins' **Torrent** link,
-    languages, media (each audio language once, in first-seen order, however many tracks carry it) with at most
-    four subtitle languages and "+N" (all of them as tooltip), added, "From" the arr
-    instance for an arr's file (none for Theatarr's own link), path), shown openly. **History**:
+    languages, added, "From" the arr
+    instance for an arr's file (none for Theatarr's own link), path), shown openly, and under them the file's
+    **Media** group (as a movie row's Details: "Media group" above). **History**:
     per library the title History's rows that hold the episode (`EpisodeVersionDetail.history`, read by
     `Journal.EpisodeHistory`: the same folds, words and table as the title's History tab, without the Library column
     and the column choice; an upgrade is one Upgraded row with "Replaced:", an adoption that replaced a file one

@@ -43,7 +43,7 @@ import { Modal } from "@/components/ui/modal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fmtAgo, fmtBytes, fmtNumber } from "@/lib/format";
 import { fmtDay, fmtRuntime } from "@/lib/library";
-import { mediaLine, subsList } from "@/lib/media";
+import { MediaGroup } from "@/components/title/media-group";
 import { cellStatus, episodeNumber, mergedStatus, offCopies, plainAvailable, statusWords } from "@/lib/seasons";
 import { activityHref, stageTone, stageWords } from "@/lib/copies";
 import { cn } from "@/lib/utils";
@@ -94,8 +94,6 @@ function fileRows(f: EpisodeVersionDetail["file"]): [React.ReactNode, React.Reac
   if (f.score !== undefined && f.score !== null) rows.push(["Profile score", fmtNumber(f.score)]);
   if (f.size_bytes) rows.push(["Size", fmtBytes(f.size_bytes)]);
   rows.push([<span key="l" title={HELD_ON_TIP}>{HELD_ON}</span>, <span key="c" className="flex flex-wrap items-center gap-x-2 gap-y-1"><ProviderPills codes={f.cached_on} /><TorrentLink hash={f.info_hash} /></span>]);
-  const media = mediaLine(f.media);
-  if (media) rows.push(["Media", <span key="m" title={f.media?.subtitles ? `Subtitles: ${subsList(f.media.subtitles)}` : undefined}>{media}</span>]);
   if (f.episodes && f.episodes.length > 1) rows.push(["In the file", f.episodes.join(", ")]);
   if (f.path) rows.push(["Path", <Mono key="p" className="break-all text-muted-foreground">{f.path}</Mono>]);
   return rows;
@@ -215,6 +213,11 @@ function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, ac
       {rows.length > 0 ? (
         <div className="rounded-[5px] border border-[var(--line)] p-3" data-testid="episode-file">
           <KV items={rows} />
+          {d.file?.media ? (
+            <div className="mt-3">
+              <MediaGroup m={d.file.media} />
+            </div>
+          ) : null}
           {manage && d.file ? (
             <div className="mt-3">
               <AddToProviders hash={d.file.info_hash} addTo={d.file.add_to} pack />

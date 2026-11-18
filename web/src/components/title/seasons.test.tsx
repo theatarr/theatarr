@@ -544,6 +544,25 @@ describe("Episode window", () => {
     expect(within(dialog).queryByTestId("episode-file")).toBeNull();
   });
 
+  it("shows the file's media as a Media group, each audio track on a line and every subtitle in full", async () => {
+    const subs = ["eng", "ara", "zho", "hrv", "ces", "dan", "nld", "fin", "fre", "ger", "ell", "heb", "hin", "hun", "ind", "ita", "jpn", "kor", "msa", "nor", "pol", "por", "ron", "rus", "spa", "swe", "tha", "tur", "ukr", "vie"];
+    const media = { resolution: "1920x1080", video_codec: "x265", audio_codec: "FLAC", audio_channels: 2, audio_languages: "jpn/eng", subtitles: subs.join("/"), run_time: "0:23:40",
+      audio_tracks: [{ codec: "FLAC", channels: 2, language: "jpn" }, { codec: "EAC3", channels: 5.1, language: "eng" }] };
+    const withFile = { ...detail, versions: [detail.versions[0], { ...detail.versions[1], file: { quality: "WEBDL-1080p", cached_on: ["rd"], media }, history: [] }] };
+    mockFetch([routes[0], routes[1], { method: "GET", path: "/titles/1/episodes/102", reply: withFile }]);
+    renderPage(<Seasons id="1" anime />, "/title/1?episode=102");
+    const file = await within(await screen.findByRole("dialog")).findByTestId("episode-file");
+    const group = within(file).getByTestId("media-group");
+    const value = (label: string) => within(group).getByText(label).nextElementSibling as HTMLElement;
+    expect(value("Video").textContent).toBe("1920x1080 · x265");
+    expect([...value("Audio").querySelectorAll("span > span")].map((s) => s.textContent)).toEqual(["Japanese · FLAC 2.0", "English · EAC3 5.1"]);
+    expect(value("Subtitles").textContent?.split(", ")).toHaveLength(30);
+    expect(value("Runtime").textContent).toBe("0:23:40");
+    // No one-line Media row and no tooltip beside the group.
+    expect(file.querySelector("[title^='Subtitles']")).toBeNull();
+    expect(within(file).getAllByText("Media")).toHaveLength(1);
+  });
+
   it("says Nothing stored once on Last search when no result is stored", async () => {
     const none = { title_id: 1, version: "anime-web", versions: ["anime-web"], live_allowed: false, source: "none", results: 0, accepted: 0, candidates: [], rejections: {}, outcomes: {}, grab: false,
       grab_state: { paused: false, pause_forced: false, will_grab: false } };
