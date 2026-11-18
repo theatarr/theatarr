@@ -922,8 +922,8 @@ with the libraries: `GET /settings/versions` returns `sync_groups`, and a versio
 other libraries kept in sync with it; empty takes it out of its group) sets the library's group in the same save. A
 version save or delete, and a YAML import, prune the stored groups first: a library no longer in the records, or
 whose kind or anime setting differs from the rule most of its group shares, leaves it, and a group left with one
-library is dropped. The save answers `sync_dropped`: the partners this pruning took out of the saved library's group
-(sorted keys; omitted when none). The save carries the library section only when its groups change. The section's own form does
+library is dropped. The save answers `sync_dropped`: every partner the saved library was in sync with before the save and is not after
+it, by this pruning or by its `sync_with` (sorted keys; omitted when none). The save carries the library section only when its groups change. The section's own form does
 not show the field and keeps it as stored. Saving a group adds nothing; Bring in sync adds the missing copies on
 request (ui.md "Bring in sync").
 

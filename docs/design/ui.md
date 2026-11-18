@@ -1101,8 +1101,10 @@ on its own: undoing the kind or anime change ends it); Keep in sync compares the
 still qualify, so Undo never puts an excluded partner back and the save never sends it, and Bring in sync is hidden.
 The Kind and Anime fields' Undo restores the rule with what it took: the saved partners come back, partners picked under
 the undone rule go, and a movie library's minimum availability and delay are the saved ones again, so an Undo with
-nothing else changed leaves no unsaved change.
-The save's answer names the partners the server took out (`sync_dropped`), and the result reads "4K Remux saved. It is
+nothing else changed leaves no unsaved change. Picking the saved kind or anime setting again from its menu does the
+same as the Undo (end check 2026-11-18).
+The save's answer names every partner the library was in sync with before the save and is not after it, whatever
+the cause (`sync_dropped`), and the result reads "4K Remux saved. It is
 no longer in sync with 4K WEB." (UI sweep 5, S3.)
 
 A removal follows the group too (owner, 2026-11-17: "removing the title from one library of a sync group also should

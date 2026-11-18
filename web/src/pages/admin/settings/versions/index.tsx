@@ -395,16 +395,16 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
   // The kind the library had when its current profile was chosen, once the kind moved between movies and series
   // and the profile stayed: the picker then says so, instead of keeping it without a word.
   const [profileFrom, setProfileFrom] = useState<VersionConfig["kind"]>();
-  // undo: the Kind or Anime field's Undo, which also puts back what an earlier change of rule took away: the saved
-  // movie fields, and the saved partners the rule excluded.
-  const recategorize = (next: VersionConfig, undo = false) => {
+  // A change of Kind or Anime. Back to the saved value, by its Undo or by picking it again, it also puts back what an
+  // earlier change of rule took away: the saved movie fields, and the saved partners the rule excluded.
+  const recategorize = (next: VersionConfig) => {
     // A picked TRaSH default belongs to one flavour: a change of kind drops it (the new kind's default, if any, is taken below).
     if (presetPick(next.profile) && flavourOf(next.kind) !== flavourOf(config.kind)) next = { ...next, profile: "" };
     // Minimum availability and its delay are a movie library's: another kind drops them.
     if (next.kind !== "movie") {
       next = withAvailability(withAvailability(next, "minimum_availability", ""), "availability_delay", 0);
       setDelayText("");
-    } else if (undo && config.kind !== "movie") {
+    } else if (config.kind !== "movie" && saved.config.kind === "movie") {
       next = withAvailability(withAvailability(next, "minimum_availability", saved.config.minimum_availability ?? ""), "availability_delay", saved.config.availability_delay ?? 0);
       setDelayText(saved.config.availability_delay ? String(saved.config.availability_delay) : "");
     }
@@ -421,8 +421,8 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
     if (flavourOf(next.kind) !== flavourOf(config.kind)) setProfileFrom(next.profile && next.profile === config.profile && !profileFrom ? config.kind : undefined);
     // Libraries of another kind or anime setting cannot stay in sync with it.
     const fits = (key: string, rule: VersionConfig) => { const other = data.versions.find((v) => v.key === key); return !!other && sameRule(other.config, rule); };
-    // An Undo brings back the saved partners the current rule excluded and that fit the restored one.
-    const back = undo ? (saved.sync ?? []).filter((key) => !fits(key, config) && !(record.sync ?? []).includes(key)) : [];
+    // The saved partners the current rule excluded come back when they fit the new one (the saved rule again).
+    const back = (saved.sync ?? []).filter((key) => !fits(key, config) && !(record.sync ?? []).includes(key));
     const sync = [...(record.sync ?? []), ...back].filter((key) => fits(key, next)).sort();
     onChange({ ...record, config: next, sync });
   };
@@ -485,8 +485,8 @@ function VersionForm({ session, data, defaults, profiles, error, onChange }: { s
     <Part title="Where" help="What the library holds, where its folder lives and how files get there.">
       <Field label="Name" help="Optional. Shown in place of the guessed label, such as 4K WEB. Connected apps never see it." changed={(config.name ?? "") !== (saved.config.name ?? "")} onUndo={() => setName(saved.config.name ?? "")} error={fieldError("name")}><Input value={config.name ?? ""} maxLength={40} onChange={(event) => setName(event.target.value)} /></Field>
       <Field label="Key" help={`${session.create && !record.key ? "Enter a name. " : ""}Used by connected apps and in settings; fixed once the library exists. Lower case letters, digits, - and _.`} changed={record.key !== saved.key} onUndo={() => onChange({ ...record, key: saved.key })} error={(record.key ? newKeyProblem(session) : undefined) ?? fieldError("key")}><Input value={record.key} disabled={!session.create} onChange={(event) => onChange({ ...record, key: event.target.value })} /></Field>
-      <Field label="Kind" {...mark("kind")} onUndo={() => recategorize({ ...config, kind: saved.config.kind }, true)}><Pick value={config.kind} options={["movie", "series"]} labels={{ movie: "Movies", series: "Series" }} onChange={(value) => recategorize({ ...config, kind: value as VersionConfig["kind"] })} /></Field>
-      <Field label="Anime" {...mark("anime")} onUndo={() => recategorize({ ...config, anime: saved.config.anime }, true)}><Pick value={config.anime === null ? "both" : String(config.anime)} options={["false", "true", "both"]} labels={{ false: "Not anime", true: "Anime only", both: "Any" }} onChange={(value) => recategorize({ ...config, anime: value === "both" ? null : value === "true" })} /></Field>
+      <Field label="Kind" {...mark("kind")} onUndo={() => recategorize({ ...config, kind: saved.config.kind })}><Pick value={config.kind} options={["movie", "series"]} labels={{ movie: "Movies", series: "Series" }} onChange={(value) => recategorize({ ...config, kind: value as VersionConfig["kind"] })} /></Field>
+      <Field label="Anime" {...mark("anime")} onUndo={() => recategorize({ ...config, anime: saved.config.anime })}><Pick value={config.anime === null ? "both" : String(config.anime)} options={["false", "true", "both"]} labels={{ false: "Not anime", true: "Anime only", both: "Any" }} onChange={(value) => recategorize({ ...config, anime: value === "both" ? null : value === "true" })} /></Field>
       <Field label="Root" changed={!same(config.library, saved.config.library)} error={fieldError("library")}><Input value={config.library} onChange={(event) => { const root = event.target.value; const roots = record.roots?.length && record.roots.length > 1 ? record.roots.map((value) => value === config.library ? root : value) : [root]; setRootsText(roots.join(", ")); onChange({ ...record, config: { ...config, library: root }, roots }); }} /><span role="status" className="text-xs [overflow-wrap:anywhere]">{rootStatus}</span></Field>
       <details className="md:col-span-2" open={advanced} data-testid="library-advanced">
         {/* The click is handled here, so the open state has one owner. */}

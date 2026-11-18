@@ -119,8 +119,8 @@ func versionSettingsRequest(snap *settings.Snapshot, body versionSettingsBody, c
 	return req, err
 }
 
-// versionSettingsSave is versionSettingsRequest that also returns the libraries the saved library is no longer kept
-// in sync with because its new kind or anime setting no longer matches them (the group's pruning), sorted.
+// versionSettingsSave is versionSettingsRequest that also returns the libraries the saved library was kept in sync
+// with before the save and is not after it (the group's pruning or its sync_with), sorted.
 func versionSettingsSave(snap *settings.Snapshot, body versionSettingsBody, create bool) (settings.SaveRequest, []string, error) {
 	req := settings.SaveRequest{ExpectedGeneration: snap.Generation, Records: cloneRecords(snap.Records), ConfirmationToken: body.ConfirmationToken}
 	index := -1
@@ -190,7 +190,7 @@ func versionSettingsSave(snap *settings.Snapshot, body versionSettingsBody, crea
 // syncGroupsFollow keeps the stored sync groups (library.sync_groups) in step with a library save: a deleted library
 // leaves its group, as does one whose new kind or anime setting no longer matches the group; then sync_with, when
 // given, sets the library's group. The save carries the library section only when its groups change. It returns the
-// libraries the pruning took out of the saved library's group, sorted.
+// libraries the saved library was in sync with before the save and is not after it, whatever the cause, sorted.
 func syncGroupsFollow(snap *settings.Snapshot, req *settings.SaveRequest, body versionSettingsBody) ([]string, error) {
 	i := slices.IndexFunc(snap.Records.Sections, func(s settings.Section) bool { return s.Key == "library" })
 	if i < 0 && body.SyncWith == nil {
@@ -214,16 +214,16 @@ func syncGroupsFollow(snap *settings.Snapshot, req *settings.SaveRequest, body v
 	if err := settings.PruneSyncGroups(&records); err != nil {
 		return nil, err
 	}
+	if body.SyncWith != nil && !body.Delete {
+		if err := settings.SetSyncGroup(&records, body.Key, *body.SyncWith); err != nil {
+			return nil, err
+		}
+	}
 	var dropped []string
 	if !body.Delete {
 		kept := partners()
 		dropped = slices.DeleteFunc(had, func(k string) bool { return slices.Contains(kept, k) })
 		slices.Sort(dropped)
-	}
-	if body.SyncWith != nil && !body.Delete {
-		if err := settings.SetSyncGroup(&records, body.Key, *body.SyncWith); err != nil {
-			return nil, err
-		}
 	}
 	if len(records.Sections) == 1 && !bytes.Equal(records.Sections[0].Config, before) {
 		req.Records.Sections = append(req.Records.Sections, records.Sections[0])

@@ -458,4 +458,13 @@ func TestSettingsVersionSyncDropped(t *testing.T) {
 	if group := se.coord.Current().Policy.SyncGroup("movie-web"); !slices.Equal(group, []string{"test-b", "movie-web"}) && !slices.Equal(group, []string{"movie-web", "test-b"}) {
 		t.Fatalf("group left: %v", group)
 	}
+	// Unticking the partners by hand (sync_with empty, the rule unchanged) names them too: every partner the library
+	// had before the save and not after it.
+	config["anime"] = false
+	config["library"] = filepath.Join(area, "test-b")
+	got = se.want(se.call("PUT", "/versions/test-b", map[string]any{"generation": se.generation(), "key": "test-b",
+		"config": config, "sync_with": []string{}}), 200, "unticked")["sync_dropped"]
+	if fmt.Sprint(got) != "[movie-web]" {
+		t.Fatalf("unticked: sync_dropped %v", got)
+	}
 }

@@ -121,6 +121,49 @@ describe("Versions page", () => {
     expect(fetch.calls("PUT", "/settings/versions/movie-remux")[0].body).not.toHaveProperty("sync_with");
   });
 
+  it("picking the saved Kind or Anime again gives what Undo gives: the group and the movie fields as saved, no change left", async () => {
+    const lib = (key: string, name: string, anime = false) => ({ ...version(), key, config: { ...version().config, name, anime, minimum_availability: "announced", availability_delay: 7 } });
+    const data = { ...versions(), versions: [lib("movie-remux", "4K Remux"), lib("movie-web", "4K WEB"), lib("movie-hd", "HD"), lib("anime-movie", "Anime", true)], sync_groups: [["movie-remux", "movie-web", "movie-hd"]] };
+    const fetch = mockFetch([...getRoutes(data), { method: "GET", path: "/settings/versions/movie-remux/bring-in-sync", reply: { group: [], titles: 0, source: "", searched: 0, libraries: [] } },
+      { method: "PUT", path: "/settings/versions/movie-remux", reply: json({ generation: 5, revision: "r" }) }]);
+    const user = userEvent.setup();
+    const page = renderPage(<VersionsPage />);
+    const row = () => page.container.querySelector<HTMLElement>('[data-record="movie-remux"]')!;
+    await waitFor(() => expect(row()).toBeTruthy());
+    await user.click(within(row()).getByRole("button", { name: "Edit" }));
+    const part = await screen.findByTestId("library-sync-part");
+    const settled = () => {
+      expect(screen.queryByTestId("unsaved-count")).toBeNull();
+      expect(within(part).queryByTestId("library-sync-leaving")).toBeNull();
+      expect(within(part).queryByTestId("field-changed")).toBeNull();
+      for (const name of ["4K WEB", "HD"]) expect((within(part).getByRole("checkbox", { name }) as HTMLInputElement).checked).toBe(true);
+    };
+    const kind = () => screen.getByRole("combobox", { name: "Kind" });
+    const anime = () => screen.getByRole("combobox", { name: "Anime" });
+    // Anime only, then Not anime again from the same menu.
+    await user.selectOptions(anime(), "true");
+    expect(within(part).getByTestId("library-sync-leaving")).toBeTruthy();
+    await user.selectOptions(anime(), "false");
+    settled();
+    // Movies, Series, Movies again: the saved minimum availability and delay are back.
+    await user.selectOptions(kind(), "series");
+    await user.selectOptions(kind(), "movie");
+    settled();
+    expect((screen.getByRole("combobox", { name: "Minimum availability" }) as HTMLSelectElement).value).toBe("announced");
+    expect((screen.getByRole("textbox", { name: "Availability delay (days)" }) as HTMLInputElement).value).toBe("7");
+    // In the group of three, one partner unticked by hand, then Anime only and back: as Undo does, both saved partners are ticked again.
+    await user.click(within(part).getByRole("checkbox", { name: "HD" }));
+    expect(screen.getByTestId("unsaved-count").textContent).toBe("1 unsaved change");
+    await user.selectOptions(anime(), "true");
+    await user.selectOptions(anime(), "false");
+    settled();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-remux")).toHaveLength(1));
+    const body = fetch.calls("PUT", "/settings/versions/movie-remux")[0].body;
+    expect(body).not.toHaveProperty("sync_with");
+    expect(body).toMatchObject({ config: { kind: "movie", anime: false, minimum_availability: "announced", availability_delay: 7 } });
+    await waitFor(() => expect(screen.getByTestId("version-announce").textContent).toBe("4K Remux saved."));
+  });
   it("says removals follow the group too, and Bring in sync names the copies it brings back", async () => {
     const lib = (key: string, name: string) => ({ ...version(), key, config: { ...version().config, name } });
     const data = { ...versions(), versions: [lib("movie-web", "Web"), lib("movie-remux", "Remux")], sync_groups: [["movie-web", "movie-remux"]] };
@@ -381,9 +424,10 @@ describe("Versions page", () => {
     await user.selectOptions(screen.getByRole("combobox", { name: "Kind" }), "series");
     expect(screen.queryByRole("combobox", { name: "Minimum availability" })).toBeNull();
     expect(screen.queryByRole("textbox", { name: "Availability delay (days)" })).toBeNull();
+    // Picked back to Movies, the saved kind: the saved values are back, as with Undo.
     await user.selectOptions(screen.getByRole("combobox", { name: "Kind" }), "movie");
-    expect((screen.getByRole("combobox", { name: "Minimum availability" }) as HTMLSelectElement).value).toBe("");
-    expect((screen.getByRole("textbox", { name: "Availability delay (days)" }) as HTMLInputElement).value).toBe("");
+    expect((screen.getByRole("combobox", { name: "Minimum availability" }) as HTMLSelectElement).value).toBe("announced");
+    expect((screen.getByRole("textbox", { name: "Availability delay (days)" }) as HTMLInputElement).value).toBe("7");
   });
 
   it("names a library, and clears a stored name by sending it empty", async () => {

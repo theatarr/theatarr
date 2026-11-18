@@ -21,8 +21,8 @@ type SettingsWrite struct {
 	Revision   string           `json:"revision"`
 	Record     *SettingsRecord  `json:"record,omitempty"`
 	Records    []SettingsRecord `json:"records,omitempty"`
-	// SyncDropped, on a library save: the libraries it is no longer kept in sync with because its new kind or anime
-	// setting no longer matches them.
+	// SyncDropped, on a library save: the libraries it was kept in sync with before the save and is not after it
+	// (its new kind or anime setting no longer matches them, or Keep in sync left them out).
 	SyncDropped []string `json:"sync_dropped,omitempty"`
 }
 
