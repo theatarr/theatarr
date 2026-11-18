@@ -69,6 +69,8 @@ export const qk = {
     facets: (kind?: string, anime?: boolean) => ["titles", "facets", kind ?? "", anime ?? ""] as const,
     table: (params: unknown) => ["titles", "table", params] as const,
   },
+  /** Every tag label (GET /tags), the tag editor's suggestions. */
+  tags: ["tags"] as const,
   /** One title: its page, its episodes and anything else keyed under it. */
   title: (t: Id) => ["title", id(t)] as const,
   episodes: (t: Id, season?: number) => ["title", id(t), "episodes", season ?? "all"] as const,

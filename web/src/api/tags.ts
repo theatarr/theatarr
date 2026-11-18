@@ -11,7 +11,7 @@ export const TAGS_CHUNK = 500;
 
 /** Every label, for the editor's suggestions; read while an editor is open. */
 export const useTagLabels = (enabled: boolean) =>
-  useQuery({ queryKey: ["tags"], queryFn: () => api<Schemas["TagList"]>("/tags"), enabled, staleTime: 30_000 });
+  useQuery({ queryKey: qk.tags, queryFn: () => api<Schemas["TagList"]>("/tags"), enabled, staleTime: 30_000 });
 
 /** The rule the server keeps (the compatible tag create's): letters, digits and hyphens. */
 export const TAG_RULE = /^[a-z0-9-]+$/;
@@ -48,6 +48,6 @@ export function useTagsSaved() {
   return () => {
     void qc.invalidateQueries({ queryKey: ["title"] });
     void qc.invalidateQueries({ queryKey: qk.titles.all });
-    void qc.invalidateQueries({ queryKey: ["tags"] });
+    void qc.invalidateQueries({ queryKey: qk.tags });
   };
 }
