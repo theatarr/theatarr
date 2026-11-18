@@ -281,6 +281,10 @@ func TestReplaceFileFromTitlePage(t *testing.T) {
 	if s == nil || s.Replace || s.Why == "" || len(s.Libraries) != 1 {
 		t.Fatalf("paused scope %+v", s)
 	}
+	// The reason names the library, not its key.
+	if strings.Contains(s.Why, "(movie-remux)") || !strings.Contains(s.Why, "("+o.web.versionLabel("movie-remux")+")") {
+		t.Errorf("paused reason names the key: %q", s.Why)
+	}
 	var refused apiError
 	if code := o.jsonCall("POST", APIBase+"/links/901/replace", nil, o.mc, o.mcsrf, &refused); code != http.StatusConflict ||
 		refused.Error != s.Why || len(o.ops.unlinks) != 0 {
@@ -305,6 +309,18 @@ func TestReplaceFileFromTitlePage(t *testing.T) {
 		t.Fatalf("replace of an anime title's file: %d %+v", code, refused)
 	}
 	o.exec(`UPDATE title SET anime = 0 WHERE id = 1`)
+	// A file that is not one of Theatarr's links: on the title page the reason says what to do there.
+	o.exec(`UPDATE link SET kind = 'copy' WHERE id = 901`)
+	if s := scopeOf(o.mc); s == nil || s.Replace ||
+		s.Why != "This file is not one of Theatarr's links; change it with Edit file facts or Unlink" {
+		t.Fatalf("copied file scope %+v", s)
+	}
+	refused = apiError{}
+	if code := o.jsonCall("POST", APIBase+"/links/901/replace", nil, o.mc, o.mcsrf, &refused); code != http.StatusConflict ||
+		refused.Error != "This file is not one of Theatarr's links; change it with Edit file facts or Unlink" {
+		t.Fatalf("replace of a copied file: %d %+v", code, refused)
+	}
+	o.exec(`UPDATE link SET kind = 'symlink' WHERE id = 901`)
 	// The episode window: the file's scope names its episodes.
 	o.exec(`UPDATE link SET release_title = 'Delta.S01E01.1080p.BluRay-GRP' WHERE id = 90`)
 	var ep EpisodeDetail

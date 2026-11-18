@@ -572,21 +572,35 @@ type episodeKey struct {
 	version string
 }
 
+// changeOnTitlePage ends a refusal the Problems page can only point away from; the title page says what to do there
+// instead (changeHere, titlePageWhy).
+const (
+	changeOnTitlePage = "change it from the title page"
+	changeHere        = "change it with Edit file facts or Unlink"
+)
+
+// titlePageWhy is a Replace file refusal as the title page says it.
+func titlePageWhy(why string) string { return strings.Replace(why, changeOnTitlePage, changeHere, 1) }
+
 // replaceBlocked says why Replace file cannot run for f ("" when it can): it runs only when the search after it can,
 // in every library that loses the file, for the movie or every episode the file holds (monitored: the episodes
 // monitored per library; anime: the title is anime as the search reads it, which skips a library whose anime
 // setting does not match).
 func (w *Web) replaceBlocked(f ReportFile, kind string, on []string, monitored map[episodeKey]bool, anime bool) string {
 	if kind != "symlink" {
-		return "This file is not one of Theatarr's links; change it from the title page"
+		return "This file is not one of Theatarr's links; " + changeOnTitlePage
 	}
 	if router.BlocklistKey(f.hash, f.ReleaseTitle) == "" {
-		return "Theatarr does not know this file's release, so it could come back; change it from the title page"
+		return "Theatarr does not know this file's release, so it could come back; " + changeOnTitlePage
 	}
 	if w.ops == nil || w.add.Acquirer == nil {
 		return "Searching is not running, so no new file would be searched"
 	}
 	if _, skipped := catalog.Searchable(w.pol, f.Versions); len(skipped) > 0 {
+		// The libraries by name, not by key.
+		for i := range skipped {
+			skipped[i].Version = w.versionLabel(skipped[i].Version)
+		}
 		return "Not searched now: " + skipWords(skipped)
 	}
 	var unfit []string
