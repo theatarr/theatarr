@@ -37,7 +37,7 @@ describe("Pause in the admin header", () => {
     // The app's Switch, not a browser checkbox.
     expect(pause.tagName).toBe("BUTTON");
     expect(pause.getAttribute("data-slot")).toBe("switch");
-    expect(screen.getByTestId("pause").getAttribute("title")).toBe("Pause stops searches, new downloads, list syncs and changes in your library folders, for every library. Downloads already started finish at the provider and are imported when you turn Pause off.");
+    expect(screen.getByTestId("pause").getAttribute("title")).toBe("Pause: searches, new grabs and imports stop for every library; Interactive search can still look up releases. List syncs stop too. Downloads already started finish at the provider and are imported when you turn Pause off.");
     await userEvent.setup().click(pause);
     await waitFor(() => expect(fetch.calls("PUT", "/settings/switches")).toHaveLength(1));
     expect(fetch.calls("PUT", "/settings/switches")[0].body).toEqual({ generation: 7, paused: true });

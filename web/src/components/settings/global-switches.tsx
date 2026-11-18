@@ -66,7 +66,7 @@ export function PauseSwitch() {
   return (
     <>
       <span className={PILL} data-testid="pause" data-paused={paused || undefined}
-        title={paused ? `Paused: ${PAUSE_STOPS}. Turn off to resume.` : "Pause stops searches, new downloads, list syncs and changes in your library folders, for every library. Downloads already started finish at the provider and are imported when you turn Pause off."}>
+        title={paused ? `Paused: ${PAUSE_STOPS}. Turn off to resume.` : `Pause: ${PAUSE_STOPS}. List syncs stop too. Downloads already started finish at the provider and are imported when you turn Pause off.`}>
         <Switch id={id} size="sm" aria-label="Pause" checked={paused} disabled={busy || !o.writable || o.source !== "db"}
           onCheckedChange={(on) => void save(on, o.generation)} />
         <label htmlFor={id} className={paused ? "cursor-pointer whitespace-nowrap font-medium text-[var(--warn-ink)]" : "cursor-pointer whitespace-nowrap"}>{paused ? "Paused" : "Pause"}</label>
