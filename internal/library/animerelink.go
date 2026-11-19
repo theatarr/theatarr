@@ -97,6 +97,7 @@ func (l *Library) relinkAnime(ctx context.Context, tvdbID int) (*AnimeRelinked, 
 	}
 	titles := map[[2]int64]*decide.Title{}
 	downloads := map[int64]*importDownload{}
+	planned := map[int64]sql.NullInt64{} // the import plan's video-file count, by download
 	var moves []*relinkCandidate
 	for _, c := range cands {
 		rel, titleID := c.rel, c.titleID
@@ -127,10 +128,13 @@ func (l *Library) relinkAnime(ctx context.Context, tvdbID int) (*AnimeRelinked, 
 		// The release's video files as its import plan counted them (one linked file of a batch is no single-file
 		// release); a download without a stored count is read as multi-video, which never prefers the release title's
 		// range over the file's own number.
-		var files sql.NullInt64
-		if err := db.QueryRowContext(ctx, `SELECT json_array_length(plan, '$.files') FROM library_import
-			WHERE download_id = ?`, c.downloadID).Scan(&files); err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return nil, err
+		files, ok := planned[c.downloadID]
+		if !ok {
+			if err := db.QueryRowContext(ctx, `SELECT json_array_length(plan, '$.files') FROM library_import
+				WHERE download_id = ?`, c.downloadID).Scan(&files); err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return nil, err
+			}
+			planned[c.downloadID] = files
 		}
 		res, err := decide.ResolveFile(t, decide.FileInput{Path: rel, Release: d.ReleaseTitle, Folder: d.Name,
 			OtherVideoFiles: files.Int64 != 1, Mapping: d.EpisodeMap})

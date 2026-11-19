@@ -74,6 +74,9 @@ type PlannedFile struct {
 	Episodes []string `json:"episodes,omitempty"`
 	// Unread marks a film's file the automatic import left unread: an extra, or one smaller than the feature found.
 	Unread bool `json:"unread,omitempty"`
+	// guard is the film guards' verdict from the read ("" passed), when guarded: planMovie takes it as it is.
+	guard   string
+	guarded bool
 }
 
 // ZurgFileCheck is what zurg's API said about a release file. Confirmed: the download's hash, and the size the
@@ -607,9 +610,9 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 		} else {
 			pf.Probe = res
 		}
-		if movieAuto && sampleCheck(l.set.MinRuntimeRatio, l.set.Resolution, "movie", v.Title.Runtime, false, &pf, resolution) == "" &&
-			l.mislabel(d, labels, &pf) == "" {
-			featured = true
+		if movieAuto {
+			pf.guard, pf.guarded = l.movieGuard(d, labels, resolution, &pf), true
+			featured = pf.guard == ""
 		}
 		plan.Files = append(plan.Files, pf)
 	}
@@ -1183,9 +1186,9 @@ func (l *Library) planMovie(ctx context.Context, d *importDownload, vn *VersionN
 		if f.Unread {
 			continue
 		}
-		reason := sampleCheck(l.set.MinRuntimeRatio, l.set.Resolution, "movie", v.Title.Runtime, false, f, resolution)
-		if reason == "" {
-			reason = l.mislabel(d, labels, f)
+		reason := f.guard
+		if !f.guarded {
+			reason = l.movieGuard(d, labels, resolution, f)
 		}
 		if reason != "" {
 			f.Reason = reason
@@ -1261,6 +1264,14 @@ func (l *Library) planMovie(ctx context.Context, d *importDownload, vn *VersionN
 	lk.prev, _ = os.Readlink(path)
 	plan.Links = append(plan.Links, lk)
 	return nil
+}
+
+// movieGuard runs the sample and mislabel guards on a film's file: why it is refused, "" when it passes.
+func (l *Library) movieGuard(d *importDownload, labels labelClaim, resolution int, f *PlannedFile) string {
+	if reason := sampleCheck(l.set.MinRuntimeRatio, l.set.Resolution, "movie", d.Version.Title.Runtime, false, f, resolution); reason != "" {
+		return reason
+	}
+	return l.mislabel(d, labels, f)
 }
 
 // anyZurgUnconfirmed: a rejected file is one zurg did not confirm (ZurgFileCheck).
