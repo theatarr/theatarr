@@ -38,8 +38,10 @@ and models three versions with two criteria each.
      `ATVP` before it, is WEB-DL, as Sonarr v5 reads it (the series parser takes the same, `TestV4PlusWebTokens`);
      v5's pattern `DDP?[ .]?5[. ]1` also takes a separated `WEB.DD.5.1`, kept on purpose.
      `JPN`, `(JA)` and upper-case `JA` are Japanese. Subtitle spans are removed once before any of the three language
-     readings (codes, upper-case codes, full names): a language word right before the whole word `SUB`/`SUBS`
-     (`JPN.ENG.SUBS` and `JPN.English.Subs` are Japanese, `[English Subs]` gives no English), `SUB` joined before a
+     readings (codes, upper-case codes, full names): a language tag right before the whole word `SUB`, `SUBS`,
+     `SUBBED` or `SUBTITLE(S)`, in every tag form the readings accept (`PT-BR`, `GER.DUB`, `PL.DUB`, `(JA)`, `[CHS]`,
+     `2xUKR`, a word or code; `JPN.ENG.SUBS` and `JPN.English.Subs` are Japanese, `ENG.PT-BR.SUBS` English,
+     `[English Subs]` gives no English), `SUB` joined before a
      language (`SUBFRENCH`: French subtitles; `ENG.SUBFRENCH` stays English), and everything from `Multiple Subtitle`
      on (`radarr.TestJapaneseAndSubtitleLanguages`). Only the last language before `SUBS` is a subtitle, unlike the
      series parser's list rule: `ITA.ENG.SUBS` reads Italian with English subtitles, on purpose (no codec-count

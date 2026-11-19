@@ -48,10 +48,12 @@ var (
                                                                                                           (?<spanish>\b(?<!DTS[._ -])ES\b)|
                                                                                                           (?<japanese>\bJA\b))(?:(?i)(?![\W|_|^]SUB))`, optX)
 
-	// Subtitle spans (ours), removed before the audio languages are read: a language word directly before the whole
-	// word SUB/SUBS/SUBTITLE(S) (`ENG.SUBS`, `[English Subs]`), SUB joined before a language word (`SUBFRENCH`, French
-	// subtitles), and everything from a "Multiple Subtitle" marker on (Erai-raws' `[Multiple Subtitle] [ENG][POR-BR]`).
-	subtitleBeforeRegex = re(`(?<=^|[-_. \[(+,])(?<lang>\p{L}+)[-_. ]sub(?:s|titles?)?(?![\p{L}\d])`, optI)
+	// Subtitle spans (ours), removed before the audio languages are read: a language tag directly before the whole
+	// word SUB, SUBS, SUBBED, SUBTITLE(S) or SUBTITLED (`ENG.SUBS`, `[English Subs]`), in every form the readings
+	// above accept (`pt-BR`, `GER.DUB`, `PL.DUB`, `(JA)`, `[CHS]`, `2xUKR`, a word or code); SUB joined before a
+	// language word (`SUBFRENCH`, French subtitles); and everything from a "Multiple Subtitle" marker on
+	// (Erai-raws' `[Multiple Subtitle] [ENG][POR-BR]`).
+	subtitleBeforeRegex = re(`(?<=^|[-_. \[(+,])(?<lang>pt-BR|ger[. ]dub|PL\W?(?:DUB|LEK)|(?:DUB|LEK)\W?PL|\(JA\)|\[[^\[\]]+\]|[\p{L}\d]+)[-_. ]sub(?:s|bed|titles?|titled)?(?![\p{L}\d])`, optI)
 	subtitleJoinedRegex = re(`(?<![\p{L}\d])sub(?<lang>\p{L}+)(?![\p{L}\d])`, optI)
 	subtitleListRegex   = re(`\[?\bMultiple[-_. ]Subtitles?\b`, optI)
 
@@ -216,38 +218,22 @@ func audioLanguages(title string) []Language {
 	return languages
 }
 
-// withoutSubtitles is the title with its subtitle spans (subtitleBeforeRegex, subtitleJoinedRegex,
-// subtitleListRegex) replaced by a space (ours). Only the last language before SUBS is a subtitle: `JPN.ENG.SUBS` is
-// Japanese audio with English subtitles, `ITA.ENG.SUBS` Italian. A joined marker is not a word: `ENG.SUBFRENCH`
-// keeps English.
+// withoutSubtitles is the title cut at a "Multiple Subtitle" marker, with each subtitle span (subtitleBeforeRegex,
+// subtitleJoinedRegex) whose tag reads as a language replaced by a space (ours). Only the last language before SUBS
+// is a subtitle: `JPN.ENG.SUBS` is Japanese audio with English subtitles, `ITA.ENG.SUBS` Italian. A joined marker is
+// not a word: `ENG.SUBFRENCH` keeps English.
 func withoutSubtitles(title string) string {
-	runes := []rune(title)
-	cut := make([]bool, len(runes))
-	mark := func(from, to int) {
-		for i := from; i < to; i++ {
-			cut[i] = true
-		}
-	}
-	for _, r := range []*regexp2.Regexp{subtitleBeforeRegex, subtitleJoinedRegex} {
-		for _, m := range matches(r, title) {
-			if len(audioLanguages(value(m, "lang"))) > 0 {
-				mark(m.Index, m.Index+m.Length)
-			}
-		}
-	}
 	if m := match(subtitleListRegex, title); m != nil {
-		mark(m.Index, len(runes))
+		title = string([]rune(title)[:m.Index])
 	}
-	var b strings.Builder
-	for i, r := range runes {
-		switch {
-		case !cut[i]:
-			b.WriteRune(r)
-		case i == 0 || !cut[i-1]:
-			b.WriteByte(' ')
+	span := func(m regexp2.Match) string {
+		if len(audioLanguages(value(&m, "lang"))) > 0 {
+			return " "
 		}
+		return m.String()
 	}
-	return b.String()
+	title = replaceFunc(subtitleBeforeRegex, title, span)
+	return replaceFunc(subtitleJoinedRegex, title, span)
 }
 
 func distinctLanguages(in []Language) []Language {

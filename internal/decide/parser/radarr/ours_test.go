@@ -46,6 +46,27 @@ func TestJapaneseAndSubtitleLanguages(t *testing.T) {
 		"Akira (1988) 1080p BluRay [English Subs] x264-GRP":                   "Unknown",
 		"Akira.1988.1080p.BluRay.ENG.SUBFRENCH-GRP":                           "English",
 		"Akira.1988.1080p.BluRay.ITA.ENG.SUBS-GRP":                            "Italian",
+		// Every tag form the audio readings accept, before every marker form.
+		"Akira.1988.1080p.BluRay.ENG.PT-BR.SUBS-GRP":        "English",
+		"Akira.1988.1080p.BluRay.pt-BR.SUBS-GRP":            "Unknown",
+		"Akira.1988.1080p.BluRay.ENG.FRENCH.SUBBED-GRP":     "English",
+		"Akira.1988.1080p.BluRay.JPN.GER.DUB.SUBS-GRP":      "Japanese",
+		"Akira.1988.1080p.BluRay.JPN.PL.DUB.Subs-GRP":       "Japanese",
+		"Akira.1988.1080p.BluRay.JPN.DUB-PL.Subs-GRP":       "Japanese",
+		"Akira.1988.1080p.BluRay.JPN.LEK.PL.Subs-GRP":       "Japanese",
+		"Akira.1988.1080p.BluRay.ENG.(JA).Subs-GRP":         "English",
+		"Akira.1988.1080p.BluRay.JPN.[CHS].SUBS-GRP":        "Japanese",
+		"Akira.1988.1080p.BluRay.JPN.[BIG5].Sub-GRP":        "Japanese",
+		"Akira.1988.1080p.BluRay.JPN.2xUkr.Subs-GRP":        "Japanese",
+		"Akira.1988.1080p.BluRay.JPN.EN.SUBS-GRP":           "Japanese",
+		"Akira.1988.1080p.BluRay.JPN.Castellano.Subs-GRP":   "Japanese",
+		"Akira.1988.1080p.BluRay.JPN.Español.Subs-GRP":      "Japanese",
+		"Akira.1988.1080p.BluRay.ENG.VF2.SUBS-GRP":          "English",
+		"Akira.1988.1080p.BluRay.JPN.ENG-Sub.x264-GRP":      "Japanese",
+		"Akira.1988.1080p.BluRay.JPN.ENG_Subtitle-GRP":      "Japanese",
+		"Akira.1988.1080p.BluRay.JPN.English Subtitles-GRP": "Japanese",
+		"Akira.1988.1080p.BluRay.JPN.Eng.Subbed-GRP":        "Japanese",
+		"Akira.1988.1080p.BluRay.JPN.ENG.SUBFRENCH-GRP":     "Japanese,English",
 	} {
 		p := ParseMovieTitle(title, false)
 		if p == nil {
