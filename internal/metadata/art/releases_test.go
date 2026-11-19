@@ -166,3 +166,73 @@ func TestPrimaryReleaseDates(t *testing.T) {
 		t.Errorf("primary country without the US %q (the first by code on the earliest day)", got)
 	}
 }
+
+// TestFirstCinemaAvailability (Z4.2): availability counts from the first real cinema date anywhere (wide or limited,
+// any country) when it is earlier than the canonical cinema date; TMDb's general date (a festival premiere) only
+// without any cinema date. The canonical dates and the dates shown stay.
+func TestFirstCinemaAvailability(t *testing.T) {
+	e := newTestEnv(t)
+	ctx := context.Background()
+	e.seed(t)
+	e.exec(t, `INSERT OR IGNORE INTO title_meta (title_id, attempted_at, refresh_after) VALUES (1, 1, 1)`)
+	day := func(d string) time.Time {
+		v, err := time.Parse(time.DateOnly, d)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	for _, tc := range []struct {
+		name              string
+		movie             tmdb.Movie
+		cinemas, released bool
+		home, shownCinema string
+	}{
+		{"1988 original abroad, 2026 US re-release, no home dates", tmdb.Movie{ReleaseDate: "1988-05-11",
+			ReleaseDates: tmdb.ReleaseDates{Results: []tmdb.CountryReleases{
+				{Country: "FR", Releases: []tmdb.Release{{Type: 3, Date: day("1988-05-11")}}},
+				{Country: "US", Releases: []tmdb.Release{{Type: 3, Date: day("2026-09-01")}}},
+			}}}, true, true, "1988-08-09", "2026-09-01"},
+		{"festival general date, later cinema date", tmdb.Movie{ReleaseDate: "2026-01-25",
+			ReleaseDates: tmdb.ReleaseDates{Results: []tmdb.CountryReleases{
+				{Country: "US", Releases: []tmdb.Release{{Type: 1, Date: day("2026-01-25")}, {Type: 3, Date: day("2026-12-01")}}},
+			}}}, false, false, "2027-03-01", "2026-12-01"},
+		{"US first", tmdb.Movie{ReleaseDate: "2026-08-01",
+			ReleaseDates: tmdb.ReleaseDates{Results: []tmdb.CountryReleases{
+				{Country: "US", Releases: []tmdb.Release{{Type: 3, Date: day("2026-08-01")}}},
+				{Country: "FR", Releases: []tmdb.Release{{Type: 2, Date: day("2026-08-15")}}},
+			}}}, true, false, "2026-10-30", "2026-08-01"},
+		{"home dates known", tmdb.Movie{ReleaseDate: "1988-05-11",
+			ReleaseDates: tmdb.ReleaseDates{Results: []tmdb.CountryReleases{
+				{Country: "FR", Releases: []tmdb.Release{{Type: 3, Date: day("1988-05-11")}}},
+				{Country: "US", Releases: []tmdb.Release{{Type: 3, Date: day("2026-09-01")}, {Type: 4, Date: day("2026-12-01")}}},
+			}}}, true, false, "2026-12-01", "2026-09-01"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := e.st.WriteTx(ctx, func(tx *sql.Tx) error { return writeMovieDates(ctx, tx, 1, &tc.movie, testNow) }); err != nil {
+				t.Fatal(err)
+			}
+			dates, err := availability.Dates(ctx, e.st.Reader(), 1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := availability.Available("inCinemas", dates, testNow, 0); got != tc.cinemas {
+				t.Errorf("in cinemas: %v, want %v (%v)", got, tc.cinemas, dates)
+			}
+			if got := availability.Available("released", dates, testNow, 0); got != tc.released {
+				t.Errorf("released: %v, want %v (%v)", got, tc.released, dates)
+			}
+			if got := availability.HomeRelease(dates).Format(time.DateOnly); got != tc.home {
+				t.Errorf("home release %s, want %s", got, tc.home)
+			}
+			// The canonical cinema date and the date the lists, the calendar and the title page show stay.
+			if got := dates["theatrical"].Format(time.DateOnly); got != tc.shownCinema {
+				t.Errorf("canonical cinema date %s, want %s", got, tc.shownCinema)
+			}
+			shown, err := activity.ReadMovieDates(ctx, e.st.Reader(), []any{int64(1)})
+			if err != nil || shown[1].First["theatrical"] != tc.shownCinema {
+				t.Errorf("shown cinema date %v %v, want %s", shown[1].First, err, tc.shownCinema)
+			}
+		})
+	}
+}

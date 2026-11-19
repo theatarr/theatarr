@@ -228,11 +228,12 @@ const canonicalDate = `d.country = '' AND (d.source = 'tmdb-art' OR NOT EXISTS
 	(SELECT 1 FROM title_meta m_d WHERE m_d.title_id = d.title_id AND m_d.movie_dates_at IS NOT NULL))`
 
 // homeReleaseSQL is title t's home release day (availability.HomeRelease over the canonical dates, as list rows'
-// home_release): the earlier of its digital and physical dates, else its cinema date plus 90 days; NULL without.
+// home_release): the earlier of its digital and physical dates, else its cinema date plus 90 days (availability.Cinema:
+// the canonical cinema date or the first cinema date anywhere, a canonical theatrical_limited row); NULL without.
 const homeReleaseSQL = `COALESCE((SELECT MIN(d.date) FROM title_release_date d WHERE d.title_id = t.id
 	AND d.type IN ('digital', 'physical') AND ` + canonicalDate + `),
-	(SELECT date(MIN(d.date), '+90 days') FROM title_release_date d WHERE d.title_id = t.id AND d.type = 'theatrical'
-	AND ` + canonicalDate + `))`
+	(SELECT date(MIN(d.date), '+90 days') FROM title_release_date d WHERE d.title_id = t.id
+	AND d.type IN ('theatrical', 'theatrical_limited') AND ` + canonicalDate + `))`
 
 // titleAvailabilitySQL is title t's availability (see above) as an SQL value; m is t's title_meta row (titleFrom).
 // The clock's values are written into the SQL. A series library's gap is what its coverage counts as missing (an
@@ -476,9 +477,10 @@ func (g TitleGridFilter) where(conds []string, args []any) ([]string, []any) {
 }
 
 // cinemaFirstSQL is a movie's earliest stored cinema date (title_release_date, theatrical or theatrical_limited, any
-// source or country), YYYY-MM-DD, over title t; NULL without one.
+// source or country, but not availability's first cinema date, the canonical theatrical_limited row), YYYY-MM-DD,
+// over title t; NULL without one.
 const cinemaFirstSQL = `(SELECT MIN(substr(d.date, 1, 10)) FROM title_release_date d WHERE d.title_id = t.id
-	AND d.type IN ('theatrical', 'theatrical_limited'))`
+	AND (d.type = 'theatrical' OR d.type = 'theatrical_limited' AND d.country <> ''))`
 
 // releasedSQL is a title's general release day (YYYY-MM-DD, NULL when undated), over title t and its title_meta m:
 // a movie's earliest stored cinema date (cinemaFirstSQL) or TMDb's release date, whichever is earlier, so a

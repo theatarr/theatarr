@@ -31,6 +31,8 @@ func TestAvailable(t *testing.T) {
 		{"90 day fallback", "released", map[string]time.Time{"theatrical": now.AddDate(0, 0, -90)}, true},
 		{"before 90 days", "released", map[string]time.Time{"theatrical": now.AddDate(0, 0, -90).Add(time.Second)}, false},
 		{"known future home release overrides fallback", "released", map[string]time.Time{"theatrical": now.AddDate(0, 0, -100), "digital": now.AddDate(0, 0, 1)}, false},
+		{"first cinema run abroad", "released", map[string]time.Time{"theatrical": now.AddDate(0, 0, -10), FirstCinema: now.AddDate(-38, 0, 0)}, true},
+		{"first cinema run abroad, in cinemas", "inCinemas", map[string]time.Time{"theatrical": now.Add(time.Hour), FirstCinema: now.AddDate(0, 0, -1)}, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := Available(tc.minimum, tc.dates, now, 0); got != tc.want {
@@ -55,6 +57,8 @@ func TestHomeRelease(t *testing.T) {
 		{"disc first", map[string]time.Time{"digital": day(30), "physical": day(3)}, day(3)},
 		{"cinema 30 days ago", map[string]time.Time{"theatrical": day(-30)}, day(60)},
 		{"cinema 100 days ago", map[string]time.Time{"theatrical": day(-100)}, day(-10)},
+		{"re-release, first run abroad", map[string]time.Time{"theatrical": day(-10), FirstCinema: day(-100)}, day(-10)},
+		{"first run abroad, digital to come", map[string]time.Time{"theatrical": day(-10), FirstCinema: day(-100), "digital": day(20)}, day(20)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := HomeRelease(tc.dates)

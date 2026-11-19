@@ -304,8 +304,11 @@ existing redaction applies). Household accounts get none of it.
   (`title_release_date`, source `tmdb`); Details › Release dates lists them (with the arrs' rows for a title not
   refreshed), the country named once under the table; a refreshed title's cinema date taken from the first release
   anywhere is marked "first release, not US".
-  Display only: what may be fetched reads `availability.Dates` (the `tmdb-art` schedule, `tmdb.ReleaseSchedule`) and
-  `home_release` (above), unchanged; the arr-compatible API's dates are those too.
+  Display only: what may be fetched reads `availability.Dates` (the `tmdb-art` schedule, `tmdb.ReleaseSchedule`, plus
+  availability's first cinema date anywhere when earlier: router.md "Triggers") and `home_release` (above, from the
+  same dates: a 1988 film back in US cinemas this year is out at home, not Upcoming); the arr-compatible API's dates
+  are the canonical ones, its `isAvailable` and status follow availability. The general release day leaves
+  availability's first cinema date out, so no shown date changes.
 - **Added and Latest file**: **Added** is the day the title was added to Theatarr (lists' Added column and sort,
   poster detail); **Latest file** is when the newest current file came (lists' Latest file column and sort, Home's
   **Latest files** row with "File added …", About's Latest file). The **Quality** sort orders by the quality each

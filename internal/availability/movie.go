@@ -22,7 +22,7 @@ func Available(minimum string, dates map[string]time.Time, now time.Time, delay 
 	}
 	var date time.Time
 	if minimum == "inCinemas" {
-		date = dates["theatrical"]
+		date = Cinema(dates)
 	}
 	if date.IsZero() {
 		date = HomeRelease(dates)
@@ -30,15 +30,32 @@ func Available(minimum string, dates map[string]time.Time, now time.Time, delay 
 	return !date.IsZero() && !now.Before(date.AddDate(0, 0, delay))
 }
 
+// FirstCinema is the release type of the canonical row that holds a movie's first real cinema date anywhere (wide or
+// limited, any country; tmdb.Movie.FirstCinema), stored by the metadata refresh only when it is earlier than the
+// canonical cinema date ("theatrical"). Only availability reads it: the calendar and every displayed date keep the
+// canonical cinema date.
+const FirstCinema = "theatrical_limited"
+
+// Cinema is the cinema date availability counts from: the canonical cinema date, or the first cinema date anywhere
+// (FirstCinema) when that is earlier, so a later re-release never makes an old film "not in cinemas yet"; zero
+// without either.
+func Cinema(dates map[string]time.Time) time.Time {
+	date := dates["theatrical"]
+	if f := dates[FirstCinema]; !f.IsZero() && (date.IsZero() || f.Before(date)) {
+		date = f
+	}
+	return date
+}
+
 // HomeRelease is the day a movie is out at home, the date Available's "released" minimum compares against: the
-// earlier of the digital and physical dates, else the cinema date plus 90 days; zero without any of them.
+// earlier of the digital and physical dates, else the cinema date (Cinema) plus 90 days; zero without any of them.
 func HomeRelease(dates map[string]time.Time) time.Time {
 	date := dates["digital"]
 	if p := dates["physical"]; !p.IsZero() && (date.IsZero() || p.Before(date)) {
 		date = p
 	}
-	if date.IsZero() && !dates["theatrical"].IsZero() {
-		date = dates["theatrical"].AddDate(0, 0, 90)
+	if c := Cinema(dates); date.IsZero() && !c.IsZero() {
+		date = c.AddDate(0, 0, 90)
 	}
 	return date
 }
@@ -75,7 +92,8 @@ func Movie(ctx context.Context, db *sql.DB, pol *policy.Policy, titleID, version
 	return Available(rule.Minimum, dates, now, rule.Delay), nil
 }
 
-// Dates reads canonical dates (empty country), preferring a successful TMDb refresh over imported dates.
+// Dates reads canonical dates (empty country), preferring a successful TMDb refresh over imported dates; FirstCinema
+// among them when the refresh stored one.
 func Dates(ctx context.Context, db *sql.DB, titleID int64) (map[string]time.Time, error) {
 	return readDates(ctx, db, `SELECT type, MIN(date) FROM title_release_date d
 		WHERE title_id = ? AND `+canonical+` GROUP BY type`, titleID)

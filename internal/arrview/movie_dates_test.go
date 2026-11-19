@@ -83,3 +83,18 @@ func TestViewPathFromFiles(t *testing.T) {
 		t.Fatalf("two roots, nested series: path %v root %v", s["path"], s["rootFolderPath"])
 	}
 }
+
+// TestMovieAvailableFromFirstCinema (Z4.2): a film first in cinemas abroad in 1988 and re-released in US cinemas this
+// year, with no home dates, is available on the view (and released); its In cinemas date stays the canonical one.
+func TestMovieAvailableFromFirstCinema(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	e.exec(`INSERT INTO title_meta (title_id, movie_dates_at, attempted_at, refresh_after) VALUES (3,1,1,1)`)
+	e.exec(`INSERT INTO title_release_date (title_id, source, type, date) VALUES
+		(3,'tmdb-art','theatrical','2026-09-01'),(3,'tmdb-art','theatrical_limited','1988-05-11')`)
+	var movie map[string]any
+	e.call("GET", fmt.Sprintf("/radarr/api/v3/movie/%d", IDBase+3), nil, 200, &movie)
+	if movie["isAvailable"] != true || movie["status"] != "released" || movie["inCinemas"] != "2026-09-01T00:00:00Z" {
+		t.Fatalf("first cinema run abroad: %v", movie)
+	}
+}

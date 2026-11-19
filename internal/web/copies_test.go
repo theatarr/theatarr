@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -404,6 +405,17 @@ func TestListRowFacts(t *testing.T) {
 		now, now)
 	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (30, 32)`)
 
+	// Rerun (Z4.2): first in cinemas abroad in 1988 (availability's first cinema date), back in US cinemas 25 days
+	// ago, no home date: out at home since 1988 for availability, its shown dates the US re-release's.
+	e.exec(`INSERT INTO title (id, kind, name, year, tmdb_id, created_at, updated_at) VALUES
+		(35, 'movie', 'Rerun', 1988, 535, ?, ?)`, now, now)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
+		(35, 35, 'movie-web', 1, 'wanted', ?, ?)`, now, now)
+	e.exec(`INSERT INTO title_meta (title_id, movie_dates_at, attempted_at, refresh_after) VALUES (35, 1, 1, 1)`)
+	e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES
+		(35, 'tmdb-art', '', 'theatrical', '2026-10-01'), (35, 'tmdb-art', '', 'theatrical_limited', '1988-05-11'),
+		(35, 'tmdb', 'US', 'theatrical', '2026-10-01')`)
+
 	var page TitlePage
 	e.call("GET", APIBase+"/titles?limit=100", nil, 200, &page)
 	cin, disc, show := rowOf(t, page, 30), rowOf(t, page, 31), rowOf(t, page, 10)
@@ -433,7 +445,20 @@ func TestListRowFacts(t *testing.T) {
 	if v := copyOf(t, show, "tv-2160p"); v.Profile != "tv-2160p" || v.MinimumAvailability != "" {
 		t.Errorf("The Show copy: %+v", v)
 	}
-	for id, want := range map[int64]string{30: "2026-11-20", 31: "2026-10-01", 32: "2026-12-25", 33: "2026-10-16", 34: "", 10: ""} {
+	if rr := rowOf(t, page, 35); rr.InCinemas != "2026-10-01" || rr.Released != "2026-10-01" {
+		t.Errorf("Rerun's shown dates: in cinemas %s, released %s", rr.InCinemas, rr.Released)
+	}
+	var rerun TitleDetail
+	e.call("GET", fmt.Sprintf("%s/titles/%d", APIBase, 35), nil, 200, &rerun)
+	if rerun.HomeRelease != "1988-08-09" || rerun.InCinemas != "2026-10-01" || rerun.Released != "2026-10-01" {
+		t.Errorf("Rerun's title page: home release %s, in cinemas %s, released %s", rerun.HomeRelease, rerun.InCinemas, rerun.Released)
+	}
+	var missing TitlePage
+	e.call("GET", APIBase+"/titles?limit=100&availability=missing", nil, 200, &missing)
+	if !slices.ContainsFunc(missing.Items, func(r TitleRow) bool { return r.ID == 35 }) {
+		t.Errorf("Rerun is not missing: %+v", missing.Items)
+	}
+	for id, want := range map[int64]string{30: "2026-11-20", 31: "2026-10-01", 32: "2026-12-25", 33: "2026-10-16", 34: "", 10: "", 35: "1988-08-09"} {
 		r := rowOf(t, page, id)
 		if r.HomeRelease != want {
 			t.Errorf("%s home_release %q, want %q", r.Name, r.HomeRelease, want)

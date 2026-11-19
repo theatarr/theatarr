@@ -70,10 +70,11 @@ type movieStatistics struct {
 }
 
 // movieStatus ports SkyHookProxy.MapMovie's status (src/NzbDrone.Core/MetadataSource/SkyHook/SkyHookProxy.cs
-// L292-314 @ a96bf7c) from the stored release dates.
+// L292-314 @ a96bf7c) from the stored release dates, counting from availability's cinema date (availability.Cinema)
+// as isAvailable does.
 func movieStatus(d map[string]time.Time, now time.Time) string {
 	status := "announced"
-	if c, ok := d["theatrical"]; ok && now.After(c) {
+	if c := availability.Cinema(d); !c.IsZero() && now.After(c) {
 		status = "inCinemas"
 		_, ph := d["physical"]
 		_, dg := d["digital"]

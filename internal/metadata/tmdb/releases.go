@@ -40,6 +40,24 @@ func (m *Movie) ReleaseSchedule() map[string]time.Time {
 	return dates
 }
 
+// FirstCinema is the movie's first real cinema date: the earliest wide or limited theatrical release in any country;
+// zero without one. Premieres (festivals) and TMDb's general release date never count. Availability counts from it
+// when it is earlier than the canonical cinema date (docs/design/acquisition.md "Minimum availability").
+func (m *Movie) FirstCinema() time.Time {
+	var first time.Time
+	for _, c := range m.ReleaseDates.Results {
+		for _, r := range c.Releases {
+			if kind := TypeName(r.Type); r.Date.IsZero() || kind != "theatrical" && kind != "theatrical_limited" {
+				continue
+			}
+			if d := r.Date.UTC().Truncate(24 * time.Hour); first.IsZero() || d.Before(first) {
+				first = d
+			}
+		}
+	}
+	return first
+}
+
 // PrimaryCountry is the country of the movie's primary release (docs/design/ui.md "Release dates"), the dates the
 // display shows: the US when TMDb lists a US cinema, digital or physical date, else the country with the earliest of
 // those dates (the original release; the first country by code on a shared day); "" without any.

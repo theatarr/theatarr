@@ -1413,7 +1413,12 @@ What hands work to the router in `theatarr serve`. Code: `internal/acquire`, `in
 Movie searches (including search on add, wanted, re-search and version fanout), RSS and release grabs enforce minimum
 availability before acquisition. `announced`/`tba` is immediate, `inCinemas` uses the cinema date when known, and
 `released` uses the earlier digital/physical date, falling back to cinema plus 90 days only when both home dates
-are absent; unknown dates wait, with Radarr's default availability delay of zero. Wanted skips unavailable movies
+are absent. The cinema date here (`availability.Cinema`) is the canonical one, or the first real cinema date anywhere
+(wide or limited, any country; `tmdb.Movie.FirstCinema`) when that is earlier, so a later US re-release never makes a
+1988 film "not in cinemas yet"; TMDb's general release date (often a festival premiere) counts only when no cinema
+date is known at all. The metadata refresh stores that first date as a canonical `theatrical_limited` row (source
+`tmdb-art`, country empty) only when it is earlier than the canonical cinema date; the calendar and every shown date
+ignore it, and a film gets it at its next metadata refresh (no migration); unknown dates wait, with Radarr's default availability delay of zero. Wanted skips unavailable movies
 before its hourly budget is spent, and queued searches recheck the gate. The latest explicit setting on a view
 serving the version wins over its imported arr setting; without one, the default is `released`.
 

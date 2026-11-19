@@ -229,7 +229,12 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail, seeFiles bool) er
 		if err != nil {
 			return err
 		}
-		if h := availability.HomeRelease(dates[d.ID].Canonical); !h.IsZero() {
+		canon, err := availability.Dates(ctx, db, d.ID)
+		if err != nil {
+			return err
+		}
+		// The home release availability counts toward, from its dates (the first cinema date anywhere included).
+		if h := availability.HomeRelease(canon); !h.IsZero() {
 			d.HomeRelease = h.Format(time.DateOnly)
 		}
 		// The dates the About facts show: the release-date choice Home, the calendar and the lists use.

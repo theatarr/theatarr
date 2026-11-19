@@ -251,7 +251,10 @@ Title sorting uses the same Unicode fallback as the resources through a SQLite s
 Sonarr pack members have distinct, stable queue ids and share downloadId; deleting any member (including through queue/bulk) removes the whole download or pending approval release, as Sonarr's tracked-download and pending-release removal does. Bulk members are handled once per download, including blocklisting and redownload; provider content is retained. RefreshMonitoredDownloads shares one poll across views, with a 30-second cooldown even after completion/failure and across service restarts.
 
 Movie status and `isAvailable` use canonical release dates from `meta.art`, shared with acquisition and the calendar;
-a successful refresh supersedes imported dates, including corrections/removals. Migration 00041 adds the date-refresh
+a successful refresh supersedes imported dates, including corrections/removals. Both count from acquisition's cinema
+date (`availability.Cinema`: the first real cinema date anywhere when earlier than the canonical one, router.md
+"Triggers"), so a film first in cinemas abroad in 1988 and back in US cinemas this year is available and released;
+`inCinemas`, `releaseDate`, the dates and the calendar keep the canonical cinema date. Migration 00041 adds the date-refresh
 marker, makes existing movies due for refresh and clears the RSS seen cache.
 
 ### Minimum availability
