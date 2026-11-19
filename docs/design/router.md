@@ -1418,8 +1418,10 @@ are absent. The cinema date here (`availability.Cinema`) is the canonical one, o
 1988 film "not in cinemas yet"; TMDb's general release date (often a festival premiere) counts only when no cinema
 date is known at all. Every writer of the schedule (the metadata refresh, list and collection adds) stores that first
 date as a canonical `theatrical_limited` row (country empty) only when it is earlier than the canonical cinema date, so
-a list add is searched at add when it is out; the calendar and every shown date ignore it, and a film already in the
-library gets it at its next metadata refresh (no migration); unknown dates wait, with Radarr's default availability delay of zero. Wanted skips unavailable movies
+a list add is searched at add when it is out; availability also reads the cinema dates already stored in the TMDb
+country rows (the primary release's), so a limited run there counts before the wide one without a refresh. The
+calendar and every shown date ignore both, and a film already in the library whose first run is in another country
+gets it at its next metadata refresh (no migration); unknown dates wait, with Radarr's default availability delay of zero. Wanted skips unavailable movies
 before its hourly budget is spent, and queued searches recheck the gate. The latest explicit setting on a view
 serving the version wins over its imported arr setting; without one, the default is `released`.
 

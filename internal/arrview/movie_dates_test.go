@@ -97,4 +97,11 @@ func TestMovieAvailableFromFirstCinema(t *testing.T) {
 	if movie["isAvailable"] != true || movie["status"] != "released" || movie["inCinemas"] != "2026-09-01T00:00:00Z" {
 		t.Fatalf("first cinema run abroad: %v", movie)
 	}
+	// The same run stored only in the TMDb country rows (a film not refreshed since the update).
+	e.exec(`DELETE FROM title_release_date WHERE title_id = 3 AND type = 'theatrical_limited'`)
+	e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES (3,'tmdb','FR','theatrical','1988-05-11')`)
+	e.call("GET", fmt.Sprintf("/radarr/api/v3/movie/%d", IDBase+3), nil, 200, &movie)
+	if movie["isAvailable"] != true || movie["status"] != "released" || movie["inCinemas"] != "2026-09-01T00:00:00Z" {
+		t.Fatalf("first cinema run in the country rows: %v", movie)
+	}
 }

@@ -155,3 +155,40 @@ func TestMovieDates(t *testing.T) {
 	check(1, true)
 	check(2, true)
 }
+
+// TestStoredCountryCinema (Z4.2): a cinema date already stored in the TMDb country rows counts for availability too,
+// so a limited run on Oct 1 before the wide one on Dec 1 makes the film in cinemas from Oct 1; the canonical cinema
+// date stays Dec 1.
+func TestStoredCountryCinema(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(ctx, storetest.Seed(t, filepath.Join(t.TempDir(), "theatarr.db")), store.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	if _, err := st.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		`INSERT INTO title(id,kind,name,tmdb_id,created_at,updated_at) VALUES(1,'movie','Movie',100,0,0)`,
+		`INSERT INTO title_meta(title_id,movie_dates_at,attempted_at,refresh_after) VALUES(1,1,1,1)`,
+		`INSERT INTO title_release_date(title_id,source,country,type,date) VALUES (1,'tmdb-art','','theatrical','2026-12-01'),
+			(1,'tmdb','US','theatrical_limited','2026-10-01'),(1,'tmdb','US','theatrical','2026-12-01')`,
+	} {
+		if _, err := st.Writer().Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dates, err := Dates(ctx, st.Reader(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 10, 27, 0, 0, 0, 0, time.UTC)
+	if !Available("inCinemas", dates, now, 0) || !dates["theatrical"].Equal(time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("limited run in the country rows: %v", dates)
+	}
+	many, err := DatesFor(ctx, st.Reader(), []any{int64(1)})
+	if err != nil || !maps.Equal(many[1], dates) {
+		t.Fatalf("DatesFor %v %v, Dates %v", many, err, dates)
+	}
+}

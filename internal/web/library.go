@@ -229,11 +229,12 @@ const canonicalDate = `d.country = '' AND (d.source = 'tmdb-art' OR NOT EXISTS
 
 // homeReleaseSQL is title t's home release day (availability.HomeRelease over the canonical dates, as list rows'
 // home_release): the earlier of its digital and physical dates, else its cinema date plus 90 days (availability.Cinema:
-// the canonical cinema date or the first cinema date anywhere, a canonical theatrical_limited row); NULL without.
+// the canonical cinema date or the first cinema date anywhere, a canonical theatrical_limited row or a cinema date of
+// the country rows); NULL without.
 const homeReleaseSQL = `COALESCE((SELECT MIN(d.date) FROM title_release_date d WHERE d.title_id = t.id
 	AND d.type IN ('digital', 'physical') AND ` + canonicalDate + `),
 	(SELECT date(MIN(d.date), '+90 days') FROM title_release_date d WHERE d.title_id = t.id
-	AND d.type IN ('theatrical', 'theatrical_limited') AND ` + canonicalDate + `))`
+	AND d.type IN ('theatrical', 'theatrical_limited') AND (` + canonicalDate + ` OR d.country <> '')))`
 
 // titleAvailabilitySQL is title t's availability (see above) as an SQL value; m is t's title_meta row (titleFrom).
 // The clock's values are written into the SQL. A series library's gap is what its coverage counts as missing (an

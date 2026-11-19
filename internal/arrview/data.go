@@ -3,6 +3,7 @@ package arrview
 import (
 	"context"
 	"database/sql"
+	"maps"
 	"sort"
 	"strings"
 	"time"
@@ -290,28 +291,18 @@ func (s *Service) load(ctx context.Context, v *View, titleIDs []int64) ([]*entry
 		for id, x := range vers {
 			x.rule = rules[id]
 		}
-		// Canonical release dates (country ''), preferring a successful TMDb date refresh.
-		rows, err = db.QueryContext(ctx, `SELECT d.title_id, d.type, MIN(d.date) FROM title_release_date d
-			WHERE d.country = '' AND (d.source = 'tmdb-art' OR NOT EXISTS
-				(SELECT 1 FROM title_meta m WHERE m.title_id = d.title_id AND m.movie_dates_at IS NOT NULL))
-			AND d.title_id IN (SELECT v.title_id FROM version v JOIN title t ON t.id = v.title_id
-			WHERE `+where+`) GROUP BY d.title_id, d.type`, args...)
+		// Availability's dates (availability.DatesFor): the canonical ones, preferring a successful TMDb date refresh,
+		// and the first cinema date anywhere.
+		ids := make([]any, 0, len(byID))
+		for tid := range byID {
+			ids = append(ids, tid)
+		}
+		dates, err := availability.DatesFor(ctx, db, ids)
 		if err != nil {
 			return nil, err
 		}
-		for rows.Next() {
-			var tid int64
-			var typ, date string
-			if err := rows.Scan(&tid, &typ, &date); err != nil {
-				rows.Close()
-				return nil, err
-			}
-			if d, err := time.Parse("2006-01-02", date); err == nil && byID[tid] != nil {
-				byID[tid].dates[typ] = d
-			}
-		}
-		if err := closeRows(rows); err != nil {
-			return nil, err
+		for tid, ds := range dates {
+			maps.Copy(byID[tid].dates, ds)
 		}
 	}
 	return order, nil

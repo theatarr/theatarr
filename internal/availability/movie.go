@@ -92,12 +92,20 @@ func Movie(ctx context.Context, db *sql.DB, pol *policy.Policy, titleID, version
 	return Available(rule.Minimum, dates, now, rule.Delay), nil
 }
 
-// Dates reads canonical dates (empty country), preferring a successful TMDb refresh over imported dates; FirstCinema
-// among them when the refresh stored one.
+// Dates reads canonical dates (empty country), preferring a successful TMDb refresh over imported dates, and under
+// FirstCinema the first cinema date anywhere: the schedule's own, else the earliest stored in the country rows.
 func Dates(ctx context.Context, db *sql.DB, titleID int64) (map[string]time.Time, error) {
-	return readDates(ctx, db, `SELECT type, MIN(date) FROM title_release_date d
-		WHERE title_id = ? AND `+canonical+` GROUP BY type`, titleID)
+	return readDates(ctx, db, `SELECT `+dateKind+`, MIN(substr(d.date, 1, 10)) FROM title_release_date d
+		WHERE title_id = ? AND `+availRows+` GROUP BY 1`, titleID)
 }
+
+// availRows are the rows of title_release_date d availability reads: the canonical ones and the cinema dates stored
+// in the TMDb country rows; dateKind is a row's key in Dates' map: its type, a country row's FirstCinema, so a stored
+// limited or wide run anywhere counts for availability without moving the canonical cinema date.
+const (
+	availRows = `(` + canonical + ` OR d.country <> '' AND d.type IN ('theatrical', 'theatrical_limited'))`
+	dateKind  = `CASE WHEN d.country = '' THEN d.type ELSE '` + FirstCinema + `' END`
+)
 
 // canonical picks the canonical dates of title_release_date d: empty country, the successful TMDb refresh when
 // there is one, else the imported dates.
@@ -119,8 +127,8 @@ func DatesFor(ctx context.Context, db *sql.DB, titleIDs []any) (map[int64]map[st
 }
 
 func datesBatchInto(ctx context.Context, db *sql.DB, ids []any, out map[int64]map[string]time.Time) error {
-	rows, err := db.QueryContext(ctx, `SELECT title_id, type, MIN(date) FROM title_release_date d
-		WHERE title_id IN (`+store.Placeholders(len(ids))+`) AND `+canonical+` GROUP BY title_id, type`, ids...)
+	rows, err := db.QueryContext(ctx, `SELECT title_id, `+dateKind+`, MIN(substr(d.date, 1, 10)) FROM title_release_date d
+		WHERE title_id IN (`+store.Placeholders(len(ids))+`) AND `+availRows+` GROUP BY 1, 2`, ids...)
 	if err != nil {
 		return err
 	}
