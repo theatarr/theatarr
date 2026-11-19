@@ -124,13 +124,16 @@ func (l *Library) relinkAnime(ctx context.Context, tvdbID int) (*AnimeRelinked, 
 			}
 			t, titles[key] = &tt, &tt
 		}
-		var files int
-		if err := db.QueryRowContext(ctx, `SELECT COUNT(DISTINCT content_file_id) FROM link WHERE download_id = ?`,
-			c.downloadID).Scan(&files); err != nil {
+		// The release's video files as its import plan counted them (one linked file of a batch is no single-file
+		// release); a download without a stored count is read as multi-video, which never prefers the release title's
+		// range over the file's own number.
+		var files sql.NullInt64
+		if err := db.QueryRowContext(ctx, `SELECT json_array_length(plan, '$.files') FROM library_import
+			WHERE download_id = ?`, c.downloadID).Scan(&files); err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return nil, err
 		}
 		res, err := decide.ResolveFile(t, decide.FileInput{Path: rel, Release: d.ReleaseTitle, Folder: d.Name,
-			OtherVideoFiles: files > 1, Mapping: d.EpisodeMap})
+			OtherVideoFiles: files.Int64 != 1, Mapping: d.EpisodeMap})
 		if err != nil || res.Refused != "" || len(res.EpisodeIDs) == 0 || !franchisePlaced(res.How) {
 			continue // only a placement through the franchise moves a file
 		}

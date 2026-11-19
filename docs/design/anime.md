@@ -183,6 +183,10 @@ for the series, and moves a link only when the resolver places the file through 
 `+alt_cut:`) on other episodes than it holds. The `anime_fallback` markers are not read. Left alone: an arr's file,
 an adopted link (no download), a link several versions share, a file whose episodes a client or an admin chose
 (`download_file` `manual`), and a file the resolver places by its own season and episode (Sonarr's meaning stands).
+Whether the release had other video files (`FileInput.OtherVideoFiles`, which lets a lone file take the release
+title's range) comes from the import plan's file count (`json_array_length(library_import.plan, '$.files')`), not from
+the linked rows: one linked file of a batch is no single-file release. A download with no stored plan, or one listing
+no files, is read as multi-video (`TestAnimeRelinkOneFileOfABatch`).
 
 A move is the change-of-episodes move (`library/reassign.go`, docs/design/library.md "Change episodes"): the
 version's naming for the new episodes, the gated compare-and-swap rename, the link's episodes and the episode states,
