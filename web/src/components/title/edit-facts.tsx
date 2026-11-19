@@ -13,8 +13,9 @@ import { Select } from "@/components/ui/select";
 
 type Form = { quality: string; revision: number; languages: string[]; release_group: string };
 
-/** Revision 2 or more is a Proper or Repack, as manual import sets it. */
+/** Revision 2 or more is a Proper or Repack, as manual import sets it; 3 and higher a later one (v3, a second Proper). */
 const REVISION_WORDS: Record<number, string> = { 1: "1 · first release", 2: "2 · Proper or Repack" };
+const revisionWords = (r: number) => REVISION_WORDS[r] ?? (r > 2 ? `${r} · a later Proper or Repack (v${r})` : String(r));
 const revisions = (stored: number) => [...new Set([1, 2, 3, 4, stored])].sort((a, b) => a - b);
 
 const SCOPE = {
@@ -54,7 +55,7 @@ function EditFactsDialog({ titleId, linkId, name, onClose }: { titleId: number; 
           <label className="grid gap-1">
             Revision
             <Select value={v.revision} onChange={(e) => set({ revision: Number(e.target.value) })} data-testid="edit-facts-revision">
-              {revisions(f.revision).map((r) => <option key={r} value={r}>{REVISION_WORDS[r] ?? String(r)}</option>)}
+              {revisions(f.revision).map((r) => <option key={r} value={r}>{revisionWords(r)}</option>)}
             </Select>
           </label>
           <label className="grid gap-1">

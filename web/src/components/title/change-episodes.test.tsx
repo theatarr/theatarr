@@ -43,12 +43,15 @@ it("changes a file's episodes from the episode overview, asking before it replac
   const done = { version: "tv", previous_path: path, path: "/library/tv/new.mkv", previous: ["S01E01"], episodes: ["S01E02", "S01E03"], replaced: ["/library/tv/x.mkv"], message: "The file now holds S01E02, S01E03; the file it replaced is in the trash" };
   const api = mockFetch([me(["admin", "manage", "see_files"]), ...routes, { method: "POST", path: "/links/9/episodes", reply: conflict }, { method: "POST", path: "/links/9/episodes", reply: done }]);
   const { user, dialog } = await openDialog();
-  const select = (await within(dialog).findByTestId("change-episodes-select")) as HTMLSelectElement;
-  await within(dialog).findByRole("option", { name: /S01E03/ });
-  expect(Array.from(select.selectedOptions, (o) => o.value)).toEqual(["201"]);
-  await user.deselectOptions(select, "201");
+  const box = (name: RegExp) => within(dialog).getByRole("checkbox", { name }) as HTMLInputElement;
+  await within(dialog).findByRole("checkbox", { name: /S01E03/ });
+  expect([box(/S01E01/), box(/S01E02/), box(/S01E03/)].map((b) => b.checked)).toEqual([true, false, false]);
+  // Nothing changed yet: nothing to send.
   expect(within(dialog).getByRole("button", { name: "Change episodes" }).hasAttribute("disabled")).toBe(true);
-  await user.selectOptions(select, ["202", "203"]);
+  await user.click(box(/S01E01/));
+  expect(within(dialog).getByRole("button", { name: "Change episodes" }).hasAttribute("disabled")).toBe(true);
+  await user.click(box(/S01E02/));
+  await user.click(box(/S01E03/));
   await user.click(within(dialog).getByRole("button", { name: "Change episodes" }));
   expect(await within(dialog).findByText(/choose replace to unlink it/)).toBeTruthy();
   await user.click(within(dialog).getByTestId("change-episodes-replace"));
@@ -78,4 +81,24 @@ it("disables Change episodes, with the reason, for a file taken over from Sonarr
   await within(drawer).findByTestId("episode-file");
   expect(within(drawer).getByTestId("change-episodes").hasAttribute("disabled")).toBe(true);
   expect(within(drawer).getByTestId("change-episodes-why").textContent).toBe("Taken over from Sonarr or Radarr: use Manual import to change its episodes");
+});
+
+it("filters the episodes, keeps hidden ticks, and sends only a changed set", async () => {
+  const done = { version: "tv", previous_path: path, path: "/library/tv/new.mkv", previous: ["S01E01"], episodes: ["S01E01", "S01E03"], replaced: [], message: "The file now holds S01E01, S01E03" };
+  const api = mockFetch([me(["admin", "manage", "see_files"]), ...routes, { method: "POST", path: "/links/9/episodes", reply: done }]);
+  const { user, dialog } = await openDialog();
+  await within(dialog).findByRole("checkbox", { name: /S01E03/ });
+  await user.type(within(dialog).getByRole("textbox", { name: "Filter episodes" }), "third");
+  expect(within(dialog).queryByRole("checkbox", { name: /S01E02/ })).toBeNull();
+  expect(within(dialog).queryByRole("checkbox", { name: /S01E01/ })).toBeNull();
+  await user.click(within(dialog).getByRole("checkbox", { name: /S01E03/ }));
+  await user.clear(within(dialog).getByRole("textbox", { name: "Filter episodes" }));
+  // S01E01, hidden by the filter, stayed ticked.
+  expect((within(dialog).getByRole("checkbox", { name: /S01E01/ }) as HTMLInputElement).checked).toBe(true);
+  // Ticking and unticking back to the stored set disables the confirm again.
+  await user.click(within(dialog).getByRole("checkbox", { name: /S01E02/ }));
+  await user.click(within(dialog).getByRole("checkbox", { name: /S01E02/ }));
+  await user.click(within(dialog).getByRole("button", { name: "Change episodes" }));
+  expect(await within(dialog).findByText(done.message)).toBeTruthy();
+  expect(api.calls("POST", "/links/9/episodes").map((r) => r.body)).toEqual([{ episode_ids: [201, 203], replace: false }]);
 });

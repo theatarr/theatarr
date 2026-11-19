@@ -49,3 +49,20 @@ it("offers Edit file facts to managers only", async () => {
   await within(drawer).findByTestId("episode-file");
   expect(within(drawer).queryByTestId("link-edit-facts")).toBeNull();
 });
+
+it("names every revision: 3 and higher are later Propers or Repacks, kept as numbers", async () => {
+  const api = mockFetch([me(["manage", "see_files"]), ...routes, { method: "GET", path: "/links/9/facts", reply: { ...facts, revision: 6 } }, { method: "PATCH", path: "/links/9/facts", reply: { message: "Saved" } }]);
+  const user = userEvent.setup();
+  renderPage(<Seasons id="1" anime={false} />, "/title/1?episode=201");
+  const drawer = await screen.findByRole("dialog");
+  await within(drawer).findByTestId("episode-file");
+  await user.click(within(drawer).getByTestId("link-edit-facts"));
+  const dialog = await screen.findByTestId("edit-facts-dialog");
+  const revision = (await within(dialog).findByTestId("edit-facts-revision")) as HTMLSelectElement;
+  expect(revision.value).toBe("6");
+  expect(Array.from(revision.options, (o) => o.textContent)).toEqual(["1 · first release", "2 · Proper or Repack", "3 · a later Proper or Repack (v3)", "4 · a later Proper or Repack (v4)", "6 · a later Proper or Repack (v6)"]);
+  await user.selectOptions(revision, "3");
+  await user.click(within(dialog).getByRole("button", { name: "Save" }));
+  expect(await within(dialog).findByText("Saved")).toBeTruthy();
+  expect((api.calls("PATCH", "/links/9/facts")[0].body as { revision: number }).revision).toBe(3);
+});
