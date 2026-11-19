@@ -544,7 +544,11 @@ func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt6
 			}
 		}
 	}
-	out.Grabbed = searchSummary(dls, candidatesOf(out.Candidates), oc, state, message, w.providerTag)
+	current, err := currentDownloads(ctx, db, out.TitleID, out.Version, episode)
+	if err != nil {
+		return err
+	}
+	out.Grabbed = searchSummary(dls, current, candidatesOf(out.Candidates), oc, state, message, w.providerTag)
 	return nil
 }
 

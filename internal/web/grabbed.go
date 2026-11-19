@@ -827,11 +827,59 @@ type runDownload struct {
 	hash, release, provider, state, err string
 }
 
-// searchSummary says in one line what a search grabbed: "Grabbed #1 via rd → imported" (the rank in the stored
-// candidates, else the release's short title), or "Nothing grabbed: why". state and message are the acquire run's;
-// a search without a run (an RSS read) passes routed.
-func searchSummary(dls []runDownload, cands []snapshot.Candidate, outcomes map[string]ReleaseOutcome, state,
-	message string, provider func(string) string) string {
+// currentDownloads reads the downloads whose links are the version's current file (for the episode, when given).
+func currentDownloads(ctx context.Context, db *sql.DB, titleID int64, version string, episode int64) (map[int64]bool,
+	error) {
+	out := map[int64]bool{}
+	err := scanAll(ctx, db, `SELECT DISTINCT l.download_id FROM version v JOIN link_version lv ON lv.version_id = v.id
+		JOIN link l ON l.id = lv.link_id WHERE v.title_id = ? AND v.policy_key = ? AND l.state = 'active'
+		AND l.download_id IS NOT NULL
+		AND (? = 0 OR EXISTS (SELECT 1 FROM link_episode le WHERE le.link_id = l.id AND le.episode_id = ?))`,
+		[]any{titleID, version, episode, episode}, func(r *sql.Rows) error {
+			var id int64
+			if err := r.Scan(&id); err != nil {
+				return err
+			}
+			out[id] = true
+			return nil
+		})
+	return out, err
+}
+
+// pickDownload is the download of a search that counted, by download id: the one supplying the current file
+// (current: currentDownloads); else the newest imported; else the newest imported for a pack whose episode files are
+// not known; else the newest still in flight; else the newest imported without a file for the episode; else the
+// first. -1 for none.
+func pickDownload(dls []runDownload, current map[int64]bool) int {
+	if len(dls) == 0 {
+		return -1
+	}
+	for i, d := range dls {
+		if current[d.id] {
+			return i
+		}
+	}
+	for _, ok := range []func(string) bool{
+		func(s string) bool { return s == "imported" },
+		func(s string) bool { return s == "imported-unknown" },
+		func(s string) bool { return !strings.HasPrefix(s, "imported") && s != "failed" },
+		func(s string) bool { return s == "imported-without" },
+	} {
+		for i := len(dls) - 1; i >= 0; i-- {
+			if ok(dls[i].state) {
+				return i
+			}
+		}
+	}
+	return 0
+}
+
+// searchSummary says in one line what a search grabbed: "Grabbed #2 via AD → imported (the current file); 1 other
+// failed" (the rank in the stored candidates, else the release's short title). It describes the download that counted
+// (pickDownload; current as there) and counts the search's others by state. With no download: "Nothing grabbed: why".
+// state and message are the acquire run's; a search without a run (an RSS read) passes routed.
+func searchSummary(dls []runDownload, current map[int64]bool, cands []snapshot.Candidate,
+	outcomes map[string]ReleaseOutcome, state, message string, provider func(string) string) string {
 	if len(dls) == 0 {
 		switch state {
 		case "routed":
@@ -844,7 +892,8 @@ func searchSummary(dls []runDownload, cands []snapshot.Candidate, outcomes map[s
 		}
 		return "Nothing grabbed: " + message
 	}
-	d := dls[0]
+	pick := pickDownload(dls, current)
+	d := dls[pick]
 	what := shortRelease(d.release)
 	for _, c := range cands {
 		if strings.EqualFold(c.InfoHash, d.hash) && c.Rank > 0 {
@@ -856,9 +905,6 @@ func searchSummary(dls []runDownload, cands []snapshot.Candidate, outcomes map[s
 	if d.provider != "" {
 		s += " via " + provider(d.provider)
 	}
-	if n := len(dls) - 1; n > 0 {
-		s += fmt.Sprintf(" and %d more", n)
-	}
 	// What came of this download, not of a later one of the same release; outcomes says whether its file still is.
 	o := outcomes[strings.ToLower(d.hash)]
 	switch d.state {
@@ -869,7 +915,7 @@ func searchSummary(dls []runDownload, cands []snapshot.Candidate, outcomes map[s
 		s += " → imported"
 	case "imported":
 		switch {
-		case o.Outcome == "current" || o.current:
+		case current[d.id] || o.Outcome == "current" || o.current:
 			s += " → imported (the current file)"
 		case o.replaced:
 			s += " → imported, later replaced"
@@ -881,6 +927,40 @@ func searchSummary(dls []runDownload, cands []snapshot.Candidate, outcomes map[s
 		if r := shortReason(d.err, d.provider); r != "" {
 			s += " (" + r + ")"
 		}
+	}
+	// The others, by state: in a series search they may be other episodes, so they are counted, not ranked.
+	var failed, flying, imported int
+	for i, o := range dls {
+		switch {
+		case i == pick:
+		case o.state == "failed":
+			failed++
+		case strings.HasPrefix(o.state, "imported"):
+			imported++
+		default:
+			flying++
+		}
+	}
+	var parts []string
+	for _, c := range []struct {
+		n    int
+		word string
+	}{{failed, "failed"}, {flying, "downloading"}, {imported, "imported"}} {
+		if c.n == 0 {
+			continue
+		}
+		if len(parts) == 0 {
+			other := "other"
+			if c.n > 1 {
+				other = "others"
+			}
+			parts = append(parts, fmt.Sprintf("%d %s %s", c.n, other, c.word))
+		} else {
+			parts = append(parts, fmt.Sprintf("%d %s", c.n, c.word))
+		}
+	}
+	if len(parts) > 0 {
+		s += "; " + strings.Join(parts, ", ")
 	}
 	return s
 }

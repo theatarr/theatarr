@@ -415,7 +415,7 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 			}
 			var run *runOrigin
 			if id := runIDOf(source); id > 0 {
-				runDLs[id] = append(runDLs[id], runDownload{hash: h.InfoHash, release: h.ReleaseTitle,
+				runDLs[id] = append(runDLs[id], runDownload{id: dlID, hash: h.InfoHash, release: h.ReleaseTitle,
 					provider: h.Source, state: state, err: errText})
 				if o, ok := origins[id]; ok {
 					run = &o
@@ -463,6 +463,7 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 		return err
 	}
 	outcomes := map[int64]map[string]ReleaseOutcome{}
+	currents := map[int64]map[int64]bool{}
 	err = scanAll(ctx, db, `SELECT r.version_id, r.version_key, r.id, r.created_at, r.target, r.state, r.message,
 		r.results, r.accepted, d.id, COALESCE(d.candidates, '[]')
 		FROM acquire_run r LEFT JOIN journal_decision d ON d.run_id = r.id
@@ -487,15 +488,18 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 				return err
 			}
 			outcomes[vid] = oc
+			if currents[vid], err = currentDownloads(ctx, db, titleID, key, 0); err != nil {
+				return err
+			}
 		}
 		var cands []snapshot.Candidate
 		_ = json.Unmarshal([]byte(cj), &cands)
 		h := HistoryEvent{Event: "searched", Date: ts(at), Episode: target, RunID: &id, DecisionID: nullInt(decision),
 			Results: &results, Accepted: &accepted, Trigger: origins[id].words(),
-			Summary: searchSummary(runDLs[id], cands, oc, state, message, w.providerTag),
+			Summary: searchSummary(runDLs[id], currents[vid], cands, oc, state, message, w.providerTag),
 			Latest:  decision.Valid && newest[key] == decision.Int64}
-		if dls := runDLs[id]; len(dls) > 0 {
-			h.InfoHash, h.Provider = dls[0].hash, dls[0].provider
+		if i := pickDownload(runDLs[id], currents[vid]); i >= 0 {
+			h.InfoHash, h.Provider = runDLs[id][i].hash, runDLs[id][i].provider
 		}
 		v.History = append(v.History, h)
 		return nil

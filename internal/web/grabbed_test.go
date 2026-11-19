@@ -354,6 +354,79 @@ func TestSearchSummaryKeepsItsOwnDownload(t *testing.T) {
 	}
 }
 
+// Last search describes the download that counted: of a run whose #1 failed and whose #2 imported (the current
+// file), the line names #2 and counts the other by its state, in the releases view and the title History alike (with
+// #2's hash and provider); a run with a download still in flight names it over the failure.
+func TestSearchSummaryDescribesTheImport(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	key := e.apiKey()
+	now := store.Millis(testNow)
+	const h1, h2, h3 = "1111111111111111111111111111111111111111", "2222222222222222222222222222222222222222",
+		"3333333333333333333333333333333333333333"
+	cands := `[{"rank":1,"release":"Alpha.2020.2160p.WEB-ONE","info_hash":"` + h1 + `","accepted":true},
+		{"rank":2,"release":"Alpha.2020.2160p.WEB-TWO","info_hash":"` + h2 + `","accepted":true},
+		{"rank":3,"release":"Alpha.2020.2160p.WEB-THREE","info_hash":"` + h3 + `","accepted":true}]`
+	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, state, results, accepted,
+		message, created_at, updated_at) VALUES (41, 'wanted', 1, 2, 'movie-web', 'movie', 'routed', 3, 3, '', ?, ?)`,
+		now-6000, now-6000)
+	e.exec(`INSERT INTO journal_decision (id, source, run_id, title_id, version_key, target, results, accepted,
+		candidates, created_at) VALUES (91, 'acquire:41', 41, 1, 'movie-web', 'movie', 3, 3, ?, ?)`, cands, now-6000)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
+		state, error, source, created_at, updated_at, imported_at) VALUES
+		(1, 1, 2, 'movie-web', ?, 'Alpha.2020.2160p.WEB-ONE', 'idx', 'rd', 'failed', 'provider status error', 'acquire:41', ?, ?, NULL),
+		(2, 1, 2, 'movie-web', ?, 'Alpha.2020.2160p.WEB-TWO', 'idx', 'ad', 'imported', NULL, 'acquire:41', ?, ?, ?)`,
+		h1, now-5900, now-5800, h2, now-5700, now-5000, now-5000)
+	e.exec(`INSERT INTO link (id, path, target, title_id, download_id, release_title, state, created_at, updated_at)
+		VALUES (1, '/lib/Alpha (2020)/Alpha.mkv', '/mnt/__all__/Alpha/Alpha.mkv', 1, 2, 'Alpha.2020.2160p.WEB-TWO',
+		'active', ?, ?)`, now-5000, now-5000)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (1, 2)`)
+
+	check := func(run int64, want, hash, provider string) {
+		t.Helper()
+		var r Releases
+		if code := e.getKey(APIBase+"/titles/1/releases?version=movie-web", key, &r); code != 200 {
+			t.Fatalf("releases %d", code)
+		}
+		if r.Grabbed != want {
+			t.Errorf("run %d: stored summary %q, want %q", run, r.Grabbed, want)
+		}
+		var d TitleDetail
+		if code := e.getKey(APIBase+"/titles/1", key, &d); code != 200 {
+			t.Fatalf("title %d", code)
+		}
+		found := false
+		for _, v := range d.Versions {
+			for _, h := range v.History {
+				if h.Event == "searched" && h.RunID != nil && *h.RunID == run {
+					found = true
+					if h.Summary != want || h.InfoHash != hash || h.Provider != provider {
+						t.Errorf("run %d: History %q %s %s, want %q %s %s", run, h.Summary, h.InfoHash, h.Provider,
+							want, hash, provider)
+					}
+				}
+			}
+		}
+		if !found {
+			t.Fatalf("no searched event for run %d", run)
+		}
+	}
+	check(41, "Grabbed #2 via AD → imported (the current file); 1 other failed", h2, "ad")
+
+	// A later run: #1 failed again, #3 still downloading.
+	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, state, results, accepted,
+		message, created_at, updated_at) VALUES (42, 'wanted', 1, 2, 'movie-web', 'movie', 'routed', 3, 3, '', ?, ?)`,
+		now-3000, now-3000)
+	e.exec(`INSERT INTO journal_decision (id, source, run_id, title_id, version_key, target, results, accepted,
+		candidates, created_at) VALUES (92, 'acquire:42', 42, 1, 'movie-web', 'movie', 3, 3, ?, ?)`, cands, now-3000)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
+		state, error, source, created_at, updated_at) VALUES
+		(3, 1, 2, 'movie-web', ?, 'Alpha.2020.2160p.WEB-ONE', 'idx', 'rd', 'failed', 'provider status error', 'acquire:42', ?, ?),
+		(4, 1, 2, 'movie-web', ?, 'Alpha.2020.2160p.WEB-THREE', 'idx', 'ad', 'downloading', NULL, 'acquire:42', ?, ?)`,
+		h1, now-2900, now-2800, h3, now-2700, now-2600)
+	check(42, "Grabbed #3 via AD; 1 other failed", h3, "ad")
+}
+
 // An episode's releases badge a season pack by the files of that episode, and its stored decision says what its
 // search grabbed for the episode.
 func TestEpisodeReleasesScopedToEpisode(t *testing.T) {
