@@ -368,3 +368,31 @@ func TestAnimeRelinkOneFileOfABatch(t *testing.T) {
 		}
 	}
 }
+
+// A single-file release (its stored plan lists one file): the lone file, whose name is not a scene title, takes the
+// release title's range, so accepting the mapping moves it onto the entry's S02E01-E02.
+func TestAnimeRelinkSingleFileTakesTheReleaseRange(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.isekai()
+	e.exec(`UPDATE anime_mapping SET status = 'conflict' WHERE entry_key = 'al:2'`)
+	rel := "[Group] Isekai Story 2nd Season - 01-02 (BD 1080p)"
+	e.release(rel, map[string]float64{"[Group] Isekai Monogatari - 01 (BD 1080p).mkv": 2880})
+	e.videoSize(rel, 1920, 1080)
+	e.seriesDownload(1, 3, 30, hashA, rel, "[301,302]", e.decidedMap(rel, `{"how":"franchise","entry":"al:2","fallback":true}`))
+	p, err := e.lib.Import(e.ctx, 1, false)
+	if err != nil || len(p.Links) != 1 {
+		t.Fatalf("import links\n%s\nunmatched %v rejected %+v err %v", e.links(p), p.Unmatched, p.Rejected, err)
+	}
+	if got := e.one(`SELECT json_array_length(plan, '$.files') FROM library_import WHERE download_id = 1`); got != "1" {
+		t.Fatalf("stored plan files %s", got)
+	}
+	e.exec(`UPDATE anime_mapping SET status = 'override' WHERE entry_key = 'al:2'`)
+	res, err := e.lib.RelinkAnime(e.ctx, 2002)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Moved) != 1 || !strings.HasSuffix(res.Moved[0], "→ S02E01, S02E02") {
+		t.Errorf("relink %+v", res)
+	}
+}
