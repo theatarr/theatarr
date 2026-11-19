@@ -138,8 +138,8 @@ func serveFile(rw http.ResponseWriter, r *http.Request, local, file, cacheContro
 	http.ServeContent(rw, r, "", st.ModTime(), f)
 }
 
-// serveFallback writes generated art: the title and year on a gradient picked by the title id (a poster or
-// backdrop), or the title alone on nothing (a logo).
+// serveFallback writes generated art: the title and year on a gradient picked by the title id (a poster), the
+// gradient alone (a backdrop, which sits behind the title page's own text), or the title alone on nothing (a logo).
 func serveFallback(rw http.ResponseWriter, r *http.Request, kind string, id int64, name string, year int) {
 	h := rw.Header()
 	h.Set("Content-Type", "image/svg+xml")
@@ -167,6 +167,10 @@ func FallbackSVG(kind string, id int64, name string, year int) string {
 		fmt.Fprintf(&b, `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">`+
 			`<stop offset="0" stop-color="hsl(%d,45%%,32%%)"/><stop offset="1" stop-color="hsl(%d,50%%,14%%)"/>`+
 			`</linearGradient></defs><rect width="100%%" height="100%%" fill="url(#g)"/>`, hue, (hue+40)%360)
+	}
+	if kind == KindBackdrop {
+		b.WriteString(`</svg>`)
+		return b.String()
 	}
 	lines := wrap(name, maxLine, 4)
 	lh := fs * 6 / 5

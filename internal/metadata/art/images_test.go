@@ -183,6 +183,13 @@ func TestFallbackSVG(t *testing.T) {
 	if FallbackSVG(KindPoster, 1, "x", 0) == FallbackSVG(KindPoster, 2, "x", 0) {
 		t.Error("same art for two titles")
 	}
+	// The backdrop sits behind the title page's hero text: gradient only, no title or year.
+	if b := FallbackSVG(KindBackdrop, 7, "Tom & Jerry", 1999); strings.Contains(b, "<text") || !strings.Contains(b, "url(#g)") {
+		t.Errorf("backdrop: %s", b)
+	}
+	if FallbackSVG(KindBackdrop, 1, "x", 0) == FallbackSVG(KindBackdrop, 2, "x", 0) {
+		t.Error("same backdrop for two titles")
+	}
 	if got := wrap("one two three four five six seven eight nine ten eleven twelve", 9, 3); len(got) != 3 ||
 		!strings.HasSuffix(got[2], "…") {
 		t.Errorf("wrap: %q", got)

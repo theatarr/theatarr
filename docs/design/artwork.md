@@ -79,7 +79,8 @@ IMDb id keeps the stored one (never a blank), and an add that knows the id fills
   | `/img/tmdb/…`, or title art whose `?v=` matches its `art_hash` | `private, max-age=31536000, immutable` |
   | Title art without `?v=`, or with an old one | `private, max-age=3600` |
   | Generated SVG | `private, max-age=300` |
-- **Generated SVG.** It shows the title and year on a gradient picked by the title id. It is served when there is no
+- **Generated SVG.** A poster shows the title and year on a gradient picked by the title id; a backdrop is the
+  gradient alone (the title page's hero prints the name over it); a logo is the title alone. It is served when there is no
   art yet, when TMDb fails, or when there is no image cache configured.
 - **CSP.** The policy is unchanged (`img-src 'self' data:`). The browser never talks to TMDb.
 - **API.** `GET /titles` items gain `poster`, `backdrop` and a short `overview`. `GET /titles/{id}` also gains `meta`

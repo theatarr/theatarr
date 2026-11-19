@@ -1435,7 +1435,8 @@ Movie details use `append_to_response`; `TV(id)` reads external ids, content rat
   served forever; eviction is least-recently-used when the directory passes `max_bytes` (default 2 GiB). Single-flight
   per file. Responses: `Cache-Control: private, max-age=31536000, immutable` (the `?v=` changes when the art does),
   `Content-Type` from the file, `nosniff`. Access: signed in (cookie or key); the page's `<img>` sends the cookie.
-- **Fallback:** no art yet, or TMDb fails: a generated SVG poster (title and year on a gradient from the title id),
+- **Fallback:** no art yet, or TMDb fails: a generated SVG poster (title and year on a gradient from the title id; a
+  backdrop is the gradient alone, so no text crosses the hero's),
   served from the same route, so the grid never shows a broken image.
 - The CSP stays `img-src 'self' data:`; browsers never talk to TMDb.
 
