@@ -164,9 +164,12 @@ func (r *Runner) decideSeriesItem(ctx context.Context, rel, ranked indexer.Relea
 				}
 				ix.loaded[c.version.ID] = t
 			}
-			d, err := r.eng.Decide(ctx, decide.Release{Release: ranked}, t, c.version, nil)
+			d, err := r.decide(ctx, ranked, t, c.version, nil, sum)
 			if err != nil {
 				return matched, err
+			}
+			if d == nil {
+				continue
 			}
 			sum.Decided++
 			if !d.Accepted || d.MatchType == decide.MatchNone {

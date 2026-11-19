@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/tasks"
@@ -70,6 +71,53 @@ func TestRSSCatchupPagesByRequestedLimit(t *testing.T) {
 	reqs := e.net.requests("prowlarr.test/1/api")
 	if last := reqs[len(reqs)-1]; !strings.Contains(last, "offset=50") || !strings.Contains(last, "limit=50") {
 		t.Errorf("second page %s", last)
+	}
+}
+
+// An item the engine returns an error for is logged and counted, not remembered (the next run decides it again),
+// and the run goes on: a good item beside it is routed, a permanently rejected one is remembered and the cursor moves.
+func TestRSSReleaseErrorDoesNotEndTheRun(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, false)
+	e.seed(t, dune, argylle, wonka, alien)
+	const wonka1080p, hWonka1080p = "Wonka.2023.1080p.WEB-DL.DDP5.1.H.264-FLUX", "7777777777777777777777777777777777777777"
+	decideFn := e.r.decideFn
+	e.r.decideFn = func(ctx context.Context, rel decide.Release, tt decide.Title, v decide.Version,
+		x *decide.ExistingFile) (*decide.Decision, error) {
+		if rel.Title == alienWebRel {
+			return nil, errors.New("adapt: aggregate languages: Remove(9, 4) on 10 characters")
+		}
+		return decideFn(ctx, rel, tt, v, x)
+	}
+	e.prow.setRSS(item{title: alienWebRel, hash: hAlienWeb, size: 20e9, pub: t0},
+		item{title: argWeb, hash: hArgWeb, size: 20e9, pub: t0.Add(-time.Minute)},
+		item{title: wonka1080p, hash: hWonka1080p, size: 6e9, pub: t0.Add(-2 * time.Minute)})
+	rs, err := e.r.RSS(e.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rs.Errors != 2 || rs.Routed == 0 { // one per library of the erroring film
+		t.Fatalf("rss %+v", rs)
+	}
+	for _, req := range e.rec.reqs {
+		if req.Candidates[0].Release.InfoHash != hArgWeb {
+			t.Errorf("routed %+v", req.Candidates[0].Release)
+		}
+	}
+	seen := func(h string) int {
+		return one[int](t, e.st, `SELECT COUNT(*) FROM shadow_rss_seen WHERE item_key LIKE ?`, "h:"+h+"%")
+	}
+	if seen(hAlienWeb) != 0 || seen(hWonka1080p) != 1 {
+		t.Errorf("seen: erroring item %d, rejected item %d", seen(hAlienWeb), seen(hWonka1080p))
+	}
+	if c := one[string](t, e.st, `SELECT item_key FROM shadow_rss_cursor WHERE indexer = 'prowlarr'`); c != "h:"+hAlienWeb {
+		t.Errorf("cursor %q", c)
+	}
+	e.mu.Lock()
+	logged := e.logBuf.String()
+	e.mu.Unlock()
+	if !strings.Contains(logged, "could not be decided") {
+		t.Error("the error was not logged")
 	}
 }
 

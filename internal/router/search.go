@@ -107,6 +107,12 @@ type queryResult struct {
 // several of a target's queries keeps its best decision (Sonarr's DeDupeDecisions: fewest rejections).
 func SearchRequests(ctx context.Context, eng *decide.Engine, svc *indexer.Service, t decide.Title,
 	targets []SearchTarget) (map[string]*Searched, error) {
+	return searchRequests(ctx, eng, eng.Decide, eng.DecideSearch, svc, t, targets)
+}
+
+// searchRequests is SearchRequests with the engine's two decide functions (a test's can fail one release).
+func searchRequests(ctx context.Context, eng *decide.Engine, decideMovie DecideFunc, decideSeries DecideSeriesFunc,
+	svc *indexer.Service, t decide.Title, targets []SearchTarget) (map[string]*Searched, error) {
 	ctx = decide.WithParseMemo(ctx)
 	related := relatedRows(ctx, t, targets)
 	out := make(map[string]*Searched, len(targets))
@@ -292,12 +298,17 @@ func SearchRequests(ctx context.Context, eng *decide.Engine, svc *indexer.Servic
 			var d *decide.Decision
 			var err error
 			if tt.Kind == policy.KindSeries {
-				d, err = decideBest(ctx, eng.DecideSearch, rel, tt, target.Version, crits[i], target.Series)
+				d, err = decideBest(ctx, decideSeries, rel, tt, target.Version, crits[i], target.Series)
 			} else {
-				d, err = eng.Decide(decide.WithSearch(ctx), decide.Release{Release: rel}, tt, target.Version, target.Existing)
+				d, err = decideMovie(decide.WithSearch(ctx), decide.Release{Release: rel}, tt, target.Version, target.Existing)
+				d, err = releaseError(ctx, d, err, rel, tt, target.Version)
 			}
 			if err != nil {
 				return nil, err
+			}
+			if undecided(d) {
+				searched.Notes = append(searched.Notes, fmt.Sprintf("%s: %s %s", rel.Indexer, rel.Title,
+					d.Rejections[0].Message))
 			}
 			byDecision[d] = rel
 			ds = append(ds, d)
@@ -397,11 +408,16 @@ func decideBest(ctx context.Context, decideFn DecideSeriesFunc, rel indexer.Rele
 	if len(criteria) == 0 {
 		criteria = []*decide.SeriesSearch{fallback}
 	}
-	var best *decide.Decision
+	var best, failed *decide.Decision
 	for _, c := range criteria {
 		d, err := decideFn(ctx, decide.Release{Release: rel}, t, v, c)
-		if err != nil {
+		if d, err = releaseError(ctx, d, err, rel, t, v); err != nil {
 			return nil, err
+		}
+		if undecided(d) {
+			// Another criterion may still decide the release; the error is its decision only when none does.
+			failed = d
+			continue
 		}
 		if best == nil || len(d.Rejections) < len(best.Rejections) {
 			best = d
@@ -410,7 +426,37 @@ func decideBest(ctx context.Context, decideFn DecideSeriesFunc, rel indexer.Rele
 			break
 		}
 	}
+	if best == nil {
+		return failed, nil
+	}
 	return best, nil
+}
+
+// reasonDecisionError is the rejection of a release the engine returned an error for.
+const reasonDecisionError = "DecisionError"
+
+// undecided is a decision releaseError made.
+func undecided(d *decide.Decision) bool {
+	return len(d.Rejections) == 1 && d.Rejections[0].Reason == reasonDecisionError
+}
+
+// releaseError makes an error the engine returned for one release that release's rejection (Sonarr's
+// DownloadDecisionMaker does the same), so one release the engine cannot judge does not end the search. A cancelled
+// search stays an error.
+func releaseError(ctx context.Context, d *decide.Decision, err error, rel indexer.Release, t decide.Title,
+	v decide.Version) (*decide.Decision, error) {
+	if err == nil {
+		return d, nil
+	}
+	if ctx.Err() != nil {
+		return nil, err
+	}
+	d = &decide.Decision{Release: rel.Title, Indexer: rel.Indexer, TitleID: t.ID, Version: v.Key, VersionID: v.ID,
+		Rejections: []decide.Rejection{{Reason: reasonDecisionError, Message: "could not be decided: " + err.Error()}}}
+	if v.Policy != nil {
+		d.Profile = v.Policy.Profile
+	}
+	return d, nil
 }
 
 // appendCriteria appends the criteria not yet in cs.

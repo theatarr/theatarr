@@ -85,9 +85,12 @@ type Router interface {
 
 // Runner holds the RSS job.
 type Runner struct {
-	st      *store.Store
-	pol     *policy.Policy
-	eng     *decide.Engine
+	st  *store.Store
+	pol *policy.Policy
+	eng *decide.Engine
+	// decideFn is the engine's Decide (a test's can fail one release).
+	decideFn func(ctx context.Context, rel decide.Release, t decide.Title, v decide.Version,
+		existing *decide.ExistingFile) (*decide.Decision, error)
 	q       *jobs.Queue
 	tasks   *tasks.Table
 	idx     *indexer.Service
@@ -118,6 +121,7 @@ func New(cfg Config) *Runner {
 		lib: &library{}, m: newMetrics(cfg.Registerer), active: map[string]bool{}, rt: cfg.Router, runtime: cfg.Runtime}
 	r.setVersions(cfg.Policy, cfg.Engine, cfg.Router)
 	if cfg.Engine != nil {
+		r.decideFn = cfg.Engine.Decide
 		cfg.Engine.SetLibrary(r.lib)
 	}
 	return r

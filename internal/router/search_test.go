@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -267,5 +268,97 @@ func TestSearchByOriginalTitle(t *testing.T) {
 			}
 			t.Errorf("%s: ranked %d decisions, want the film by its original title, accepted", tc.name, len(r))
 		}
+	}
+}
+
+// TestSearchReleaseErrorIsItsRejection: a multi-library search where the engine returns an error for one release:
+// that release is rejected with the error in both libraries, the valid releases are decided for both, and the batch
+// goes on. A cancelled search still fails. For a series, an error under one criterion leaves another criterion's
+// decision for the same release.
+func TestSearchReleaseErrorIsItsRejection(t *testing.T) {
+	t.Parallel()
+	item := func(title, hash string) string {
+		return `<item><title>` + title + `</title><guid>` + hash + `</guid><size>20000000000</size><category>2000</category>` +
+			`<torznab:attr name="infohash" value="` + hash + `"/><torznab:attr name="seeders" value="10"/></item>`
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/xml")
+		if r.URL.Query().Get("t") == "caps" {
+			fmt.Fprint(w, `<caps><limits default="100" max="100"/><searching><movie-search available="yes" supportedParams="imdbid"/></searching><categories><category id="2000" name="Movies"/></categories></caps>`)
+			return
+		}
+		fmt.Fprint(w, `<rss xmlns:torznab="http://torznab.com/schemas/2015/feed"><channel>`+
+			item("Arrival.2016.2160p.WEB-DL-BAD", strings.Repeat("b", 40))+
+			item("Arrival.2016.2160p.WEB-DL-GRP", strings.Repeat("a", 40))+`</channel></rss>`)
+	}))
+	defer srv.Close()
+	profile := &policy.Profile{Qualities: []policy.QualityItem{{Name: "WEBDL-2160p"}}, Cutoff: "WEBDL-2160p"}
+	version := &policy.VersionPolicy{Kind: policy.KindMovie, Profile: "web", Indexers: []string{"one"}}
+	pol := &policy.Policy{Profiles: map[string]*policy.Profile{"web": profile},
+		Versions: map[string]*policy.VersionPolicy{"web-a": version, "web-b": version},
+		Indexers: map[string]*policy.Indexer{"one": {Kind: "torznab", URL: srv.URL + "/api", Privacy: policy.PrivacyPublic}}}
+	eng, err := decide.New(pol, decide.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	idx, err := indexer.New(pol, &searchGateway{}, indexer.Options{CacheTTL: -1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bad := func(ctx context.Context, rel decide.Release, tt decide.Title, v decide.Version, x *decide.ExistingFile) (*decide.Decision, error) {
+		if strings.HasSuffix(rel.Title, "-BAD") {
+			return nil, errors.New("adapt: aggregate languages: Remove(9, 4) on 10 characters")
+		}
+		return eng.Decide(ctx, rel, tt, v, x)
+	}
+	title := decide.Title{ID: 1, Kind: policy.KindMovie, Name: "Arrival", Year: 2016, IMDb: "tt2543164"}
+	targets := []SearchTarget{
+		{ID: "a", Version: decide.Version{ID: 1, Key: "web-a", Policy: version}},
+		{ID: "b", Version: decide.Version{ID: 2, Key: "web-b", Policy: version}},
+	}
+	got, err := searchRequests(context.Background(), eng, bad, eng.DecideSearch, idx, title, targets)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"a", "b"} {
+		r := got[id].Ranked
+		if len(r) != 2 || r[0].Release != "Arrival.2016.2160p.WEB-DL-GRP" || !r[0].Accepted ||
+			r[1].Release != "Arrival.2016.2160p.WEB-DL-BAD" || r[1].Accepted || len(r[1].Rejections) != 1 ||
+			!strings.Contains(r[1].Rejections[0].Message, "aggregate languages") {
+			for _, d := range r {
+				t.Logf("%s: %s accepted=%v %v", id, d.Release, d.Accepted, d.Rejections)
+			}
+			t.Errorf("target %s: ranked %d", id, len(r))
+		}
+		if len(got[id].Request.Candidates) != 1 {
+			t.Errorf("target %s: %d route candidates", id, len(got[id].Request.Candidates))
+		}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancelling := func(c context.Context, rel decide.Release, tt decide.Title, v decide.Version, x *decide.ExistingFile) (*decide.Decision, error) {
+		cancel()
+		return nil, c.Err()
+	}
+	if _, err := searchRequests(ctx, eng, cancelling, eng.DecideSearch, idx, title, targets); !errors.Is(err, context.Canceled) {
+		t.Errorf("cancelled search: %v", err)
+	}
+
+	// Series criteria: the first criterion errors, the second decides; with every criterion erroring the release is
+	// rejected with the error.
+	c1, c2 := &decide.SeriesSearch{Season: 1}, &decide.SeriesSearch{Season: 1, Episode: 1}
+	ok := &decide.Decision{Release: "Show.S01E01", Accepted: true}
+	fn := func(_ context.Context, _ decide.Release, _ decide.Title, _ decide.Version, s *decide.SeriesSearch) (*decide.Decision, error) {
+		if s == c1 {
+			return nil, errors.New("boom")
+		}
+		return ok, nil
+	}
+	rel := indexer.Release{Title: "Show.S01E01", Indexer: "one"}
+	if d, err := decideBest(context.Background(), fn, rel, title, targets[0].Version, []*decide.SeriesSearch{c1, c2}, nil); err != nil || d != ok {
+		t.Errorf("criteria: %+v %v", d, err)
+	}
+	d, err := decideBest(context.Background(), fn, rel, title, targets[0].Version, []*decide.SeriesSearch{c1}, nil)
+	if err != nil || d.Accepted || len(d.Rejections) != 1 || d.Release != "Show.S01E01" || d.Version != "web-a" {
+		t.Errorf("only an erroring criterion: %+v %v", d, err)
 	}
 }

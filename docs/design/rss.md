@@ -58,7 +58,8 @@ index is reloaded all the same.
   film added since is matched.
 - **Decided** for every monitored library of the title, including `cutoff_met`, with the library's current file.
   Per-file upgrade checks reject replacements that do not improve the full quality/score cutoff. Movies must reach
-  their minimum availability first.
+  their minimum availability first. An item the engine returns an error for is logged and counted (`errors` in the
+  summary) and not remembered, so the next sync decides it again; the run goes on (Sonarr rejects such a release).
 - **Routed:** the accepted items are ranked per title and library for the whole sync and handed to the router as one
   `router.route` job (source `rss`), unless every candidate overlaps an in-flight download. The router skips
   individual overlaps and places the disjoint releases in the same job. The grab journal records what the read decided

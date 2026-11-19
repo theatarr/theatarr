@@ -26,10 +26,12 @@ import (
 type RSSSummary struct {
 	Indexers []RSSIndexer `json:"indexers"`
 	// Items read, New not seen before, Matched mapped to a title of ours, Decided decisions made.
-	Items    int `json:"items"`
-	New      int `json:"new"`
-	Matched  int `json:"matched"`
-	Decided  int `json:"decided"`
+	Items   int `json:"items"`
+	New     int `json:"new"`
+	Matched int `json:"matched"`
+	Decided int `json:"decided"`
+	// Errors are decisions the engine returned an error for (logged; the item is decided again next run).
+	Errors   int `json:"errors,omitempty"`
 	Requests int `json:"requests"`
 	// Routed are the router.route jobs enqueued for versions (one per title and version, its picks ranked);
 	// RouteSkipped the titles skipped because a download for them is in flight.
@@ -176,7 +178,7 @@ func (r *Runner) rssJob(ctx context.Context) (*RSSSummary, error) {
 	sum.TookMS = r.now().Sub(start).Milliseconds()
 	r.m.rssItems.Add(float64(sum.New))
 	r.log.Info("shadow rss", "items", sum.Items, "new", sum.New, "matched", sum.Matched, "routed", sum.Routed,
-		"requests", sum.Requests, "took_ms", sum.TookMS)
+		"errors", sum.Errors, "requests", sum.Requests, "took_ms", sum.TookMS)
 	return sum, err
 }
 
@@ -644,9 +646,12 @@ func (r *Runner) decideItem(ctx context.Context, rel, ranked indexer.Release, ca
 			if err != nil {
 				return err
 			}
-			d, err := r.eng.Decide(ctx, decide.Release{Release: ranked}, c.title, c.version, existing)
+			d, err := r.decide(ctx, ranked, c.title, c.version, existing, sum)
 			if err != nil {
 				return err
+			}
+			if d == nil {
+				continue
 			}
 			sum.Decided++
 			if !d.Accepted || d.MatchType == decide.MatchNone {
@@ -661,6 +666,25 @@ func (r *Runner) decideItem(ctx context.Context, rel, ranked indexer.Release, ca
 		sum.Matched++
 	}
 	return nil
+}
+
+// decide decides one item for a version. An error the engine returns for the item (the run not cancelled) is
+// logged and counted, and the item is left undecided (nil): it is not remembered, so the next run decides it again,
+// and the run goes on (Sonarr's DownloadDecisionMaker rejects such a release).
+func (r *Runner) decide(ctx context.Context, rel indexer.Release, t decide.Title, v decide.Version,
+	existing *decide.ExistingFile, sum *RSSSummary) (*decide.Decision, error) {
+	d, err := r.decideFn(ctx, decide.Release{Release: rel}, t, v, existing)
+	if err == nil {
+		return d, nil
+	}
+	if ctx.Err() != nil {
+		return nil, err
+	}
+	sum.Errors++
+	sum.remember = false
+	r.log.Warn("rss: release could not be decided", "indexer", rel.Indexer, "title", rel.Title, "version", v.Key,
+		"err", err)
+	return nil, nil
 }
 
 // Arr rejection types describe the decision, not whether a later sync can change it. Use a narrow list of
