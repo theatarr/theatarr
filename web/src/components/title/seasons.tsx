@@ -115,6 +115,7 @@ const TONE: Record<Status, { text: string; dot: string }> = {
   not_aired: { text: "text-[var(--ink-3)]", dot: "bg-[var(--line)]" },
   unmonitored: { text: "text-[var(--ink-3)]", dot: "bg-[var(--line)]" },
   none: { text: "text-[var(--ink-3)]", dot: "bg-[var(--line)]" },
+  no_file: { text: "text-[var(--ink-3)]", dot: "bg-[var(--line)]" },
 };
 
 /** Icon buttons are 36 px below the md width (wave 1: they were 24 px). */
@@ -134,7 +135,7 @@ function statusOf(e: Episode, copies: { key: string; monitored?: boolean }[], me
     return { s, label: s === "available" && !seeFiles ? plainAvailable(e, keys) : statusWords(s, seeFiles).label, upgrade: mergedUpgradeWord(e, keys.filter((k) => !off.has(k)), seeFiles) };
   }
   const c = e.versions[keys[0]];
-  const s = cellStatus(c, aired(e), off.has(keys[0]));
+  const s = cellStatus(c, aired(e), off.has(keys[0]), !!e.removed);
   return { s, label: statusWords(s, seeFiles).label, quality: seeFiles && c?.has_file ? c.quality : undefined, cell: c, upgrade: off.has(keys[0]) ? undefined : cellUpgradeWord(c, seeFiles) };
 }
 
@@ -356,7 +357,7 @@ function ColumnCell({ id, e, c, seeFiles, day, off = false }: { id: EpisodeColum
     case "air":
       return <TableCell className="whitespace-nowrap text-muted-foreground">{e.air_date ? day(e.air_date) : "—"}</TableCell>;
     case "status": {
-      const s = cellStatus(c, aired(e), off);
+      const s = cellStatus(c, aired(e), off, !!e.removed);
       return (
         <TableCell title={cellTitle(c, off)} data-col="status">
           <StatusText st={{ s, label: statusWords(s, seeFiles).label, upgrade: off ? undefined : cellUpgradeWord(c, seeFiles) }} manage={false} />
@@ -863,11 +864,12 @@ function SeasonBlock({
 }
 
 /** The bar that acts on the selected episodes in the libraries in view: monitor, unmonitor, search, clear. */
-function BulkBar({ titleId, scope, selected, removed, onClear }: { titleId: number; scope: Scope; selected: number[]; removed: Set<number>; onClear: () => void }) {
+function BulkBar({ titleId, scope, rows, onClear }: { titleId: number; scope: Scope; rows: Episode[]; onClear: () => void }) {
   const actions = useSeasonActions(titleId, scope);
   const where = `in ${scope.name}`;
+  const selected = rows.map((e) => e.id);
   // Episodes the series no longer lists are kept for their files: monitoring leaves them out.
-  const monitorable = selected.filter((id) => !removed.has(id));
+  const monitorable = rows.filter((e) => !e.removed).map((e) => e.id);
   const noMonitor = monitorable.length === 0;
   return (
     <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-20 md:bottom-4" data-testid="bulk-bar">
@@ -1001,7 +1003,6 @@ export function Seasons({ id, anime, franchises = [], history }: { id: string; a
   const latest = [...l.seasons].filter((s) => s.season > 0 && s.aired > 0).pop()?.season ?? l.seasons[0].season;
   const opened = open ?? [latest];
   const toggle = (s: number) => setOpen(opened.includes(s) ? opened.filter((x) => x !== s) : [...opened, s]);
-  const removedIds = new Set(l.episodes.filter((e) => e.removed).map((e) => e.id));
   const manage = perms.manage;
   const seeFiles = perms.seeFiles;
   const layout = episodeLayout({ wide, copies: l.versions.length, seeFiles, picked });
@@ -1019,10 +1020,14 @@ export function Seasons({ id, anime, franchises = [], history }: { id: string; a
   // A collapsed season shows none of its episodes, so it counts as hidden too.
   const off = offCopies(copies, seeFiles);
   const shown = (e: Episode) => opened.includes(e.season) && matchesFilter(e, filters[e.season] ?? "all", keys, seeFiles, merged, off);
-  const hidden = new Set(l.episodes.filter((e) => !shown(e)).map((e) => e.id));
+  // The rows on screen: a tick of a row that is not (filtered, collapsed, or gone from the list, as after Change
+  // episodes) is dropped.
+  const shownRows = l.episodes.filter(shown);
+  const onScreen = new Set(shownRows.map((e) => e.id));
   if (ticked.view !== view) setTicked({ view, ids: new Set() });
-  else if ([...ticked.ids].some((id) => hidden.has(id))) setTicked({ view, ids: new Set([...ticked.ids].filter((id) => !hidden.has(id))) });
-  const selected = ticked.view === view ? new Set([...ticked.ids].filter((id) => !hidden.has(id))) : new Set<number>();
+  else if ([...ticked.ids].some((id) => !onScreen.has(id))) setTicked({ view, ids: new Set([...ticked.ids].filter((id) => onScreen.has(id))) });
+  const selected = ticked.view === view ? new Set([...ticked.ids].filter((id) => onScreen.has(id))) : new Set<number>();
+  const selectedRows = shownRows.filter((e) => selected.has(e.id));
   const setSelected = (ids: Set<number>) => setTicked({ view, ids });
   const select = (ids: number[], on: boolean) => {
     const next = new Set(selected);
@@ -1123,7 +1128,7 @@ export function Seasons({ id, anime, franchises = [], history }: { id: string; a
       <p className="pt-1 text-xs text-muted-foreground">
         {manage ? "Open an episode for its file, history and releases; tick episodes to act on several." : "Open an episode for its details."}
       </p>
-      {manage && selected.size > 0 && copies.length > 0 ? <BulkBar titleId={titleId} scope={scope} selected={[...selected]} removed={removedIds} onClear={() => setSelected(new Set())} /> : null}
+      {manage && selected.size > 0 && copies.length > 0 ? <BulkBar titleId={titleId} scope={scope} rows={selectedRows} onClear={() => setSelected(new Set())} /> : null}
       {picker ? (
         <ColumnPicker
           label="Episode columns"

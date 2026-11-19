@@ -91,6 +91,28 @@ describe("Series page copies", () => {
     expect((screen.getByTestId("bulk-monitor") as HTMLButtonElement).disabled).toBe(false);
   });
 
+  it("drops a ticked episode that leaves the list from the bulk bar and its actions", async () => {
+    const gone = { id: 104, season: 1, number: 15, absolute: 15, name: "Lost Harbour", air_date: "2026-10-22", aired: true, monitored: true, removed: true, versions: { "anime-tv": cell(false), "anime-web": cell(true) } };
+    let left = false;
+    const m = mockFetch([routes[0],
+      { method: "GET", path: "/titles/1/episodes", reply: () => ({ ...episodes, episodes: left ? episodes.episodes : [...episodes.episodes, gone] }) },
+      { method: "PUT", path: "/titles/1/episodes/monitor", reply: { versions: ["anime-web"], skipped: [], episodes: 1, message: "Monitored 1 episode" } }]);
+    const user = userEvent.setup();
+    renderPage(<><Seasons id="1" anime /><Toaster /></>, "/title/1");
+    await user.click(await screen.findByRole("radio", { name: "Anime WEB" }));
+    await user.click(await screen.findByRole("checkbox", { name: "Select episode 15" }));
+    await user.click(screen.getByRole("checkbox", { name: "Select episode 14" }));
+    expect(screen.getByTestId("bulk-scope").textContent).toContain("2 selected");
+    // Its last file is reassigned elsewhere (Change episodes): the next read of the list no longer has it.
+    left = true;
+    await user.click(screen.getByTestId("bulk-monitor"));
+    await vi.waitFor(() => expect(screen.queryByTestId("episode-removed-104")).toBeNull());
+    expect(screen.getByTestId("bulk-scope").textContent).toContain("1 selected");
+    await user.click(screen.getByTestId("bulk-monitor"));
+    const puts = m.calls("PUT", "/titles/1/episodes/monitor");
+    expect(puts.map((r) => (r.body as { episode_ids: number[] }).episode_ids)).toEqual([[103], [103]]);
+  });
+
   it("offers no monitoring in the window of an episode the series no longer lists", async () => {
     const gone = { ...episodes.episodes[2], id: 104, number: 15, name: "Lost Harbour", removed: true };
     mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: { ...episodes, episodes: [...episodes.episodes, gone] } },

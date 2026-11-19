@@ -57,8 +57,8 @@ function code(season: number, number: number) {
 
 /** A copy's status word for a caller who sees files: the Episodes table's (cellStatus), so the row and the window say
  *  the same; the quality word with Why? follows in the upgrade block. */
-function stateBadge(d: EpisodeVersionDetail, aired: boolean): { label: string; tone: "positive" | "warning" | "negative" | "neutral" | "info" } {
-  return statusWords(cellStatus(d, aired, d.library_monitored === false), true);
+function stateBadge(d: EpisodeVersionDetail, aired: boolean, removed = false): { label: string; tone: "positive" | "warning" | "negative" | "neutral" | "info" } {
+  return statusWords(cellStatus(d, aired, d.library_monitored === false, removed), true);
 }
 
 /** The last search Theatarr decided for this episode in one library, read-only (Interactive search searches now). */
@@ -159,7 +159,7 @@ function DetailsPart({ titleId, eid, epCode, d, aired, removed, manage, admin, s
   const nameOf = useLibraryName();
   const [msg, setMsg] = useState("");
   const c = d.control;
-  const badge = stateBadge(d, aired);
+  const badge = stateBadge(d, aired, removed);
   const rows = fileRows(d.file);
   if (rows.length === 0 && d.has_file && d.upgrade?.quality) rows.push(["Quality", d.upgrade.quality]);
   return (

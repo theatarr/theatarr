@@ -18,7 +18,8 @@ export type Cell = Episode["versions"][string];
  * library is not monitored: a gap there is not missing), or none (not in this library). Quality is said apart from it:
  * Upgrade found beside Available (cellUpgrade).
  */
-export type Status = "available" | "missing" | "not_aired" | "unmonitored" | "none";
+/** no_file: an episode the series no longer lists (kept for a file in another library) that this one lacks. */
+export type Status = "available" | "missing" | "not_aired" | "unmonitored" | "none" | "no_file";
 
 /** The season filters; active is an episode with a download in hand for a copy in view (accounts that see files). */
 export type EpisodeFilter = "all" | "active" | "missing" | "upgrade";
@@ -40,6 +41,8 @@ export function statusWords(s: Status, seeFiles: boolean): { label: string; tone
       return { label: "Missing", tone: "negative" };
     case "not_aired":
       return { label: "Not aired", tone: "neutral" };
+    case "no_file":
+      return { label: "No file", tone: "neutral" };
     case "unmonitored":
       // Monitoring is a manager's notion; to everyone else the episode is simply not there.
       return { label: seeFiles ? "Not monitored" : "Not available", tone: "neutral" };
@@ -54,9 +57,11 @@ export function aired(e: Pick<Episode, "aired">): boolean {
 }
 
 /** One copy's state for an episode; off: the copy (library) is not monitored. */
-export function cellStatus(c: Cell | undefined, isAired: boolean, off = false): Status {
+export function cellStatus(c: Cell | undefined, isAired: boolean, off = false, removed = false): Status {
   if (!c) return "none";
   if (c.has_file) return "available";
+  // An episode the series no longer lists is never missing: the library that lacks it has no file, and that is all.
+  if (removed) return "no_file";
   if (!isAired) return "not_aired";
   return c.monitored && !off ? "missing" : "unmonitored";
 }
@@ -79,8 +84,8 @@ export function cellUpgradeWord(c: Cell | undefined, seeFiles: boolean): string 
  */
 export function mergedStatus(e: Episode, keys: string[], off: OffCopies = new Set()): Status {
   const isAired = aired(e);
-  const all = keys.map((k) => cellStatus(e.versions[k], isAired, off.has(k)));
-  for (const s of ["available", "not_aired", "missing", "unmonitored"] as const) {
+  const all = keys.map((k) => cellStatus(e.versions[k], isAired, off.has(k), !!e.removed));
+  for (const s of ["available", "not_aired", "missing", "unmonitored", "no_file"] as const) {
     if (all.includes(s)) return s;
   }
   return "none";

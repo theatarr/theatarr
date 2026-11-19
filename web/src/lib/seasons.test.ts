@@ -86,6 +86,11 @@ describe("season summary", () => {
     expect(matchesFilter(half, "missing", [k4.key, k1.key], true)).toBe(false);
     expect(matchesFilter(half, "missing", [k4.key, k1.key], true, true)).toBe(false);
     expect(matchesFilter(half, "all", [k4.key, k1.key], true)).toBe(true);
+    // Its cell in the library that lacks it says No file, not Missing; the library holding it keeps its file status.
+    expect(cellStatus(half.versions[k1.key], true, false, true)).toBe("no_file");
+    expect(statusWords("no_file", true).label).toBe("No file");
+    expect(cellStatus(half.versions[k4.key], true, false, true)).toBe("available");
+    expect(mergedStatus({ ...half, versions: { [k1.key]: cell({}) } }, [k1.key])).toBe("no_file");
   });
   it("names the copy a missing count belongs to when several are in view", () => {
     expect(seasonSummary(season, [k4, k1], true).text).toBe("4 of 6 available · 2 missing in 4K · 1 missing in 1080p · 1 upgrade found · 1 not aired");
