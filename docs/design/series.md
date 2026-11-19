@@ -46,7 +46,7 @@ from ordinary matching loads.
   criteria (`SeriesSearch`: kind, season, episode, requested episodes). Movies keep the movie path.
 - **Mapping** (`series.go`) ports `ParsingService.Map` with search criteria: scene mapping lookup
   (`FindSceneMapping` with its season filters and Levenshtein tie-break), series by search clean title, indexer TVDB
-  or IMDb id, title, all titles, title and year; episodes by season and number, scene numbering (search episodes
+  or IMDb id (IMDb ids compared normalised, so ids differing only in zero padding are one title), title, all titles, title and year; episodes by season and number, scene numbering (search episodes
   first), absolute numbers for anime (`GetAnimeEpisodes` with the scene season rules), air date for daily series,
   whole seasons for packs (scene season first), specials by episode title (`ParseSpecialEpisodeTitle`), and
   `ValidateForSeriesType`. `UnknownSeries` and `UnknownEpisode` as the arr names them.
