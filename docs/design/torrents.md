@@ -223,7 +223,9 @@ few backups fill in every torrent (`TestBackupCacheSurvivesAProviderOutage`). A 
 DMM backup; optionally one provider's list (`provider`), another target account (`target`) or some hashes.
 
 The preview says per torrent: already present (`present`), will be re-added (`readd`), or skipped: `skip_invalid`
-(not a v1 hash), `skip_target` (the target account cannot be listed). The token binds the
+(not a v1 hash), `skip_target` (the target account cannot be listed). System › Backup shows the `skip_target`
+skips of one account as one line, the count and the account's error in plain words ("3 torrents skipped: RD is not
+asked for now: paused after 5 failed requests in a row."), not the raw error on every row. The token binds the
 set of re-adds (digest `r1-<count>-<digest>`) to the caller (`r2-…`, as for the delete, step 5 below); the job plans
 again and adds only hashes in the confirmed set that are still missing.
 
@@ -545,7 +547,7 @@ The old Saved inventory addresses (`/admin/torrents/inventory`, an entry `/admin
 the older `/admin/registry…`, `/registry…`) open Torrents, an entry filtered to its hash (`?q=<hash>`); a file's hash
 on the title page links there too. A row's detail is its usage (titles, references) and, folded as "N files", the files Theatarr
 recorded for its hash (`content_file`: path and size; the report's `recorded_files`). **System › Backup** holds torrent-list backups: **Back up
-now**, import (Theatarr or DMM, to a chosen provider), the list with download (Theatarr or DMM format) and **Restore…**
+now** (a toast "Torrent backup queued" linking System › Tasks, where the job's end shows), import (Theatarr or DMM, to a chosen provider), the list with download (Theatarr or DMM format) and **Restore…**
 with its preview. Code: `web/src/pages/admin/torrents.tsx`, `web/src/components/backups/torrent-backups.tsx`, `web/src/lib/torrents.ts`.
 
 ## Out of scope

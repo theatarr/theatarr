@@ -223,6 +223,19 @@ export function deleteScope(p: DeletePlan): Scope {
   };
 }
 
+/** The restore preview's skips for a target account that is unavailable (skip_target), one per account: how many and
+ *  the account's error (the same for each of them), so one outage is one line, not one per torrent. */
+export function restoreSkips(p: RestorePlan): { target: string; count: number; reason: string }[] {
+  const out = new Map<string, { target: string; count: number; reason: string }>();
+  for (const it of p.items) {
+    if (it.action !== "skip_target") continue;
+    const g = out.get(it.target) ?? { target: it.target, count: 0, reason: it.reason ?? "" };
+    g.count++;
+    out.set(it.target, g);
+  }
+  return [...out.values()];
+}
+
 /** The restore confirmation from its preview. */
 export function restoreScope(p: RestorePlan): Scope {
   const c = p.counts ?? {};

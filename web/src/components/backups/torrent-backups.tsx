@@ -8,10 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ConfirmDialog, errText } from "@/components/ui/confirm-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fmtBytes, fmtNumber, fmtTime } from "@/lib/format";
-import { restoreScope, type RestorePlan } from "@/lib/torrents";
+import { fmtBytes, fmtNumber, fmtTime, plural } from "@/lib/format";
+import { providerProblem, restoreScope, restoreSkips, type RestorePlan } from "@/lib/torrents";
+import { useProviderCode } from "@/lib/library-names";
 import { settingHref } from "@/lib/settings-map";
-import { ProviderTag } from "@/components/provider-pills";
+import { ProviderTag, providerLabel } from "@/components/provider-pills";
 
 /** A backup taken while no provider could be read: it holds nothing to restore. One with no provider at all, or with an
  * account listed (even with zero torrents), is good. */
@@ -22,6 +23,7 @@ export function TorrentBackups() {
   const q = useTorrentBackups();
   const report = useTorrentReport();
   const actions = useTorrentActions();
+  const code = useProviderCode();
   const file = useRef<HTMLInputElement>(null);
   const [target, setTarget] = useState("");
   const [restore, setRestore] = useState<{ id: string; plan: RestorePlan } | null>(null);
@@ -76,7 +78,8 @@ export function TorrentBackups() {
           <input ref={file} type="file" accept="application/json,.json" className="hidden" onChange={onFile} data-testid="import-file" />
           <Button
             size="sm"
-            onClick={() => actions.backupNow.mutate(undefined, { onSuccess: (r) => toast({ tone: "ok", title: `Backup queued as job #${r.job}` }), onError: (err) => toast({ tone: "bad", title: "Backup failed", body: errText(err) }) })}
+            // Queued only: the job's end (a provider that could not be read) is on System › Tasks, linked.
+            onClick={() => actions.backupNow.mutate(undefined, { onSuccess: () => toast({ tone: "ok", title: "Torrent backup queued", body: "System › Tasks shows how it ends.", to: "/admin/system/tasks" }), onError: (err) => toast({ tone: "bad", title: "Backup failed", body: errText(err) }) })}
             disabled={actions.backupNow.isPending}
             data-testid="backup-now"
           >
@@ -145,7 +148,12 @@ export function TorrentBackups() {
         >
           {restored ? <p><Link to="/admin/torrents">Torrents</Link> shows each re-add as it happens.</p> : null}
           <ul className="max-h-60 space-y-1 overflow-y-auto text-xs">
-            {restore.plan.items.filter((it) => it.action !== "present").map((it) => (
+            {restoreSkips(restore.plan).map((g) => (
+              <li key={`skip:${g.target}`} className="[overflow-wrap:anywhere]" title={g.reason} data-testid="restore-skipped">
+                {plural(g.count, "torrent")} skipped: {providerProblem({ provider: g.target, error: g.reason }, providerLabel(code(g.target))).message}
+              </li>
+            ))}
+            {restore.plan.items.filter((it) => it.action !== "present" && it.action !== "skip_target").map((it) => (
               <li key={`${it.target}:${it.hash}`} className="[overflow-wrap:anywhere]"><Badge tone={it.action === "readd" ? "info" : "neutral"}>{it.action}</Badge> {it.name || it.hash}{it.reason ? `: ${it.reason}` : ""}</li>
             ))}
           </ul>
