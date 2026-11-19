@@ -471,3 +471,19 @@ func TestSeriesOriginalLanguageCodes(t *testing.T) {
 		}
 	}
 }
+
+// A film's TMDb original language: Radarr's table, plus the codes TMDb sends that the table knows under another
+// code (yue and cn are Cantonese, nn Norwegian Nynorsk, iw and in the old Hebrew and Indonesian codes); else
+// English.
+func TestMovieOriginalLanguageCodes(t *testing.T) {
+	t.Parallel()
+	for code, want := range map[string]string{
+		"en": "English", "ja": "Japanese", "cn": "Chinese", "zh": "Chinese", "yue": "Chinese", "YUE": "Chinese",
+		"nn": "Norwegian", "no": "Norwegian", "nb": "Norwegian", "iw": "Hebrew", "he": "Hebrew", "in": "Indonesian",
+		"id": "Indonesian", "ko": "Korean", "xx": "English", "": "English",
+	} {
+		if got := tmdbOriginalLanguage(code); got != want {
+			t.Errorf("%q: %s, want %s", code, got, want)
+		}
+	}
+}

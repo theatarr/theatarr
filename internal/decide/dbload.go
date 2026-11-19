@@ -515,12 +515,24 @@ var metadataLanguageAliases = map[string]sonarr.Language{
 }
 
 // tmdbOriginalLanguage is SkyHookProxy.MapMovie's original language: IsoLanguages.Find(original_language.ToLower()),
-// else English. Port of Radarr src/NzbDrone.Core/MetadataSource/SkyHook/SkyHookProxy.cs @ a96bf7c (line 244).
+// else English. Port of Radarr src/NzbDrone.Core/MetadataSource/SkyHook/SkyHookProxy.cs @ a96bf7c (line 244). Ours:
+// movieLanguageAliases first, the codes TMDb sends that Radarr's table knows under another code.
 func tmdbOriginalLanguage(code string) string {
-	if iso := radarr.FindIsoLanguage(strings.ToLower(code)); iso != nil {
+	code = strings.ToLower(code)
+	if l, ok := movieLanguageAliases[code]; ok {
+		return l.Name
+	}
+	if iso := radarr.FindIsoLanguage(code); iso != nil {
 		return iso.Language.Name
 	}
 	return radarr.LanguageEnglish.Name
+}
+
+// movieLanguageAliases are metadataLanguageAliases for Radarr's table, which already reads cn as Chinese: yue
+// (Cantonese), Norwegian Nynorsk, and the old ISO codes for Hebrew and Indonesian.
+var movieLanguageAliases = map[string]radarr.Language{
+	"yue": radarr.LanguageChinese, "nn": radarr.LanguageNorwegian, "iw": radarr.LanguageHebrew,
+	"in": radarr.LanguageIndonesian,
 }
 
 func gunzipDetails(body []byte) *tmdbDetails {

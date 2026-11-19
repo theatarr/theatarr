@@ -267,7 +267,9 @@ Radarr's quality profile has a language (`LanguageSpecification`), and so do pol
   original wanted and met, original wanted and not met, a release without languages taking the original
   (`AggregateLanguages`), a named language wanted and not met, and met.
 - **The movie's original language** is TMDb's `original_language` from the cached TMDb answer, mapped as Radarr's
-  `SkyHookProxy` maps it: `IsoLanguages.Find(code)`, else English (`xx` is English). Without a cached answer it is
+  `SkyHookProxy` maps it: `IsoLanguages.Find(code)`, else English (`xx` is English). Ours: codes TMDb sends that
+  Radarr's table knows under another code are read first (`yue` Chinese, as Radarr reads `cn`; `nn` Norwegian; the
+  old `iw` and `in`; `TestMovieOriginalLanguageCodes`). Without a cached answer it is
   the arr's name, which the former arr import stored for movies too (Radarr's `originalLanguage`, in
   `title.original_language`). With neither, it is Unknown, where Radarr's would be English (the `MovieMetadata`
   default): an `original` profile then rejects every release with a known language rather than take an English
