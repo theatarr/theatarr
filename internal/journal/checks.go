@@ -496,16 +496,17 @@ func (b *builder) checkFile(e *Entry, ti *titleInfo) {
 	}
 }
 
-// audioCode normalises a stream's language tag to ISO 639-2/B as the arrs' languages map: Norwegian Bokmål and
-// Nynorsk (nb, nn, nob, nno; the two-letter ones from a Matroska LanguageIETF tag) count as Norwegian, two-letter
-// tags become three.
+// audioCode normalises a stream's language tag to the three-letter code of the arrs' language table: Norwegian
+// Bokmål and Nynorsk (nb, nn, nob, nno; the two-letter ones from a Matroska LanguageIETF tag) count as Norwegian,
+// two-letter tags become three, and ISO 639-2/B codes (fre, ger, chi) become 639-2/T (fra, deu, zho) like the
+// expected codes.
 func audioCode(a string) string {
 	a = strings.ToLower(strings.TrimSpace(a))
 	switch a {
 	case "nb", "nn", "nob", "nno":
 		return "nor"
 	}
-	if len(a) == 2 {
+	if len(a) == 2 || len(a) == 3 {
 		if iso := radarr.FindIsoLanguage(a); iso != nil {
 			return iso.ThreeLetterCode
 		}

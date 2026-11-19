@@ -174,7 +174,8 @@ probes a sparse 50 GB file and a 20 GB MP4 with `moov` at the end reading under 
 - Track languages: a Matroska track's legacy Language element wins when present and not `und`; otherwise its
   BCP-47 tag (`LanguageIETF`) gives the language as its primary subtag in lower case (`ja-JP` is `ja`), in either
   element order (mkvmerge writes both, and the legacy `chi` or `nob` is the code every reader knows). The journal's
-  file audio check reads `nb` and `nn` as Norwegian. Stored probes are not re-read. Tests:
+  file audio check reads `nb` and `nn` as Norwegian and a
+  bibliographic code (`fre`, `ger`, `chi`) as its terminology one (`fra`, `deu`, `zho`). Stored probes are not re-read. Tests:
   `TestMatroskaLanguageIETF`, `TestAudioCode`.
 - Version mark and one re-read: every probe carries `"v": 2` (`probe.Version`). After start-up one `library.reprobe`
   job reads the content files of active links whose stored probe is HEVC without the mark again, one file about
