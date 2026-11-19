@@ -145,7 +145,9 @@ type tbTorrent struct {
 var tbParen = regexp.MustCompile(`\s*\(.*?\)\s*`)
 
 // tbState maps download_state. Finished and present means downloaded. Finished without the files present is a
-// brief finalising step, unless the state is empty, which means the files are gone. Parenthesised details
+// brief finalising step, unless the state is empty, which means the files are gone. A downloaded state name
+// (completed, cached, seeding, the *UP states) counts as downloaded only with the files present; without them it is
+// that same finalising step. Parenthesised details
 // ("stalled (no seeds)") are dropped first. Lists from decypharr's getTorboxStatus, checked against zurg.
 //
 // metaDL and checking are TorBox resolving the magnet's metadata, not downloading: "checking is where TorBox waits
@@ -174,7 +176,10 @@ func tbState(s string, finished, present bool, size int64) State {
 		return StateDownloading
 	case "completed", "cached", "seeding", "downloaded", "pausedup", "queuedup", "checkingup", "forcedup",
 		"stalledup":
-		return StateDownloaded
+		if present {
+			return StateDownloaded
+		}
+		return StateDownloading
 	case "error", "failed", "missingfiles", "expired", "reported missing":
 		return StateError
 	}

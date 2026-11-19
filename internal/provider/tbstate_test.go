@@ -26,3 +26,29 @@ func TestTorBoxMetadataStatesQueued(t *testing.T) {
 		}
 	}
 }
+
+// A downloaded state counts only once TorBox says the files are present; before that it is the finalising step
+// (downloading). Explicit expiry and missing-file states stay errors.
+func TestTorBoxDownloadedNeedsPresentFiles(t *testing.T) {
+	for _, tc := range []struct {
+		state             string
+		finished, present bool
+		want              State
+	}{
+		{"completed", true, false, StateDownloading},
+		{"cached", false, false, StateDownloading},
+		{"seeding", true, false, StateDownloading},
+		{"uploading", true, false, StateDownloading},
+		{"stalledUP", false, false, StateDownloading},
+		{"completed", true, true, StateDownloaded},
+		{"cached", false, true, StateDownloaded},
+		{"seeding", false, true, StateDownloaded},
+		{"", true, false, StateError},
+		{"expired", true, false, StateError},
+		{"missingFiles", true, false, StateError},
+	} {
+		if got := tbState(tc.state, tc.finished, tc.present, 5<<30); got != tc.want {
+			t.Errorf("%q finished=%v present=%v: %v, want %v", tc.state, tc.finished, tc.present, got, tc.want)
+		}
+	}
+}

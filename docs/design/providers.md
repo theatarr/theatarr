@@ -143,7 +143,7 @@ hashes.
   |---|---|
   | queued | queued, paused, stalled (`stalled (no seeds)`), allocating, metaDL, checking; checkingDL while the size is unknown (≤ 0) |
   | downloading | downloading, checkingDL with a size, processing, moving, uploading |
-  | downloaded | completed, cached, seeding, the `*UP` states |
+  | downloaded | completed, cached, seeding, the `*UP` states, only with `download_present` true (without it they are the finalising step: downloading; `TestTorBoxDownloadedNeedsPresentFiles`) |
   | error | error, failed, missingFiles, expired, reported missing |
 
   metaDL and checking are TorBox resolving the magnet's metadata, not downloading, and TorBox never gives up there on
