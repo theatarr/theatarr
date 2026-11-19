@@ -69,9 +69,10 @@ func newSeries(t *Title) *series {
 	return &series{t: t, clean: sonarr.CleanSeriesTitle(t.Name), typ: typ, parseTitle: sonarr.ParseTitle}
 }
 
-// findByTitle is SeriesRepository.FindByTitle(cleanTitle): the series whose clean title is title's.
+// findByTitle is SeriesRepository.FindByTitle(cleanTitle): the series whose clean title is title's. A series name
+// that cleans to nothing matches nothing (ours).
 func (s *series) findByTitle(title string) bool {
-	return strings.ToLower(sonarr.CleanSeriesTitle(title)) == s.clean
+	return s.clean != "" && strings.ToLower(sonarr.CleanSeriesTitle(title)) == s.clean
 }
 
 // findByTitleYear is FindByTitle(title, year).
@@ -79,9 +80,10 @@ func (s *series) findByTitleYear(title string, year int) bool {
 	return s.findByTitle(title) && s.t.Year == year
 }
 
-// findByTitleInexact is SeriesService.FindByTitleInexact: the series' clean title occurs in the title's.
+// findByTitleInexact is SeriesService.FindByTitleInexact: the series' clean title occurs in the title's. An empty
+// clean title occurs in every title, so it matches nothing (ours).
 func (s *series) findByTitleInexact(title string) bool {
-	return strings.Contains(sonarr.CleanSeriesTitle(title), s.clean)
+	return s.clean != "" && strings.Contains(sonarr.CleanSeriesTitle(title), s.clean)
 }
 
 func (s *series) byTvdb(id int) bool { return id > 0 && id == s.t.TVDB }
@@ -353,11 +355,16 @@ func (s *series) findByEpisodeTitle(season int, releaseTitle string) *Episode {
 		}
 		et := sonarr.NormalizeEpisodeTitle(e.Title)
 		length := len([]rune(et))
-		if p := runeIndex(normLower, strings.ToLower(et)); p >= 0 {
-			cs = append(cs, cand{p, length, e})
+		// An empty form occurs at the start of every release title, so it matches nothing (ours).
+		if etLower := strings.ToLower(et); etLower != "" {
+			if p := runeIndex(normLower, etLower); p >= 0 {
+				cs = append(cs, cand{p, length, e})
+			}
 		}
-		if p := runeIndex(cleanLower, strings.ToLower(sonarr.CleanSeriesTitle(et))); p >= 0 {
-			cs = append(cs, cand{p, length, e})
+		if etClean := strings.ToLower(sonarr.CleanSeriesTitle(et)); etClean != "" {
+			if p := runeIndex(cleanLower, etClean); p >= 0 {
+				cs = append(cs, cand{p, length, e})
+			}
 		}
 	}
 	if len(cs) == 0 {

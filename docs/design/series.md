@@ -50,6 +50,8 @@ from ordinary matching loads.
   first), absolute numbers for anime (`GetAnimeEpisodes` with the scene season rules), air date for daily series,
   whole seasons for packs (scene season first), specials by episode title (`ParseSpecialEpisodeTitle`), and
   `ValidateForSeriesType`. `UnknownSeries` and `UnknownEpisode` as the arr names them.
+  One fix of ours: a series name or special title that cleans or normalises to nothing (punctuation only) matches
+  nothing, where the arr finds it in, or at the start of, every release name (`TestEmptyNamesMatchNothing`).
 - **Decision** (`episodes.go`): languages through `adapt.SonarrRelease` with the episode titles, formats and score,
   then the Sonarr specifications with every mapped episode's file. A pack is judged against every episode's file
   (one `UpgradeDisk` failure rejects it), as Sonarr does. Each file's formats follow

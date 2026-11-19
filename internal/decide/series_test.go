@@ -460,3 +460,28 @@ func TestMultiSeasonPacks(t *testing.T) {
 		}
 	}
 }
+
+// An empty normalised name matches nothing: a series whose name cleans to nothing is not found in every release
+// name, and a special whose title normalises to nothing is not found at the start of every release name.
+// Japanese names keep their letters and still match.
+func TestEmptyNamesMatchNothing(t *testing.T) {
+	t.Parallel()
+	empty := newSeries(&Title{Name: "!!!", Episodes: []Episode{{ID: 1, Season: 0, Number: 1, Title: "..."},
+		{ID: 2, Season: 0, Number: 2, Title: "?!"}}})
+	if empty.findByTitleInexact("Other.Show.S01E01.1080p.WEB-DL-GRP") {
+		t.Error("an empty series name is found in every release name")
+	}
+	if empty.findByTitle("???") {
+		t.Error("an empty series name equals another empty name")
+	}
+	if e := empty.findByEpisodeTitle(0, "Other.Show.Some.Special.1080p.WEB-DL-GRP"); e != nil {
+		t.Errorf("an empty special title matched: episode %d", e.Number)
+	}
+	ja := newSeries(&Title{Name: "進撃の巨人", Episodes: []Episode{{ID: 3, Season: 0, Number: 1, Title: "悔いなき選択"}}})
+	if !ja.findByTitle("進撃の巨人") || !ja.findByTitleInexact("進撃の巨人 S01E01 1080p WEB-DL") {
+		t.Error("a Japanese series name no longer matches")
+	}
+	if e := ja.findByEpisodeTitle(0, "進撃の巨人 悔いなき選択 1080p WEB-DL"); e == nil || e.Number != 1 {
+		t.Errorf("a Japanese special title: %v, want episode 1", e)
+	}
+}
