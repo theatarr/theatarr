@@ -119,12 +119,15 @@ export function plainAvailable(e: Episode, keys: string[]): string {
 
 /**
  * Whether an episode belongs under a filter: Missing and Upgrade found match when any of the copies in view is. With
- * merged (one availability column) Missing matches the episode across copies: only when no copy holds it.
+ * merged (one availability column) Missing matches the episode across copies: only when no copy holds it. An episode
+ * the series no longer lists is never missing.
  */
 export function matchesFilter(e: Episode, f: EpisodeFilter, keys: string[], seeFiles: boolean, merged = false, off: OffCopies = new Set()): boolean {
   if (f === "all") return true;
   if (f === "active") return keys.some((k) => !!e.versions[k]?.acquisition);
   if (f === "upgrade") return mergedUpgrade(e, keys, seeFiles);
+  // An episode the series no longer lists (kept for its file) is never missing, as the season counts have it.
+  if (e.removed) return false;
   if (merged) return mergedStatus(e, keys, off) === "missing";
   const isAired = aired(e);
   return keys.some((k) => cellStatus(e.versions[k], isAired, off.has(k)) === "missing");
