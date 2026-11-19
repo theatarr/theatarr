@@ -98,20 +98,8 @@ type queryResult struct {
 	err      error
 }
 
-// SearchRequests runs the union of the targets' indexer queries once, then decides each target against only the
-// queries its version asked for. The ID lets a caller include more than one target for a version. A series search
-// asks Prowlarr's feeds Sonarr's search criteria (criteria.go: scene numbers, air dates, absolute numbers, scene
-// names), and judges each answer with the criteria of the query that found it. Cardigann uses the same criteria as
-// keyword searches; other sources get the plain query in
-// TVDB numbering (SeaDex: the AniList entries of the TVDB season), judged with plainCriteria. A release found by
-// several of a target's queries keeps its best decision (Sonarr's DeDupeDecisions: fewest rejections).
-func SearchRequests(ctx context.Context, eng *decide.Engine, svc *indexer.Service, t decide.Title,
-	targets []SearchTarget) (map[string]*Searched, error) {
-	return searchRequests(ctx, eng, svc, t, targets)
-}
-
-// searchEngine is the decision engine a batch search uses (decide.Engine; a test's can fail one release).
-type searchEngine interface {
+// SearchEngine is the decision engine a batch search uses (decide.Engine; a test's can fail one release).
+type SearchEngine interface {
 	Decide(ctx context.Context, rel decide.Release, t decide.Title, v decide.Version,
 		existing *decide.ExistingFile) (*decide.Decision, error)
 	DecideSearch(ctx context.Context, rel decide.Release, t decide.Title, v decide.Version,
@@ -119,7 +107,14 @@ type searchEngine interface {
 	Recache(d *decide.Decision, v decide.Version, rel indexer.Release)
 }
 
-func searchRequests(ctx context.Context, eng searchEngine, svc *indexer.Service, t decide.Title,
+// SearchRequests runs the union of the targets' indexer queries once, then decides each target against only the
+// queries its version asked for. The ID lets a caller include more than one target for a version. A series search
+// asks Prowlarr's feeds Sonarr's search criteria (criteria.go: scene numbers, air dates, absolute numbers, scene
+// names), and judges each answer with the criteria of the query that found it. Cardigann uses the same criteria as
+// keyword searches; other sources get the plain query in
+// TVDB numbering (SeaDex: the AniList entries of the TVDB season), judged with plainCriteria. A release found by
+// several of a target's queries keeps its best decision (Sonarr's DeDupeDecisions: fewest rejections).
+func SearchRequests(ctx context.Context, eng SearchEngine, svc *indexer.Service, t decide.Title,
 	targets []SearchTarget) (map[string]*Searched, error) {
 	ctx = decide.WithParseMemo(ctx)
 	related := relatedRows(ctx, t, targets)
@@ -434,7 +429,7 @@ func decideBest(ctx context.Context, decideFn DecideSeriesFunc, rel indexer.Rele
 
 // searchDecideBest is decideBest for a batch search: a criterion the engine returns an error for is passed over, so
 // the best decision of the others stands; the error is the release's rejection only when every criterion errored.
-func searchDecideBest(ctx context.Context, eng searchEngine, rel indexer.Release, t decide.Title, v decide.Version,
+func searchDecideBest(ctx context.Context, eng SearchEngine, rel indexer.Release, t decide.Title, v decide.Version,
 	criteria []*decide.SeriesSearch, fallback *decide.SeriesSearch) (*decide.Decision, error) {
 	if len(criteria) == 0 {
 		criteria = []*decide.SeriesSearch{fallback}

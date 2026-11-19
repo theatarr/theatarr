@@ -313,7 +313,7 @@ func TestSearchReleaseErrorIsItsRejection(t *testing.T) {
 		{ID: "a", Version: decide.Version{ID: 1, Key: "web-a", Policy: version}},
 		{ID: "b", Version: decide.Version{ID: 2, Key: "web-b", Policy: version}},
 	}
-	got, err := searchRequests(context.Background(), bad, idx, title, targets)
+	got, err := SearchRequests(context.Background(), bad, idx, title, targets)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -333,7 +333,7 @@ func TestSearchReleaseErrorIsItsRejection(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancelling := &failingEngine{Engine: eng, cancel: cancel}
-	if _, err := searchRequests(ctx, cancelling, idx, title, targets); !errors.Is(err, context.Canceled) {
+	if _, err := SearchRequests(ctx, cancelling, idx, title, targets); !errors.Is(err, context.Canceled) {
 		t.Errorf("cancelled search: %v", err)
 	}
 

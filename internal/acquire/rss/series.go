@@ -154,8 +154,8 @@ func (r *Runner) decideSeriesItem(ctx context.Context, rel, ranked indexer.Relea
 		// No TVDB id and no series by name: the item's IMDb id, when exactly one series has it (DMM sends IMDb
 		// ids, no TVDB). The decision checks the episode as usual.
 		if imdb := sonarr.NormalizeImdbID(rel.IMDb); len(ids) == 0 && rel.TVDB == 0 && imdb != "" && len(ix.byIMDb[imdb]) == 1 {
-			if id := ix.byIMDb[imdb][0]; len(cands[id]) > 0 {
-				ids = []int64{id}
+			if len(cands[ix.byIMDb[imdb][0]]) > 0 {
+				ids = ix.byIMDb[imdb]
 			}
 		}
 	}
