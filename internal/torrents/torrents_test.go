@@ -1128,6 +1128,44 @@ func TestDeleteBackupNeedsOnlyTheChosen(t *testing.T) {
 	}
 }
 
+// The journal counts a backup's torrents with their plural and thousands separator.
+func TestBackupJournalCounts(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	e.synced("rd")
+	e.content(hA, 1)
+	e.rd.list = []provider.Torrent{tor("1", hA, "Movie.A.2020.1080p.WEB-DL", 100, e.now.Add(-72*time.Hour),
+		provider.StateDownloaded)}
+	ctx := context.Background()
+	if err := backup(ctx, e.m, BackupPayload{Reason: ReasonManual, By: "admin"}); err != nil {
+		t.Fatal(err)
+	}
+	if j, _ := e.m.Journal(ctx, 1); len(j) != 1 || j[0].Detail != "manual: 1 torrent" {
+		t.Errorf("journal: %+v", j)
+	}
+	if got := plural(2946, "torrent"); got != "2,946 torrents" {
+		t.Errorf("plural: %q", got)
+	}
+	sel := []DeleteSelection{{Provider: "rd", ID: "1", Hash: hA}}
+	plan, err := e.m.PlanDelete(ctx, sel)
+	if err != nil || plan.Count != 1 {
+		t.Fatal(plan, err)
+	}
+	if _, err := e.m.Delete(ctx, sel, plan.Token, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	j, _ := e.m.Journal(ctx, 5)
+	var backups []string
+	for _, x := range j {
+		if x.Action == "backup" {
+			backups = append(backups, x.Detail)
+		}
+	}
+	if len(backups) == 0 || backups[0] != "before deleting 1 torrent" {
+		t.Errorf("pre-delete backup: %q", backups)
+	}
+}
+
 // The references are counted with their plural.
 func TestDescribeCounts(t *testing.T) {
 	if got := describe(map[string]int{RefLink: 1}, nil); got != "referenced by 1 link" {

@@ -56,8 +56,8 @@ export function ConfirmDialog({
   /** The confirm button is disabled with nothing said (a choice above still has to be made). */
   disabled?: boolean;
   error?: unknown;
-  /** The server's answer once done: shown in place of the buttons. */
-  done?: string;
+  /** The server's answer once done: shown in place of the buttons (words, or words with a link). */
+  done?: ReactNode;
   /** The action ran but did not do what was asked (an import now that imported nothing): shown as a warning. */
   doneWarning?: boolean;
   danger?: boolean;

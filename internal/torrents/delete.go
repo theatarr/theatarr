@@ -402,7 +402,7 @@ func (m *Manager) execute(ctx context.Context, plan *DeletePlan, by string, o ex
 	}
 	plan.BackupID = b.ID
 	m.journal(ctx, JournalEntry{Action: "backup", BackupID: b.ID, Outcome: "ok", By: by,
-		Detail: fmt.Sprintf("before deleting %d torrents", plan.Count)})
+		Detail: "before deleting " + plural(plan.Count, "torrent")})
 	scan := newScanIndex()
 	m.scanRefs(ctx, scan)
 	stopped := map[string]string{}

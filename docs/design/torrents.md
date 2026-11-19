@@ -537,7 +537,9 @@ sentence (the plan's warning). The filter
 **Not used by Theatarr** (the unused group) has a line beside the filters: it checks Theatarr's libraries and the
 **Other libraries' folders** (`torrents.scan_roots`), which are edited in Settings › Download clients › Torrents
 (`#scan-roots`, linked there); other apps on the same accounts are not seen. The provider tab, filter, text and sort
-are in the URL. The torrent journal is below the list; a **Journal** link beside the filters jumps there.
+are in the URL. The torrent journal is below the list; a **Journal** link beside the filters jumps there. It names who ran each row as Activity does (an API key `key:<name>` as "<name> (API key)"); a
+backup's count reads "1 torrent", "2,946 torrents" (the server writes it so; older rows are read the same way). A
+finished delete says "Backup taken (System › Backup). Deleted N, failed N.", the backup linked, its id as tooltip.
 
 The old Saved inventory addresses (`/admin/torrents/inventory`, an entry `/admin/torrents/inventory/<hash>`, and
 the older `/admin/registry…`, `/registry…`) open Torrents, an entry filtered to its hash (`?q=<hash>`); a file's hash

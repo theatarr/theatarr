@@ -211,6 +211,20 @@ describe("torrents page", () => {
     expect(screen.getByText("Dup.ad.13")).toBeTruthy();
   });
 
+  it("names an API key in the journal as one, and counts torrents with their plural", async () => {
+    mockFetch([
+      { method: "GET", path: "/torrents/report", reply: report },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [
+        { id: 2, action: "backup", outcome: "ok", backup_id: "b2", detail: "before deleting 1 torrents", by: "key:cleaner", at: "2026-10-29T12:00:00Z" },
+        { id: 1, action: "backup", outcome: "ok", backup_id: "b1", detail: "scheduled: 2946 torrents", by: "schedule", at: "2026-10-29T11:00:00Z" },
+      ] } },
+    ]);
+    renderPage(<TorrentsPage />);
+    expect(await screen.findByText("cleaner (API key)")).toBeTruthy();
+    expect(screen.getByText("before deleting 1 torrent")).toBeTruthy();
+    expect(screen.getByText("scheduled: 2,946 torrents")).toBeTruthy();
+  });
+
   it("links the journal beside the filters", async () => {
     mockFetch([
       { method: "GET", path: "/torrents/report", reply: report },
@@ -264,7 +278,10 @@ describe("torrents page", () => {
     const preview = api.calls("POST", "/torrents/delete/preview");
     expect(preview[preview.length - 1].body).toEqual({ items: [{ provider: "rd", id: "1", hash: h1 }, { provider: "rd", id: "2", hash: h2, override: true, override_token: "o1-x" }] });
     fireEvent.click(screen.getByTestId("confirm-ok"));
-    expect(await screen.findByTestId("confirm-done")).toBeTruthy();
+    const done = await screen.findByTestId("confirm-done");
+    // The backup is named by a link to System › Backup, not by its id.
+    expect(done.textContent).toBe("Backup taken (System › Backup). Deleted 2, failed 0.");
+    expect(within(done).getByRole("link", { name: "System › Backup" }).getAttribute("href")).toBe("/admin/system/backup");
     const sent = api.calls("POST", "/torrents/delete");
     expect(sent).toHaveLength(1);
     expect((sent[0].body as { confirmation_token: string }).confirmation_token).toBe("d1-2");

@@ -4,7 +4,7 @@ import { readableCode, wordsFor } from "./code-words";
 import { rejectionWords } from "./rejection-words";
 import { attemptCodeWords, attemptOutcomeWords, backoffWords, cacheSourceWords, cacheStateWords } from "./router-words";
 import { releaseEventWords, releaseTypeWords, titleStatusWords } from "./tmdb-words";
-import { torrentJournalBy, torrentJournalWords, torrentStateWords } from "./torrent-words";
+import { torrentJournalBy, torrentJournalDetail, torrentJournalWords, torrentStateWords } from "./torrent-words";
 
 describe("readableCode (the fallback for a code no map knows)", () => {
   it("turns a code into sentence-case words, never blank", () => {
@@ -101,5 +101,11 @@ describe("torrent words", () => {
     expect(torrentJournalBy("schedule")).toBe("Scheduled");
     expect(torrentJournalBy("auto")).toBe("Automatic");
     expect(torrentJournalBy("nathan")).toBe("nathan");
+    expect(torrentJournalBy("key:sonarr")).toBe("sonarr (API key)");
+    // Rows written before the counts had their plural read the same.
+    expect(torrentJournalDetail("before deleting 1 torrents")).toBe("before deleting 1 torrent");
+    expect(torrentJournalDetail("scheduled: 2946 torrents")).toBe("scheduled: 2,946 torrents");
+    expect(torrentJournalDetail("scheduled: 2,946 torrents")).toBe("scheduled: 2,946 torrents");
+    expect(torrentJournalDetail("override: used, referenced by 2 link")).toBe("override: used, referenced by 2 link");
   });
 });

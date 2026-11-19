@@ -2,6 +2,7 @@
 // journal's actions (internal/torrents: backup, delete, restore, copy) and who ran them. The provider's own status word
 // stays in the title.
 import { wordsFor } from "./code-words";
+import { plural } from "./format";
 
 const STATES: Record<string, string> = {
   queued: "Queued",
@@ -50,6 +51,12 @@ export function torrentJournalWords(action: string | null | undefined, outcome: 
   return [wordsFor({}, action), outcome && outcome !== "ok" ? wordsFor({}, outcome).toLowerCase() : ""].filter(Boolean).join(" ");
 }
 
-/** Who ran it: "schedule" → "Scheduled", "auto" (an automatic Add to other providers) → "Automatic", else the account
- *  name as stored. */
-export const torrentJournalBy = (by: string | null | undefined) => (by === "schedule" ? "Scheduled" : by === "auto" ? "Automatic" : by ?? "");
+/** Who ran it: "schedule" → "Scheduled", "auto" (an automatic Add to other providers) → "Automatic", an API key
+ *  "key:<name>" → "<name> (API key)" (as Activity names it), else the account name as stored. */
+export const torrentJournalBy = (by: string | null | undefined) =>
+  by === "schedule" ? "Scheduled" : by === "auto" ? "Automatic" : by?.startsWith("key:") ? `${by.slice(4)} (API key)` : by ?? "";
+
+/** A journal row's detail; a backup's count written before it had its plural ("before deleting 1 torrents",
+ *  "scheduled: 2946 torrents") reads as the server writes it now ("1 torrent", "2,946 torrents"). */
+export const torrentJournalDetail = (detail: string) =>
+  detail.replace(/^(before deleting |[\w-]+: )(\d+) torrents$/, (_, head: string, n: string) => head + plural(Number(n), "torrent"));

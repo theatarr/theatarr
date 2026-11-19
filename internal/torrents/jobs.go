@@ -89,7 +89,7 @@ func backup(ctx context.Context, m *Manager, p BackupPayload) error {
 		return ErrNothingBackedUp
 	}
 	m.journal(ctx, JournalEntry{Action: "backup", BackupID: b.ID, Outcome: "ok", By: p.By,
-		Detail: fmt.Sprintf("%s: %d torrents", p.Reason, info.Torrents)})
+		Detail: p.Reason + ": " + plural(info.Torrents, "torrent")})
 	return nil
 }
 
