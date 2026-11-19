@@ -180,8 +180,10 @@ func TestPeriodicSceneRefresh(t *testing.T) {
 	clock = clock.Add(SceneAge)
 	extra = `,{"tvdbId":371980,"title":"Remake Alias","searchTitle":"Remake Alias","sceneOrigin":"mixed","comment":"HHWEB","filterRegex":"(?i)^remake"}` +
 		`,{"tvdbId":371980,"title":"Both Alias","searchTitle":"Both Alias","sceneOrigin":"mixed","filterRegex":"(?i)^both"}` +
-		`,{"tvdbId":371980,"title":"Both Alias","searchTitle":"Both Alias","sceneOrigin":"mixed"}`
-	for _, name := range []string{"Remake Alias", "Both Alias"} {
+		`,{"tvdbId":371980,"title":"Both Alias","searchTitle":"Both Alias","sceneOrigin":"mixed"}` +
+		`,{"tvdbId":371980,"title":"Season Name","searchTitle":"Season Name","season":1,"sceneOrigin":"mixed","filterRegex":"(?i)^s1"}` +
+		`,{"tvdbId":371980,"title":"Season Name","searchTitle":"Season Name","season":2,"sceneOrigin":"mixed"}`
+	for _, name := range []string{"Remake Alias", "Both Alias", "Season Name"} {
 		if _, err := e.st.Writer().Exec(`INSERT INTO title_scene_mapping(title_id,source,name,scene_origin,comment)
 			VALUES(?,'sonarr_4k_debrid',?,'mixed','GroupA')`, id, name); err != nil {
 			t.Fatal(err)
@@ -196,7 +198,7 @@ func TestPeriodicSceneRefresh(t *testing.T) {
 	comments := func(name string) string {
 		t.Helper()
 		rows, err := e.st.Reader().Query(`SELECT source || '=' || comment FROM title_scene_mapping WHERE title_id=? AND name=?
-			ORDER BY source`, id, name)
+			ORDER BY source, comment DESC`, id, name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -217,6 +219,11 @@ func TestPeriodicSceneRefresh(t *testing.T) {
 	if got := comments("Both Alias"); got != "sonarr_4k_debrid=GroupA, tvrefresh:sonarr=, tvrefresh:tvdb=" {
 		t.Errorf("alias listed with and without a limit: %s", got)
 	}
+	// Limited for season 1 but plain for season 2: the name is plain in the feed, so the all-season TVDB row stays
+	// plain (a season 3 search still asks the name).
+	if got := comments("Season Name"); got != "sonarr_4k_debrid=GroupA, tvrefresh:sonarr=Limited matching, tvrefresh:sonarr=, tvrefresh:tvdb=" {
+		t.Errorf("alias limited in one season, plain in another: %s", got)
+	}
 	if got := comments("Imported Alias"); got != "sonarr_4k_debrid=" {
 		t.Errorf("plain imported alias: %s", got)
 	}
@@ -230,6 +237,13 @@ func TestPeriodicSceneRefresh(t *testing.T) {
 	var loaded []string
 	for _, m := range ti.SceneMappings {
 		loaded = append(loaded, m.Title)
+	}
+	allSeasons := false
+	for _, m := range ti.SceneMappings {
+		allSeasons = allSeasons || m.Title == "Season Name" && m.SeasonNumber == nil && m.SceneSeasonNumber == nil
+	}
+	if !allSeasons {
+		t.Errorf("the all-season name a season 3 search asks is not loaded: %+v", ti.SceneMappings)
 	}
 	if strings.Contains(strings.Join(loaded, "|"), "Remake Alias") || !strings.Contains(strings.Join(loaded, "|"), "Both Alias") ||
 		!strings.Contains(strings.Join(loaded, "|"), "Imported Alias") {
