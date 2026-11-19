@@ -229,12 +229,8 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail, seeFiles bool) er
 		if err != nil {
 			return err
 		}
-		canon, err := availability.Dates(ctx, db, d.ID)
-		if err != nil {
-			return err
-		}
 		// The home release listed (availability.ListedHomeRelease): shown as before, Missing once out by availability.
-		if h := availability.ListedHomeRelease(canon, w.now()); !h.IsZero() {
+		if h := availability.ListedHomeRelease(dates[d.ID].Canonical, w.now()); !h.IsZero() {
 			d.HomeRelease = h.Format(time.DateOnly)
 		}
 		// The dates the About facts show: the release-date choice Home, the calendar and the lists use.

@@ -7,6 +7,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/availability"
 	"github.com/theatarr/theatarr/internal/metadata/tvrefresh"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -55,11 +56,16 @@ var CalendarTypes = []string{"theatrical", "digital", "physical"}
 func releaseDatesSQL(cond string) string {
 	return `SELECT d.title_id, CASE d.type WHEN 'theatrical_limited' THEN 'theatrical' ELSE d.type END AS type,
 		` + canonSQL + ` AS canon, CASE WHEN MAX(fm.movie_dates_at) IS NOT NULL THEN ` + primarySQL + `
-		ELSE COALESCE(` + canonSQL + `, ` + primarySQL + `) END AS first
+		ELSE COALESCE(` + canonSQL + `, ` + primarySQL + `) END AS first, ` + firstCinemaSQL + ` AS first_cinema
 		FROM title_release_date d LEFT JOIN title_meta fm ON fm.title_id = d.title_id
 		WHERE d.type IN ('theatrical', 'theatrical_limited', 'digital', 'physical') AND (` + cond + `)
 		GROUP BY 1, 2`
 }
+
+// firstCinemaSQL is availability's first cinema date (availability.Dates' FirstCinema) in releaseDatesSQL's cinema
+// group: the canonical theatrical_limited row or a cinema date of the country rows.
+const firstCinemaSQL = `MIN(CASE WHEN d.type IN ('theatrical', 'theatrical_limited') AND (d.country <> ''
+	OR d.type = 'theatrical_limited' AND (d.source = 'tmdb-art' OR fm.movie_dates_at IS NULL)) THEN substr(d.date, 1, 10) END)`
 
 // canonSQL and primarySQL are releaseDatesSQL's aggregates over d, with fm the title's title_meta row: primarySQL is
 // the primary country's first date of the type (wide before limited), a cinema date else the canonical one.
@@ -83,7 +89,7 @@ func FirstReleasesSQL(cond string) string {
 var FirstReleasesBetweenSQL = `SELECT title_id, type, date FROM (` + FirstReleasesSQL("1") + `) WHERE date >= ? AND date <= ?`
 
 // MovieDates are a movie's dates by release type: First is the release-date choice (FirstReleasesSQL), Canonical
-// availability.Dates' canonical dates of the three types (what HomeRelease reads).
+// availability.Dates' dates (the canonical dates of the three types and the first cinema date, what HomeRelease reads).
 type MovieDates struct {
 	First     map[string]string
 	Canonical map[string]time.Time
@@ -101,8 +107,8 @@ func ReadMovieDates(ctx context.Context, db *sql.DB, ids []any) (map[int64]Movie
 		for rows.Next() {
 			var id int64
 			var typ string
-			var canon, first sql.NullString
-			if err := rows.Scan(&id, &typ, &canon, &first); err != nil {
+			var canon, first, firstCinema sql.NullString
+			if err := rows.Scan(&id, &typ, &canon, &first, &firstCinema); err != nil {
 				rows.Close()
 				return nil, err
 			}
@@ -113,6 +119,9 @@ func ReadMovieDates(ctx context.Context, db *sql.DB, ids []any) (map[int64]Movie
 			}
 			if first.Valid {
 				m.First[typ] = first.String
+			}
+			if d, err := time.Parse(time.DateOnly, firstCinema.String); err == nil && firstCinema.Valid {
+				m.Canonical[availability.FirstCinema] = d
 			}
 			if canon.Valid {
 				if d, err := time.Parse(time.DateOnly, canon.String); err == nil {

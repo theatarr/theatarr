@@ -327,10 +327,6 @@ func (w *Web) fillNext(ctx context.Context, db *sql.DB, items []TitleRow, tids, 
 		if err != nil {
 			return err
 		}
-		avail, err := availability.DatesFor(ctx, db, movieIDs)
-		if err != nil {
-			return err
-		}
 		var rules map[int64]availability.Rule
 		if w.pol != nil {
 			ids := make([]int64, len(movieIDs))
@@ -356,7 +352,7 @@ func (w *Web) fillNext(ctx context.Context, db *sql.DB, items []TitleRow, tids, 
 			if len(fr) == 0 && it.ReleaseDate >= today {
 				it.Next = &NextUp{Date: it.ReleaseDate}
 			}
-			it.HomeRelease = day(availability.ListedHomeRelease(avail[it.ID], w.now()))
+			it.HomeRelease = day(availability.ListedHomeRelease(dates[it.ID].Canonical, w.now()))
 			it.InCinemas, it.DigitalRelease, it.PhysicalRelease = fr["theatrical"], fr["digital"], fr["physical"]
 			for j := range it.Versions {
 				it.Versions[j].MinimumAvailability = rules[it.Versions[j].ID].Minimum

@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/availability"
 	"github.com/theatarr/theatarr/internal/policy"
@@ -487,6 +488,16 @@ func TestListRowFacts(t *testing.T) {
 		dates, err := availability.Dates(context.Background(), e.st.Reader(), id)
 		if err != nil {
 			t.Fatal(err)
+		}
+		// The loaders' one aggregate reads availability's dates.
+		read, err := activity.ReadMovieDates(context.Background(), e.st.Reader(), []any{id})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, k := range []string{"theatrical", "digital", "physical", availability.FirstCinema} {
+			if !read[id].Canonical[k].Equal(dates[k]) {
+				t.Errorf("%s: %s %v in the loaders' dates, %v in availability's", r.Name, k, read[id].Canonical[k], dates[k])
+			}
 		}
 		out := r.HomeRelease != "" && r.HomeRelease <= addNow.Format(time.DateOnly)
 		if r.Kind == "movie" && availability.Available("released", dates, addNow, 0) != out {
