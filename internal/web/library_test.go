@@ -1524,24 +1524,32 @@ func TestStatusWords(t *testing.T) {
 }
 
 // TestEpisodeScoreEvidence: an episode's score shows only when the link stored scoring evidence: formats (an empty
-// list too, so a calculated 0 stays 0) or a non-zero score; a stored 0 without formats shows none, in the Episodes
-// list and the episode window.
+// list too, so a calculated 0 stays 0), a non-zero score, or (an older import) its download's stored formats; a stored
+// 0 without any shows none, in the Episodes list and the episode window.
 func TestEpisodeScoreEvidence(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
 	e.seedLibrary()
 	key := e.apiKey()
 	e.exec(`INSERT INTO episode (id, title_id, season, number, name, air_date, created_at, updated_at) VALUES
-		(45, 4, 1, 4, 'Four', '2026-01-22', 0, 0), (46, 4, 1, 5, 'Five', '2026-01-29', 0, 0)`)
+		(45, 4, 1, 4, 'Four', '2026-01-22', 0, 0), (46, 4, 1, 5, 'Five', '2026-01-29', 0, 0), (47, 4, 1, 6, 'Six', '2026-02-05', 0, 0)`)
 	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, state, updated_at) VALUES (4, 45, 'filled', 0), (4, 46, 'filled', 0),
-		(4, 43, 'filled', 0) ON CONFLICT DO UPDATE SET state = 'filled'`)
+		(4, 47, 'filled', 0), (4, 43, 'filled', 0) ON CONFLICT DO UPDATE SET state = 'filled'`)
+	// An older scored import stored no empty list: its download's stored formats are the evidence.
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, formats,
+		score, created_at, updated_at) VALUES (981, 4, 4, 'anime-tv', 'h981', 'Delta.S01E06', 'idx', 'imported', '[]', 0, 0, 0)`)
+	e.exec(`INSERT INTO link (id, path, target, title_id, download_id, release_title, quality, score, file_metadata, state,
+		created_at, updated_at) VALUES (74, '/a/S01E06.mkv', '/m/6', 4, 981, 'Delta.S01E06', 'WEBDL-1080p', 0, '{"Score":0}',
+		'active', 0, 0)`)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (74, 4)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (74, 47)`)
 	e.exec(`INSERT INTO link (id, path, target, title_id, release_title, quality, score, file_metadata, state, created_at, updated_at) VALUES
 		(71, '/a/S01E03.mkv', '/m/3', 4, 'Delta.S01E03', 'WEBDL-1080p', 0, '{"Score":0,"Formats":[]}', 'active', 0, 0),
 		(72, '/a/S01E04.mkv', '/m/4', 4, 'Delta.S01E04', 'WEBDL-1080p', 0, '{"Score":0}', 'active', 0, 0),
 		(73, '/a/S01E05.mkv', '/m/5', 4, 'Delta.S01E05', 'WEBDL-1080p', 250, '{"Formats":[{"name":"x","score":250}]}', 'active', 0, 0)`)
 	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (71, 4), (72, 4), (73, 4)`)
 	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (71, 43), (72, 45), (73, 46)`)
-	want := map[int64]string{43: "0", 45: "none", 46: "250"}
+	want := map[int64]string{43: "0", 45: "none", 46: "250", 47: "0"}
 	score := func(s *int64) string {
 		if s == nil {
 			return "none"

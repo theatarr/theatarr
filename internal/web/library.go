@@ -103,10 +103,12 @@ const linkSizeSQL = `COALESCE(cf.size_bytes, json_extract(l.file_metadata, '$.Si
 
 // linkScoreSQL is link l's format score when the link stored scoring evidence, else NULL: the formats it matched
 // (file_metadata's Formats, decide.ExistingFile; an empty list too, so a calculated 0 stays 0), or a non-zero score
-// its import decision or adoption calculated. A stored 0 without formats is no evidence (migration 00038 backfilled
-// Score 0 from downloads that had only the default), and shows no score.
+// its import decision or adoption calculated, or (an import stored before an empty list was kept) its download's
+// stored formats. A stored 0 without formats is no evidence (migration 00038 backfilled Score 0 from downloads that
+// had only the default), and shows no score.
 const linkScoreSQL = `CASE WHEN json_valid(l.file_metadata) AND (json_type(l.file_metadata, '$.Formats') = 'array'
-	OR (json_type(l.file_metadata, '$.Score') IN ('integer', 'real') AND json_extract(l.file_metadata, '$.Score') <> 0))
+	OR (json_type(l.file_metadata, '$.Score') IN ('integer', 'real') AND json_extract(l.file_metadata, '$.Score') <> 0)
+	OR EXISTS (SELECT 1 FROM download sd WHERE sd.id = l.download_id AND sd.formats IS NOT NULL))
 	THEN l.score END`
 
 // providerHolds is the condition on provider_torrent cp (the record, docs/design/torrents.md) that the provider holds

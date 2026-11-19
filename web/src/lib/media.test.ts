@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { audioLines, languageName, mediaLine, mediaRows, subsList } from "./media";
 
 describe("mediaLine", () => {
@@ -70,5 +70,25 @@ describe("mediaRows (the Media group)", () => {
   it("names regional language tags", () => {
     expect(languageName("pt-BR")).toBe("Brazilian Portuguese");
     expect(languageName("es-419")).toBe("Latin American Spanish");
+  });
+});
+
+describe("languageName fallback", () => {
+  it("names Middle English where the browser has no name for enm", async () => {
+    vi.resetModules();
+    const real = Intl.DisplayNames;
+    // A browser without the name answers with the code.
+    (Intl as unknown as { DisplayNames: unknown }).DisplayNames = class {
+      of(c: string) {
+        return c;
+      }
+    };
+    try {
+      const m = await import("./media");
+      expect(m.languageName("enm")).toBe("Middle English");
+      expect(m.languageName("qqq")).toBe("qqq");
+    } finally {
+      (Intl as unknown as { DisplayNames: unknown }).DisplayNames = real;
+    }
   });
 });

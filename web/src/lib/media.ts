@@ -6,11 +6,15 @@ import type { MediaInfo } from "@/api/manage";
 
 let names: Intl.DisplayNames | null | undefined;
 
+/** Names for codes a browser may lack (Intl.DisplayNames returns the code). */
+const FALLBACK_NAMES: Record<string, string> = { enm: "Middle English" };
+
 /** "English" for "eng" or "en", "Brazilian Portuguese" for "pt-BR"; the code itself when there is no name ("und", an
  *  unknown code). */
 export function languageName(code: string): string {
   const c = code.trim();
   if (!/^[a-z]{2,3}(-([a-z]{2}|\d{3}))?$/i.test(c) || c.toLowerCase() === "und") return c;
+  const fallback = FALLBACK_NAMES[c.toLowerCase()];
   if (names === undefined) {
     try {
       names = new Intl.DisplayNames(["en"], { type: "language" });
@@ -20,9 +24,9 @@ export function languageName(code: string): string {
   }
   try {
     const n = names?.of(c.toLowerCase());
-    return n && n.toLowerCase() !== c.toLowerCase() && n !== "root" ? n : c;
+    return n && n.toLowerCase() !== c.toLowerCase() && n !== "root" ? n : (fallback ?? c);
   } catch {
-    return c;
+    return fallback ?? c;
   }
 }
 

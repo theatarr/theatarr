@@ -92,6 +92,9 @@ it("says the names match only when nothing would change and nothing was skipped"
   await user.click(await screen.findByTestId("title-rename"));
   expect((await screen.findByTestId("rename-none")).textContent).toBe("Every file already has the name the naming settings give it.");
   expect(screen.queryByTestId("rename-confirm")).toBeNull();
+  // Nothing is pending: the only button closes.
+  expect(within(screen.getByTestId("rename-dialog")).getByRole("button", { name: "Close" })).toBeTruthy();
+  expect(within(screen.getByTestId("rename-dialog")).queryByRole("button", { name: "Cancel" })).toBeNull();
 });
 
 it("does not claim the names match when files could not be checked", async () => {

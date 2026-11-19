@@ -112,8 +112,9 @@ type ExistingFile struct {
 	// seaDexEpisodes are a series file's (season, number) episodes, which scope its curator alternatives.
 	seaDexEpisodes   [][2]int
 	seaDexNoIdentity bool // incoming release has no identity or a conflicting one; never persisted for held files
-	// Formats and Score retain the import decision for links; comparisons re-score from the saved file inputs.
-	Formats  []FormatScore `json:",omitempty"`
+	// Formats and Score retain the import decision for links; comparisons re-score from the saved file inputs. A
+	// scored file with no format stores an empty list (a score of 0 is then real); an unscored one stores none.
+	Formats  []FormatScore `json:",omitzero"`
 	Score    *int          `json:",omitempty"`
 	Quality  string
 	Revision int

@@ -38,3 +38,32 @@ func TestImportRecordsFileMetadata(t *testing.T) {
 		t.Fatalf("loaded snapshot: %+v, %v", got, err)
 	}
 }
+
+// A scored import whose release matched no format stores an empty format list, so a score of 0 reads as a real
+// score (the Libraries table's linkScoreSQL); a file never scored (an adopted one) stores none.
+func TestImportRecordsZeroScore(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	release := "Amelie.2001.2160p.UHD.BluRay.REMUX.HEVC-GRP"
+	e.release(release, map[string]float64{"movie.mkv": 7000})
+	e.download(1, "movie-remux", 1, 10, release, release, "[]")
+	e.exec(`UPDATE download SET formats = '[]', score = 0 WHERE id = 1`)
+	if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.one(`SELECT score || ' ' || COALESCE(json_type(file_metadata, '$.Formats'), 'none') FROM link
+		WHERE state = 'active'`); got != "0 array" {
+		t.Errorf("zero-format import: %s, want 0 array", got)
+	}
+	b, err := json.Marshal(&decide.ExistingFile{Quality: "Remux-2160p"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(b, &m); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := m["Formats"]; ok {
+		t.Errorf("unscored file stores formats: %s", b)
+	}
+}

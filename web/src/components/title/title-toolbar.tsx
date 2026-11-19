@@ -90,7 +90,7 @@ function RenameDialog({ titleId, labels, onClose }: { titleId: number; labels: R
         {error ? <p role="alert" className="text-[var(--bad-ink)]" data-testid="rename-error">{error}</p> : null}
       </div>
       <div className="flex justify-end gap-2 border-t border-[var(--line)] p-3">
-        <Button size="sm" variant="ghost" onClick={onClose}>{done ? "Close" : "Cancel"}</Button>
+        <Button size="sm" variant="ghost" onClick={onClose}>{done || (p && !files.length) ? "Close" : "Cancel"}</Button>
         {!done && files.length ? (
           <Button size="sm" onClick={() => rename.mutate()} disabled={rename.isPending} data-testid="rename-confirm">
             {rename.isPending ? <Loader2 className="animate-spin" /> : <PencilLine />} Rename {plural(files.length, "file")}
