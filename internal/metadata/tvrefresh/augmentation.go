@@ -160,11 +160,14 @@ func (s *Service) sceneNames(ctx context.Context, id int64, tvdb int, source str
 			return n.TVDB == tvdb && strings.TrimSpace(n.Title) != "" && strings.TrimSpace(n.SearchTitle) != ""
 		}
 		plain := map[sceneAliasKey]bool{}
-		plainName := map[string]bool{} // clean names the feed lists without a limit, in any season
+		plainName := map[string]bool{} // clean names the feed lists without a limit for all seasons
+		allSeasons := func(p *int) bool { return p == nil || *p == -1 }
 		for _, n := range names {
 			if usable(n) && n.FilterRegex == "" {
 				plain[aliasKeyOf(n)] = true
-				plainName[sonarr.CleanSeriesTitle(n.Title)] = true
+				if allSeasons(n.Season) && allSeasons(n.SceneSeason) {
+					plainName[sonarr.CleanSeriesTitle(n.Title)] = true
+				}
 			}
 		}
 		for _, n := range names {
@@ -193,7 +196,8 @@ func (s *Service) sceneNames(ctx context.Context, id int64, tvdb int, source str
 				return err
 			}
 			// Our TVDB fallback may hold the same name already (any origin and seasons): limited too, or the
-			// name would still match through it; unless the feed lists the name plain in some season.
+			// name would still match through it; unless the feed lists the name plain for all seasons (a plain
+			// row for one season does not make the all-season TVDB row safe for the limited one).
 			if plainName[sonarr.CleanSeriesTitle(n.Title)] {
 				continue
 			}

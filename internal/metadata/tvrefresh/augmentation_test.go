@@ -184,9 +184,11 @@ func TestPeriodicSceneRefresh(t *testing.T) {
 		`,{"tvdbId":371980,"title":"Season Name","searchTitle":"Season Name","season":1,"sceneOrigin":"mixed","filterRegex":"(?i)^s1"}` +
 		`,{"tvdbId":371980,"title":"Season Name","searchTitle":"Season Name","season":2,"sceneOrigin":"mixed"}`
 	for _, name := range []string{"Remake Alias", "Both Alias", "Season Name"} {
-		if _, err := e.st.Writer().Exec(`INSERT INTO title_scene_mapping(title_id,source,name,scene_origin,comment)
-			VALUES(?,'sonarr_4k_debrid',?,'mixed','GroupA')`, id, name); err != nil {
-			t.Fatal(err)
+		if name != "Season Name" {
+			if _, err := e.st.Writer().Exec(`INSERT INTO title_scene_mapping(title_id,source,name,scene_origin,comment)
+				VALUES(?,'sonarr_4k_debrid',?,'mixed','GroupA')`, id, name); err != nil {
+				t.Fatal(err)
+			}
 		}
 		// The TVDB fallback stored the same name first, with its own origin and no seasons.
 		if _, err := e.st.Writer().Exec(`INSERT INTO title_scene_mapping(title_id,source,name,scene_origin)
@@ -219,9 +221,10 @@ func TestPeriodicSceneRefresh(t *testing.T) {
 	if got := comments("Both Alias"); got != "sonarr_4k_debrid=GroupA, tvrefresh:sonarr=, tvrefresh:tvdb=" {
 		t.Errorf("alias listed with and without a limit: %s", got)
 	}
-	// Limited for season 1 but plain for season 2: the name is plain in the feed, so the all-season TVDB row stays
-	// plain (a season 3 search still asks the name).
-	if got := comments("Season Name"); got != "sonarr_4k_debrid=GroupA, tvrefresh:sonarr=Limited matching, tvrefresh:sonarr=, tvrefresh:tvdb=" {
+	// Limited for season 1 but plain only for season 2: the all-season TVDB row would match season 1 releases of
+	// another show, so it is limited too; the season 2 Sonarr row stays plain. (Both Alias, plain for all seasons in
+	// the feed, keeps its TVDB row plain.)
+	if got := comments("Season Name"); got != "tvrefresh:sonarr=Limited matching, tvrefresh:sonarr=, tvrefresh:tvdb=Limited matching" {
 		t.Errorf("alias limited in one season, plain in another: %s", got)
 	}
 	if got := comments("Imported Alias"); got != "sonarr_4k_debrid=" {
@@ -238,12 +241,14 @@ func TestPeriodicSceneRefresh(t *testing.T) {
 	for _, m := range ti.SceneMappings {
 		loaded = append(loaded, m.Title)
 	}
-	allSeasons := false
+	var seasonName []string
 	for _, m := range ti.SceneMappings {
-		allSeasons = allSeasons || m.Title == "Season Name" && m.SeasonNumber == nil && m.SceneSeasonNumber == nil
+		if m.Title == "Season Name" {
+			seasonName = append(seasonName, fmt.Sprint(orNil(m.SeasonNumber)))
+		}
 	}
-	if !allSeasons {
-		t.Errorf("the all-season name a season 3 search asks is not loaded: %+v", ti.SceneMappings)
+	if fmt.Sprint(seasonName) != "[2]" {
+		t.Errorf("Season Name loaded for seasons %v, want only the plain season 2 row", seasonName)
 	}
 	if strings.Contains(strings.Join(loaded, "|"), "Remake Alias") || !strings.Contains(strings.Join(loaded, "|"), "Both Alias") ||
 		!strings.Contains(strings.Join(loaded, "|"), "Imported Alias") {
@@ -480,4 +485,11 @@ func TestSceneSchedule(t *testing.T) {
 	if n := e.count(t, `SELECT COUNT(*) FROM job WHERE kind IN (?, ?)`, sceneJob, JobKind); n != 0 {
 		t.Errorf("%d scene or sweep jobs", n)
 	}
+}
+
+func orNil(p *int) any {
+	if p == nil {
+		return "all"
+	}
+	return *p
 }
