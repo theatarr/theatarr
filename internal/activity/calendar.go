@@ -176,7 +176,8 @@ func Calendar(ctx context.Context, db *sql.DB, from, to string, unmonitored bool
 		return nil, err
 	}
 
-	epLive := live
+	// An episode the metadata source removed (removed_at; kept for its files and history) is not on the calendar.
+	epLive := live + ` AND e.removed_at IS NULL`
 	epMon := epLive + ` AND ` + EpisodeMonitoredSQL
 	if unmonitored {
 		epMon = epLive

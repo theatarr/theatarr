@@ -10,6 +10,7 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -164,6 +165,7 @@ func TestTitlesSortAndFilters(t *testing.T) {
 	if v := p.Items[0].Versions[0]; v.Label != "Anime series" || v.Files != 2 || v.Quality != "Bluray-1080p" {
 		t.Errorf("Delta version: %+v", v)
 	}
+
 }
 
 // Series status: the title metadata's (TMDb) status, else the series metadata's (TVDB); series only.
@@ -1758,5 +1760,87 @@ func TestEpisodeGridMonitoredFromLibraries(t *testing.T) {
 	}
 	if want := map[int64]bool{40: true, 41: true, 42: false, 43: true, 44: true, 46: false}; !maps.Equal(got, want) {
 		t.Errorf("monitored: got %v, want %v", got, want)
+	}
+}
+
+// An episode the metadata source removed (removed_at, kept for its files and history) is not current: the counts,
+// coverage, availability, Home, the season choices and the upgrade explanations read as if it were not there. One
+// that still holds a file stays in the episode grid, so its file stays reachable; one without leaves the grid.
+func TestRemovedEpisodesNotCurrent(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	e.seedLibrary()
+	key := e.apiKey()
+	type snap struct {
+		Grid    []Season
+		Ids     []int64
+		Counts  any
+		Upgrade any
+		Avail   string
+		Row     any
+		Missing string
+		Seasons []SeasonOption
+	}
+	take := func() snap {
+		t.Helper()
+		var s snap
+		var l EpisodeList
+		if code := e.getKey(APIBase+"/titles/4/episodes", key, &l); code != 200 {
+			t.Fatalf("episodes: %d", code)
+		}
+		s.Grid = l.Seasons
+		for _, ep := range l.Episodes {
+			s.Ids = append(s.Ids, ep.ID)
+		}
+		var d TitleDetail
+		if code := e.getKey(APIBase+"/titles/4", key, &d); code != 200 {
+			t.Fatalf("title: %d", code)
+		}
+		s.Counts, s.Upgrade, s.Avail = d.Versions[0].Episodes, d.Versions[0].Upgrade, d.Availability
+		var page TitlePage
+		if code := e.getKey(APIBase+"/titles?anime=true", key, &page); code != 200 {
+			t.Fatalf("titles: %d", code)
+		}
+		row := rowOf(t, page, 4)
+		s.Row = []any{row.Availability, copyOf(t, row, "anime-tv").Coverage, row.Next}
+		var dv DiscoverRow
+		if code := e.getKey(APIBase+"/discover/missing", key, &dv); code != 200 {
+			t.Fatalf("discover: %d", code)
+		}
+		for _, it := range dv.Items {
+			s.Missing += it.Name + "|" + it.Note + "|" + it.Date + ";"
+		}
+		var o AddOptions
+		if code := e.getKey(APIBase+"/add/options?kind=series&title_id=4", key, &o); code != 200 {
+			t.Fatalf("add options: %d", code)
+		}
+		s.Seasons = o.Seasons
+		return s
+	}
+	before := take()
+	// S01E04: removed, aired, monitored and wanted, no file. S01E05: removed, held by a file below the cutoff.
+	// S03E01: removed, to come; S05E01: a removed season of its own.
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, air_date, air_date_utc_at, removed_at, created_at,
+		updated_at) VALUES (47, 4, 1, 4, 'Gone', '2026-01-20', ?, 1, 0, 0), (48, 4, 1, 5, 'Gone held', '2026-01-21', ?, 1, 0, 0),
+		(49, 4, 3, 1, 'Gone later', '2026-10-29', ?, 1, 0, 0), (50, 4, 5, 1, 'Gone season', '2026-01-22', ?, 1, 0, 0)`,
+		store.Millis(time.Date(2026, 1, 20, 0, 0, 0, 0, time.UTC)), store.Millis(time.Date(2026, 1, 21, 0, 0, 0, 0, time.UTC)),
+		store.Millis(testNow.Add(2*time.Hour)), store.Millis(time.Date(2026, 1, 22, 0, 0, 0, 0, time.UTC)))
+	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, state, updated_at) VALUES
+		(4, 47, 'wanted', 0), (4, 48, 'filled', 0), (4, 49, 'wanted', 0), (4, 50, 'wanted', 0)`)
+	now := store.Millis(testNow)
+	e.exec(`INSERT INTO link (id, path, target, title_id, quality, file_metadata, adopted, created_at, updated_at) VALUES
+		(92, '/anime/Delta/S01E05.mkv', '/zurg/Delta/S01E05.mkv', 4, 'WEBDL-480p', '{"Size":1000}', 1, ?, ?)`, now, now)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (92, 4)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (92, 48)`)
+	after := take()
+	if want := append(slices.Clone(before.Ids), 48); !slices.Equal(slices.Sorted(slices.Values(after.Ids)),
+		slices.Sorted(slices.Values(want))) {
+		t.Errorf("grid episodes: %v, want %v", after.Ids, want)
+	}
+	before.Ids, after.Ids = nil, nil
+	if !reflect.DeepEqual(before, after) {
+		b, _ := json.Marshal(before)
+		a, _ := json.Marshal(after)
+		t.Errorf("removed episodes counted:\nbefore %s\n after %s", b, a)
 	}
 }

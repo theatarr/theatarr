@@ -184,7 +184,8 @@ func availStateSQL(c airClock) string {
 		ELSE e.air_date IS NOT NULL AND e.air_date <= '%s' END)`, c.nowMs, c.today)
 	return `(CASE WHEN (SELECT tk.kind FROM title tk WHERE tk.id = v.title_id) = 'movie' THEN v.state
 		WHEN EXISTS (SELECT 1 FROM episode_version_state s JOIN episode e ON e.id = s.episode_id
-			WHERE s.version_id = v.id AND e.season > 0 AND s.state = 'wanted' AND s.monitored = 1 AND ` + aired + `)
+			WHERE s.version_id = v.id AND e.season > 0 AND e.removed_at IS NULL AND s.state = 'wanted' AND s.monitored = 1
+			AND ` + aired + `)
 			THEN 'wanted'
 		WHEN ` + hasFileSQL + ` THEN CASE WHEN EXISTS (SELECT 1 FROM episode_version_state s WHERE s.version_id = v.id
 			AND s.state = 'filled') THEN 'filled' ELSE 'cutoff_met' END
@@ -240,13 +241,15 @@ func titleAvailabilitySQL(c airClock) string {
 		ELSE e.air_date IS NOT NULL AND e.air_date <= '%s' END)`, c.nowMs, c.today)
 	live := `FROM version v WHERE v.title_id = t.id AND ` + liveVersion
 	seriesGap := `EXISTS (SELECT 1 FROM episode_version_state s JOIN episode e ON e.id = s.episode_id
-		WHERE s.version_id = v.id AND s.monitored = 1 AND e.season > 0 AND ` + aired + ` AND NOT ` + episodeHeld + `)`
+		WHERE s.version_id = v.id AND s.monitored = 1 AND e.season > 0 AND e.removed_at IS NULL AND ` + aired +
+		` AND NOT ` + episodeHeld + `)`
 	gap := `EXISTS (SELECT 1 ` + live + ` AND v.monitored = 1 AND CASE WHEN t.kind = 'movie' THEN NOT ` + hasFileSQL +
 		` ELSE ` + seriesGap + ` END)`
 	upcoming := `CASE WHEN t.kind = 'movie' THEN COALESCE(substr(COALESCE(` + homeReleaseSQL + `, NULLIF(m.release_date, '')), 1, 10)
 		> '` + c.today + `', ` + undatedMovieSQL + `)
-		ELSE NOT EXISTS (SELECT 1 FROM episode e WHERE e.title_id = t.id AND e.season > 0 AND ` + aired + `) AND
-			(EXISTS (SELECT 1 FROM episode e WHERE e.title_id = t.id AND e.season > 0 AND e.air_date_utc_at > ` +
+		ELSE NOT EXISTS (SELECT 1 FROM episode e WHERE e.title_id = t.id AND e.season > 0 AND e.removed_at IS NULL
+			AND ` + aired + `) AND (EXISTS (SELECT 1 FROM episode e WHERE e.title_id = t.id AND e.season > 0
+			AND e.removed_at IS NULL AND e.air_date_utc_at > ` +
 		fmt.Sprint(c.nowMs) + `) OR
 			CASE WHEN COALESCE(m.release_date, '') <> '' THEN substr(m.release_date, 1, 10) > '` + c.today + `'
 			ELSE COALESCE(m.status, '') NOT IN ('Returning Series', 'Ended', 'Canceled') END) END`

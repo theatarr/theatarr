@@ -22,8 +22,12 @@ absolute order) and store it in one transaction:
   that moves keeps its row; moves use a temporary negative number to preserve the unique slot index.
 - **Removals:** a row TVDB no longer lists is deleted only when nothing refers to it. A row with a file, a link, a download (its episodes, or a file mapping of it: `download_file.episodes`, as a pending manual import
   keeps them, `TestManualFileMappingKeepsEpisode`) or a non-wanted state is kept with `removed_at` set (and parked at number `-id` when its slot is
-  needed). Removed rows are never searched (acquire filters them unless asked for by id). The calendar and the arr/native
-  episode APIs list them.
+  needed). Removed rows are never searched (acquire filters them unless asked for by id). They are not current: the
+  calendars, Home, the episode counts, coverage and availability, the season choices, monitoring changes, upgrade
+  explanations and a series copy's state leave them out (`TestRemovedEpisodesNotCurrent`,
+  `TestSeriesStateLeavesRemovedEpisodes`). The native episode grid lists one only while it still holds a file (so the
+  file stays reachable), uncounted; History, the journal, reports, the queue, manual import and lookups by id keep
+  them, and the compatible episode API lists them as before.
 - **Series row:** status, air time, zone, episode count and errors in `series_meta`; name, sort name, year,
   runtime and IMDb id refresh on each successful fetch. User settings, including explicit standard/daily/anime
   series type, stay. Arr API adds (for a series with no type) and edits persist that type on the catalog row every

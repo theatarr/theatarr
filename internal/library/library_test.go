@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -1070,5 +1071,37 @@ func TestReprobe(t *testing.T) {
 	}
 	if got := e.one(`SELECT probe FROM content_file WHERE id = 1`); got != stored[1] {
 		t.Errorf("paused: %s", got)
+	}
+}
+
+// A copy's state does not wait for an episode the metadata source removed (removed_at): an aired, monitored and
+// wanted episode that is no longer listed does not make it wanted, and a removed episode's file does not decide it.
+func TestSeriesStateLeavesRemovedEpisodes(t *testing.T) {
+	t.Parallel()
+	st := storetest.Open(t)
+	ctx := context.Background()
+	db := st.Writer()
+	for _, q := range []string{
+		`INSERT INTO title (id, kind, name, created_at, updated_at) VALUES (1, 'series', 'Gamma', 0, 0)`,
+		`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES (1, 1, 'tv', 'wanted', 0, 0)`,
+		`INSERT INTO episode (id, title_id, season, number, air_date, air_date_utc_at, removed_at, created_at, updated_at)
+			VALUES (1, 1, 1, 1, '2026-01-01', 1000, NULL, 0, 0), (2, 1, 1, 2, '2026-01-08', 2000, 5, 0, 0),
+			(3, 1, 1, 3, '2026-01-15', 3000, 5, 0, 0)`,
+		`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, updated_at) VALUES
+			(1, 1, 1, 'cutoff_met', 0), (1, 2, 1, 'wanted', 0), (1, 3, 1, 'filled', 0)`,
+	} {
+		if _, err := db.ExecContext(ctx, q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := st.WriteTx(ctx, func(tx *sql.Tx) error { return refreshSeriesState(ctx, tx, 1, false, 10000) }); err != nil {
+		t.Fatal(err)
+	}
+	var state string
+	if err := db.QueryRowContext(ctx, `SELECT state FROM version WHERE id = 1`).Scan(&state); err != nil {
+		t.Fatal(err)
+	}
+	if state != "cutoff_met" {
+		t.Errorf("state %q, want cutoff_met", state)
 	}
 }

@@ -249,7 +249,8 @@ func (w *Web) upcomingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 	err = scanAll(ctx, db, `SELECT title_id, season, number, name, air_date FROM (
 		SELECT e.title_id, e.season, e.number, e.name, e.air_date, ROW_NUMBER() OVER (PARTITION BY e.title_id
 			ORDER BY e.air_date, e.season, e.number) AS rn
-		FROM episode e JOIN title t ON t.id = e.title_id WHERE e.season > 0 AND `+coming+` AND e.air_date <= ?
+		FROM episode e JOIN title t ON t.id = e.title_id WHERE e.season > 0 AND e.removed_at IS NULL AND `+coming+`
+			AND e.air_date <= ?
 			AND `+inLibrary+`) WHERE rn = 1`,
 		append(comingArgs, end), func(r *sql.Rows) error {
 			var p pick
@@ -336,7 +337,7 @@ func (w *Web) missingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 		FROM episode_version_state s
 		JOIN episode e ON e.id = s.episode_id JOIN version v ON v.id = s.version_id JOIN title t ON t.id = e.title_id
 		WHERE s.state = 'wanted' AND s.monitored = 1 AND v.monitored = 1 AND t.monitored = 1 AND `+liveVersion+`
-			AND e.season > 0 AND `+aired+`
+			AND e.season > 0 AND e.removed_at IS NULL AND `+aired+`
 		GROUP BY e.title_id`, airedArgs, func(r *sql.Rows) error {
 		var p pick
 		var n int

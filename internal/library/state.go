@@ -72,14 +72,18 @@ func recordImportedState(ctx context.Context, tx *sql.Tx, v *importVersion, epis
 	return refreshSeriesState(ctx, tx, v.VersionID, partial, now)
 }
 
+// refreshSeriesState sets a series version's state from its episodes' states. An episode the metadata source removed
+// (removed_at; its row stays for its file and history) plays no part.
 func refreshSeriesState(ctx context.Context, tx *sql.Tx, versionID int64, partial bool, now int64) error {
 	var state string
 	err := tx.QueryRowContext(ctx, `SELECT CASE
 		WHEN EXISTS (SELECT 1 FROM episode_version_state s JOIN episode e ON e.id = s.episode_id
-			WHERE s.version_id = ? AND s.monitored = 1 AND s.state = 'wanted'
+			WHERE s.version_id = ? AND s.monitored = 1 AND s.state = 'wanted' AND e.removed_at IS NULL
 			AND e.air_date_utc_at IS NOT NULL AND e.air_date_utc_at <= ?) THEN 'wanted'
-		WHEN EXISTS (SELECT 1 FROM episode_version_state WHERE version_id = ? AND state = 'filled') THEN 'filled'
-		WHEN EXISTS (SELECT 1 FROM episode_version_state WHERE version_id = ? AND state = 'cutoff_met') THEN 'cutoff_met'
+		WHEN EXISTS (SELECT 1 FROM episode_version_state s JOIN episode e ON e.id = s.episode_id
+			WHERE s.version_id = ? AND s.state = 'filled' AND e.removed_at IS NULL) THEN 'filled'
+		WHEN EXISTS (SELECT 1 FROM episode_version_state s JOIN episode e ON e.id = s.episode_id
+			WHERE s.version_id = ? AND s.state = 'cutoff_met' AND e.removed_at IS NULL) THEN 'cutoff_met'
 		ELSE 'wanted' END`, versionID, now, versionID, versionID).Scan(&state)
 	if err != nil {
 		return err

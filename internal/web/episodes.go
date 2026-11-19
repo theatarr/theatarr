@@ -108,6 +108,8 @@ type Episode struct {
 	RuntimeMinutes *int64                 `json:"runtime_minutes,omitempty"`
 	Monitored      bool                   `json:"monitored"`
 	Versions       map[string]EpisodeCell `json:"versions"`
+	// removed: the metadata source no longer lists it (removed_at); listed only while it holds a file, and not counted.
+	removed bool
 }
 
 // EpisodeList is the answer of GET titles/{id}/episodes.
@@ -193,11 +195,14 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 		`+activity.EpisodeMonitoredSQL+`, COALESCE(
 			(SELECT MIN(n.number) FROM episode_number n WHERE n.episode_id = e.id AND n.scheme = 'absolute_tvdb'),
 			(SELECT MIN(n.number) FROM episode_number n WHERE n.episode_id = e.id AND n.scheme = 'absolute')),
-		e.air_date_utc_at
-		FROM episode e JOIN title t ON t.id = e.title_id WHERE e.title_id = ? ORDER BY e.season, e.number`, []any{id}, func(r *sql.Rows) error {
+		e.air_date_utc_at, e.removed_at IS NOT NULL
+		FROM episode e JOIN title t ON t.id = e.title_id WHERE e.title_id = ? AND (e.removed_at IS NULL OR EXISTS
+			(SELECT 1 FROM link_episode le JOIN link l ON l.id = le.link_id WHERE le.episode_id = e.id AND l.state = 'active'))
+		ORDER BY e.season, e.number`, []any{id}, func(r *sql.Rows) error {
 		var e Episode
 		var rt, abs, airAt sql.NullInt64
-		if err := r.Scan(&e.ID, &e.Season, &e.Number, &e.Name, &e.AirDate, &rt, &e.Monitored, &abs, &airAt); err != nil {
+		if err := r.Scan(&e.ID, &e.Season, &e.Number, &e.Name, &e.AirDate, &rt, &e.Monitored, &abs, &airAt,
+			&e.removed); err != nil {
 			return err
 		}
 		e.Aired = clock.aired(airAt, e.AirDate)
@@ -317,6 +322,13 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 			}
 			seasons[e.Season] = s
 		}
+		if season < 0 || e.Season == int64(season) {
+			out.Episodes = append(out.Episodes, e)
+		}
+		// A removed episode is listed for its file, not counted.
+		if e.removed {
+			continue
+		}
 		s.Episodes++
 		aired := e.Aired
 		if aired {
@@ -333,9 +345,6 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 				sc.Missing++
 			}
 			s.Versions[k] = sc
-		}
-		if season < 0 || e.Season == int64(season) {
-			out.Episodes = append(out.Episodes, e)
 		}
 	}
 	for _, s := range seasons {

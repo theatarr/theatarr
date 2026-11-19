@@ -232,6 +232,16 @@ func TestCalendar(t *testing.T) {
 	}
 	e.exec(`UPDATE episode_version_state SET monitored = 1 WHERE version_id = 4`)
 	e.exec(`UPDATE episode SET monitored = 0 WHERE id = 2`)
+	// An episode the metadata source removed is not on the calendar, even with unmonitored.
+	e.exec(`UPDATE episode SET removed_at = ? WHERE id = 1`, now)
+	cal = CalendarPage{}
+	e.getKey(APIBase+"/calendar?from=2026-11-01&to=2026-11-30&kind=series&unmonitored=true", key, &cal)
+	for _, it := range cal.Items {
+		if it.EpisodeID == 1 {
+			t.Errorf("removed episode listed: %+v", it)
+		}
+	}
+	e.exec(`UPDATE episode SET removed_at = NULL WHERE id = 1`)
 	for _, bad := range []string{"from=2026-13-01", "from=2026-11-01&to=2026-10-01", "from=2026-01-01&to=2026-12-31",
 		"kind=music"} {
 		if code := e.getKey(APIBase+"/calendar?"+bad, key, nil); code != 400 {

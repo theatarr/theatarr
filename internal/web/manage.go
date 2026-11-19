@@ -457,7 +457,7 @@ func (w *Web) enrichEpisodes(ctx context.Context, db *sql.DB, out *EpisodeList, 
 	// Monitored episodes per season and version, from the episode list itself (all seasons are listed in Seasons
 	// even when one season's episodes are asked for, so count from the state rows).
 	err = scanAll(ctx, db, `SELECT s.version_id, e.season, SUM(s.monitored) FROM episode_version_state s JOIN episode e
-		ON e.id = s.episode_id WHERE e.title_id = ? GROUP BY s.version_id, e.season`, []any{out.TitleID},
+		ON e.id = s.episode_id WHERE e.title_id = ? AND e.removed_at IS NULL GROUP BY s.version_id, e.season`, []any{out.TitleID},
 		func(r *sql.Rows) error {
 			var vid, season int64
 			var n int
@@ -702,7 +702,8 @@ func (w *Web) monitor(rw http.ResponseWriter, r *http.Request, season *int) {
 		w.internal(rw, err)
 		return
 	}
-	if err := w.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM episode e WHERE e.title_id = ? AND (`+where+`)`,
+	if err := w.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM episode e WHERE e.title_id = ? AND e.removed_at IS NULL
+		AND (`+where+`)`,
 		append([]any{t.id}, args...)...).Scan(&out.Episodes); err != nil {
 		w.internal(rw, err)
 		return

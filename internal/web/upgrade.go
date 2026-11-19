@@ -462,7 +462,7 @@ func (w *Web) upgradesWith(ctx context.Context, db *sql.DB, vs []upgradeVersion,
 	for chunk := range slices.Chunk(series, upgradeLoadChunk) {
 		err = scanAll(ctx, db, `SELECT s.version_id, e.id, e.season, e.number, s.state, s.below_quality_cutoff
 			FROM episode_version_state s JOIN episode e ON e.id = s.episode_id
-			WHERE s.version_id IN (`+store.Placeholders(len(chunk))+`) ORDER BY e.season, e.number`, chunk, func(r *sql.Rows) error {
+			WHERE s.version_id IN (`+store.Placeholders(len(chunk))+`) AND e.removed_at IS NULL ORDER BY e.season, e.number`, chunk, func(r *sql.Rows) error {
 			var vid int64
 			var e upgradeEpisode
 			if err := r.Scan(&vid, &e.id, &e.season, &e.number, &e.state, &e.belowQuality); err != nil {

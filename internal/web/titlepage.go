@@ -645,7 +645,8 @@ func (w *Web) episodeCounts(ctx context.Context, db *sql.DB, ids []any, byID map
 		SUM(s.monitored = 1 AND (s.state IN ('filled', 'cutoff_met') OR `+aired+`)),
 		SUM(s.monitored = 1 AND s.state IN ('filled', 'cutoff_met'))
 		FROM episode_version_state s JOIN episode e ON e.id = s.episode_id
-		WHERE s.version_id IN (`+store.Placeholders(len(ids))+`) AND e.season > 0 GROUP BY s.version_id`,
+		WHERE s.version_id IN (`+store.Placeholders(len(ids))+`) AND e.season > 0 AND e.removed_at IS NULL
+		GROUP BY s.version_id`,
 		append(append(append(airedArgs, airedArgs...), airedArgs...), ids...), func(r *sql.Rows) error {
 			var vid int64
 			var c EpisodeCounts

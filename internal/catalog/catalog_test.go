@@ -187,11 +187,22 @@ func TestSeriesIntent(t *testing.T) {
 		added.Int64 != now.UnixMilli() {
 		t.Fatalf("pending %v %v", added, err)
 	}
-	// A later season toggle updates the intent; an add naming no monitorNewItems keeps the version's.
+	// A later season toggle updates the intent; an add naming no monitorNewItems keeps the version's. It turns on the
+	// season's current episodes only: one the metadata source removed (removed_at) gets no state row.
+	if _, err := st.Writer().Exec(`INSERT INTO episode (id, title_id, season, number, removed_at, created_at, updated_at)
+		VALUES (901, ?, 2, 1, NULL, 0, 0), (902, ?, 2, 2, 5, 0, 0)`, res.TitleID, res.TitleID); err != nil {
+		t.Fatal(err)
+	}
 	if err := st.WriteTx(ctx, func(tx *sql.Tx) error {
 		return SetSeasonMonitored(ctx, tx, res.TitleID, []string{"tv-2160p"}, 2, true, now)
 	}); err != nil {
 		t.Fatal(err)
+	}
+	var rows string
+	if err := st.Reader().QueryRow(`SELECT group_concat(episode_id || ':' || monitored) FROM (SELECT episode_id,
+		monitored FROM episode_version_state WHERE episode_id IN (901, 902) ORDER BY episode_id)`).Scan(&rows); err != nil ||
+		rows != "901:1" {
+		t.Errorf("season toggle rows %q %v", rows, err)
 	}
 	if _, err := st.Writer().Exec(`UPDATE series_meta SET added_at = NULL`); err != nil {
 		t.Fatal(err)

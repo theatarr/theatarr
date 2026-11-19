@@ -403,7 +403,8 @@ func (w *Web) seriesSeasons(ctx context.Context, tmdbID, tvdbID int64) []int {
 func (w *Web) librarySeasons(ctx context.Context, titleID int64) ([]SeasonOption, error) {
 	out := []SeasonOption{}
 	err := scanAll(ctx, w.st.Reader(), `SELECT e.season, COUNT(*), COALESCE(MIN((SELECT MAX(s.monitored) FROM
-		episode_version_state s WHERE s.episode_id = e.id)), 1) FROM episode e WHERE e.title_id = ? GROUP BY e.season
+		episode_version_state s WHERE s.episode_id = e.id)), 1) FROM episode e WHERE e.title_id = ? AND e.removed_at IS NULL
+		GROUP BY e.season
 		ORDER BY e.season`, []any{titleID}, func(r *sql.Rows) error {
 		var s SeasonOption
 		var mon bool

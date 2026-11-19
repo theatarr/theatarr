@@ -550,7 +550,8 @@ func versionIDs(ctx context.Context, tx *sql.Tx, titleID int64, keys []string) (
 }
 
 // SetEpisodesMonitored sets the per-version monitored flag of the title's episodes matching where (on episode e)
-// for its versions with these keys that are not removed, creating wanted state rows where none exist.
+// for its versions with these keys that are not removed, creating wanted state rows where none exist. An episode the
+// metadata source removed (removed_at; kept for its files and history) is left as it is.
 func SetEpisodesMonitored(ctx context.Context, tx *sql.Tx, titleID int64, keys []string, where string,
 	whereArgs []any, monitored bool, now time.Time) error {
 	vids, err := versionIDs(ctx, tx, titleID, keys)
@@ -561,7 +562,8 @@ func SetEpisodesMonitored(ctx context.Context, tx *sql.Tx, titleID int64, keys [
 	for _, vid := range vids {
 		a := append([]any{vid, monitored, ms, titleID}, whereArgs...)
 		if _, err := tx.ExecContext(ctx, `INSERT INTO episode_version_state (version_id, episode_id, monitored, state,
-			updated_at) SELECT ?, e.id, ?, 'wanted', ? FROM episode e WHERE e.title_id = ? AND (`+where+`)
+			updated_at) SELECT ?, e.id, ?, 'wanted', ? FROM episode e WHERE e.title_id = ? AND e.removed_at IS NULL
+			AND (`+where+`)
 			ON CONFLICT (version_id, episode_id) DO UPDATE SET monitored = excluded.monitored,
 			updated_at = excluded.updated_at WHERE monitored <> excluded.monitored`, a...); err != nil {
 			return err

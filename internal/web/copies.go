@@ -200,7 +200,7 @@ func (w *Web) fillCopies(ctx context.Context, db *sql.DB, items []TitleRow, held
 	// The same scan gives each series its season count and latest aired day.
 	seasons := map[int64]map[int64]bool{}
 	if len(seriesIDs) > 0 {
-		if err := scanAll(ctx, db, `SELECT title_id, id, season, air_date_utc_at, COALESCE(air_date, '') FROM episode WHERE season > 0 AND title_id IN (`+
+		if err := scanAll(ctx, db, `SELECT title_id, id, season, air_date_utc_at, COALESCE(air_date, '') FROM episode WHERE season > 0 AND removed_at IS NULL AND title_id IN (`+
 			store.Placeholders(len(seriesIDs))+`)`, seriesIDs, func(r *sql.Rows) error {
 			var tid, id, season int64
 			var at sql.NullInt64
@@ -306,7 +306,7 @@ func (w *Web) fillNext(ctx context.Context, db *sql.DB, items []TitleRow, tids, 
 	if len(seriesIDs) > 0 {
 		coming, comingArgs := clock.comingSQL("")
 		if err := scanAll(ctx, db, `SELECT title_id, season, number, name, air_date FROM episode
-			WHERE `+coming+` AND air_date IS NOT NULL AND title_id IN (`+store.Placeholders(len(seriesIDs))+`)
+			WHERE `+coming+` AND air_date IS NOT NULL AND removed_at IS NULL AND title_id IN (`+store.Placeholders(len(seriesIDs))+`)
 			ORDER BY title_id, air_date, season = 0, season, number`, append(comingArgs, seriesIDs...),
 			func(r *sql.Rows) error {
 				var tid, s, n int64
@@ -502,8 +502,10 @@ func copySortExpr(sort, key string, clock airClock) (string, []any) {
 			(SELECT CAST(COUNT(DISTINCT le.episode_id) AS REAL) / NULLIF(a.n + COUNT(DISTINCT CASE WHEN NOT ` + aired + `
 				THEN le.episode_id END), 0) FROM link_version lv JOIN link l ON l.id = lv.link_id
 				JOIN link_episode le ON le.link_id = lv.link_id JOIN episode e ON e.id = le.episode_id
-				WHERE lv.version_id = v.id AND l.state = 'active' AND e.title_id = t.id AND e.season > 0) END)
-			FROM (SELECT COUNT(*) AS n FROM episode e WHERE e.title_id = t.id AND e.season > 0 AND ` + aired + `) a,
+				WHERE lv.version_id = v.id AND l.state = 'active' AND e.title_id = t.id AND e.season > 0
+				AND e.removed_at IS NULL) END)
+			FROM (SELECT COUNT(*) AS n FROM episode e WHERE e.title_id = t.id AND e.season > 0 AND e.removed_at IS NULL
+				AND ` + aired + `) a,
 			version v WHERE v.title_id = t.id AND ` + liveVersion + versionCond + `)`, args
 	case "quality":
 		// The quality each library's cell shows (briefFiles: the quality most of its current files have), the
@@ -525,7 +527,7 @@ func copySortExpr(sort, key string, clock airClock) (string, []any) {
 		// release-date choice, else, for a movie with no chosen date at all, its TMDb release date while that is to come.
 		coming, comingArgs := clock.comingSQL("e")
 		return `CASE WHEN t.kind = 'series' THEN (SELECT MIN(e.air_date) FROM episode e WHERE e.title_id = t.id
-			AND ` + coming + `) ELSE (SELECT CASE WHEN COUNT(*) = 0 THEN CASE WHEN m.release_date >= ? THEN m.release_date END
+			AND e.removed_at IS NULL AND ` + coming + `) ELSE (SELECT CASE WHEN COUNT(*) = 0 THEN CASE WHEN m.release_date >= ? THEN m.release_date END
 			ELSE MIN(CASE WHEN x.date >= ? THEN x.date END) END FROM (` + activity.FirstReleasesSQL("d.title_id = t.id") + `) x) END`,
 			append(comingArgs, today, today)
 	}
