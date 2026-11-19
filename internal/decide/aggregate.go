@@ -77,12 +77,13 @@ type augmentQuality struct {
 	source, resolution, modifier             int
 	sourceConf, resolutionConf, modifierConf confidence
 	revision                                 *[2]int // version, real
+	repack                                   bool    // the revision is a repack
 	revisionConf                             confidence
 }
 
 // aggregateQuality is AggregateQuality.Aggregate over the augments in order. It returns source, resolution,
-// modifier and revision.
-func aggregateQuality(augments []*augmentQuality, unknownSource int) (source, resolution, modifier int, rev [2]int) {
+// modifier and revision, with the winning revision's repack flag.
+func aggregateQuality(augments []*augmentQuality, unknownSource int) (source, resolution, modifier int, rev [2]int, repack bool) {
 	source, resolution, modifier = unknownSource, 0, 0
 	sourceConf, resolutionConf, modifierConf, revConf := confDefault, confDefault, confDefault, confDefault
 	rev = [2]int{1, 0}
@@ -101,11 +102,11 @@ func aggregateQuality(augments []*augmentQuality, unknownSource int) (source, re
 		}
 		if a.revision != nil {
 			if a.revisionConf > revConf || a.revisionConf == revConf && revisionAbove(*a.revision, rev) {
-				rev, revConf = *a.revision, a.revisionConf
+				rev, repack, revConf = *a.revision, a.repack, a.revisionConf
 			}
 		}
 	}
-	return source, resolution, modifier, rev
+	return source, resolution, modifier, rev, repack
 }
 
 // revisionAbove is Revision's > operator: real first, then version.
@@ -137,7 +138,7 @@ func sonarrAugment(m sonarr.QualityModel) *augmentQuality {
 	rev := [2]int{m.Revision.Version, m.Revision.Real}
 	return &augmentQuality{source: int(m.Quality.Source), sourceConf: detectionConf(m.SourceDetectionSource == sonarr.DetectionName),
 		resolution: m.Quality.Resolution, resolutionConf: detectionConf(m.ResolutionDetectionSource == sonarr.DetectionName),
-		revision: &rev, revisionConf: detectionConf(m.RevisionDetectionSource == sonarr.DetectionName)}
+		revision: &rev, repack: m.Revision.IsRepack, revisionConf: detectionConf(m.RevisionDetectionSource == sonarr.DetectionName)}
 }
 
 func radarrAugment(m radarr.QualityModel) *augmentQuality {
@@ -145,7 +146,7 @@ func radarrAugment(m radarr.QualityModel) *augmentQuality {
 	return &augmentQuality{source: int(m.Quality.Source), sourceConf: detectionConf(m.SourceDetectionSource == radarr.DetectionName),
 		resolution: m.Quality.Resolution, resolutionConf: detectionConf(m.ResolutionDetectionSource == radarr.DetectionName),
 		modifier: int(m.Quality.Modifier), modifierConf: detectionConf(m.ModifierDetectionSource == radarr.DetectionName),
-		revision: &rev, revisionConf: detectionConf(m.RevisionDetectionSource == radarr.DetectionName)}
+		revision: &rev, repack: m.Revision.IsRepack, revisionConf: detectionConf(m.RevisionDetectionSource == radarr.DetectionName)}
 }
 
 // mediaAugment is AugmentQualityFromMediaInfo: the resolution class, and the source (and modifier) when the
@@ -230,9 +231,9 @@ func AggregateSeriesFile(in ImportFile) (FileFacts, error) {
 	if in.Grabbed != "" {
 		augments = append(augments, sonarrAugment(sonarr.ParseQuality(in.Grabbed)))
 	}
-	source, resolution, _, rev := aggregateQuality(augments, int(sonarr.SourceUnknown))
+	source, resolution, _, rev, repack := aggregateQuality(augments, int(sonarr.SourceUnknown))
 	f := FileFacts{Quality: sonarr.FindBySourceAndResolution(sonarr.QualitySource(source), resolution).Name,
-		Revision: rev[0], Real: rev[1]}
+		Revision: rev[0], Real: rev[1], IsRepack: repack}
 
 	// AggregateReleaseGroup: the client's and the folder's unless a full season, the file's, then theirs anyway.
 	group := func(p *sonarr.ParsedEpisodeInfo, skipFullSeason bool) string {
@@ -301,9 +302,9 @@ func AggregateMovieFile(in ImportFile) FileFacts {
 	if in.Grabbed != "" {
 		augments = append(augments, radarrAugment(radarr.ParseQuality(in.Grabbed)))
 	}
-	source, resolution, modifier, rev := aggregateQuality(augments, int(radarr.SourceUnknown))
+	source, resolution, modifier, rev, repack := aggregateQuality(augments, int(radarr.SourceUnknown))
 	f := FileFacts{Quality: radarr.FindBySourceAndResolution(radarr.QualitySource(source), resolution,
-		radarr.Modifier(modifier)).Name, Revision: rev[0], Real: rev[1]}
+		radarr.Modifier(modifier)).Name, Revision: rev[0], Real: rev[1], IsRepack: repack}
 	// AggregateReleaseGroup and AggregateEdition: the client's, the folder's, the file's.
 	for _, p := range []*radarr.ParsedMovieInfo{client, folder, file} {
 		if p == nil {

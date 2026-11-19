@@ -338,7 +338,8 @@ mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
    arrs' import aggregation, per file, with the version's Sonarr parser dialect. Quality (`AggregateQuality`: the
    file's name, the release folder, the download client item, the probe's frame size and container title, the grabbed
    release title; a source or resolution is replaced only by a more confident one, media info above a name tag,
-   Radarr's modifier rule included), revision, release group (Sonarr: the client's and folder's unless a full season,
+   Radarr's modifier rule included), revision (with the winning revision's repack flag, as `LinkedFile` also
+   records it; naming is unchanged), release group (Sonarr: the client's and folder's unless a full season,
    then the file's; Radarr: client, folder, file), release hash (`{Release Hash}`: the file's, never a full
    season's), edition (movies), languages (file, folder, client, then the probe's audio languages; none found keeps
    the decision's) and scene name (`SceneNameCalculator`: the client title for a lone non-season file, else a scene

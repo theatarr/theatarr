@@ -355,3 +355,19 @@ func TestImportTitleWaitAirTimeAndTemplate(t *testing.T) {
 		t.Errorf("anime without absolute numbers: %+v %v", plan, err)
 	}
 }
+
+// A repack's flag is recorded with the file's facts (what Edit file facts and the compatible file resources read).
+func TestImportRecordsRepack(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	rel := "Show.S01E01.REPACK.2160p.WEB-DL.DDP5.1.H.265-GRP"
+	e.release(rel, map[string]float64{rel + ".mkv": 2700})
+	e.seriesDownload(1, 2, 20, hashA, rel, "[201]", nil)
+	if plan, err := e.lib.Import(e.ctx, 1, false); err != nil || len(plan.Links) != 1 {
+		t.Fatalf("import %+v %v", plan, err)
+	}
+	if got := e.one(`SELECT json_extract(file_metadata, '$.IsRepack') || ' ' || json_extract(file_metadata, '$.Revision')
+		FROM link WHERE download_id = 1`); got != "1 2" {
+		t.Errorf("repack and revision %s", got)
+	}
+}

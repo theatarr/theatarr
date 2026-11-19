@@ -3,6 +3,9 @@ package decide
 import (
 	"reflect"
 	"testing"
+
+	"github.com/theatarr/theatarr/internal/indexer"
+	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // Per-file import aggregation (Sonarr's and Radarr's import Aggregation): every file of a release is what its own
@@ -28,6 +31,10 @@ func TestAggregateSeriesFile(t *testing.T) {
 			Folder: "Show.S01E02.PROPER.1080p.WEB-DL-GRP", Client: "Show.S01E02.PROPER.1080p.WEB-DL-GRP",
 			Grabbed: "Show.S01E02.PROPER.1080p.WEB-DL-GRP", Media: &MediaInfo{Width: 1920, Height: 1080}},
 			FileFacts{Quality: "WEBDL-1080p", Revision: 2, ReleaseGroup: "GRP", SceneName: "Show.S01E02.PROPER.1080p.WEB-DL-GRP"}},
+		{"a repack single episode", ImportFile{Path: "Show.S01E02.REPACK.1080p.WEB-DL-GRP/abc.mkv",
+			Folder: "Show.S01E02.REPACK.1080p.WEB-DL-GRP", Client: "Show.S01E02.REPACK.1080p.WEB-DL-GRP",
+			Grabbed: "Show.S01E02.REPACK.1080p.WEB-DL-GRP", Media: &MediaInfo{Width: 1920, Height: 1080}},
+			FileFacts{Quality: "WEBDL-1080p", Revision: 2, IsRepack: true, ReleaseGroup: "GRP", SceneName: "Show.S01E02.REPACK.1080p.WEB-DL-GRP"}},
 		{"an anime file's release hash", ImportFile{Path: "[Group] Show (BD 1080p)/[Group] Show - 01 (BD 1080p) [ABCD1234].mkv",
 			Folder: "[Group] Show (BD 1080p)", Client: "[Group] Show (BD 1080p)", OtherVideoFiles: true},
 			FileFacts{Quality: "Bluray-1080p", Revision: 1, ReleaseGroup: "Group", ReleaseHash: "ABCD1234"}},
@@ -58,11 +65,27 @@ func TestAggregateMovieFile(t *testing.T) {
 		{"Radarr's modifier rule: the folder's REMUX wins whatever its confidence", ImportFile{Path: rel + "/Movie.2001.1080p.WEB-DL.H.264-FILE.mkv",
 			Folder: rel, Client: rel, Grabbed: rel, OtherVideoFiles: true, Media: &MediaInfo{Width: 1920, Height: 1080}},
 			FileFacts{Quality: "Remux-1080p", Revision: 1, ReleaseGroup: "GRP", SceneName: "Movie.2001.1080p.WEB-DL.H.264-FILE"}},
+		{"a repack", ImportFile{Path: "Movie.2001.REPACK.1080p.BluRay.x264-GRP/movie.mkv", Folder: "Movie.2001.REPACK.1080p.BluRay.x264-GRP",
+			Client: "Movie.2001.REPACK.1080p.BluRay.x264-GRP", Grabbed: "Movie.2001.REPACK.1080p.BluRay.x264-GRP",
+			Media: &MediaInfo{Width: 1920, Height: 1080}},
+			FileFacts{Quality: "Bluray-1080p", Revision: 2, IsRepack: true, ReleaseGroup: "GRP", SceneName: "Movie.2001.REPACK.1080p.BluRay.x264-GRP"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := AggregateMovieFile(tc.in); !reflect.DeepEqual(got, tc.want) {
 				t.Errorf("got  %+v\nwant %+v", got, tc.want)
 			}
 		})
+	}
+}
+
+// LinkedFile carries the original release's repack flag, as the arrs' file records do.
+func TestLinkedFileRepack(t *testing.T) {
+	t.Parallel()
+	for kind, title := range map[policy.Kind]string{policy.KindSeries: "Show.S01E02.REPACK.1080p.WEB-DL-GRP",
+		policy.KindMovie: "Movie.2001.REPACK.1080p.BluRay.x264-GRP"} {
+		f := LinkedFile(kind, Release{Release: indexer.Release{Title: title}}, "")
+		if !f.IsRepack || f.Revision != 2 {
+			t.Errorf("%s: repack %v revision %d", kind, f.IsRepack, f.Revision)
+		}
 	}
 }

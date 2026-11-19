@@ -32,6 +32,7 @@ func LinkedFile(kind policy.Kind, rel Release, quality string) *ExistingFile {
 	if kind == policy.KindSeries {
 		if p := sonarr.ParseTitle(title); p != nil {
 			f.Revision, f.Real = max(p.Quality.Revision.Version, 1), p.Quality.Revision.Real
+			f.IsRepack = p.Quality.Revision.IsRepack
 			f.ReleaseType = p.ReleaseType().String()
 			if p.ReleaseGroup != nil {
 				f.ReleaseGroup = *p.ReleaseGroup
@@ -42,6 +43,7 @@ func LinkedFile(kind policy.Kind, rel Release, quality string) *ExistingFile {
 		}
 	} else if p := radarr.ParseMovieTitle(title, false); p != nil {
 		f.Revision, f.Real = max(p.Quality.Revision.Version, 1), p.Quality.Revision.Real
+		f.IsRepack = p.Quality.Revision.IsRepack
 		f.Edition = p.Edition
 		if p.ReleaseGroup != nil {
 			f.ReleaseGroup = *p.ReleaseGroup
