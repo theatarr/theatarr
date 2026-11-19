@@ -133,6 +133,54 @@ func TestUpgradeFoundClearsAfterAFailedTry(t *testing.T) {
 	}
 }
 
+// An RSS sighting does not revive a release that failed since the current file: the feed listing it again keeps it
+// tried, whenever it was read. A listing published after the failure, or one now cached on a library provider after
+// a cache miss, shows it again; a new covering search keeps the rule that only a failure after it counts.
+func TestUpgradeFoundStaysTriedAfterAnRSSResighting(t *testing.T) {
+	t.Parallel()
+	const best = `"release":"Best","info_hash":"aaaa","accepted":true,"upgrade":true,"score":9000`
+	state := func(t *testing.T, why string, later ...string) string {
+		t.Helper()
+		e := newManageEnv(t, nil)
+		e.exec(`INSERT INTO journal_decision (source,title_id,version_key,target,created_at,candidates) VALUES
+			('search',1,'movie-remux','movie',2500,'[{` + best + `}]')`)
+		e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, state, error,
+			created_at, updated_at) VALUES (1, 1, 'movie-remux', 'aaaa', 'r', 'x', 'failed', ?, 2600, 2600)`, why)
+		for i, q := range later {
+			e.exec(`INSERT INTO journal_decision (source,title_id,version_key,target,created_at,candidates) VALUES
+				(?,1,'movie-remux',?,?,?)`, "later", map[bool]string{true: "rss", false: "movie"}[q[0] == 'R'],
+				2700+int64(i)*100, q[1:])
+		}
+		v := upgradeVersion{id: 1, titleID: 1, key: "movie-remux", kind: "movie", state: "filled"}
+		s, err := e.web.loadUpgrades(context.Background(), e.st.Reader(), []upgradeVersion{v}, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s.explain(v, 0).State
+	}
+	const miss, other = "miss on every provider", "provider status error"
+	for _, c := range []struct {
+		name, why string
+		later     []string
+		want      string
+	}{
+		{"tried", miss, nil, "below_cutoff"},
+		{"plain RSS re-sighting", miss, []string{`R[{` + best + `}]`}, "below_cutoff"},
+		{"RSS re-sighting with an older listing", miss, []string{`R[{` + best + `,"published":"1970-01-01T00:00:02.5Z"}]`}, "below_cutoff"},
+		{"RSS listing published after the failure", miss, []string{`R[{` + best + `,"published":"1970-01-01T00:00:02.65Z"}]`}, "upgrade_available"},
+		{"cached on a library provider after a miss", miss, []string{`R[{` + best + `,"cached_on":["rd"]}]`}, "upgrade_available"},
+		{"cached elsewhere after a miss", miss, []string{`R[{` + best + `,"cached_on":["pm"]}]`}, "below_cutoff"},
+		{"cached after another failure", other, []string{`R[{` + best + `,"cached_on":["rd"]}]`}, "below_cutoff"},
+		{"a new covering search", miss, []string{`S[{` + best + `}]`}, "upgrade_available"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if got := state(t, c.why, c.later...); got != c.want {
+				t.Errorf("%s, want %s", got, c.want)
+			}
+		})
+	}
+}
+
 // Only a real try clears Upgrade found, timed when it failed: a download never started (Pause was on) or ended by a
 // removal is no try, as History and Why? say; one created before the sighting that failed after it is one; the
 // failure's time is its History row's, so a later touch of the download does not move it.

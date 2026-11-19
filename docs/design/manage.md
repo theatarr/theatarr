@@ -65,8 +65,12 @@ Per item below cutoff (a movie version's file, or one episode's file):
    failed: it is not found. A download never started (Pause was on) or ended by a removal is no try, as History and
    Why? say. The best of the others is chosen; when
    every counted release was tried, the best tried one is still the answer's `next` (Why?: "Better release found …
-   Tried …: not cached … Your file is unchanged.") while the state stays `below_cutoff`. A later sighting of it
-   (a newer search, or DMM's newly cached list) counts again. Display only: nothing is written or deleted.
+   Tried …: not cached … Your file is unchanged.") while the state stays `below_cutoff`. A newer covering search
+   that lists it again counts it again. An RSS sighting does not: a release that failed since the current file stays
+   tried whenever the feed lists it again, unless the listing carries evidence newer than the failure: its
+   publication time (the candidate's `published`, not when it was read) is after the failure, or the failure was a
+   cache miss ("miss on every provider") and the candidate is now listed cached (`cached_on`) on a provider the
+   library uses. Display only: nothing is written or deleted, and what is searched or grabbed is unchanged.
 6. The best counted release (score, then newest) is what Theatarr would take next, with the engine's reason.
 
 Hydration reads decision timestamps and coverage first, then fetches and decodes candidate blobs only for the
