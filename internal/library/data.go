@@ -38,7 +38,9 @@ type episodeInfo struct {
 	Absolute *int
 	Name     string
 	AirDate  string
-	Runtime  int
+	// AirAt is the stored air instant (air_date_utc_at: the date at the series' air time and zone), nil when unknown.
+	AirAt   *time.Time
+	Runtime int
 }
 
 // fileIdentity is one download_file row: a file's episodes and how they were found.
@@ -277,8 +279,8 @@ func loadFiles(ctx context.Context, db *sql.DB, downloadID int64) (manual, recor
 // loadEpisodes loads a title's episodes by id; with no ids, every episode of the title (a pack the router did not
 // narrow down), excluding removed rows. Explicit ids keep access to retained episodes for manual imports.
 func loadEpisodes(ctx context.Context, db *sql.DB, titleID int64, ids []int64) ([]episodeInfo, error) {
-	q := `SELECT e.id, e.season, e.number, e.name, COALESCE(e.air_date, ''), COALESCE(e.runtime_minutes, 0),
-	             (SELECT n.number FROM episode_number n WHERE n.episode_id = e.id AND n.scheme = 'absolute_tvdb'
+	q := `SELECT e.id, e.season, e.number, e.name, COALESCE(e.air_date, ''), e.air_date_utc_at,
+	             COALESCE(e.runtime_minutes, 0), (SELECT n.number FROM episode_number n WHERE n.episode_id = e.id AND n.scheme = 'absolute_tvdb'
 	              ORDER BY n.id LIMIT 1)
 	      FROM episode e WHERE e.title_id = ?`
 	args := []any{titleID}
@@ -298,9 +300,13 @@ func loadEpisodes(ctx context.Context, db *sql.DB, titleID int64, ids []int64) (
 	var out []episodeInfo
 	for rows.Next() {
 		var e episodeInfo
-		var abs sql.NullInt64
-		if err := rows.Scan(&e.ID, &e.Season, &e.Number, &e.Name, &e.AirDate, &e.Runtime, &abs); err != nil {
+		var abs, airAt sql.NullInt64
+		if err := rows.Scan(&e.ID, &e.Season, &e.Number, &e.Name, &e.AirDate, &airAt, &e.Runtime, &abs); err != nil {
 			return nil, err
+		}
+		if airAt.Valid {
+			at := time.UnixMilli(airAt.Int64).UTC()
+			e.AirAt = &at
 		}
 		if abs.Valid {
 			v := int(abs.Int64)

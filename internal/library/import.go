@@ -316,8 +316,14 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 			SeriesType: d.Version.Title.SeriesType, Runtime: d.Version.Title.Runtime}
 		eps := make([]decide.Episode, len(d.Version.Episodes))
 		for i, ep := range d.Version.Episodes {
-			eps[i] = decide.Episode{ID: ep.ID, Season: ep.Season, Number: ep.Number, Title: ep.Name, AirDate: ep.AirDate}
-			if ep.AirDate != "" {
+			// The template the namer would pick needs the absolute number; the 48-hour wait the real air instant
+			// (midnight UTC of the date only when no instant is stored).
+			eps[i] = decide.Episode{ID: ep.ID, Season: ep.Season, Number: ep.Number, Title: ep.Name, AirDate: ep.AirDate,
+				AirDateUTC: ep.AirAt}
+			if ep.Absolute != nil {
+				eps[i].Absolute = *ep.Absolute
+			}
+			if eps[i].AirDateUTC == nil && ep.AirDate != "" {
 				if tm, err := time.Parse("2006-01-02", ep.AirDate); err == nil {
 					eps[i].AirDateUTC = &tm
 				}

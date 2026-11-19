@@ -5,7 +5,11 @@ symlinks under the version's roots for Plex. Where it sits in the pipeline: [ove
 `00015_library.sql`. Commands `theatarr library`. The tests run in temp directories.
 
 Series imports wait while a required episode title is TBA or missing inside Sonarr's 48-hour window, then retry
-automatically; the arr queue reports the pending import.
+automatically; the arr queue reports the pending import. The window runs from the episode's stored air instant
+(`air_date_utc_at`, the date at the series' air time and zone; midnight UTC of the date only when none is stored), and
+"required" means the template the namer would pick for the download's episodes uses the title (`naming.EpisodeFormat`:
+an anime episode without an absolute number under an anime template that needs one, or a daily series' special, takes
+the standard template; `TestImportTitleWaitAirTimeAndTemplate`).
 
 ## The gate
 

@@ -178,7 +178,8 @@ messages.
   (`-1`) and removed indexers pass. SeaDex's synthetic counts and Torrentio/DMM counts use the same comparison.
 - **Episode title:** a naming pattern using Episode Title/CleanTitle temporarily holds missing or exactly `TBA`
   titles until exactly 48 hours after airing; unknown/future dates remain held. Standard, daily and anime
-  patterns follow Sonarr's selection, including the anime absolute-number requirement and rename-off exemption.
+  patterns are the namer's own choice for the episodes (`naming.EpisodeFormat`: a daily special and an anime episode
+  without an absolute number under a template that needs one take the standard pattern), with the rename-off exemption.
   The arr's `episodeTitleRequired` Always/Never/BulkSeasonReleases setting is honored (default Always), including
   its bulk date/count conditions. Sonarr checks this at import; Theatarr checks before download.
 - **Already imported:** the latest grab and an import with its download ID block the same hash or release name

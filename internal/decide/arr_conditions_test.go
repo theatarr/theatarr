@@ -71,21 +71,25 @@ func TestRequiresEpisodeTitle(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, kind, standard, daily, anime string
-		absolute                           int
+		absolute, season                   int
 		rename, want                       bool
 	}{
-		{"standard", "standard", "{Episode Title}", "", "", 0, true, true},
-		{"clean title", "standard", "{Episode.CleanTitle}", "", "", 0, true, true},
-		{"escaped", "standard", "{{Episode Title}}", "", "", 0, true, false},
-		{"rename off", "standard", "{Episode Title}", "", "", 0, false, false},
-		{"daily uses daily", "daily", "{Episode Title}", "{Air-Date}", "", 0, true, false},
-		{"daily title", "daily", "", "{Episode Title}", "", 0, true, true},
-		{"anime absolute", "anime", "{Episode Title}", "", "{absolute:00}", 1, true, false},
-		{"anime without absolute", "anime", "{Episode Title}", "", "{absolute:00}", 0, true, true},
+		{"standard", "standard", "{Episode Title}", "", "", 0, 1, true, true},
+		{"clean title", "standard", "{Episode.CleanTitle}", "", "", 0, 1, true, true},
+		{"escaped", "standard", "{{Episode Title}}", "", "", 0, 1, true, false},
+		{"rename off", "standard", "{Episode Title}", "", "", 0, 1, false, false},
+		{"daily uses daily", "daily", "{Episode Title}", "{Air-Date}", "", 0, 1, true, false},
+		{"daily title", "daily", "", "{Episode Title}", "", 0, 1, true, true},
+		// The namer names a daily series' special, and an anime episode without an absolute number under an anime
+		// template that needs one, with the standard template.
+		{"daily special uses standard", "daily", "{Episode Title}", "{Air-Date}", "", 0, 0, true, true},
+		{"anime absolute", "anime", "{Episode Title}", "", "{absolute:00}", 1, 1, true, false},
+		{"anime without absolute", "anime", "{Episode Title}", "", "{absolute:00}", 0, 1, true, true},
+		{"anime template without absolute", "anime", "{Episode Title}", "", "{Series Title} - S{season:00}E{episode:00}", 0, 1, true, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := naming.Config{Rename: tc.rename, StandardEpisodeFormat: tc.standard, DailyEpisodeFormat: tc.daily, AnimeEpisodeFormat: tc.anime}
-			got := requiresEpisodeTitle(&Title{SeriesType: tc.kind}, &cfg, []*Episode{{Absolute: tc.absolute}})
+			got := requiresEpisodeTitle(&Title{SeriesType: tc.kind}, &cfg, []*Episode{{Season: tc.season, Number: 1, Absolute: tc.absolute}})
 			if got != tc.want {
 				t.Fatalf("got %v, want %v", got, tc.want)
 			}

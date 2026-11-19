@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Lifecycle tests for "which file is which episode": the import maps a release's files as the decision mapped the
@@ -309,5 +310,48 @@ func TestResolverAnswerIsNotOverridden(t *testing.T) {
 	e.exec(`INSERT INTO download_file (download_id, rel, episodes, source, updated_at) VALUES (1, ?, '[501]', 'manual', 0)`, rel+".mkv")
 	if plan, err = e.lib.Import(e.ctx, 1, true); err != nil || len(plan.Links) != 1 || plan.Links[0].Episodes[0] != 501 {
 		t.Errorf("manual: %+v %v", plan, err)
+	}
+}
+
+// The episode-title wait (Sonarr's EpisodeTitleSpecification) reads the episode's real air instant, not midnight UTC
+// of its date, and the template the namer would use: an anime series without absolute numbers is named, and judged,
+// by the standard template.
+func TestImportTitleWaitAirTimeAndTemplate(t *testing.T) {
+	t.Parallel()
+	rel := "Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-GRP"
+	setup := func(t *testing.T) *env {
+		e := newEnv(t, true)
+		e.release(rel, map[string]float64{rel + ".mkv": 2700})
+		e.seriesDownload(1, 2, 20, hashA, rel, "[201]", nil)
+		e.exec(`UPDATE episode SET name = 'TBA' WHERE id = 201`)
+		return e
+	}
+	// Aired 2026-10-24 14:00 UTC (an evening air time west of UTC): 46 hours before now, inside the 48-hour wait.
+	// Midnight of its date would be 60 hours before, past it.
+	e := setup(t)
+	e.exec(`UPDATE episode SET air_date = '2026-10-24', air_date_utc_at = ? WHERE id = 201`,
+		time.Date(2026, 10, 24, 14, 0, 0, 0, time.UTC).UnixMilli())
+	plan, err := e.lib.Import(e.ctx, 1, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !plan.Waiting || !strings.HasPrefix(plan.Why, TitleHoldPrefix) {
+		t.Errorf("air time: waiting %v why %q links %d", plan.Waiting, plan.Why, len(plan.Links))
+	}
+	// Two days and a minute after the air instant the wait is over.
+	e.exec(`UPDATE episode SET air_date_utc_at = ? WHERE id = 201`, time.Date(2026, 10, 24, 11, 59, 0, 0, time.UTC).UnixMilli())
+	if plan, err = e.lib.Import(e.ctx, 1, true); err != nil || plan.Waiting || len(plan.Links) != 1 {
+		t.Errorf("past the wait: %+v %v", plan, err)
+	}
+
+	// Anime with no absolute numbers: the namer uses the standard template (with the title), so the wait applies,
+	// though the anime template has no title.
+	e = setup(t)
+	e.exec(`UPDATE title SET series_type = 'anime' WHERE id = 2`)
+	e.pol.Versions["tv"].Naming.Anime = "{Series Title} - {absolute:000} [{Quality Full}]"
+	e.exec(`UPDATE episode SET air_date = '2026-10-25', air_date_utc_at = ? WHERE id = 201`,
+		time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC).UnixMilli())
+	if plan, err = e.lib.Import(e.ctx, 1, true); err != nil || !plan.Waiting || !strings.HasPrefix(plan.Why, TitleHoldPrefix) {
+		t.Errorf("anime without absolute numbers: %+v %v", plan, err)
 	}
 }

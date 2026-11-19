@@ -4,6 +4,7 @@ package naming
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -398,6 +399,19 @@ func episodeTitle(titles []string, separator string, maxLength int, formatter st
 	return strings.TrimRight(truncateBytes(first, maxLength-3), " .") + "{ellipsis}"
 }
 
+// EpisodeFormat is the episode template BuildFileName picks for these episodes of a series of type typ: daily
+// unless an episode is a special, anime when every episode has an absolute number or the anime template needs none,
+// else standard. With no episodes, a daily series takes the daily template and an anime one the anime template.
+func EpisodeFormat(c *Config, typ SeriesType, eps []Episode) string {
+	switch {
+	case typ == SeriesDaily && !slices.ContainsFunc(eps, func(e Episode) bool { return e.Season <= 0 }):
+		return c.DailyEpisodeFormat
+	case typ == SeriesAnime && (allAbsolute(eps) || !isMatch(absoluteEpisodeRegex, c.AnimeEpisodeFormat)):
+		return c.AnimeEpisodeFormat
+	}
+	return c.StandardEpisodeFormat
+}
+
 // SeriesFileName is Sonarr's BuildFileName with the path limits BuildFilePath gives it: the file name with
 // extension. seasonPath is the absolute season folder the file goes in (it bounds the name's length).
 func SeriesFileName(c *Config, s *Series, eps []Episode, f *EpisodeFile, extension, seasonPath string) (name string, err error) {
@@ -417,7 +431,6 @@ func SeriesFileName(c *Config, s *Series, eps []Episode, f *EpisodeFile, extensi
 	case strings.TrimSpace(c.AnimeEpisodeFormat) == "" && s.Type == SeriesAnime:
 		return "", fmt.Errorf("naming: anime episode format cannot be empty")
 	}
-	pattern := c.StandardEpisodeFormat
 	eps = append([]Episode(nil), eps...)
 	sort.SliceStable(eps, func(i, j int) bool {
 		if eps[i].Season != eps[j].Season {
@@ -425,12 +438,7 @@ func SeriesFileName(c *Config, s *Series, eps []Episode, f *EpisodeFile, extensi
 		}
 		return eps[i].Number < eps[j].Number
 	})
-	if s.Type == SeriesDaily && eps[0].Season > 0 {
-		pattern = c.DailyEpisodeFormat
-	}
-	if s.Type == SeriesAnime && (allAbsolute(eps) || !isMatch(absoluteEpisodeRegex, c.AnimeEpisodeFormat)) {
-		pattern = c.AnimeEpisodeFormat
-	}
+	pattern := EpisodeFormat(c, s.Type, eps)
 
 	splits := splitPattern(pattern)
 	var comps []string

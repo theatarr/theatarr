@@ -54,19 +54,16 @@ func requiresEpisodeTitle(t *Title, cfg *naming.Config, episodes []*Episode) boo
 	if !cfg.Rename {
 		return false
 	}
-	pattern := cfg.StandardEpisodeFormat
-	if t.SeriesType == "daily" {
-		pattern = cfg.DailyEpisodeFormat
-	}
-	if t.SeriesType == "anime" {
-		all := true
-		for _, ep := range episodes {
-			all = all && ep.Absolute > 0
-		}
-		if all {
-			pattern = cfg.AnimeEpisodeFormat
+	// The namer's own choice of template for these episodes (an anime episode without an absolute number, a daily
+	// series' special: the standard one).
+	eps := make([]naming.Episode, len(episodes))
+	for i, ep := range episodes {
+		eps[i] = naming.Episode{Season: ep.Season, Number: ep.Number}
+		if ep.Absolute > 0 {
+			eps[i].Absolute = &ep.Absolute
 		}
 	}
+	pattern := naming.EpisodeFormat(cfg, naming.SeriesType(t.SeriesType), eps)
 	m, err := episodeTitleToken.FindStringMatch(pattern)
 	for m != nil && err == nil {
 		token := strings.ToLower(m.GroupByName("token").String())
@@ -93,7 +90,11 @@ func (e *Engine) EpisodeTitleHold(t Title, v Version, episodes []Episode) (profi
 	if p == nil {
 		return "", ""
 	}
-	media := &profile.Media{EpisodeTitleRequired: e.requiresEpisodeTitle(&t, v, nil)}
+	mapped := make([]*Episode, len(episodes))
+	for i := range episodes {
+		mapped[i] = &episodes[i]
+	}
+	media := &profile.Media{EpisodeTitleRequired: e.requiresEpisodeTitle(&t, v, mapped)}
 	for _, x := range t.Episodes {
 		media.Episodes = append(media.Episodes, &profile.Episode{Title: x.Title, SeasonNumber: x.Season, EpisodeNumber: x.Number, AirDateUtc: x.AirDateUTC})
 	}
