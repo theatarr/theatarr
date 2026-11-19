@@ -610,7 +610,7 @@ way (`TestEditTitleTags`, `TestTagEditReachesWebhooks`). Rows from before 00105 
   flat, stale or reset progress leaves both omitted. Ready/importing downloads report zero time left and now.
 - **Quality profiles are version sets**: every quality allowed, no formats, cutoff the best quality.
 - **Metadata Theatarr does not hold** (overview, images, genres, ratings, certification) is written empty, not
-  null, where the arr's type is a value or list. The stored runtime (`title.runtime_minutes`) and TMDb id go on
+  null, where the arr's type is a value or list. The stored runtime and TMDb id (the title row's, else the artwork refresh's `title_meta`) go on
   movie and series resources, also a lookup of a catalogued title the view does not hold, and the TMDb id on series
   webhooks; 0 when not stored.
 - **History ids** are `1,000,000,000 + download id × 10 + event code` (Theatarr's downloads; the arrs' own history is

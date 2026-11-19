@@ -719,4 +719,26 @@ func TestStoredTMDbIDAndRuntime(t *testing.T) {
 			t.Errorf("%s webhook series %v", p.View, s)
 		}
 	}
+
+	// After an artwork refresh only: the title's metadata row holds them.
+	e.exec(`UPDATE title SET tmdb_id = NULL, runtime_minutes = NULL WHERE id = 10`)
+	e.exec(`INSERT INTO title_meta (title_id, tmdb_id, runtime_minutes, attempted_at, refresh_after)
+		VALUES (10, 302, 50, 1, 1)`)
+	sr = nil
+	e.call("GET", "/sonarr/api/v3/series/"+strconv.Itoa(IDBase+10), nil, 200, &sr)
+	if sr["tmdbId"] != float64(302) || sr["runtime"] != float64(50) {
+		t.Errorf("series from title_meta: tmdbId %v, runtime %v", sr["tmdbId"], sr["runtime"])
+	}
+	lk = nil
+	e.call("GET", "/v/anime-tv/sonarr/api/v3/series/lookup?term=tvdb:201", nil, 200, &lk)
+	if len(lk) != 1 || lk[0]["tmdbId"] != float64(302) || lk[0]["runtime"] != float64(50) {
+		t.Errorf("series lookup from title_meta %v", lk)
+	}
+	if ps, err = e.svc.Payloads(context.Background(), notify.Event{Kind: notify.Rename, TitleID: 10,
+		Version: "tv-2160p"}); err != nil || len(ps) == 0 {
+		t.Fatalf("payloads %v %v", ps, err)
+	}
+	if s := ps[0].Body.(obj)["series"].(obj); s["tmdbId"] != 302 {
+		t.Errorf("webhook series from title_meta %v", s)
+	}
 }

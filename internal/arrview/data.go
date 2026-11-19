@@ -165,8 +165,8 @@ func (s *Service) load(ctx context.Context, v *View, titleIDs []int64) ([]*entry
 	var order []*entry
 
 	rows, err := db.QueryContext(ctx, `SELECT DISTINCT t.id, t.kind, t.name, t.sort_name, COALESCE(t.year, 0),
-		COALESCE(t.secondary_year, 0), COALESCE(t.tmdb_id, 0), COALESCE(t.tvdb_id, 0), COALESCE(t.imdb_id, ''),
-		COALESCE(t.runtime_minutes, 0), t.anime, t.created_at, EXISTS (SELECT 1 FROM title_meta m WHERE m.title_id = t.id AND m.movie_dates_at IS NOT NULL),
+		COALESCE(t.secondary_year, 0), `+tmdbSQL("t")+`, COALESCE(t.tvdb_id, 0), COALESCE(t.imdb_id, ''),
+		`+runtimeSQL("t")+`, t.anime, t.created_at, EXISTS (SELECT 1 FROM title_meta m WHERE m.title_id = t.id AND m.movie_dates_at IS NOT NULL),
 		`+store.SeriesTypeSQL("t")+`, COALESCE((SELECT lower(m.status) FROM series_meta m WHERE m.title_id = t.id), '')
 		FROM title t JOIN version v ON v.title_id = t.id WHERE `+where+` ORDER BY t.id`, args...)
 	if err != nil {
@@ -366,6 +366,18 @@ func (s *Service) titleByExternal(ctx context.Context, v *View, tmdb, tvdb int64
 	return id, err
 }
 
+// tmdbSQL and runtimeSQL are the title's TMDb id and runtime, from its metadata row (title_meta, written by the
+// artwork refresh) when the title row has none (a series), else 0.
+func tmdbSQL(t string) string {
+	return `COALESCE(NULLIF(` + t + `.tmdb_id, 0), (SELECT NULLIF(m.tmdb_id, 0) FROM title_meta m WHERE m.title_id = ` +
+		t + `.id), 0)`
+}
+
+func runtimeSQL(t string) string {
+	return `COALESCE(NULLIF(` + t + `.runtime_minutes, 0), (SELECT NULLIF(m.runtime_minutes, 0) FROM title_meta m
+		WHERE m.title_id = ` + t + `.id), 0)`
+}
+
 // titleBrief is a title the view may not have, for lookups.
 type titleBrief struct {
 	id                  int64
@@ -380,7 +392,7 @@ type titleBrief struct {
 
 func (s *Service) briefs(ctx context.Context, where string, args ...any) ([]titleBrief, error) {
 	rows, err := s.st.Reader().QueryContext(ctx, `SELECT id, name, COALESCE(year, 0), COALESCE(secondary_year, 0),
-		COALESCE(tmdb_id, 0), COALESCE(tvdb_id, 0), COALESCE(imdb_id, ''), COALESCE(runtime_minutes, 0) FROM title
+		`+tmdbSQL("title")+`, COALESCE(tvdb_id, 0), COALESCE(imdb_id, ''), `+runtimeSQL("title")+` FROM title
 		WHERE `+where, args...)
 	if err != nil {
 		return nil, err
