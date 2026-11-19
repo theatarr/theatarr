@@ -547,8 +547,12 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 	// A film's automatic import reads its files largest first and stops at the first that passes the sample and
 	// mislabel guards. Extras (isExtraFile) are not read while the release has another video file, and never the
 	// largest file: a release of nothing but extras is judged as before. A client's explicit files are all read.
+	// Only the download's own files count (decypharr's file list): another torrent's file in a shared folder goes
+	// the usual way below and never enters the plan.
 	movieAuto := v.Title.Kind == "movie" && len(d.Manual) == 0
-	plain := movieAuto && slices.ContainsFunc(files, func(f MountFile) bool { return !isExtraFile(f.Rel) })
+	own := func(f MountFile) bool { return listed == nil || listed.has(filepath.Base(f.Rel), f.Size) }
+	largest := slices.IndexFunc(files, own)
+	plain := movieAuto && slices.ContainsFunc(files, func(f MountFile) bool { return own(f) && !isExtraFile(f.Rel) })
 	featured := false
 	for i, f := range files {
 		// Probing a large pack can outlast the claim: it is renewed as the files are read.
@@ -558,7 +562,7 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 			}
 		}
 		pf := PlannedFile{Path: f.Path, Rel: f.Rel, Size: f.Size}
-		if featured || (plain && i > 0 && isExtraFile(f.Rel)) {
+		if movieAuto && own(f) && (featured || (plain && i != largest && isExtraFile(f.Rel))) {
 			pf.unread = true // listed (manual import shows it), neither read nor a candidate
 			plan.Files = append(plan.Files, pf)
 			continue

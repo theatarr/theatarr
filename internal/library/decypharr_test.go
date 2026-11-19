@@ -247,6 +247,25 @@ func TestImportDecypharrFileList(t *testing.T) {
 		}
 	})
 
+	t.Run("no file matches, with a trailer beside the feature", func(t *testing.T) {
+		e := setup(t)
+		e.release(decyFolder, map[string]float64{"Movie-trailer.mkv": 150})
+		if err := os.WriteFile(filepath.Join(e.mount, "__all__", decyFolder, "movie.mkv"), make([]byte, 64), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		e.listFiles(TorrentFile{Name: "movie.mkv", Size: 6})
+		plan, err := e.lib.Import(e.ctx, 1, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(plan.Links) != 0 || len(plan.Files) != 0 || !plan.Waiting {
+			t.Fatalf("a foreign trailer entered the plan: %+v", plan)
+		}
+		if s := e.one(`SELECT state FROM library_import WHERE download_id = 1`); s != "waiting_mount" {
+			t.Errorf("library import %s", s)
+		}
+	})
+
 	t.Run("not listed: another torrent's folder of the same name waits", func(t *testing.T) {
 		e := newEnv(t, true)
 		e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
