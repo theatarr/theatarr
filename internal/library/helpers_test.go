@@ -261,6 +261,42 @@ func TestDanglingReport(t *testing.T) {
 	}
 }
 
+// A link into a release folder the mount will not list keeps its row from the last report, first and last sighting
+// unchanged, and counts in the totals.
+func TestDanglingReportUnreadableFolder(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, false)
+	e.lib = New(Options{Store: e.st, Policy: e.pol, Now: func() time.Time { return e.now }})
+	e.release("Here", map[string]float64{"a.mkv": 1})
+	links := map[string]string{
+		filepath.Join(e.movies, "Good (2001)", "Good.mkv"): "Here/a.mkv",
+		filepath.Join(e.movies, "Bad (2001)", "Bad.mkv"):   "Gone/b.mkv",
+	}
+	for p, tg := range links {
+		os.MkdirAll(filepath.Dir(p), 0o755)
+		if err := os.Symlink(filepath.Join(e.mount, "__all__", tg), p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if sum, err := e.lib.DanglingReport(e.ctx); err != nil || sum.Dangling != 1 {
+		t.Fatalf("first report %+v %v", sum, err)
+	}
+	seen := e.now
+	// A regular file where the folder should be: its listing fails while the mount answers.
+	if err := os.WriteFile(filepath.Join(e.mount, "__all__", "Gone"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	e.now = e.now.Add(6 * time.Hour)
+	if sum, err := e.lib.DanglingReport(e.ctx); err != nil || sum.Dangling != 1 || sum.ByRoot[e.movies] != 1 {
+		t.Fatalf("report with an unreadable folder %+v %v", sum, err)
+	}
+	rows, last, _ := Dangling(e.ctx, e.st.Reader())
+	if len(rows) != 1 || !strings.HasSuffix(rows[0].Path, "Bad.mkv") || !rows[0].FirstSeen.Equal(seen) ||
+		!rows[0].LastSeen.Equal(seen) || last.Dangling != 1 {
+		t.Errorf("rows with an unreadable folder %+v last %+v", rows, last)
+	}
+}
+
 // A release folder whose name starts with ".." is inside the mount: its links are listed and reported like any other.
 func TestDanglingReportDotDotFolder(t *testing.T) {
 	t.Parallel()
