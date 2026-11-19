@@ -3,6 +3,7 @@
 // SourcesView and BudgetsView are plain views over their props; SourcesPanel and BudgetsPanel hold the state, open
 // the editor in a side sheet beside the list (the row stays marked) and announce finished tests.
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Loader2, Pencil, Plus, Zap } from "lucide-react";
+import { USER_COMPONENT } from "@/lib/router-words";
 import { useEffect, useReducer, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { qk } from "@/api/query-keys";
@@ -711,7 +712,6 @@ export function PeriodUse({ used, cap, per, suffix = "" }: { used?: number; cap?
 // "Indexer prowlarr-tpb", "Plex server"; anything else as sent.
 const USER_CLASS: Record<string, string> = { provider: "Provider", indexer: "Indexer", metadata: "Metadata", client: "Download client", webhook: "Notification" };
 // Components with one connection each: the key only repeats the component.
-const USER_COMPONENT: Record<string, string> = { plex: "Plex server", zurgapi: "Zurg API", zurglog: "Zurg log reader", rclonerc: "rclone remote control", decypharr: "Decypharr", egress: "VPN check" };
 export function usedByWord(target: string): string {
   const [cls, key] = target.split(/:(.*)/s);
   if (key && USER_COMPONENT[cls]) return USER_COMPONENT[cls];

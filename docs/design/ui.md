@@ -1050,16 +1050,19 @@ and reload/confirmation behavior. Each page says its intro once, as its descript
 | Notifications | `/admin/settings/notifications` | Where and when Theatarr sends messages. |
 | Plex & playback | `/admin/settings/plex` | Plex connections, playback and playlists; read-only Playlists Theatarr keeps below the playlists panel, folded with its count ("90 playlists, 8 empty"). |
 | Metadata & artwork | `/admin/settings/metadata` | Metadata services, refresh schedules and the artwork cache. |
-| Connected apps | `/admin/settings/apps` | Compatible endpoints for Seerr and other apps: each app's libraries, profiles and API key (an app without its own key reads "uses admin API keys" beside its path). The editor offers a Radarr app the movie libraries and a Sonarr app the series ones (a library already ticked stays listed so it can be unticked), and each profile the libraries the app serves; unticking a library drops it from every profile, and a profile left without a library says "Tick a library for this profile, or remove it." and holds Save. Replace a library puts a new library in an old one's place in the app's libraries and every profile, in the draft; Save sends both. |
+| Connected apps | `/admin/settings/apps` | Compatible endpoints for Seerr and other apps: each app's libraries, profiles and API key (an app without its own key reads "uses admin API keys" beside its path). The editor offers a Radarr app the movie libraries and a Sonarr app the series ones (a library already ticked stays listed so it can be unticked), and each profile the libraries the app serves; unticking a library drops it from every profile, and a profile left without a library says "Tick a library for this profile, or remove it." and holds Save. Replace a library (an existing app only) puts a new library in an old one's place in the app's libraries and every profile, in the draft; Save sends both. A new app's key field is open and labelled "API key (required)". |
 
 Other libraries' folders (`#scan-roots`) and the torrent-list backup schedule (`#torrent-backups`) are on Download
 clients › Torrents; Torrents says beside its filters what "Not used by Theatarr" checks and links the folders, and
 System › Backup shows the schedule as text with **Change the schedule**. `/admin/settings/general` redirects by anchor.
 
-Libraries includes the existing library editor (`?edit=key`); app bindings are on Connected apps. Profiles keeps `?raw=1`, presets,
+Libraries includes the existing library editor (`?edit=key`); its table names each library's profile as the
+editor's picker does (the key as tooltip) and known debrid providers by their tags (RD › AD › TB); app bindings are on Connected apps. Profiles keeps `?raw=1`, presets,
 and the hidden `/admin/settings/profiles/format_sets` editor. Its **Check a release** tab
 (`/admin/settings/profiles/check`) judges a pasted release name for one title and library through `POST /decide`,
-read-only ([decide.md](decide.md#release-check)). Its optional size is in GiB, as sizes are shown, or carries a
+read-only ([decide.md](decide.md#release-check)). A sole title match is chosen once the search for the text as
+typed has answered (once per text; several matches wait for a choice), and the result names the library by its label
+(the key as tooltip). Its optional size is in GiB, as sizes are shown, or carries a
 unit as in the settings forms (`36 GB` is 36×10⁹ bytes); text that is not a size is refused beside the field and
 nothing is checked. Indexers and debrid providers show status beside
 their editors, with Edit links. VPN status is above its settings. **Send notifications** is the first field of the

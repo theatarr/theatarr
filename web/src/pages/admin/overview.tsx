@@ -158,7 +158,8 @@ export function Overview() {
     items.push({
       key: `task-${t.key}`,
       tone: "bad",
-      title: <>{t.name} failed <Mono className="ml-1 text-[11.5px] text-muted-foreground">{t.key}</Mono></>,
+      // The task by its name; its key only as a tooltip.
+      title: <span title={t.key}>{t.name} failed</span>,
       effect: <span className="text-[var(--ink-3)]">{t.last_error}</span>,
       next: "Run it now, or wait for its next run",
       to: "/admin/system/tasks",

@@ -301,7 +301,7 @@ func runHealth(args []string, out io.Writer) error {
 func setupHealth(p *policy.Policy, indexers, providers int) health.Result {
 	missing := preflight.Missing(p, indexers, providers)
 	if len(missing) == 0 {
-		return health.Result{Type: health.OK, Message: "Versions, indexers, providers, TMDb and the debrid mount are configured"}
+		return health.Result{Type: health.OK, Message: "Libraries, indexers, providers, TMDb and the debrid mount are configured"}
 	}
 	return health.Result{Type: health.Notice, Message: "Setup incomplete: " + strings.Join(missing, "; ") +
 		". Run the preflight (" + uipages.Setup + ", or theatarr preflight)", Detail: map[string]any{"missing": missing}}

@@ -55,7 +55,7 @@ function languagesText(d: Decision) {
   return d.languages_assumed ? `${langs.join(", ")} (assumed: the title's original language; the name states none)` : langs.join(", ");
 }
 
-function Result({ d, sent }: { d: Decision; sent: DecideRequest }) {
+function Result({ d, sent, library }: { d: Decision; sent: DecideRequest; library: string }) {
   const rev = d.revision;
   const quality = `${d.quality ?? "Unknown"} v${rev?.version ?? 1}${rev?.real ? ` real ${rev.real}` : ""}`;
   const parsed = d.series_title ? `${d.series_title}${d.episodes?.length ? ` · ${d.episodes.join(", ")}` : ""}`
@@ -64,7 +64,7 @@ function Result({ d, sent }: { d: Decision; sent: DecideRequest }) {
     <Card className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         {d.accepted ? <Badge tone="positive">Would be accepted</Badge> : <Badge tone="negative">Rejected</Badge>}
-        <span className="text-[13px] text-muted-foreground">Library <Mono>{d.version}</Mono>, profile <Mono>{d.profile}</Mono>. Nothing was recorded, searched or grabbed.</span>
+        <span className="text-[13px] text-muted-foreground">Library <span title={d.version}>{library}</span>, profile <Mono>{d.profile}</Mono>. Nothing was recorded, searched or grabbed.</span>
       </div>
       <KV items={[
         ["Parsed", d.parsed ? <span key="p">{parsed || "—"}{d.release_group ? <> · group <Mono>{d.release_group}</Mono></> : null}{d.edition ? ` · ${d.edition}` : null}</span> : "Could not parse the name"],
@@ -121,6 +121,16 @@ export function ReleaseCheck() {
   const check = useMutation({
     mutationFn: (body: DecideRequest) => api<Decision>("/decide", { method: "POST", body }).then((d) => ({ d, sent: body })),
   });
+  // A sole match is chosen for you once the search for the text as it is now has answered (the list keeps the
+  // previous answer while a new one loads), once per text, so clearing the choice sticks.
+  const [autoFor, setAutoFor] = useState("");
+  if (q === dq && dq.trim() && search.isSuccess && !search.isFetching && !search.isPlaceholderData && autoFor !== dq) {
+    setAutoFor(dq);
+    if (hits.length === 1 && !title) {
+      setTitle(hits[0]);
+      setVersion(hits[0].versions?.length === 1 ? hits[0].versions[0].key ?? "" : "");
+    }
+  }
   const pick = (id: string) => {
     const t = options.find((h) => String(h.id) === id);
     setTitle(t);
@@ -169,6 +179,6 @@ export function ReleaseCheck() {
       </form>
     </Card>
     {check.error ? <p role="alert" className="text-sm text-[var(--bad-ink)]">{check.error instanceof Error ? check.error.message : String(check.error)}</p> : null}
-    {check.data ? <Result d={check.data.d} sent={check.data.sent} /> : null}
+    {check.data ? <Result d={check.data.d} sent={check.data.sent} library={title?.versions?.find((v) => v.key === check.data.d.version)?.label || nameOf(check.data.d.version ?? "")} /> : null}
   </div>;
 }

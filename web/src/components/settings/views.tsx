@@ -245,7 +245,8 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
           <NamedChoices legend="Libraries" help="What the app sees, in the order ticked." testid="view-libraries"
             options={libraryOptions(libraries.data, versions, nameOf, kind)} value={versions} onChange={serve} disabled={off} />
           <SyncNotes groups={libraries.data?.sync_groups} keys={versions} nameOf={nameOf} className="sm:col-span-2" deletes />
-          {off ? null : (
+          {/* A new app has no library to replace. */}
+          {off || create ? null : (
             <div className="flex min-w-0 flex-col gap-2 sm:col-span-2" data-testid="view-replace">
               <p className="text-sm font-medium text-[var(--ink)]">Replace a library</p>
               <div className="flex flex-wrap items-end gap-2">
@@ -281,7 +282,7 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
             )}
           </div>
           {seeded ? (
-            <SecretField label="API key" set={!!view?.secret_set} action={action} value={apiKey} onAction={setAction} onValue={setApiKey} disabled={off}
+            <SecretField label={create ? "API key (required)" : "API key"} set={!!view?.secret_set} action={action} value={apiKey} onAction={setAction} onValue={setApiKey} disabled={off}
               hint={<>Clients send it as X-Api-Key. Keys made under <Link className="underline" to="/admin/users">Users &amp; access</Link> work too.</>} />
           ) : null}
         </div>

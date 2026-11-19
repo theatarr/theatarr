@@ -151,7 +151,7 @@ func TestProviderAccountHealth(t *testing.T) {
 		for _, r := range hc.Results(ctx) {
 			if r.Source == "ProviderAccountCheck" {
 				found = true
-				if r.Type != health.Warning || !strings.Contains(r.Message, "rd: premium ends") {
+				if r.Type != health.Warning || !strings.Contains(r.Message, "RD: premium ends") {
 					t.Fatalf("account check: %+v", r)
 				}
 			}
@@ -250,6 +250,8 @@ func TestSetupCheckCountsReadySources(t *testing.T) {
 	}
 	if r := setup(); strings.Contains(r.Message, "no enabled indexer") || strings.Contains(r.Message, "no enabled debrid provider") {
 		t.Fatalf("ready sources reported missing: %+v", r)
+	} else if r.Type != health.OK || r.Message != "Libraries, indexers, providers, TMDb and the debrid mount are configured" {
+		t.Errorf("complete setup: %+v", r)
 	}
 	for i := range snap.Records.Indexers {
 		snap.Records.Indexers[i].Enabled = false

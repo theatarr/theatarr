@@ -115,12 +115,23 @@ const BACKOFF_KINDS: Record<string, string> = {
   metadata: "Metadata source",
 };
 
-/** A gateway back-off's subject as a sentence: "indexer:nyaa" → "Indexer nyaa is backed off". */
+/** Components with one connection each, by their names (the key after the colon only repeats the component). */
+export const USER_COMPONENT: Record<string, string> = { plex: "Plex server", zurgapi: "Zurg API", zurglog: "Zurg log reader", rclonerc: "rclone remote control", decypharr: "Decypharr", egress: "VPN check" };
+
+const METADATA_SOURCES: Record<string, string> = { tmdb: "TMDb", "tmdb-images": "TMDb images", tvdb: "TVDB" };
+const PROVIDER_TAGS: Record<string, string> = { rd: "RD", ad: "AD", tb: "TB" };
+
+/** A gateway back-off's subject as a sentence: "indexer:nyaa" → "Indexer nyaa is backed off"; components, metadata
+ *  sources and known providers by their names ("zurglog:log" → "Zurg log reader is backed off"). */
 export function backoffWords(subject: string | null | undefined): string {
   const s = subject ?? "";
   const i = s.indexOf(":");
-  const kind = i < 0 ? "" : BACKOFF_KINDS[s.slice(0, i)];
-  return kind ? `${kind} ${s.slice(i + 1)} is backed off` : `${s || "A source"} is backed off`;
+  const cls = i < 0 ? "" : s.slice(0, i);
+  const key = s.slice(i + 1);
+  if (USER_COMPONENT[cls]) return `${USER_COMPONENT[cls]} is backed off`;
+  const kind = BACKOFF_KINDS[cls];
+  const name = cls === "metadata" ? METADATA_SOURCES[key] ?? key : cls === "provider" ? PROVIDER_TAGS[key] ?? key : key;
+  return kind ? `${kind} ${name} is backed off` : `${s || "A source"} is backed off`;
 }
 
 /** The provider attempts' messages that name a setting by its key (internal/router pacing.go blocked, router.go),

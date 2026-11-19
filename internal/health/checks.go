@@ -235,12 +235,14 @@ func Metadata(st *store.Store, o MetadataOptions) Func {
 		}
 		switch {
 		case !o.TMDb && titles > 0:
-			raise(Warning, "TMDb refresh is off (no metadata.sources.tmdb key): titles get no new metadata")
+			raise(Warning, "No TMDb key is set: titles get no new metadata")
+		case missing == 1:
+			raise(Warning, "1 title has no metadata an hour after it was added")
 		case missing > 0:
-			raise(Warning, fmt.Sprintf("%d title(s) have no metadata an hour after they were added", missing))
+			raise(Warning, fmt.Sprintf("%d titles have no metadata an hour after they were added", missing))
 		}
 		if o.TMDb && overdue > 0 {
-			raise(Notice, fmt.Sprintf("%d title(s) are more than a day overdue for a refresh", overdue))
+			raise(Notice, plural(overdue, "title is", "titles are")+" more than a day overdue for a refresh")
 		}
 		if failed >= 3 && failed*2 >= tried {
 			raise(Warning, fmt.Sprintf("%d of %d TMDb refreshes in the last day failed", failed, tried))
@@ -262,9 +264,9 @@ func Metadata(st *store.Store, o MetadataOptions) Func {
 			}
 		}
 		if len(problems) == 0 {
-			msg := fmt.Sprintf("Metadata is current for %d title(s)", titles)
+			msg := "Metadata is current for " + plural(titles, "title", "titles")
 			if failed > 0 {
-				msg += fmt.Sprintf("; %d refresh(es) failed in the last day", failed)
+				msg += "; " + plural(failed, "refresh", "refreshes") + " failed in the last day"
 			}
 			return Result{Type: OK, Message: msg, Detail: detail}
 		}
@@ -638,9 +640,9 @@ func Providers(st *store.Store, o ProviderOptions) Func {
 			case ok == 0:
 				d["error"] = short(errText)
 				// The sync's error often names the provider already ("rd: Get …"): say it once.
-				bad = append(bad, p+": "+strings.TrimPrefix(short(errText), p+": "))
+				bad = append(bad, providerLabel(p)+": "+strings.TrimPrefix(short(errText), p+": "))
 			case now.Sub(store.NullMillis(lastOK)) > 3*o.Interval:
-				bad = append(bad, p+": no complete sync in "+age(now.Sub(store.NullMillis(lastOK))))
+				bad = append(bad, providerLabel(p)+": no complete sync in "+age(now.Sub(store.NullMillis(lastOK))))
 			}
 		}
 		switch {
@@ -649,7 +651,7 @@ func Providers(st *store.Store, o ProviderOptions) Func {
 		case len(bad) > 0:
 			return Result{Type: Warning, Detail: detail, Message: "Debrid provider sync failing: " + strings.Join(bad, "; ")}
 		}
-		return Result{Type: OK, Detail: detail, Message: "Debrid providers reachable: " + strings.Join(o.Providers, ", ")}
+		return Result{Type: OK, Detail: detail, Message: "Debrid providers reachable: " + strings.Join(providerLabels(o.Providers), ", ")}
 	}
 }
 
@@ -692,7 +694,7 @@ func TorrentLimits(st *store.Store, limits func(ctx context.Context) map[string]
 			}
 			n := *sum.Torrents
 			detail[k] = map[string]any{"limit": lim[k], "count": n}
-			line := fmt.Sprintf("%s %d of %d (%d%%)", k, n, lim[k], n*100/lim[k])
+			line := fmt.Sprintf("%s %d of %d (%d%%)", providerLabel(k), n, lim[k], n*100/lim[k])
 			counted = append(counted, line)
 			if n*100 >= lim[k]*warnPercent {
 				near = append(near, line)
@@ -817,22 +819,22 @@ func Accounts(accounts func(ctx context.Context) map[string]AccountSource, o Acc
 			r := reads[i]
 			d := map[string]any{"read_at": r.at.UTC()}
 			detail[k] = d
-			t, line := OK, ""
+			t, line, name := OK, "", providerLabel(k)
 			switch a := r.account; {
 			case errors.Is(r.err, provider.ErrAuth):
-				t, line, refused = Error, k+": key refused ("+short(r.err.Error())+")", true
+				t, line, refused = Error, name+": key refused ("+short(r.err.Error())+")", true
 			case r.err != nil:
-				t, line = Warning, k+": account not readable ("+short(r.err.Error())+")"
+				t, line = Warning, name+": account not readable ("+short(r.err.Error())+")"
 			case !a.Expires.IsZero() && !a.Expires.After(now):
-				t, line = Error, k+": premium ended "+day(a.Expires, now)
+				t, line = Error, name+": premium ended "+day(a.Expires, now)
 			case !a.Premium:
-				t, line = Error, k+": not premium"
+				t, line = Error, name+": not premium"
 			case !a.Expires.IsZero() && a.Expires.Sub(now) < AccountWarnWithin:
-				t, line = Warning, k+": premium ends "+day(a.Expires, now)+" (in "+age(a.Expires.Sub(now))+")"
+				t, line = Warning, name+": premium ends "+day(a.Expires, now)+" (in "+age(a.Expires.Sub(now))+")"
 			case a.Expires.IsZero():
-				line = k + ": premium"
+				line = name + ": premium"
 			default:
-				line = k + ": premium until " + day(a.Expires, now)
+				line = name + ": premium until " + day(a.Expires, now)
 			}
 			if r.err != nil {
 				d["error"] = short(r.err.Error())
@@ -1057,4 +1059,30 @@ func WatchOnlyNotice(st *store.Store) Func {
 			"before 0.4.5: " + names + ". Their titles are now not monitored and Pause was turned on. Monitor what you " +
 			"want in them, then turn Pause off."}
 	}
+}
+
+// providerLabel is a debrid provider's key as Status names it: the known ones by their tags (rd → RD, ad → AD, tb →
+// TB); any other configured name as it is.
+func providerLabel(key string) string {
+	switch key {
+	case "rd", "ad", "tb":
+		return strings.ToUpper(key)
+	}
+	return key
+}
+
+func providerLabels(keys []string) []string {
+	out := make([]string, len(keys))
+	for i, k := range keys {
+		out[i] = providerLabel(k)
+	}
+	return out
+}
+
+// plural is "1 title" or "3 titles".
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return "1 " + one
+	}
+	return fmt.Sprintf("%d %s", n, many)
 }

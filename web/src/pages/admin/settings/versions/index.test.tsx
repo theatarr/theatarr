@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { bringInSyncGain, VersionsPage } from ".";
 import { expectNamedControls, json, mockFetch, renderPage } from "@/test/page";
+import { readableCode } from "@/lib/code-words";
 
 /** Stands in for the header Pause: it reads the settings overview. */
 
@@ -244,6 +245,19 @@ describe("Versions page", () => {
     expect(table.className).toContain("md:table-fixed");
     expect(table.querySelector("thead")!.className).toContain("max-md:hidden");
     for (const label of ["Where", "Profile", "Sources"]) expect(within(row.cells[0]).getByText(label)).toBeTruthy();
+  });
+
+  it("names the profile and the providers on the row, and saves their keys", async () => {
+    const lib = { ...version(), config: { ...version().config, profile: "radarr-4k-zurg", providers: ["rd", "ad", "tb"] } };
+    mockFetch(getRoutes({ ...versions(), versions: [lib] }));
+    renderPage(<VersionsPage />);
+    const row = (await screen.findByRole("button", { name: "Edit" })).closest("tr")!;
+    const cell = row.cells[2];
+    expect(cell.textContent).toBe(readableCode("radarr-4k-zurg"));
+    expect(cell.textContent).not.toBe("radarr-4k-zurg");
+    expect(within(cell).getByTitle("radarr-4k-zurg")).toBeTruthy();
+    expect(row.cells[3].textContent).toContain("RD › AD › TB");
+    expect(row.textContent).not.toContain("rd › ad");
   });
 
   it("shows Downloads on, and Paused while Pause is on", async () => {
@@ -771,7 +785,7 @@ describe("Versions grouped by kind", () => {
     expect(within(tv).queryByText("from TRaSH WEB-1080p (closest preset)")).toBeNull();
     expect(within(movies).getAllByText("/library/movies").length).toBeGreaterThan(0);
     expect(within(movies).getAllByText("public").length).toBeGreaterThan(0);
-    expect(within(movies).getAllByText("rd").length).toBeGreaterThan(0);
+    expect(within(movies).getAllByText("RD").length).toBeGreaterThan(0);
     expect(screen.queryByRole("region", { name: "Anime series" })).toBeNull();
   });
 

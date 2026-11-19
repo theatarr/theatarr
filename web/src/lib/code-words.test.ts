@@ -81,7 +81,11 @@ describe("router words", () => {
     expect(cacheSourceWords("other:thing")).toBe("other thing");
     expect(cacheSourceWords("plain")).toBe("plain");
     expect(backoffWords("indexer:nyaa")).toBe("Indexer nyaa is backed off");
-    expect(backoffWords("provider:rd")).toBe("Provider rd is backed off");
+    expect(backoffWords("provider:rd")).toBe("Provider RD is backed off");
+    // Names, not keys: a component by its name, a metadata source by its own.
+    expect(backoffWords("zurglog:log")).toBe("Zurg log reader is backed off");
+    expect(backoffWords("metadata:tmdb-images")).toBe("Metadata source TMDb images is backed off");
+    expect(backoffWords("metadata:tmdb")).toBe("Metadata source TMDb is backed off");
     expect(backoffWords("odd")).toBe("odd is backed off");
   });
 });

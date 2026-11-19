@@ -76,6 +76,10 @@ describe("View editor", () => {
     const sheet = await screen.findByTestId("view-editor");
     // No app key yet: Save waits for one.
     expect((within(sheet).getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
+    // A new app has no library to replace; its key field is open and says it is required.
+    expect(within(sheet).queryByTestId("view-replace")).toBeNull();
+    expect(within(sheet).getByText("API key (required)")).toBeTruthy();
+    expect(within(sheet).getByTestId("secret-input")).toBeTruthy();
     await user.type(within(sheet).getByRole("textbox", { name: "Key" }), "radarr2");
     await user.clear(within(sheet).getByRole("textbox", { name: "Key" }));
     expect(within(sheet).getByText(/^Enter a name\. A name for the app/)).toBeTruthy();

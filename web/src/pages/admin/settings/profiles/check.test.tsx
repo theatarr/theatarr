@@ -51,6 +51,28 @@ describe("Release check", () => {
     expect((screen.getByRole("combobox", { name: "Library" }) as HTMLSelectElement).disabled).toBe(true);
   });
 
+  it("picks a sole match once its search settled, keeps the choice open for several, and names the library in the result", async () => {
+    const two = { ...searchReply, library: [dune, { ...dune, id: 8, name: "Dune", year: 2021 }], library_total: 2 };
+    const fetch = mockFetch([{ method: "GET", path: "/search", reply: (r: { search: string }) => new URLSearchParams(r.search).get("q") === "dune" ? two : searchReply },
+      { method: "POST", path: "/decide", reply: rejected }]);
+    const user = userEvent.setup();
+    renderPage(<ReleaseCheck />, "/admin/settings/profiles/check");
+    const box = screen.getByRole("textbox", { name: "Find a title" });
+    const title = screen.getByRole("combobox", { name: "Title" }) as HTMLSelectElement;
+    await user.type(box, "dune");
+    await within(title).findByRole("option", { name: "Dune (2021)" });
+    // Two matches: nothing is chosen for you.
+    expect(title.value).toBe("");
+    await user.type(box, " part");
+    await waitFor(() => expect(title.value).toBe("7"));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Library" }), "movie-remux");
+    await user.type(screen.getByRole("textbox", { name: "Release name" }), rejected.release);
+    await user.click(screen.getByRole("button", { name: "Check" }));
+    const result = await screen.findByTestId("release-check-result");
+    expect(result.textContent).toContain("Library 4K Remux, profile");
+    expect(fetch.calls("POST", "/decide")[0].body).toMatchObject({ title_id: 7, version: "movie-remux" });
+  });
+
   it("posts the release for the chosen title and library, and shows rejections and the inputs it lacked", async () => {
     const fetch = mockFetch([{ method: "GET", path: "/search", reply: searchReply }, { method: "POST", path: "/decide", reply: rejected }]);
     const user = userEvent.setup();

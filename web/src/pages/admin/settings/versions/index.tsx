@@ -130,6 +130,9 @@ function profileOrigin(p: ProfileSummary | undefined): string {
   return "our own profile";
 }
 
+/** A provider by its known tag (rd → RD); any other configured name as it is. */
+const providerName = (key: string) => (/^(rd|ad|tb)$/.test(key) ? key.toUpperCase() : key);
+
 function VersionGroup({ title, versions, all, groups, switches, selected, readOnly, onOpen }: { title: string; versions: VersionRecord[]; all: VersionRecord[]; groups: string[][]; switches: VersionList["switches"]; selected?: string; readOnly: boolean; onOpen: (record: VersionRecord) => void }) {
   const nameOf = useLibraryName();
   const label = (key: string) => { const c = all.find((r) => r.key === key)?.config; return nameOf(key, libraryLabel(key, c?.profile ?? "", c?.name, c?.kind)); };
@@ -149,8 +152,9 @@ function VersionGroup({ title, versions, all, groups, switches, selected, readOn
         <TableBody>{versions.map((record) => {
           const c = record.config;
           const where = <><div className="font-mono text-[12.5px] [overflow-wrap:anywhere]">{c.library || "no root"}</div><div className="text-xs text-muted-foreground" data-testid="library-where">{[c.storage, c.add_via === "client" ? c.client : "", c.import].filter(Boolean).join(" · ")}</div></>;
-          const profile = <><div className="font-mono text-[12.5px] [overflow-wrap:anywhere]">{c.profile}</div></>;
-          const sources = <div className="text-xs [overflow-wrap:anywhere]"><div>{(c.indexers ?? []).length ? (c.indexers ?? []).join(", ") : "no indexers"}</div><div className="text-muted-foreground">{c.add_via === "client" ? `via client ${c.client || "(none)"}` : (c.providers ?? []).length ? (c.providers ?? []).join(" › ") : "no providers"}</div></div>;
+          // Names as the editor's picker shows them; the keys stay as tooltips (and are what is saved).
+          const profile = <><div className="text-[13px] [overflow-wrap:anywhere]" title={c.profile}>{readableCode(c.profile)}</div></>;
+          const sources = <div className="text-xs [overflow-wrap:anywhere]"><div>{(c.indexers ?? []).length ? (c.indexers ?? []).join(", ") : "no indexers"}</div><div className="text-muted-foreground">{c.add_via === "client" ? `via client ${c.client || "(none)"}` : (c.providers ?? []).length ? (c.providers ?? []).map(providerName).join(" › ") : "no providers"}</div></div>;
           return <TableRow key={record.key} data-record={record.key} data-selected={selected === record.key ? "true" : undefined}>
             <TableCell className="align-top">
               <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5"><span className="text-[13.5px] font-medium [overflow-wrap:anywhere]" data-testid="library-name">{nameOf(record.key, libraryLabel(record.key, c.profile, c.name, c.kind))}</span><span className="font-mono text-[12px] text-muted-foreground [overflow-wrap:anywhere]" data-testid="library-key">{record.key}</span></div>

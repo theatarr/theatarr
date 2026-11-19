@@ -132,12 +132,12 @@ func TestMetadata(t *testing.T) {
 	exec(t, st, `INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (4, 4, 'movie-web', 0, 0)`)
 	exec(t, st, `INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (4, 'ui', 0)`)
 	r := Metadata(st, MetadataOptions{TMDb: true, Now: now})(ctx)
-	if r.Type != Warning || !strings.Contains(r.Message, "1 title(s) have no metadata") || r.Detail.(map[string]any)["titles"] != 3 {
+	if r.Type != Warning || !strings.Contains(r.Message, "1 title has no metadata an hour after it was added") || r.Detail.(map[string]any)["titles"] != 3 {
 		t.Errorf("missing: %+v", r)
 	}
 	exec(t, st, `INSERT INTO title_meta (title_id, attempted_at, refresh_after) VALUES (2, ?, ?)`,
 		store.Millis(t0.Add(-time.Hour)), store.Millis(t0.Add(time.Hour)))
-	if r := Metadata(st, MetadataOptions{TMDb: true, Now: now})(ctx); r.Type != OK {
+	if r := Metadata(st, MetadataOptions{TMDb: true, Now: now})(ctx); r.Type != OK || r.Message != "Metadata is current for 3 titles" {
 		t.Errorf("current: %+v", r)
 	}
 	// Refreshes failing, and the TVDB refresh not run for a day.
@@ -155,10 +155,11 @@ func TestMetadata(t *testing.T) {
 		store.Millis(t0.Add(-30*time.Hour)), old, old)
 	r = Metadata(st, MetadataOptions{TMDb: true, Now: now})(ctx)
 	if r.Type != Warning || !strings.Contains(r.Message, "no TMDb refresh succeeded in 2d") ||
-		!strings.Contains(r.Message, "3 title(s) are more than a day overdue") {
+		!strings.Contains(r.Message, "3 titles are more than a day overdue") {
 		t.Errorf("stale: %+v", r)
 	}
-	if r := Metadata(st, MetadataOptions{Now: now})(ctx); r.Type != Warning || !strings.Contains(r.Message, "TMDb refresh is off") {
+	if r := Metadata(st, MetadataOptions{Now: now})(ctx); r.Type != Warning ||
+		r.Message != "Metadata: No TMDb key is set: titles get no new metadata" {
 		t.Errorf("off: %+v", r)
 	}
 }
@@ -262,13 +263,13 @@ func TestProviders(t *testing.T) {
 	ctx := context.Background()
 	now := func() time.Time { return t0 }
 	f := Providers(st, ProviderOptions{Providers: []string{"rd", "tb"}, Interval: time.Hour, Now: now})
-	if r := f(ctx); r.Type != OK {
+	if r := f(ctx); r.Type != OK || r.Message != "Debrid providers reachable: RD, TB" {
 		t.Errorf("never synced: %+v", r)
 	}
 	at := store.Millis(t0.Add(-10 * time.Minute))
 	exec(t, st, `INSERT INTO provider_sync_run (provider, started_at, finished_at, ok, error) VALUES
 		('rd', ?, ?, 1, NULL), ('tb', ?, ?, 0, 'tb: 401 unauthorized')`, at, at, at, at)
-	if r := f(ctx); r.Type != Warning || !strings.Contains(r.Message, "tb: 401") || strings.Contains(r.Message, "tb: tb:") {
+	if r := f(ctx); r.Type != Warning || r.Message != "Debrid provider sync failing: TB: 401 unauthorized" {
 		t.Errorf("one failing: %+v", r)
 	}
 	old := store.Millis(t0.Add(-5 * time.Hour))
@@ -442,13 +443,13 @@ func TestTorrentLimits(t *testing.T) {
 	at := store.Millis(t0.Add(-10 * time.Minute))
 	exec(t, st, `INSERT INTO provider_sync_run (provider, started_at, finished_at, ok, summary) VALUES
 		('ad', ?, ?, 1, '{"torrents": 4400}'), ('rd', ?, ?, 1, '{"torrents": 99999}')`, at, at, at, at)
-	if r := f(ctx); r.Type != OK || r.Message != "Torrent limits: ad 4400 of 5000 (88%)" {
+	if r := f(ctx); r.Type != OK || r.Message != "Torrent limits: AD 4400 of 5000 (88%)" {
 		t.Errorf("under 90%%: %+v", r)
 	}
 	later := store.Millis(t0)
 	exec(t, st, `INSERT INTO provider_sync_run (provider, started_at, finished_at, ok, summary) VALUES
 		('ad', ?, ?, 1, '{"torrents": 4500}'), ('ad', ?, ?, 0, '{}')`, later, later, later, later)
-	if r := f(ctx); r.Type != Warning || !strings.Contains(r.Message, "ad 4500 of 5000 (90%)") {
+	if r := f(ctx); r.Type != Warning || !strings.Contains(r.Message, "AD 4500 of 5000 (90%)") {
 		t.Errorf("at 90%%: %+v", r)
 	}
 	lim = map[string]int{"rd": 0}
@@ -495,19 +496,19 @@ func TestAccounts(t *testing.T) {
 		msg  string
 	}{
 		{"none", nil, OK, "No debrid provider keys set; no account to read"},
-		{"far", map[string]AccountReader{"rd": far, "tb": lifetime}, OK, "Debrid accounts: rd: premium until Jan 24, 2027; tb: premium"},
+		{"far", map[string]AccountReader{"rd": far, "tb": lifetime}, OK, "Debrid accounts: RD: premium until Jan 24, 2027; TB: premium"},
 		{"soon", map[string]AccountReader{"rd": far, "tb": soon}, Warning,
-			"Debrid account needs attention: tb: premium ends Nov 1 (in 6d)"},
-		{"expired", map[string]AccountReader{"ad": expired}, Error, "Debrid account needs attention: ad: premium ended Oct 25"},
-		{"free", map[string]AccountReader{"ad": free}, Error, "Debrid account needs attention: ad: not premium"},
+			"Debrid account needs attention: TB: premium ends Nov 1 (in 6d)"},
+		{"expired", map[string]AccountReader{"ad": expired}, Error, "Debrid account needs attention: AD: premium ended Oct 25"},
+		{"free", map[string]AccountReader{"ad": free}, Error, "Debrid account needs attention: AD: not premium"},
 		{"refused", map[string]AccountReader{"rd": refused, "tb": far}, Error,
-			"Debrid account needs attention: rd: key refused (realdebrid: provider: authentication refused). Check the key in " + uipages.Providers},
+			"Debrid account needs attention: RD: key refused (realdebrid: provider: authentication refused). Check the key in " + uipages.Providers},
 		{"down", map[string]AccountReader{"rd": far, "tb": down}, Warning,
-			"Debrid account needs attention: tb: account not readable (dial tcp: connection refused)"},
+			"Debrid account needs attention: TB: account not readable (dial tcp: connection refused)"},
 		{"hung", map[string]AccountReader{"tb": hung}, Warning,
-			"Debrid account needs attention: tb: account not readable (context deadline exceeded)"},
+			"Debrid account needs attention: TB: account not readable (context deadline exceeded)"},
 		{"worst", map[string]AccountReader{"ad": free, "tb": soon}, Error,
-			"Debrid account needs attention: ad: not premium; tb: premium ends Nov 1 (in 6d)"},
+			"Debrid account needs attention: AD: not premium; TB: premium ends Nov 1 (in 6d)"},
 	} {
 		r := run(tc.m)
 		if r.Type != tc.typ || r.Message != tc.msg {
@@ -546,7 +547,7 @@ func TestAccountsCache(t *testing.T) {
 	f := Accounts(func(context.Context) map[string]AccountSource { return sources(clients, keys) },
 		AccountOptions{Interval: 6 * time.Hour, Retry: 30 * time.Minute, Now: func() time.Time { return now }})
 	ctx := context.Background()
-	if r := f(ctx); r.Type != Warning || !strings.Contains(r.Message, "tb: account not readable") {
+	if r := f(ctx); r.Type != Warning || !strings.Contains(r.Message, "TB: account not readable") {
 		t.Fatalf("first: %+v", r)
 	}
 	for range 5 {
@@ -563,7 +564,7 @@ func TestAccountsCache(t *testing.T) {
 	}
 	// Four hours on, the cached expiry is inside the window: a warning without a new read.
 	now = t0.Add(4 * time.Hour)
-	if r := f(ctx); r.Type != Warning || !strings.Contains(r.Message, "rd: premium ends Nov 2 (in 6d)") || acct.reads.Load() != 1 {
+	if r := f(ctx); r.Type != Warning || !strings.Contains(r.Message, "RD: premium ends Nov 2 (in 6d)") || acct.reads.Load() != 1 {
 		t.Fatalf("window: %+v, reads %d", r, acct.reads.Load())
 	}
 	// After the interval the account is read again.

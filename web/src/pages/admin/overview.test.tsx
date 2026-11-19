@@ -424,3 +424,22 @@ it("links the anime mappings notice to the review queue, and not once nothing wa
  const ok = await screen.findByTestId("check-AnimeReviewCheck");
  expect(within(ok).queryByRole("link")).toBeNull();
 });
+
+it("names a failed task and a backed-off source in words, without their keys", async () => {
+ mockFetch([...reviewRoutes,
+  { method: "GET", path: "/readyz", reply: { status: "ok" } },
+  { method: "GET", path: "/status", reply: status },
+  { method: "GET", path: "/jobs", reply: { items: [], counts: {} } },
+  { method: "GET", path: "/tasks", reply: { items: [{ key: "torrents.backup", name: "Back up the debrid torrent lists", every_seconds: 86400, last_error: "all providers unavailable", last_duration_ms: 0 }] } },
+  { method: "GET", path: "/gateway", reply: { egress: { vpn_ok: true }, backoffs: [{ subject: "zurglog:log", active: true }, { subject: "metadata:tmdb-images", active: true }] } },
+  { method: "GET", path: "/health", reply: { checks: [] } },
+  { method: "GET", path: "/activity", reply: { now: [] } },
+ ]);
+ renderPage(<Overview />);
+ const attention = await screen.findByTestId("attention");
+ await waitFor(() => expect(attention.textContent).toContain("Back up the debrid torrent lists failed"));
+ expect(attention.textContent).not.toContain("torrents.backup");
+ expect(attention.textContent).toContain("Zurg log reader is backed off");
+ expect(attention.textContent).toContain("Metadata source TMDb images is backed off");
+ expect(attention.textContent).not.toContain("zurglog");
+});

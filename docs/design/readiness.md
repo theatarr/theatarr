@@ -33,7 +33,11 @@ Where they show:
   checked_at, took_ms}]}`; `?refresh=1` runs them now. `GET /status` adds `health` (the worst type) and
   `policy_revision`.
 - **Admin › System › Status**: a "health checks" stat and a Checks list; failing checks join Needs attention (not the
-  VPN and failed-job checks, which that list already names).
+  VPN and failed-job checks, which that list already names). Messages name things, not keys: known debrid providers
+  by their tags (RD, AD, TB; any other configured name as it is), "1 title" / "3 titles", "Libraries, indexers, …"
+  for a finished setup and "No TMDb key is set" for the metadata check without one. Needs attention names a failed
+  scheduled task by its name (the key as tooltip) and a back-off by what it is ("Zurg log reader is backed off",
+  "Metadata source TMDb images is backed off", "Provider RD is backed off").
 - **Arr views:** every view's `GET /api/v3/health` appends the failing checks after its own shadow-mode and
   router notices, in `HealthResource` shape, so Homepage, LunaSea and Ruddarr show them.
 - **Webhooks:** the notifier's scan (every `notify.poll`) sends one `Health` event per check that turns bad or changes
