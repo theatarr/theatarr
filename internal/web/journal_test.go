@@ -1,6 +1,8 @@
 package web
 
 import (
+	"context"
+	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -65,5 +67,33 @@ func TestJournalAPI(t *testing.T) {
 	r.Header.Set("X-Api-Key", key)
 	if rec := e.do(r); rec.Code != http.StatusNotFound && rec.Code != http.StatusMethodNotAllowed {
 		t.Errorf("verdict: %d", rec.Code)
+	}
+}
+
+// TestJournalUnblockWords: an unblock's line in the journal says why the release was blocked in the Blocklist's words,
+// for rows stored before this wording too (the raw reason stays in the database).
+func TestJournalUnblockWords(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	key := e.apiKey()
+	const cf = "Not a Custom Format upgrade for existing file(s). New: [A] (1202) do not improve on Existing: [B] (6200)"
+	err := e.st.WriteTx(context.Background(), func(tx *sql.Tx) error {
+		_, err := journal.RecordAction(context.Background(), tx, journal.Action{Action: journal.ActUnblock, TitleID: 1,
+			Version: "movie-web", InfoHash: hashA, Release: "Alpha.Release", Target: hashA,
+			Detail: "was blocked by library: no file passed the sample guard (" + cf + ")", By: "admin", At: testNow})
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = "Unblocked Alpha.Release · by admin · was blocked: Failed the library check: Not imported: these files do not improve on the files you have. This release scores 1,202, yours 6,200. Nothing was replaced."
+	var page journal.Page
+	if code := e.getKey(APIBase+"/journal?kind=action", key, &page); code != 200 || len(page.Items) != 1 ||
+		page.Items[0].Summary != want {
+		t.Fatalf("list: %d %+v", code, page.Items)
+	}
+	var en journal.Entry
+	if code := e.getKey(APIBase+"/journal/"+page.Items[0].ID, key, &en); code != 200 || en.Summary != want {
+		t.Errorf("entry: %d %q", code, en.Summary)
 	}
 }

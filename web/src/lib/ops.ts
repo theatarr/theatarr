@@ -87,7 +87,7 @@ export function retryScope(state: string | undefined, copy: string): Scope {
   }
   return {
     title: "Retry this download",
-    does: [`The same release goes to the router again for the ${copy} library: a new download starts when a provider takes it`],
+    does: [`Try this release again for the ${copy} library: a new download starts when a provider takes it`],
     keeps: [
       "The failed download stays in the history",
       "A release from an indexer the library no longer lists is refused, a blocklisted one asks first, and nothing is added while Pause is on",
@@ -365,11 +365,11 @@ export function grabScope(c: CandidateLike, copy: string, rejections?: string[])
   return {
     title: rejected ? "Grab a rejected release" : "Grab this release",
     does: [
-      `${c.release ?? "This release"} goes to the router for the ${copy} library, which adds it at the first provider that has it`,
+      `Grab ${c.release ?? "this release"} for the ${copy} library: it is added at the first provider that has it`,
       ...(rejection ? [rejection] : []),
     ],
     keeps: [
-      "A blocklisted release asks first, and the router paces the add like any other",
+      "A blocklisted release asks first, and the add is paced like any other",
       "The current file stays until the new one is imported",
     ],
     confirm: rejected ? "Grab anyway" : "Grab",

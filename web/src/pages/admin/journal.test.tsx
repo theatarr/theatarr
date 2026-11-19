@@ -173,3 +173,36 @@ it("keeps a title link's exact title, names it, and a typed title replaces it", 
   expect(fetch.calls("GET", "/journal").at(-1)!.search).not.toContain("title_id");
   expect(screen.queryByTestId("journal-title-id")).toBeNull();
 });
+
+it("offers Clear under a filter and hides Newer and Older when there is no other page", async () => {
+  const fetch = mockFetch([
+    { method: "GET", path: "/journal", reply: { items: [] } },
+    { method: "GET", path: "/status", reply: {} },
+  ]);
+  renderPage(<JournalList />, "/admin/system/journal?suspect=1&kind=grab&title=2001");
+  expect(await screen.findByText("Nothing flagged.")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Newer" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Older" })).toBeNull();
+  await userEvent.setup().click(screen.getByRole("button", { name: "Clear" }));
+  await screen.findByText(/No entries yet/);
+  const last = new URLSearchParams(fetch.calls("GET", "/journal").at(-1)!.search);
+  expect([last.get("suspect"), last.get("kind"), last.get("title")]).toEqual([null, null, null]);
+  expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe("");
+  // No filter, no Clear.
+  expect(screen.queryByRole("button", { name: "Clear" })).toBeNull();
+});
+
+it("keeps Newer on an empty later page", async () => {
+  mockFetch([
+    { method: "GET", path: "/journal", reply: (r: { search: string }) => new URLSearchParams(r.search).get("cursor")
+      ? { items: [] }
+      : { items: [{ id: "dl:1", kind: "grab", source: "theatarr", at: "2026-11-07T10:00:00Z", title: { id: 3, name: "Ferrous Bay" }, summary: "s" }], next_cursor: "c1" } },
+    { method: "GET", path: "/status", reply: {} },
+  ]);
+  renderPage(<JournalList />, "/admin/system/journal");
+  await screen.findByTestId("journal-row");
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "Older" }));
+  expect(await screen.findByText("No entries.")).toBeTruthy();
+  expect((screen.getByRole("button", { name: "Newer" }) as HTMLButtonElement).disabled).toBe(false);
+});

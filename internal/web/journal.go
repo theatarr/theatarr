@@ -94,7 +94,34 @@ func (w *Web) apiJournal(rw http.ResponseWriter, r *http.Request) {
 		w.internal(rw, err)
 		return
 	}
+	for _, e := range page.Items {
+		w.unblockWords(e)
+	}
 	writeJSON(rw, http.StatusOK, page)
+}
+
+// unblockWords says, on an unblock's line, why the release was blocked in the Blocklist's words (History's Blocked
+// row: blockWords and blockedReasonWords) instead of the stored raw reason ("was blocked by library: no file passed
+// the sample guard"). Read at display time, so rows stored before say it too.
+func (w *Web) unblockWords(e *journal.Entry) {
+	if e == nil || e.Action == nil || e.Action.Action != journal.ActUnblock {
+		return
+	}
+	rest, ok := strings.CutPrefix(e.Action.Detail, "was blocked by ")
+	at := strings.Index(e.Summary, "was blocked by ")
+	if !ok || at < 0 {
+		return
+	}
+	source, reason, _ := strings.Cut(rest, ": ")
+	reason, byHand := strings.CutSuffix(reason, "; taken off by a grab by hand")
+	words := blockWords(source)
+	if r := blockedReasonWords(source, reason, "", w.providerTag); r != "" {
+		words += ": " + r
+	}
+	if byHand {
+		words += "; taken off by a grab by hand"
+	}
+	e.Summary = e.Summary[:at] + "was blocked: " + words
 }
 
 func (w *Web) apiJournalEntry(rw http.ResponseWriter, r *http.Request) {
@@ -122,5 +149,6 @@ func (w *Web) apiJournalEntry(rw http.ResponseWriter, r *http.Request) {
 		w.internal(rw, err)
 		return
 	}
+	w.unblockWords(e)
 	writeJSON(rw, http.StatusOK, e)
 }

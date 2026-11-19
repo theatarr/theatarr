@@ -132,6 +132,11 @@ export function JournalList() {
           <Input aria-label="Title" placeholder="Title or id" value={title} onChange={(e) => setTitle(e.target.value)} className="h-8 w-48" />
           <Button size="sm" variant="outline" type="submit" className="h-8">Filter</Button>
         </form>
+        {suspect || kind || urlTitle || titleID ? <Button size="sm" variant="ghost" className="h-8" onClick={() => {
+          const n = new URLSearchParams(params);
+          for (const k of ["suspect", "kind", "title", "title_id"]) n.delete(k);
+          setParams(n);
+        }}>Clear</Button> : null}
         {titleID ? <span className="flex items-center gap-2 text-sm" data-testid="journal-title-id">Only {linkedName ?? `title ${titleID}`}<Button size="xs" variant="ghost" onClick={() => set("title_id")}>Show every title</Button></span> : null}
       </div>
       {q.isPending ? <Loading /> : q.error ? <ErrorState error={q.error} /> : items.length === 0 && !q.data?.next_cursor ? (
@@ -164,10 +169,11 @@ export function JournalList() {
           </Table>
         </Card>
       )}
-      <div className="mt-3 flex gap-2">
+      {/* No other page either way: no pager. */}
+      {cursors.length > 0 || q.data?.next_cursor ? <div className="mt-3 flex gap-2">
         <Button size="sm" variant="outline" disabled={cursors.length === 0} onClick={() => setCursors(cursors.slice(0, -1))}>Newer</Button>
         <Button size="sm" variant="outline" disabled={!q.data?.next_cursor} onClick={() => setCursors([...cursors, q.data?.next_cursor ?? ""])}>Older</Button>
-      </div>
+      </div> : null}
     </div>
   );
 }

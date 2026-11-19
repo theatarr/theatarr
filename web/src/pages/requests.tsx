@@ -101,7 +101,7 @@ function RequestTimeline({ r }: { r: RequestDetail }) {
   return (
     <Card className="min-w-0 p-4">
       <h2 className="mb-4 font-semibold">Timeline</h2>
-      <DownloadsOffNotice off={globalDownloadsOff(versions.map((v) => v.grab_state))} canManage={perms.admin} className="mb-4" />
+      <DownloadsOffNotice off={globalDownloadsOff(versions.map((v) => v.grab_state))} canManage={perms.admin} household={!perms.admin && !perms.manage} className="mb-4" />
       <ol className="space-y-5" data-testid="request-timeline">
         {requestTimeline(r, versionFetching(versions)).map((s) => <li key={s.key} className="flex min-w-0 gap-3" data-state={s.state}>
           <span aria-hidden className={cn("mt-1 size-3 shrink-0 rounded-full border border-[var(--line)]", s.state === "done" && "bg-[var(--ok-ink)]", s.state === "current" && "bg-[var(--accent-ink)]", s.state === "stopped" && "bg-[var(--bad-ink)]")} />
@@ -114,7 +114,7 @@ function RequestTimeline({ r }: { r: RequestDetail }) {
             {s.key === "ready" && (s.state === "current" || r.status === "failed") ? r.progress.map((p, i) => <div key={`${p.key}-${i}`} className="rounded-[5px] border border-[var(--line)] p-2">
               <p className="font-medium">{r.versions.find((v) => v.key === p.key)?.label || p.key}</p>
               <p>{p.words}</p>
-              <VersionStatus state={versions.find((v) => v.key === p.key)?.grab_state} settingsKey={p.key} canManage={perms.admin} quiet />
+              <VersionStatus state={versions.find((v) => v.key === p.key)?.grab_state} settingsKey={p.key} canManage={perms.admin} household={!perms.admin && !perms.manage} quiet />
               {p.episodes_total !== undefined ? <p>{p.episodes_available} of {p.episodes_total} requested episodes available</p> : null}
               {p.updated_at ? <p className="text-xs text-[var(--ink-3)]">Updated {fmtTime(p.updated_at)}</p> : null}
             </div>) : null}
@@ -252,7 +252,8 @@ function RequestQueue() {
 
 function RequestRow({ r, manager, detail }: { r: Request; manager: boolean; detail?: boolean }) {
   const st = REQUEST_STATUS[r.status] ?? { label: r.status, tone: "neutral" as const };
-  const admin = usePerms().admin;
+  const perms = usePerms();
+  const admin = perms.admin;
   const [mode, setMode] = useState<"" | "edit" | "decline">("");
   const approve = useApproveRequest();
   const cancel = useCancelRequest();
@@ -342,7 +343,7 @@ function RequestRow({ r, manager, detail }: { r: Request; manager: boolean; deta
               >
                 {v.available ? <Check className="size-3" /> : null}
                 {v.label}
-                {!v.available ? <VersionStatus state={v.grab_state} why={false} canManage={admin} settingsKey={v.key} quiet /> : null}
+                {!v.available ? <VersionStatus state={v.grab_state} why={false} canManage={admin} household={!admin && !perms.manage} settingsKey={v.key} quiet /> : null}
               </span>
             ))}
             {seasonsText(r) ? <span className="text-xs text-[var(--ink-3)]">{seasonsText(r)}</span> : null}

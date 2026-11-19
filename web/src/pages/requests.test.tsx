@@ -252,3 +252,36 @@ describe("the approval editor", () => {
     expect(screen.getByTestId("request-approve")).toBeTruthy();
   });
 });
+
+describe("Pause in a household account's words", () => {
+  const locked = { paused: true, pause_forced: true, will_grab: false };
+  const detail = { id: 1, kind: "movie", name: "Alpha", anime: false, title_id: 12, tmdb_id: 34, status: "approved", mine: true, seasons: [], created_at: "2026-10-30T12:00:00Z", updated_at: "2026-10-30T12:00:00Z", approved_at_creation: true,
+    versions: [{ key: "web", label: "WEB", available: false, grab_state: locked }], progress: [{ key: "web", words: "Waiting for a copy", approval: "Records the request" }] };
+  const open = async (permissions: string[]) => {
+    mockFetch([
+      { method: "GET", path: "/auth/me", reply: { username: "someone", permissions, csrf_token: "fixture" } },
+      { method: "GET", path: "/requests/1", reply: json(detail) },
+      { method: "GET", path: "/add/options", reply: { kind: "movie", versions: [{ key: "web", label: "WEB", fits: true, on: true, grab_state: locked }], seasons: [] } },
+    ]);
+    renderPage(<Routes><Route path="/requests/:tab" element={<RequestsPage />} /></Routes>, "/requests/1");
+    const notice = await screen.findByTestId("downloads-off-notice");
+    const chip = document.querySelector<HTMLElement>('[data-vkey="web"]')!;
+    await userEvent.click(within(chip).getByRole("button", { name: /^Why .+\?$/ }));
+    const why = within(await screen.findByRole("dialog")).getByTestId("state-why");
+    return { notice: notice.textContent ?? "", why: why.textContent ?? "" };
+  };
+
+  it("says Downloads are paused to a household account, without the environment's name", async () => {
+    const { notice, why } = await open(["browse", "request"]);
+    expect(notice).toBe("Downloads are paused.");
+    expect(why).toBe("Downloads are paused");
+    cleanup();
+  });
+
+  it("keeps the environment's name for an admin", async () => {
+    const { notice, why } = await open(["admin", "manage_requests"]);
+    expect(notice).toContain("Paused by the environment (THEATARR_FORCE_OFF)");
+    expect(why).toContain("THEATARR_FORCE_OFF");
+    cleanup();
+  });
+});

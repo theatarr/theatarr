@@ -6,7 +6,7 @@ import { Link } from "react-router";
 import { Badge } from "@/components/ui/badge";
 import { closedGates, globalDownloadsOff, linksOff, PAUSE_STOPS, stateWords, verdict, type VersionGrabState } from "@/lib/version-grab";
 
-export function VersionStatus({ state, words = false, settingsKey, canManage = false, why = true, quiet = false }: {
+export function VersionStatus({ state, words = false, settingsKey, canManage = false, why = true, quiet = false, household = false }: {
   state?: VersionGrabState;
   /** Settings › Libraries: one plain phrase ("Downloads held by the server") in place of the verdict. Why? stays. */
   words?: boolean;
@@ -18,6 +18,8 @@ export function VersionStatus({ state, words = false, settingsKey, canManage = f
   /** Rows and windows: nothing while downloads are on and new files are linked; the pill only when it says something
    * (Paused, Downloads off, New files won't be linked). Setup and Settings › Libraries keep the positive word. */
   quiet?: boolean;
+  /** A household account: Pause reads "Downloads are paused", with no environment name or switch to turn. */
+  household?: boolean;
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -26,7 +28,7 @@ export function VersionStatus({ state, words = false, settingsKey, canManage = f
   const hideOn = quiet && !!state && verdict(state).word === "Downloads on";
   if (!state) return words ? <Badge tone="neutral" data-testid="state-words">{stateWords(undefined).text}</Badge> : null;
   const v = verdict(state);
-  const gates = closedGates(state, settingsKey);
+  const gates = household ? closedGates(state, settingsKey).map((g) => (/^Paused/.test(g.text) ? { text: HOUSEHOLD_PAUSED } : g)) : closedGates(state, settingsKey);
   const items = gates.map((g) => (
     <li key={g.text} className="[overflow-wrap:anywhere]">
       {g.text}
@@ -80,6 +82,9 @@ export function VersionStatus({ state, words = false, settingsKey, canManage = f
   );
 }
 
+/** Pause in a household account's words: it cannot turn Pause off, and the environment is not its business. */
+const HOUSEHOLD_PAUSED = "Downloads are paused";
+
 /** Pause in words, for a notice or a disabled control's tooltip. */
 export const pausedWords = (off: "locked" | "off" | "unknown") =>
   off === "locked" ? `Paused by the environment (THEATARR_FORCE_OFF): ${PAUSE_STOPS}.` : `Paused: ${PAUSE_STOPS}.`;
@@ -100,12 +105,12 @@ export function searchOffWords(states: readonly (VersionGrabState | undefined | 
 
 /** One notice per page when Pause is on for every library (or forced by the environment), so rows show only their
  * own verdict. off comes from lib/version-grab.ts globalDownloadsOff; "unknown" when the cause is not known yet. */
-export function DownloadsOffNotice({ off, canManage = false, className }: { off?: "locked" | "off" | "unknown"; canManage?: boolean; className?: string }) {
+export function DownloadsOffNotice({ off, canManage = false, household = false, className }: { off?: "locked" | "off" | "unknown"; canManage?: boolean; household?: boolean; className?: string }) {
   if (!off) return null;
   return (
     <p role="status" data-testid="downloads-off-notice" data-forced={off === "locked" || undefined}
       className={"rounded-[5px] border border-[var(--line)] bg-[var(--sunken)] px-3 py-2 text-[13px] text-[var(--ink-2)] " + (className ?? "")}>
-      {pausedWords(off)}
+      {household ? `${HOUSEHOLD_PAUSED}.` : pausedWords(off)}
       {canManage && off !== "locked" ? " Turn Pause off at the top of the page to resume." : null}
     </p>
   );

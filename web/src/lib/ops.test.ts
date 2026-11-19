@@ -50,6 +50,8 @@ describe("recovery scopes", () => {
     expect(retryKind("importing")).toBe("import");
     expect(retryKind("downloading")).toBeNull();
     expect(retryScope("failed", "4K").blocked).toBeUndefined();
+    // Plain words, no "router".
+    expect(retryScope("failed", "4K").does).toEqual(["Try this release again for the 4K library: a new download starts when a provider takes it"]);
     expect(retryScope("ready", "4K").title).toBe("Import now");
     expect(retryScope("adding", "4K").blocked).toBe("Nothing to retry: the download is adding and still on its way");
   });
@@ -223,7 +225,7 @@ describe("recovery scopes", () => {
   it("warns before grabbing a rejected release", () => {
     const ok = grabScope({ release: "Dune.WEB", accepted: true, info_hash: "ab" }, "4K WEB");
     expect(ok.confirm).toBe("Grab");
-    expect(ok.does).toHaveLength(1);
+    expect(ok.does).toEqual(["Grab Dune.WEB for the 4K WEB library: it is added at the first provider that has it"]);
     const bad = grabScope({ release: "Dune.720p", accepted: false, info_hash: "ab", rejections: [{ reason: "q", message: "720p is not wanted" }] }, "4K WEB");
     expect(bad.title).toBe("Grab a rejected release");
     expect(bad.does[1]).toBe("Theatarr rejects it: 720p is not wanted. Grabbing overrides that");
@@ -235,7 +237,7 @@ describe("recovery scopes", () => {
   });
 
   it("asks before a grab takes a release off the library's blocklist, only after the server's 409 says so", () => {
-    expect(grabScope({ release: "Dune.WEB", accepted: true, info_hash: "ab" }, "4K WEB").keeps[0]).toBe("A blocklisted release asks first, and the router paces the add like any other");
+    expect(grabScope({ release: "Dune.WEB", accepted: true, info_hash: "ab" }, "4K WEB").keeps[0]).toBe("A blocklisted release asks first, and the add is paced like any other");
     expect(blockedRelease({ status: 409, body: { blocked: { library: "4K WEB", reason: "Stalled at RD." } } })).toEqual({ library: "4K WEB", reason: "Stalled at RD." });
     expect(blockedRelease({ status: 409, detail: ["720p is not wanted"] })).toBeUndefined();
     const s = unblockGrabScope({ library: "4K WEB", reason: "Stalled at RD." }, "Grab");
