@@ -306,14 +306,7 @@ func searchRequests(ctx context.Context, eng searchEngine, svc *indexer.Service,
 			var d *decide.Decision
 			var err error
 			if tt.Kind == policy.KindSeries {
-				// Under each criterion an engine error is the release's rejection, so another criterion can
-				// still decide it.
-				perRelease := func(ctx context.Context, r decide.Release, tt decide.Title, v decide.Version,
-					c *decide.SeriesSearch) (*decide.Decision, error) {
-					d, err := eng.DecideSearch(ctx, r, tt, v, c)
-					return releaseError(ctx, d, err, r.Release, tt, v)
-				}
-				d, err = decideBest(ctx, perRelease, rel, tt, target.Version, crits[i], target.Series)
+				d, err = searchDecideBest(ctx, eng, rel, tt, target.Version, crits[i], target.Series)
 			} else {
 				d, err = eng.Decide(decide.WithSearch(ctx), decide.Release{Release: rel}, tt, target.Version, target.Existing)
 				d, err = releaseError(ctx, d, err, rel, tt, target.Version)
@@ -435,6 +428,35 @@ func decideBest(ctx context.Context, decideFn DecideSeriesFunc, rel indexer.Rele
 		if len(best.Rejections) == 0 {
 			break
 		}
+	}
+	return best, nil
+}
+
+// searchDecideBest is decideBest for a batch search: a criterion the engine returns an error for is passed over, so
+// the best decision of the others stands; the error is the release's rejection only when every criterion errored.
+func searchDecideBest(ctx context.Context, eng searchEngine, rel indexer.Release, t decide.Title, v decide.Version,
+	criteria []*decide.SeriesSearch, fallback *decide.SeriesSearch) (*decide.Decision, error) {
+	if len(criteria) == 0 {
+		criteria = []*decide.SeriesSearch{fallback}
+	}
+	var best, failed *decide.Decision
+	for _, c := range criteria {
+		d, err := eng.DecideSearch(ctx, decide.Release{Release: rel}, t, v, c)
+		if err != nil {
+			if failed, err = releaseError(ctx, nil, err, rel, t, v); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if best == nil || len(d.Rejections) < len(best.Rejections) {
+			best = d
+		}
+		if len(best.Rejections) == 0 {
+			break
+		}
+	}
+	if best == nil {
+		return failed, nil
 	}
 	return best, nil
 }

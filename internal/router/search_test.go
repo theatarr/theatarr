@@ -337,22 +337,18 @@ func TestSearchReleaseErrorIsItsRejection(t *testing.T) {
 		t.Errorf("cancelled search: %v", err)
 	}
 
-	// A series release: an error under its first criterion leaves the second criterion's decision.
+	// A series release: an error under its first criterion leaves the second criterion's decision, even a rejection
+	// with two reasons; only when every criterion errored is the error the release's rejection.
 	c1, c2 := &decide.SeriesSearch{Season: 1}, &decide.SeriesSearch{Season: 1, Episode: 1}
-	ok := &decide.Decision{Release: "Show.S01E01", Accepted: true}
+	rejected := &decide.Decision{Release: "Show.S01E01", Rejections: []decide.Rejection{{Reason: "A"}, {Reason: "B"}}}
 	fe := &failingEngine{Engine: eng, fail: func(_ decide.Release, s *decide.SeriesSearch) bool { return s == c1 },
-		series: ok}
-	perRelease := func(ctx context.Context, r decide.Release, tt decide.Title, v decide.Version,
-		c *decide.SeriesSearch) (*decide.Decision, error) {
-		d, err := fe.DecideSearch(ctx, r, tt, v, c)
-		return releaseError(ctx, d, err, r.Release, tt, v)
-	}
+		series: rejected}
 	rel := indexer.Release{Title: "Show.S01E01", Indexer: "one"}
-	if d, err := decideBest(context.Background(), perRelease, rel, title, targets[0].Version, []*decide.SeriesSearch{c1, c2}, nil); err != nil || d != ok {
+	if d, err := searchDecideBest(context.Background(), fe, rel, title, targets[0].Version, []*decide.SeriesSearch{c1, c2}, nil); err != nil || d != rejected {
 		t.Errorf("criteria: %+v %v", d, err)
 	}
-	d, err := decideBest(context.Background(), perRelease, rel, title, targets[0].Version, []*decide.SeriesSearch{c1}, nil)
-	if err != nil || d.Accepted || len(d.Rejections) != 1 || d.Release != "Show.S01E01" || d.Version != "web-a" {
+	d, err := searchDecideBest(context.Background(), fe, rel, title, targets[0].Version, []*decide.SeriesSearch{c1}, nil)
+	if err != nil || d.Accepted || !undecided(d) || d.Release != "Show.S01E01" || d.Version != "web-a" {
 		t.Errorf("only an erroring criterion: %+v %v", d, err)
 	}
 }
