@@ -472,7 +472,8 @@ func (w *Web) numbering(ctx context.Context, maps map[string]AnimeMapping, eps m
 }
 
 // animePlaylists are the stored playlists (one franchise's with their plans). Without see_files a plan keeps the
-// watch order but not the files (e2esec 7): each item's path, file source and Plex rating key are left out.
+// watch order but not the files (e2esec 7): each item's path, file source and Plex rating key are left out, and so
+// are the playlist's own rating key and diagnostic detail.
 func (w *Web) animePlaylists(ctx context.Context, slug string, seeFiles bool) ([]AnimePlaylist, error) {
 	q := `SELECT franchise, order_kind, route, name, rating_key, items, plan, mode, detail, synced_at, updated_at
 		FROM plex_playlist`
@@ -505,6 +506,10 @@ func (w *Web) animePlaylists(ctx context.Context, slug string, seeFiles bool) ([
 			if !seeFiles {
 				p.Plan = planWithoutFiles(plan)
 			}
+		}
+		// The playlist's own Plex rating key and its diagnostic detail are file details too.
+		if !seeFiles {
+			p.RatingKey, p.Detail = "", ""
 		}
 		if synced.Valid {
 			t := ts(synced.Int64)
@@ -839,11 +844,22 @@ func reviewState(r *http.Request) (string, error) {
 	return "", errors.New("state must be open, accepted, rejected, superseded or all")
 }
 
+// withoutBuildNotes strips what only an admin acts on from a franchise: its build job (with the error), the next
+// automatic refresh, a held refresh and the open review count.
+func withoutBuildNotes(f *AnimeFranchise) {
+	f.Job, f.NextRefresh, f.Pending, f.OpenReview = nil, nil, false, 0
+}
+
 func (w *Web) apiAnimeFranchises(rw http.ResponseWriter, r *http.Request) {
 	fs, err := w.listFranchises(r.Context())
 	if err != nil {
 		w.internal(rw, err)
 		return
+	}
+	if !w.permsOf(r).Admin {
+		for i := range fs {
+			withoutBuildNotes(&fs[i])
+		}
 	}
 	writeJSON(rw, http.StatusOK, map[string]any{"items": fs})
 }
@@ -857,6 +873,9 @@ func (w *Web) apiAnimeFranchise(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.internal(rw, err)
 		return
+	}
+	if !w.permsOf(r).Admin {
+		withoutBuildNotes(&d.AnimeFranchise)
 	}
 	writeJSON(rw, http.StatusOK, d)
 }

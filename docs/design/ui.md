@@ -39,7 +39,7 @@ Marks: **U** user-facing (the library app), **A** admin panel.
 | `GET events` (SSE) | `jobs`, `gateway` and the user events (§6) | A | |
 | `POST auth/login`, `auth/logout`, `GET auth/me` | session login, who am I (with role and permissions) + CSRF | U | |
 | `GET/POST keys`, `DELETE keys/{id}` | API keys | A | per user (§3) |
-| `GET anime/franchises`, `franchises/{slug}`, `review`, `review/{id}/snippet`, `POST review/{id}/accept|reject`, `GET anime/playlists` | anime metadata | A (review), U (franchise orders, playlists) | A playlist plan's items keep their order for every browsing account; their file `path`, `from` and `rating_key` need see_files (`TestAnimePlaylistPlanHidesFilesWithoutSeeFiles`) |
+| `GET anime/franchises`, `franchises/{slug}`, `review`, `review/{id}/snippet`, `POST review/{id}/accept|reject`, `GET anime/playlists` | anime metadata | A (review), U (franchise orders, playlists) | A playlist plan's items keep their order for every browsing account; their file `path`, `from` and `rating_key`, and the playlist's own `rating_key` and `detail`, need see_files; a franchise's `job`, `next_refresh`, `pending` and `open_review` are for admins (`TestAnimePlaylistPlanHidesFilesWithoutSeeFiles`) |
 | `POST decide`, `POST import` | native decision and import for devices (`internal/arrview/nativeapi`) | A | API only; a "Test a release" box in Admin uses `decide` |
 
 ### arr views (`internal/arrview`, mounted at `/radarr`, `/sonarr`, `/v/<version>/{radarr|sonarr}`)

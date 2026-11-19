@@ -49,4 +49,35 @@ func TestAnimePlaylistPlanHidesFilesWithoutSeeFiles(t *testing.T) {
 			t.Errorf("%s: admin lost the file path: %s", path, body)
 		}
 	}
+
+	// The playlist's own Plex rating key and its diagnostic detail need see_files; a franchise's build job (with its
+	// error), refresh time and review counts are for admins. The watch order stays for everyone.
+	e.exec(`UPDATE plex_playlist SET rating_key = '88', mode = 'failed', detail = 'plex said: secret-diagnostic'`)
+	e.exec(`INSERT INTO job (kind, payload, state, run_at, last_error, created_at, updated_at)
+		VALUES ('anime_build', '{"slug":"mushoku-tensei"}', 'failed', 0, 'build-error-text', 0, 0)`)
+	for _, path := range []string{APIBase + "/anime/playlists?franchise=mushoku-tensei",
+		APIBase + "/anime/franchises/mushoku-tensei", APIBase + "/anime/franchises"} {
+		body := get(auth.RoleUser, path)
+		for _, hidden := range []string{`"rating_key":"88"`, "secret-diagnostic", "build-error-text", `"job":{`} {
+			if strings.Contains(body, hidden) {
+				t.Errorf("%s: %s shown to a household account: %s", path, hidden, body)
+			}
+		}
+		if strings.Contains(path, "playlists") && !strings.Contains(body, `"title":"Episode"`) {
+			t.Errorf("%s: order lost: %s", path, body)
+		}
+		admin := get(auth.RoleAdmin, path)
+		want := []string{"build-error-text"}
+		if !strings.HasSuffix(path, "/anime/franchises") {
+			want = append(want, `"rating_key":"88"`, "secret-diagnostic")
+		}
+		if strings.Contains(path, "playlists") {
+			want = []string{`"rating_key":"88"`, "secret-diagnostic"}
+		}
+		for _, shown := range want {
+			if !strings.Contains(admin, shown) {
+				t.Errorf("%s: admin lost %s: %s", path, shown, admin)
+			}
+		}
+	}
 }
