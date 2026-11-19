@@ -167,6 +167,33 @@ func TestImportMixedPackSpecialsDailyScene(t *testing.T) {
 	}
 }
 
+// A series file under an extras folder (or named as one) is a candidate only for specials: a featurette named for a
+// regular episode never takes it, however large.
+func TestImportSeriesExtraTakesOnlySpecials(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	rel := "Show.S01.2160p.WEB-DL.DDP5.1.H.265-GRP"
+	e.release(rel, map[string]float64{
+		"Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv":            2700,
+		"Show.S01E02.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv":            2700,
+		"Featurettes/Show.S01E01.Inside.The.Episode.2160p.WEB.mkv": 2700,
+		"Show.S01E02.Recap-featurette.mkv":                         2700})
+	for _, n := range []string{"Featurettes/Show.S01E01.Inside.The.Episode.2160p.WEB.mkv", "Show.S01E02.Recap-featurette.mkv"} {
+		if err := os.WriteFile(filepath.Join(e.mount, "__all__", rel, n), make([]byte, 64), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	e.seriesDownload(1, 2, 20, hashA, rel, "[201, 202]", nil)
+	plan, err := e.lib.Import(e.ctx, 1, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := e.links(plan)
+	if len(plan.Links) != 2 || strings.Contains(got, "Inside") || strings.Contains(got, "Recap") {
+		t.Errorf("links\n%s", got)
+	}
+}
+
 // TestImportManualFiles: a client's explicit choice imports only the chosen files, each with the chosen episodes,
 // even against the file's name; a path import of one file in a pack imports that file only.
 func TestImportManualFiles(t *testing.T) {

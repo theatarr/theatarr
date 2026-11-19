@@ -44,10 +44,11 @@ import (
 //     the entry's. Episodes no such file holds stay, and the release title is not decided again, so a pack the router
 //     narrowed is not widened and a file named for another entry moves nothing.
 //
-// A file that cannot pass the import guards (a sample) moves nothing. A download with no stored entry is never
-// re-scoped. And when a new episode already has a file of the version (a link or a dead link) the
-// download is not re-scoped at all: its files are held as out of scope instead of replacing a file the grab did not
-// cover. The stored mapping is kept: a later accept re-links the imported files through it (animerelink.go).
+// A file that cannot pass the import guards (a sample), or an extra mapped to a regular episode, moves nothing. A
+// download with no stored entry is never re-scoped. And when a new episode already has a file of the version (a link
+// or a dead link) the download is not re-scoped at all: its files are held as out of scope instead of replacing a file
+// the grab did not cover. The stored mapping is kept: a later accept re-links the imported files through it
+// (animerelink.go).
 func (l *Library) rescope(ctx context.Context, d *importDownload, files []PlannedFile, guard func(PlannedFile, []episodeInfo) string) error {
 	v := &d.Version
 	m := d.EpisodeMap
@@ -94,7 +95,7 @@ func (l *Library) rescope(ctx context.Context, d *importDownload, files []Planne
 		for _, id := range res.EpisodeIDs {
 			eps = append(eps, byID[id])
 		}
-		return res, guard(f, eps) == ""
+		return res, !extraForRegular(f.Rel, eps) && guard(f, eps) == ""
 	}
 	scope := map[int64]bool{}
 	for _, e := range v.Episodes {

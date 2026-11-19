@@ -200,8 +200,9 @@ func TestImportMovie(t *testing.T) {
 	if err != nil || target != filepath.Join(e.mount, "__all__", movieRelease, "movie.mkv") {
 		t.Fatalf("link: %q %v", target, err)
 	}
-	if len(plan.Rejected) != 1 || !strings.Contains(plan.Rejected[0].Reason, "sample") {
-		t.Errorf("sample not rejected: %+v", plan.Rejected)
+	// The feature passed the guards first (largest first): the smaller sample is listed, not read, not rejected.
+	if len(plan.Rejected) != 0 || len(plan.Files) != 2 || plan.Files[1].Rel != "sample.mkv" || plan.Files[1].Probe != nil {
+		t.Errorf("sample read or rejected: files %+v rejected %+v", plan.Files, plan.Rejected)
 	}
 	if got := e.one(`SELECT state FROM download WHERE id = 1`); got != "imported" {
 		t.Errorf("download state %s", got)
@@ -422,6 +423,92 @@ func TestSampleGuardRejects(t *testing.T) {
 	f.Probe.Video.Width, f.Probe.Video.Height = 3840, 1600 // scope 2160p
 	if r := sampleCheck(0.5, true, "movie", 120, false, f, 2160); r != "" {
 		t.Errorf("scope film rejected: %q", r)
+	}
+}
+
+// Movie extras (a Featurettes folder, a -trailer file) are neither candidates nor probed: the feature imports, and with
+// the feature held the import ends "not an upgrade" with no blocklist row. A release of nothing but extras still
+// reads its files.
+func TestImportMovieSkipsExtras(t *testing.T) {
+	t.Parallel()
+	for _, held := range []bool{false, true} {
+		e := importUpEnv(t, "")
+		rel := movieRelease
+		if held {
+			rel = "Amelie.2001.1080p.WEB-DL.DDP5.1.H.264-GRP"
+			p := filepath.Join(e.movies, "Amelie The Movie (2001)", "held.mkv")
+			if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink("/held.mkv", p); err != nil {
+				t.Fatal(err)
+			}
+			e.exec(`INSERT INTO link (id, path, target, kind, title_id, release_title, quality, state, created_at, updated_at)
+				VALUES (1, ?, '/held.mkv', 'symlink', 1, 'Amelie.2001.held-OLD', 'Remux-2160p', 'active', 0, 0)`, p)
+			e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (1, 10)`)
+		}
+		e.release(rel, map[string]float64{"movie.mkv": 7000, "Featurettes/Making.Of.mkv": 1500,
+			"Amelie-trailer.mkv": 150, "Behind The Scenes/b-roll.mkv": 600})
+		if held {
+			e.videoSize(rel, 1920, 1080)
+		}
+		// The feature is the largest file.
+		if err := os.WriteFile(filepath.Join(e.mount, "__all__", rel, "movie.mkv"), make([]byte, 64), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		var probed []string
+		inner := e.lib.probe
+		e.lib.probe = func(p string, n int64) (*probe.Result, error) {
+			probed = append(probed, filepath.Base(p))
+			return inner(p, n)
+		}
+		e.download(1, "movie-remux", 1, 10, rel, rel, "[]")
+		if held {
+			e.exec(`UPDATE download SET quality = 'WEBDL-1080p' WHERE id = 1`)
+		}
+		plan, err := e.lib.Import(e.ctx, 1, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Join(probed, ",") != "movie.mkv" {
+			t.Errorf("held %v: probed %v, want the feature only", held, probed)
+		}
+		if got := e.one(`SELECT COUNT(*) FROM router_blocklist`); got != "0" {
+			t.Errorf("held %v: blocklist rows %s", held, got)
+		}
+		if !held {
+			if len(plan.Links) != 1 || plan.Links[0].File != "movie.mkv" || len(plan.Rejected) != 0 {
+				t.Errorf("links %+v rejected %+v", plan.Links, plan.Rejected)
+			}
+			continue
+		}
+		if len(plan.Links) != 0 || plan.Why != "not an upgrade for the existing files" || len(plan.Rejected) != 1 {
+			t.Errorf("held: links %+v why %q rejected %+v", plan.Links, plan.Why, plan.Rejected)
+		}
+	}
+	// Nothing but extras: read and judged as before (here a short trailer fails the guard).
+	e := newEnv(t, true)
+	e.release(movieRelease, map[string]float64{"Trailers/teaser.mkv": 150, "Amelie-trailer.mkv": 150})
+	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
+	plan, err := e.lib.Import(e.ctx, 1, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Rejected) != 2 || plan.Why != "no file passed the sample guard" {
+		t.Errorf("extras only: rejected %+v why %q", plan.Rejected, plan.Why)
+	}
+}
+
+func TestIsExtraFile(t *testing.T) {
+	t.Parallel()
+	for rel, want := range map[string]bool{
+		"Featurettes/a.mkv": true, "Disc 1/BEHIND THE SCENES/a.mkv": true, "Samples/a.mkv": true, "sample/a.mkv": true,
+		"Movie-trailer.mkv": true, "Movie-behindthescenes.mp4": true, "Movie.mkv": false, "Other Cut/Movie.mkv": false,
+		"Show.S01E01.2160p.WEB-DL-OTHER.mkv": false, "Show.S01E01.1080p-SCENE.mkv": false, "Movie.sample.mkv": false,
+	} {
+		if got := isExtraFile(rel); got != want {
+			t.Errorf("%s: %v, want %v", rel, got, want)
+		}
 	}
 }
 

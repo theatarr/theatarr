@@ -50,7 +50,8 @@ func (l *Library) fileFacts(d *importDownload, plan *Plan, f *PlannedFile, episo
 }
 
 // nonSamples counts the release's video files that the arrs' DetectSample does not take for samples (the
-// title's runtime; an unprobed file counts), as ImportDecisionMaker's nonSampleVideoFileCount.
+// title's runtime; an unprobed file counts, but not a film's file the import left unread: an extra, or one smaller
+// than the feature it found, as a sample would be), as ImportDecisionMaker's nonSampleVideoFileCount.
 func nonSamples(plan *Plan, t titleInfo) int {
 	expected := t.Runtime
 	if t.Kind != "movie" && expected == 0 {
@@ -58,7 +59,7 @@ func nonSamples(plan *Plan, t titleInfo) int {
 	}
 	n := 0
 	for _, f := range plan.Files {
-		if f.Probe == nil || f.Probe.RunTimeSeconds >= float64(arrMinimumRuntime(expected)) {
+		if !f.unread && (f.Probe == nil || f.Probe.RunTimeSeconds >= float64(arrMinimumRuntime(expected))) {
 			n++
 		}
 	}

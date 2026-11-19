@@ -271,6 +271,18 @@ mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
    by width). An unreadable file is indeterminate and passes, as in the arrs. Then the **mislabel guard** ("Mislabel
    guard" below) on a file that passed: a probe that plainly contradicts the file's Remux or 2160p label.
 
+   **Extras** (`isExtraFile`): a file below a folder named `extras`, `featurettes`, `behind the scenes`,
+   `deleted scenes`, `interviews`, `scenes`, `sample`, `samples`, `shorts`, `trailers` or `other` (any depth,
+   case-insensitive), or whose name ends in `-trailer`, `-sample`, `-featurette`, `-behindthescenes`, `-deleted`,
+   `-interview`, `-scene`, `-short` or `-other` (lower case only: a release group `-OTHER` is no extra), as the arrs'
+   `DiskScanService` leaves them out. A film's automatic import reads its files largest first and stops at the first
+   that passes both guards: smaller files are not probed and leave no rejection, and an extra is not read while the
+   release has another video file (never the largest file; a release of nothing but extras is judged as before). A
+   series extra is a candidate only when every episode it maps to is a special (`TestImportMixedPackSpecialsDailyScene`
+   keeps its Extras special); mapped to a regular episode it stays unmatched, in `rescope` too. Discovery lists every
+   file, so a client's explicit files, Manual import's list and relink still see them all (`TestImportMovieSkipsExtras`,
+   `TestImportSeriesExtraTakesOnlySpecials`).
+
    **Mislabel guard** (`internal/library/mislabel.go`, `sample.mislabel`, default true). Remux ranks over Bluray, so a
    re-encode named "BDRemux" (an x265 fan cut) would replace a real 2160p TrueHD Bluray. The label is the file name's
    quality (without its extension), else the release title's: a `1080p.WEB-DL` file in a `2160p REMUX` pack is judged
@@ -359,7 +371,9 @@ mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
    `not_upgrade: true` and the reason (the journal, ManualImport previews and dry-run `reject` actions show it like a
    guard rejection). Files for missing episodes and true upgrades are linked; a download with at least one link is
    imported. When nothing qualifies, the download ends as the arrs' "not an upgrade" import: `rejected` in
-   `library_import`, held ready with `not an upgrade for the existing files`, without a blocklist or re-search.
+   `library_import`, held ready with `not an upgrade for the existing files`, without a blocklist or re-search. One
+   not-upgrade file is enough: a sample or other guard refusal beside it does not turn the result into a failure
+   (`TestImportNotUpgradeWinsOverSample`).
    Not checked: a link already pointing at the same mount file (a retry
    or repeat of the import), a client's explicit files (manual import: the arrs' `ManualImport` executes its choices
    without the import specifications), an existing file with no known quality (replaced), and a library

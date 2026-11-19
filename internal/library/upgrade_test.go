@@ -442,10 +442,10 @@ func TestImportUpgradeSplitMultiEpisode(t *testing.T) {
 				}
 			}
 			wantState, wantTrash, wantLinks, wantDownload := "active", "0", "1", "ready"
+			// E02 sample: E01 is a not-upgrade, so the download ends "not an upgrade" and stays (one not-upgrade file
+			// decides; before phase Z the sample failed and blocklisted it).
 			if tc.replaces {
 				wantState, wantTrash, wantLinks, wantDownload = "unlinked", "1", "2", "imported"
-			} else if tc.name == "E02 sample" {
-				wantDownload = "failed"
 			}
 			if got := e.one(`SELECT state FROM link WHERE id = 1`); got != wantState {
 				t.Errorf("old link %s, want %s", got, wantState)
@@ -743,5 +743,29 @@ func TestImportLongSeasonNamedExtraNeverLinks(t *testing.T) {
 	}
 	if !slices.Contains(plan.Unmatched, "Show.S01.Making.Of.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv") {
 		t.Errorf("unmatched %v", plan.Unmatched)
+	}
+}
+
+// "Not an upgrade" wins when any file of the release is a not-upgrade, not only when all are: a pack whose
+// episodes are held and whose one other file is a sample is not blocklisted.
+func TestImportNotUpgradeWinsOverSample(t *testing.T) {
+	t.Parallel()
+	e := importUpEnv(t, "")
+	e.heldLink(1, "Bluray-2160p Remux", "Show.S01E01.2160p.BluRay.REMUX.HEVC-OLD", 201)
+	e.heldLink(2, "Bluray-2160p Remux", "Show.S01E02.2160p.BluRay.REMUX.HEVC-OLD", 202)
+	e.release(packRelease, map[string]float64{
+		"Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2700, "Show.S01E02.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2700,
+		"Show.S01E03.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 60})
+	e.seriesDownload(1, 2, 20, hashA, packRelease, "[201, 202, 203]", nil)
+	e.exec(`UPDATE download SET quality = 'WEBDL-2160p' WHERE id = 1`)
+	plan, err := e.lib.Import(e.ctx, 1, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Links) != 0 || plan.Why != "not an upgrade for the existing files" {
+		t.Errorf("links %+v why %q", plan.Links, plan.Why)
+	}
+	if got := e.one(`SELECT COUNT(*) FROM router_blocklist`) + "/" + e.one(`SELECT state FROM download WHERE id = 1`); got != "0/ready" {
+		t.Errorf("blocklist rows/download state %s", got)
 	}
 }

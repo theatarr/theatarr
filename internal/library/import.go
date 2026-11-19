@@ -72,6 +72,8 @@ type PlannedFile struct {
 	// Episodes are the episodes (S01E02) of a series file the guard refused: in a pack whose other files link, they
 	// stay wanted and the journal names them.
 	Episodes []string `json:"episodes,omitempty"`
+	// unread marks a film's file the automatic import left unread: an extra, or one smaller than the feature found.
+	unread bool
 }
 
 // ZurgFileCheck is what zurg's API said about a release file. Confirmed: the download's hash, and the size the
@@ -536,7 +538,13 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 	// 2. Probe and guard.
 	resolution := releaseResolution(d.ReleaseTitle, v.Title.Kind)
 	labels := claimOf(d.ReleaseTitle, v.Title.Kind)
-	for _, f := range files {
+	// A film's automatic import reads its files largest first and stops at the first that passes the sample and
+	// mislabel guards. Extras (isExtraFile) are not read while the release has another video file, and never the
+	// largest file: a release of nothing but extras is judged as before. A client's explicit files are all read.
+	movieAuto := v.Title.Kind == "movie" && len(d.Manual) == 0
+	plain := movieAuto && slices.ContainsFunc(files, func(f MountFile) bool { return !isExtraFile(f.Rel) })
+	featured := false
+	for i, f := range files {
 		// Probing a large pack can outlast the claim: it is renewed as the files are read.
 		if !dryRun {
 			if err := l.renewClaim(ctx, d); err != nil {
@@ -544,6 +552,11 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 			}
 		}
 		pf := PlannedFile{Path: f.Path, Rel: f.Rel, Size: f.Size}
+		if featured || (plain && i > 0 && isExtraFile(f.Rel)) {
+			pf.unread = true // listed (manual import shows it), neither read nor a candidate
+			plan.Files = append(plan.Files, pf)
+			continue
+		}
 		if zurgCheck {
 			if e, ok := l.zurgConfirm(ctx, d.InfoHash, filepath.Base(folder), f.Rel); e != nil {
 				pf.Zurg = &ZurgFileCheck{Hash: e.Hash, Size: e.Size, Confirmed: ok && e.Size == f.Size}
@@ -584,6 +597,10 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 		} else {
 			pf.Probe = res
 		}
+		if movieAuto && sampleCheck(l.set.MinRuntimeRatio, l.set.Resolution, "movie", v.Title.Runtime, false, &pf, resolution) == "" &&
+			l.mislabel(d, labels, &pf) == "" {
+			featured = true
+		}
 		plan.Files = append(plan.Files, pf)
 	}
 
@@ -619,8 +636,9 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 		switch {
 		case len(plan.Rejected) == 0:
 			reason = "no file matched the download's episodes"
-		case allNotUpgrades(plan.Rejected):
-			// Sonarr's and Radarr's "Not an upgrade" import: nothing is linked and the release is not taken again.
+		case anyNotUpgrade(plan.Rejected):
+			// Sonarr's and Radarr's "Not an upgrade" import: nothing is linked and the release is not taken again. One
+			// such file is enough: a sample or extra beside held episodes is no verdict on the release.
 			reason = "not an upgrade for the existing files"
 		}
 		if why := firstCollision(plan.Rejected); why != "" {
@@ -1152,6 +1170,9 @@ func (l *Library) planMovie(ctx context.Context, d *importDownload, vn *VersionN
 	var pick *PlannedFile
 	for i := range plan.Files {
 		f := &plan.Files[i]
+		if f.unread {
+			continue
+		}
 		reason := sampleCheck(l.set.MinRuntimeRatio, l.set.Resolution, "movie", v.Title.Runtime, false, f, resolution)
 		if reason == "" {
 			reason = l.mislabel(d, labels, f)
@@ -1264,14 +1285,9 @@ func (l *Library) skipCollision(d *importDownload, plan *Plan, f *PlannedFile, p
 		"path", path, "reason", why)
 }
 
-// allNotUpgrades: every rejected file was skipped by the upgrade check.
-func allNotUpgrades(files []PlannedFile) bool {
-	for _, f := range files {
-		if !f.NotUpgrade {
-			return false
-		}
-	}
-	return len(files) > 0
+// anyNotUpgrade: a rejected file was skipped by the upgrade check.
+func anyNotUpgrade(files []PlannedFile) bool {
+	return slices.ContainsFunc(files, func(f PlannedFile) bool { return f.NotUpgrade })
 }
 
 // skipNotUpgrade records a file the upgrade check refused, like a guard rejection.
@@ -1371,7 +1387,7 @@ func (l *Library) planSeries(ctx context.Context, d *importDownload, vn *Version
 				}
 			}
 		}
-		if len(eps) == 0 {
+		if len(eps) == 0 || (how != HowManual && extraForRegular(f.Rel, eps)) {
 			plan.Unmatched = append(plan.Unmatched, f.Rel)
 			continue
 		}
@@ -1445,6 +1461,35 @@ func (l *Library) planSeries(ctx context.Context, d *importDownload, vn *Version
 	}
 	planDeadReplacements(plan, dead)
 	return nil
+}
+
+// extraFolders and extraSuffixes name the extras the arrs' scans leave out (Radarr's and Sonarr's DiskScanService
+// exclusions; the Plex local-extras file suffixes). Folders compare case-insensitively; a suffix only in lower case,
+// so a release group named OTHER, SCENE or SHORT at the end of an episode's name is not taken for one.
+var (
+	extraFolders = []string{"extras", "featurettes", "behind the scenes", "deleted scenes", "interviews", "scenes",
+		"sample", "samples", "shorts", "trailers", "other"}
+	extraSuffixes = []string{"-trailer", "-sample", "-featurette", "-behindthescenes", "-deleted", "-interview",
+		"-scene", "-short", "-other"}
+)
+
+// isExtraFile says a file of a release (rel: its path inside the release folder) is an extra: below a folder named as
+// one, or with an extra's suffix on its name.
+func isExtraFile(rel string) bool {
+	dir := filepath.Dir(rel)
+	for dir != "." && dir != string(filepath.Separator) && dir != "" {
+		if slices.Contains(extraFolders, strings.ToLower(filepath.Base(dir))) {
+			return true
+		}
+		dir = filepath.Dir(dir)
+	}
+	stem := strings.TrimSuffix(filepath.Base(rel), filepath.Ext(rel))
+	return slices.ContainsFunc(extraSuffixes, func(x string) bool { return strings.HasSuffix(stem, x) })
+}
+
+// extraForRegular says an extra (isExtraFile) maps to a regular episode: it is a candidate only for specials.
+func extraForRegular(rel string, eps []episodeInfo) bool {
+	return isExtraFile(rel) && slices.ContainsFunc(eps, func(e episodeInfo) bool { return e.Season != 0 })
 }
 
 func overlaps(a, b []int64) bool {
