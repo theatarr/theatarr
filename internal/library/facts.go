@@ -4,6 +4,7 @@ import (
 	"context"
 	"path"
 	"path/filepath"
+	"regexp"
 	"slices"
 
 	"github.com/theatarr/theatarr/internal/decide"
@@ -49,9 +50,13 @@ func (l *Library) fileFacts(d *importDownload, plan *Plan, f *PlannedFile, episo
 	return facts, err
 }
 
+// sampleNameRE is a file named as a sample ("sample.mkv", "Movie.2001.sample.mkv"), which the extras' "-sample"
+// suffix misses.
+var sampleNameRE = regexp.MustCompile(`(?i)(?:^|[ ._-])sample[ ._-]`)
+
 // nonSamples counts the release's video files that the arrs' DetectSample does not take for samples (the
-// title's runtime; an unprobed file counts, but not a film's file the import left unread: an extra, or one smaller
-// than the feature it found, as a sample would be), as ImportDecisionMaker's nonSampleVideoFileCount.
+// title's runtime; an unprobed file counts, and so does a film's file the import left unread unless its name says it
+// is an extra or a sample: another cut is another video), as ImportDecisionMaker's nonSampleVideoFileCount.
 func nonSamples(plan *Plan, t titleInfo) int {
 	expected := t.Runtime
 	if t.Kind != "movie" && expected == 0 {
@@ -59,7 +64,10 @@ func nonSamples(plan *Plan, t titleInfo) int {
 	}
 	n := 0
 	for _, f := range plan.Files {
-		if !f.unread && (f.Probe == nil || f.Probe.RunTimeSeconds >= float64(arrMinimumRuntime(expected))) {
+		if f.unread && (isExtraFile(f.Rel) || sampleNameRE.MatchString(filepath.Base(f.Rel))) {
+			continue
+		}
+		if f.Probe == nil || f.Probe.RunTimeSeconds >= float64(arrMinimumRuntime(expected)) {
 			n++
 		}
 	}

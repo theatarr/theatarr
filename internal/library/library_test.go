@@ -499,6 +499,28 @@ func TestImportMovieSkipsExtras(t *testing.T) {
 	}
 }
 
+// A film release with two full-length cuts: the smaller cut is not read once the larger passes, but it is still
+// another video file, so the chosen cut keeps its own scene name ({Original Title}) instead of the release title.
+func TestImportMovieOtherCutUnreadKeepsSceneName(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.pol.Versions["movie-remux"].Naming.File = "{Original Title}"
+	theatrical := "Amelie.2001.Theatrical.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-GRP.mkv"
+	e.release(movieRelease, map[string]float64{theatrical: 7000,
+		"Amelie.2001.Directors.Cut.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-GRP.mkv": 7600})
+	if err := os.WriteFile(filepath.Join(e.mount, "__all__", movieRelease, theatrical), make([]byte, 64), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
+	plan, err := e.lib.Import(e.ctx, 1, true)
+	if err != nil || len(plan.Links) != 1 {
+		t.Fatalf("plan %+v %v", plan, err)
+	}
+	if got := filepath.Base(plan.Links[0].Path); got != theatrical {
+		t.Errorf("named %s, want the cut's own name", got)
+	}
+}
+
 func TestIsExtraFile(t *testing.T) {
 	t.Parallel()
 	for rel, want := range map[string]bool{

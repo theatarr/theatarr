@@ -281,7 +281,10 @@ mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
    `-interview`, `-scene`, `-short` or `-other` (lower case only: a release group `-OTHER` is no extra), as the arrs'
    `DiskScanService` leaves them out. A film's automatic import reads its files largest first and stops at the first
    that passes both guards: smaller files are not probed and leave no rejection, and an extra is not read while the
-   release has another video file (never the largest file; a release of nothing but extras is judged as before). A
+   release has another video file (never the largest file; a release of nothing but extras is judged as before). Only
+   the download's own files count (decypharr's file list), so a shared folder of another torrent still waits. An
+   unread file still counts as another video for the scene name unless its name says extra or sample (another cut
+   keeps the chosen cut's own name: `TestImportMovieOtherCutUnreadKeepsSceneName`). A
    series extra is a candidate only when every episode it maps to is a special (`TestImportMixedPackSpecialsDailyScene`
    keeps its Extras special); mapped to a regular episode it stays unmatched, in `rescope` too. Discovery lists every
    file, so a client's explicit files, Manual import's list and relink still see them all (`TestImportMovieSkipsExtras`,
