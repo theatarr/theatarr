@@ -65,12 +65,13 @@ func (r *Runner) seriesCandidates(ctx context.Context) (map[int64][]seriesCandid
 type seriesIndex struct {
 	byClean map[string][]int64
 	byTVDB  map[int]int64
-	// byIMDb is the series by normalised IMDb id: the fallback for an item with no TVDB id whose name finds none.
+	// byIMDb is every catalog series by normalised IMDb id: the fallback for an item with no TVDB id whose name
+	// finds none, when the id names one series and that series is a candidate.
 	byIMDb map[string][]int64
 	loaded map[int64]decide.Title
 }
 
-func (r *Runner) seriesIndex(ctx context.Context, cands map[int64][]seriesCandidate) (*seriesIndex, error) {
+func (r *Runner) seriesIndex(ctx context.Context, cands map[int64][]seriesCandidate, all map[int64]decide.Title) (*seriesIndex, error) {
 	ix := &seriesIndex{byClean: map[string][]int64{}, byTVDB: map[int]int64{}, byIMDb: map[string][]int64{},
 		loaded: map[int64]decide.Title{}}
 	if len(cands) == 0 {
@@ -114,6 +115,8 @@ func (r *Runner) seriesIndex(ctx context.Context, cands map[int64][]seriesCandid
 		if t.TVDB > 0 {
 			ix.byTVDB[t.TVDB] = id
 		}
+	}
+	for id, t := range all {
 		if imdb := sonarr.NormalizeImdbID(t.IMDb); imdb != "" {
 			ix.byIMDb[imdb] = append(ix.byIMDb[imdb], id)
 		}
@@ -151,7 +154,9 @@ func (r *Runner) decideSeriesItem(ctx context.Context, rel, ranked indexer.Relea
 		// No TVDB id and no series by name: the item's IMDb id, when exactly one series has it (DMM sends IMDb
 		// ids, no TVDB). The decision checks the episode as usual.
 		if imdb := sonarr.NormalizeImdbID(rel.IMDb); len(ids) == 0 && rel.TVDB == 0 && imdb != "" && len(ix.byIMDb[imdb]) == 1 {
-			ids = ix.byIMDb[imdb]
+			if id := ix.byIMDb[imdb][0]; len(cands[id]) > 0 {
+				ids = []int64{id}
+			}
 		}
 	}
 	matched := false

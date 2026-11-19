@@ -50,39 +50,55 @@ func TestRSSSeriesBySceneName(t *testing.T) {
 	}
 }
 
-// An item with no TVDB id whose name finds no series is matched by its IMDb id when exactly one series has it, and
-// the decision checks the episode as usual; with two series of that IMDb id it is matched to neither.
+// An item with no TVDB id whose name finds no series is matched by its IMDb id when exactly one catalog series has
+// it (ids compared normalised: "tt100100" stored, "tt0100100" on the feed), and the decision checks the episode as
+// usual. With a second series of that IMDb id, monitored in a library or not, it is matched to neither.
 func TestRSSSeriesByIMDbFallback(t *testing.T) {
 	t.Parallel()
-	for _, shared := range []bool{false, true} {
+	for _, tc := range []struct {
+		name, imdb string
+		other      string // "": no other series; else the other series' version state
+		routed     bool
+	}{
+		{"unique", "tt1001001", "", true},
+		{"shared", "tt1001001", "monitored", false},
+		{"shared with an unmonitored series", "tt1001001", "unmonitored", false},
+		{"unpadded stored id", "tt0100100", "", true},
+	} {
 		e := newEnv(t, false)
 		e.seed(t)
 		e.seedShow(t)
-		if shared {
+		if tc.imdb == "tt0100100" {
+			e.exec(t, `UPDATE title SET imdb_id = 'tt100100' WHERE id = 5`)
+		}
+		if tc.other != "" {
 			at := store.Millis(t0)
 			e.exec(t, `INSERT INTO title (id, kind, name, sort_name, year, tvdb_id, imdb_id, monitored, series_type,
 				runtime_minutes, created_at, updated_at) VALUES (6, 'series', 'Other Show', 'other show', 2020, 1002,
 				'tt1001001', 1, 'standard', 45, ?, ?)`, at, at)
-			e.exec(t, `INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at)
-				VALUES (10, 6, 'tv', 1, 'wanted', ?, ?)`, at, at)
+			if tc.other == "monitored" {
+				e.exec(t, `INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at)
+					VALUES (10, 6, 'tv', 1, 'wanted', ?, ?)`, at, at)
+			}
 		}
 		e.prow.setRSS(item{title: "La.Serie.S01E03.2160p.WEB-DL-GRP", hash: hShowE03, size: 8e9, pub: t0, tv: true,
-			imdb: "tt1001001"})
+			imdb: tc.imdb})
 		rs, err := e.r.RSS(e.ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if shared {
+		if !tc.routed {
 			if rs.Matched != 0 || len(e.rec.reqs) != 0 {
-				t.Fatalf("shared IMDb id: rss %+v", rs)
+				t.Errorf("%s: rss %+v", tc.name, rs)
 			}
 			continue
 		}
 		if rs.Routed != 1 || len(e.rec.reqs) != 1 {
-			t.Fatalf("rss %+v", rs)
+			t.Errorf("%s: rss %+v", tc.name, rs)
+			continue
 		}
 		if req := e.rec.reqs[0]; req.Version != "tv" || len(req.Candidates[0].Episodes) != 1 {
-			t.Errorf("route %+v", req)
+			t.Errorf("%s: route %+v", tc.name, req)
 		}
 	}
 }

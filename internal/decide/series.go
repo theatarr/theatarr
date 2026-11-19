@@ -88,7 +88,11 @@ func (s *series) findByTitleInexact(title string) bool {
 
 func (s *series) byTvdb(id int) bool { return id > 0 && id == s.t.TVDB }
 
-func (s *series) byImdb(id string) bool { return strings.TrimSpace(id) != "" && id == s.t.IMDb }
+// byImdb compares normalised ids ("tt123456" and "tt0123456" are one id), as Sonarr's parser normalises them.
+func (s *series) byImdb(id string) bool {
+	n := sonarr.NormalizeImdbID(strings.TrimSpace(id))
+	return n != "" && n == sonarr.NormalizeImdbID(s.t.IMDb)
+}
 
 // ---- Scene mappings (SceneMappingService) ----
 

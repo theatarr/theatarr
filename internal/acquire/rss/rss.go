@@ -195,11 +195,11 @@ func (r *Runner) rss(ctx context.Context, sum *RSSSummary) error {
 	if err != nil {
 		return err
 	}
-	scands, _, err := r.seriesCandidates(ctx)
+	scands, allSeries, err := r.seriesCandidates(ctx)
 	if err != nil {
 		return err
 	}
-	six, err := r.seriesIndex(ctx, scands)
+	six, err := r.seriesIndex(ctx, scands, allSeries)
 	if err != nil {
 		return err
 	}

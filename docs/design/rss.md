@@ -53,7 +53,8 @@ index is reloaded all the same.
 - **Mapping:** the item's IMDb or TMDb id when the feed gives one, else the parsed title's clean title against the
   titles' names, original titles and aliases, filtered by primary or secondary year. Without a parsed year the name
   must identify one movie across the library. Series match by TVDB id, else by the title and its scene mappings, else
-  (an item with no TVDB id, as DMM's) by its IMDb id when exactly one series has it; the decision then checks the
+  (an item with no TVDB id, as DMM's) by its IMDb id when exactly one catalog series has it (ids compared normalised) and that series is
+  monitored in an RSS library; the decision then checks the
   episode as usual. The film index (shared with the decision engine, which searches with it) is reloaded at the start of every run, so a
   film added since is matched.
 - **Decided** for every monitored library of the title, including `cutoff_met`, with the library's current file.
