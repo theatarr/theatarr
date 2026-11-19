@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -111,10 +112,11 @@ func (l *Library) DanglingReport(ctx context.Context) (*DanglingSummary, error) 
 	}
 	found := map[string]DanglingRow{}
 	seen := map[string]bool{}
-	// What this scan could not check keeps its last row: the roots that could not be read and the links into folders
-	// the mount would not list.
+	// What this scan could not check keeps its last row: the roots that could not be read, the directories below them
+	// that could not be listed, and the links into folders the mount would not list.
 	failedRoot := map[string]bool{}
 	unchecked := map[string]bool{}
+	var unlisted []string // directories below a root the walk could not list
 	for _, r := range roots {
 		sum.Roots = append(sum.Roots, r.root)
 		var sc LinkScan
@@ -129,6 +131,7 @@ func (l *Library) DanglingReport(ctx context.Context) (*DanglingSummary, error) 
 			failedRoot[r.root] = true
 			continue
 		}
+		unlisted = append(unlisted, sc.unlisted...)
 		for _, ml := range links {
 			if seen[ml.path] {
 				continue
@@ -184,7 +187,9 @@ func (l *Library) DanglingReport(ctx context.Context) (*DanglingSummary, error) 
 			if _, still := found[p]; still {
 				continue
 			}
-			if unchecked[p] || (failedRoot[root] && !seen[p]) {
+			if unchecked[p] || (failedRoot[root] && !seen[p]) || slices.ContainsFunc(unlisted, func(d string) bool {
+				return policy.Within(p, d)
+			}) {
 				kept[root]++ // unchanged (first and last sighting), counted in this report
 				continue
 			}

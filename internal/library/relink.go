@@ -34,6 +34,8 @@ type LinkScan struct {
 	DryRun   bool           `json:"dry_run"`    // nothing was written
 	Refused  string         `json:"refused"`    // why the gate made it a dry run
 	Mount    string         `json:"mount_error,omitempty"`
+	// unlisted are the directories below the root the walk could not list.
+	unlisted []string
 	// Revived are dead links whose file is on the mount again: active again (or, in a dry run, would be).
 	Revived []DanglingLink `json:"revived,omitempty"`
 	// Vanished are active links whose symlink is gone (ReconcileLinks); Skipped says why the root was not checked
@@ -75,6 +77,8 @@ func (l *Library) scanRoot(ctx context.Context, root string, sc *LinkScan) ([]mo
 	var dirs, links, intoMnt, files int
 	err := walkRoot(ctx, root, func(e rootEntry) {
 		switch {
+		case e.unlisted:
+			sc.unlisted = append(sc.unlisted, e.path)
 		case e.typ.IsDir():
 			dirs++
 		case e.typ&fs.ModeSymlink != 0:

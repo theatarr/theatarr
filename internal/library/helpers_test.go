@@ -297,6 +297,47 @@ func TestDanglingReportUnreadableFolder(t *testing.T) {
 	}
 }
 
+// A directory below a root that cannot be listed keeps the rows beneath it; a fixed link in a directory that was
+// listed still leaves. Not parallel: it swaps rootOpen.
+func TestDanglingReportUnlistedDir(t *testing.T) {
+	e := newEnv(t, false)
+	e.lib = New(Options{Store: e.st, Policy: e.pol, Now: func() time.Time { return e.now }})
+	shut := filepath.Join(e.movies, "Bad (2001)")
+	links := map[string]string{
+		filepath.Join(shut, "Bad.mkv"):                     "Gone/b.mkv",
+		filepath.Join(e.movies, "Fixed (2001)", "Fix.mkv"): "Later/f.mkv",
+	}
+	for p, tg := range links {
+		os.MkdirAll(filepath.Dir(p), 0o755)
+		if err := os.Symlink(filepath.Join(e.mount, "__all__", tg), p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	e.release("Here", map[string]float64{"a.mkv": 1})
+	if sum, err := e.lib.DanglingReport(e.ctx); err != nil || sum.Dangling != 2 {
+		t.Fatalf("first report %+v %v", sum, err)
+	}
+	seen := e.now
+	e.release("Later", map[string]float64{"f.mkv": 1})
+	origOpen := rootOpen
+	rootOpen = func(p string) (*os.File, error) {
+		if p == shut {
+			return nil, os.ErrPermission
+		}
+		return origOpen(p)
+	}
+	defer func() { rootOpen = origOpen }()
+	e.now = e.now.Add(6 * time.Hour)
+	if sum, err := e.lib.DanglingReport(e.ctx); err != nil || sum.Dangling != 1 || sum.ByRoot[e.movies] != 1 {
+		t.Fatalf("report with an unlisted directory %+v %v", sum, err)
+	}
+	rows, _, _ := Dangling(e.ctx, e.st.Reader())
+	if len(rows) != 1 || !strings.HasSuffix(rows[0].Path, "Bad.mkv") || !rows[0].FirstSeen.Equal(seen) ||
+		!rows[0].LastSeen.Equal(seen) {
+		t.Errorf("rows with an unlisted directory %+v", rows)
+	}
+}
+
 // A release folder whose name starts with ".." is inside the mount: its links are listed and reported like any other.
 func TestDanglingReportDotDotFolder(t *testing.T) {
 	t.Parallel()

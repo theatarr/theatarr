@@ -66,10 +66,14 @@ type rootEntry struct {
 	typ    fs.FileMode
 	target string
 	ok     bool
+	// unlisted marks a directory below the root whose listing failed (visited again after its own entry, with
+	// type fs.ModeIrregular): what was below it is not known.
+	unlisted bool
 }
 
 // walkRoot walks root as filepath.WalkDir does (lexical order, symlinks not followed, an unreadable directory below
-// the root skipped, an unreadable root an error), calling visit for each entry below the root, with every read
+// the root skipped and visited once more as unlisted, an unreadable root an error), calling visit for each entry
+// below the root, with every read
 // bounded (rootRead). A filesystem that does not answer ends the walk with ErrRootDown; the caller drops what visit
 // saw.
 func walkRoot(ctx context.Context, root string, visit func(rootEntry)) error {
@@ -150,6 +154,9 @@ func walkDir(ctx context.Context, dir string, isRoot, strict bool, visit func(ro
 	}
 	if rerr != nil && (isRoot || strict) {
 		return rerr
+	}
+	if rerr != nil {
+		visit(rootEntry{path: dir, typ: fs.ModeIrregular, unlisted: true})
 	}
 	// A listing that failed part way still walks what it read, as WalkDir does.
 	out := make([]rootEntry, len(ents))
