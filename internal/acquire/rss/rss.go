@@ -673,7 +673,7 @@ func (r *Runner) decideItem(ctx context.Context, rel, ranked indexer.Release, ca
 // and the run goes on (Sonarr's DownloadDecisionMaker rejects such a release).
 func (r *Runner) decide(ctx context.Context, rel indexer.Release, t decide.Title, v decide.Version,
 	existing *decide.ExistingFile, sum *RSSSummary) (*decide.Decision, error) {
-	d, err := r.decideFn(ctx, decide.Release{Release: rel}, t, v, existing)
+	d, err := r.eng.Decide(ctx, decide.Release{Release: rel}, t, v, existing)
 	if err == nil {
 		return d, nil
 	}

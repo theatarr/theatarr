@@ -51,6 +51,12 @@ type Runtime struct {
 	Router     Router
 }
 
+// Decider decides a release for a version (decide.Engine; a test's can fail one release).
+type Decider interface {
+	Decide(ctx context.Context, rel decide.Release, t decide.Title, v decide.Version,
+		existing *decide.ExistingFile) (*decide.Decision, error)
+}
+
 // RuntimeSource resolves the runtime an operation captures when it starts.
 type RuntimeSource interface {
 	Resolve(context.Context, int64) (Runtime, bool)
@@ -85,12 +91,9 @@ type Router interface {
 
 // Runner holds the RSS job.
 type Runner struct {
-	st  *store.Store
-	pol *policy.Policy
-	eng *decide.Engine
-	// decideFn is the engine's Decide (a test's can fail one release).
-	decideFn func(ctx context.Context, rel decide.Release, t decide.Title, v decide.Version,
-		existing *decide.ExistingFile) (*decide.Decision, error)
+	st      *store.Store
+	pol     *policy.Policy
+	eng     Decider // the engine of the run's settings generation
 	q       *jobs.Queue
 	tasks   *tasks.Table
 	idx     *indexer.Service
@@ -121,7 +124,6 @@ func New(cfg Config) *Runner {
 		lib: &library{}, m: newMetrics(cfg.Registerer), active: map[string]bool{}, rt: cfg.Router, runtime: cfg.Runtime}
 	r.setVersions(cfg.Policy, cfg.Engine, cfg.Router)
 	if cfg.Engine != nil {
-		r.decideFn = cfg.Engine.Decide
 		cfg.Engine.SetLibrary(r.lib)
 	}
 	return r
@@ -188,7 +190,7 @@ func (r *Runner) forOperation(ctx context.Context) (*Runner, error) {
 	view.pol, view.eng, view.idx, view.budgets = snapshot.Policy, snapshot.Engine, snapshot.Indexers, snapshot.Budgets
 	view.set = snapshot.Policy.ShadowSettings()
 	view.rt = snapshot.Router
-	view.setVersions(view.pol, view.eng, view.rt)
+	view.setVersions(view.pol, snapshot.Engine, view.rt)
 	view.generation = snapshot.Generation
 	view.settingsRuntime = snapshot.Settings
 	return &view, nil

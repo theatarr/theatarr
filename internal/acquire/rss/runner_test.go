@@ -81,14 +81,7 @@ func TestRSSReleaseErrorDoesNotEndTheRun(t *testing.T) {
 	e := newEnv(t, false)
 	e.seed(t, dune, argylle, wonka, alien)
 	const wonka1080p, hWonka1080p = "Wonka.2023.1080p.WEB-DL.DDP5.1.H.264-FLUX", "7777777777777777777777777777777777777777"
-	decideFn := e.r.decideFn
-	e.r.decideFn = func(ctx context.Context, rel decide.Release, tt decide.Title, v decide.Version,
-		x *decide.ExistingFile) (*decide.Decision, error) {
-		if rel.Title == alienWebRel {
-			return nil, errors.New("adapt: aggregate languages: Remove(9, 4) on 10 characters")
-		}
-		return decideFn(ctx, rel, tt, v, x)
-	}
+	e.r.eng = failingDecider{e.eng, alienWebRel}
 	e.prow.setRSS(item{title: alienWebRel, hash: hAlienWeb, size: 20e9, pub: t0},
 		item{title: argWeb, hash: hArgWeb, size: 20e9, pub: t0.Add(-time.Minute)},
 		item{title: wonka1080p, hash: hWonka1080p, size: 6e9, pub: t0.Add(-2 * time.Minute)})
@@ -119,6 +112,20 @@ func TestRSSReleaseErrorDoesNotEndTheRun(t *testing.T) {
 	if !strings.Contains(logged, "could not be decided") {
 		t.Error("the error was not logged")
 	}
+}
+
+// failingDecider is the engine, with an error for the release named title.
+type failingDecider struct {
+	eng   *decide.Engine
+	title string
+}
+
+func (f failingDecider) Decide(ctx context.Context, rel decide.Release, t decide.Title, v decide.Version,
+	x *decide.ExistingFile) (*decide.Decision, error) {
+	if rel.Title == f.title {
+		return nil, errors.New("adapt: aggregate languages: Remove(9, 4) on 10 characters")
+	}
+	return f.eng.Decide(ctx, rel, t, v, x)
 }
 
 // A budget backing off skips its indexer.

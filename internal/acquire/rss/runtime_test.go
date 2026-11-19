@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
@@ -96,5 +97,33 @@ func TestRSSSchedulerUsesCurrentRuntimeEligibility(t *testing.T) {
 	}
 	if idle != 0 {
 		t.Fatal("RSS scheduler read after all feeds were disabled")
+	}
+}
+
+// A profile saved and assigned after start decides the next RSS run: the run decides with the engine of the
+// settings generation it resolved, not the startup engine.
+func TestRSSDecidesWithCurrentRuntimeEngine(t *testing.T) {
+	e := newEnv(t, false)
+	e.seed(t, alien)
+	current, err := e.r.pol.Clone()
+	if err != nil {
+		t.Fatal(err)
+	}
+	current.Profiles["web-1080p"] = &policy.Profile{Qualities: []policy.QualityItem{{Name: "WEBDL-1080p"}}, Cutoff: "WEBDL-1080p"}
+	current.Versions["movie-web"].Profile = "web-1080p"
+	eng, err := decide.New(current, decide.Options{Now: e.clock})
+	if err != nil {
+		t.Fatal(err)
+	}
+	eng.SetLibrary(e.eng.Library())
+	e.r.runtime = &runtimeSnapshotSource{runtime: Runtime{Generation: 2, Policy: current, Engine: eng, Indexers: e.svc,
+		Budgets: e.gw, Router: e.rec}}
+	e.prow.setRSS(item{title: alien1080p, hash: hAlienWeb, size: 8e9, pub: t0})
+	rs, err := e.r.RSS(e.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rs.Errors != 0 || len(e.rec.reqs) != 1 || e.rec.reqs[0].Version != "movie-web" {
+		t.Fatalf("rss %+v routed %+v", rs, e.rec.reqs)
 	}
 }
