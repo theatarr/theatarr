@@ -464,21 +464,21 @@ func (s *Service) seriesLookup(w http.ResponseWriter, r *request) {
 			writeJSON(w, http.StatusOK, []any{})
 			return
 		}
-		bs, err = s.briefs(ctx, `kind = 'series' AND tvdb_id = ?`, n)
+		bs, err = s.briefs(ctx, `t.kind = 'series' AND t.tvdb_id = ?`, n)
 		if err == nil && len(bs) == 0 {
 			bs = []titleBrief{{tvdb: n}}
 		}
 	case "imdb":
-		bs, err = s.briefs(ctx, `kind = 'series' AND imdb_id = ?`, val)
+		bs, err = s.briefs(ctx, `t.kind = 'series' AND t.imdb_id = ?`, val)
 	case "tmdb":
 		n, _ := strconv.Atoi(val)
-		bs, err = s.briefs(ctx, `kind = 'series' AND tmdb_id = ?`, n)
+		bs, err = s.briefs(ctx, `t.kind = 'series' AND t.tmdb_id = ?`, n)
 	default:
 		if val == "" {
 			writeJSON(w, http.StatusOK, []any{})
 			return
 		}
-		bs, err = s.briefs(ctx, `kind = 'series' AND lower(name) LIKE ? ESCAPE '\' ORDER BY name LIMIT 20`, likeArg(val))
+		bs, err = s.briefs(ctx, `t.kind = 'series' AND lower(t.name) LIKE ? ESCAPE '\' ORDER BY t.name LIMIT 20`, likeArg(val))
 	}
 	if err != nil {
 		s.internal(w, r, err)
@@ -639,7 +639,7 @@ func (s *Service) outsideSeries(ctx context.Context, v *View, term string, seen 
 				tmdb, _ = strconv.Atoi(rid.ID)
 			}
 		}
-		held, err := s.briefs(ctx, `kind = 'series' AND (tvdb_id = ? OR (? > 0 AND tmdb_id = ?)) ORDER BY tvdb_id = ? DESC, id LIMIT 1`,
+		held, err := s.briefs(ctx, `t.kind = 'series' AND (t.tvdb_id = ? OR (? > 0 AND t.tmdb_id = ?)) ORDER BY t.tvdb_id = ? DESC, t.id LIMIT 1`,
 			id, tmdb, tmdb, id)
 		if err != nil {
 			s.log.Warn("series search failed", "view", v.Key, "err", err)

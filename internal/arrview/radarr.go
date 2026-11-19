@@ -477,18 +477,18 @@ func (s *Service) movieLookup(w http.ResponseWriter, r *request) {
 			writeJSON(w, http.StatusOK, []any{})
 			return
 		}
-		bs, err = s.briefs(ctx, `kind = 'movie' AND tmdb_id = ?`, n)
+		bs, err = s.briefs(ctx, `t.kind = 'movie' AND t.tmdb_id = ?`, n)
 		if err == nil && len(bs) == 0 {
 			bs = []titleBrief{{tmdb: n}}
 		}
 	case "imdb":
-		bs, err = s.briefs(ctx, `kind = 'movie' AND imdb_id = ?`, val)
+		bs, err = s.briefs(ctx, `t.kind = 'movie' AND t.imdb_id = ?`, val)
 	case "":
 		if val == "" {
 			writeJSON(w, http.StatusOK, []any{})
 			return
 		}
-		bs, err = s.briefs(ctx, `kind = 'movie' AND lower(name) LIKE ? ESCAPE '\' ORDER BY name LIMIT 20`, likeArg(val))
+		bs, err = s.briefs(ctx, `t.kind = 'movie' AND lower(t.name) LIKE ? ESCAPE '\' ORDER BY t.name LIMIT 20`, likeArg(val))
 	default:
 		writeJSON(w, http.StatusOK, []any{})
 		return
@@ -573,7 +573,7 @@ func (s *Service) searchTMDbMovies(ctx context.Context, v *View, term string, se
 			continue
 		}
 		seen[x.ID] = true
-		bs, err := s.briefs(ctx, `kind = 'movie' AND tmdb_id = ?`, x.ID)
+		bs, err := s.briefs(ctx, `t.kind = 'movie' AND t.tmdb_id = ?`, x.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -616,7 +616,7 @@ func (s *Service) movieLookupTmdb(w http.ResponseWriter, r *request) {
 		notFound(w, "Movie not found")
 		return
 	}
-	bs, err := s.briefs(r.Context(), `kind = 'movie' AND tmdb_id = ?`, n)
+	bs, err := s.briefs(r.Context(), `t.kind = 'movie' AND t.tmdb_id = ?`, n)
 	if err != nil {
 		s.internal(w, r, err)
 		return
