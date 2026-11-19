@@ -51,6 +51,23 @@ it("shows Pause to an admin in the header, disabled while settings are read-only
   expect((await screen.findByRole("switch", { name: "Pause" }) as HTMLInputElement).disabled).toBe(true);
 });
 
+it("phone: the search button keeps a short readable Search beside a locked Pause", async () => {
+  const o = { source: "env", writable: false, generation: 3, switches: { paused: true, pause_forced: true, versions: [] } };
+  mockFetch([versions, { method: "GET", path: "/settings", reply: o }]);
+  vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} }));
+  const admin = { ownKeys: false, admin: true, seeFiles: true, manage: true, add: true, request: true, manageRequests: true, users: true };
+  renderPage(<AppShell perms={admin}><p>Page</p></AppShell>);
+  await screen.findByText("Paused (locked)");
+  const trigger = screen.getByTestId("search-trigger");
+  // The short word shows below sm; the long label only from sm up (the button's name stays the long one).
+  const short = trigger.querySelector<HTMLElement>('[data-testid="search-label-short"]')!;
+  expect(short.textContent).toBe("Search");
+  expect(short.className).toContain("sm:hidden");
+  const long = [...trigger.querySelectorAll("span")].find((x) => x.textContent === "Search movies, series and anime")!;
+  expect(long.className.split(" ")).toEqual(expect.arrayContaining(["hidden", "sm:inline"]));
+  expect(trigger.getAttribute("aria-label")).toBe("Search movies, series and anime");
+});
+
 it("offers Skip to content as the first stop for Tab, moving focus to the page", async () => {
   mockFetch([]);
   vi.stubGlobal("matchMedia", () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }));

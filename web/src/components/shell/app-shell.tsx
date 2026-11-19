@@ -233,7 +233,9 @@ function SearchTrigger() {
       className={SEARCH_TRIGGER}
     >
       <Search className="size-4 shrink-0" aria-hidden />
-      <span className="min-w-0 flex-1 truncate">Search movies, series and anime</span>
+      {/* A phone keeps a short label that fits beside the status pills; the full one from sm up. */}
+      <span className="min-w-0 flex-1 truncate sm:hidden" data-testid="search-label-short">Search</span>
+      <span className="hidden min-w-0 flex-1 truncate sm:inline">Search movies, series and anime</span>
       <kbd className="hidden rounded-[3px] border border-b-2 border-[var(--line-2)] bg-[var(--bg)] px-[5px] py-0.5 text-[11px] font-medium leading-none text-[var(--ink-3)] md:inline">
         /
       </kbd>

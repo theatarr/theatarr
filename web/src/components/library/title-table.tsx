@@ -18,7 +18,7 @@ import { ProviderPills } from "@/components/provider-pills";
 import { InteractiveSearch } from "@/components/title/interactive-search";
 import { failed, searched } from "@/components/title/seasons";
 import { Button } from "@/components/ui/button";
-import { searchOffWords } from "@/components/version-status";
+import { DownloadsOffNotice, searchOffWords } from "@/components/version-status";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import type { RowSelection } from "@/components/ui/row-select";
 import { activityHref, copyBar, nextWords, stageTone, stageWords, titleAcquisition } from "@/lib/copies";
@@ -37,6 +37,7 @@ import { fmtDay, fmtRuntime, notAiredYet, POSTER_STATUS_LABEL, posterStatus, qua
 import { releasedText } from "@/lib/released";
 import { addedText, latestFileText, ratingText, sizeText } from "@/lib/sort-line";
 import { cn } from "@/lib/utils";
+import { globalDownloadsOff } from "@/lib/version-grab";
 import { StageLink, useMinWidth } from "./copy-bits";
 import { CopyDialog } from "./copy-dialog";
 import { LibraryPill } from "./library-pill";
@@ -280,7 +281,7 @@ export function searchOff(vs: readonly Version[]): string {
  *  the answer is a toast), then for a movie Interactive search in its first library that searches live, for a series a link to its
  *  Episodes tab (interactive search is per season or episode). Disabled with the reason as tooltip from the row's own
  *  data; a disabled button still shows its tooltip. On a phone the buttons carry their words. */
-function RowActions({ t, wide }: { t: TitleRow; wide: boolean }) {
+function RowActions({ t, wide, pageOff }: { t: TitleRow; wide: boolean; pageOff: boolean }) {
   const id = t.id ?? 0;
   const name = t.name ?? `Title ${id}`;
   const vs = t.versions ?? [];
@@ -293,8 +294,9 @@ function RowActions({ t, wide }: { t: TitleRow; wide: boolean }) {
   const tip = cn("disabled:pointer-events-auto disabled:cursor-not-allowed", !wide && "h-9");
   return (
     <>
-      {/* A phone has no hover: a disabled Search now says why in a line above the buttons. */}
-      {!wide && off ? <p className="w-full text-xs text-[var(--ink-3)]" data-testid="row-search-off">{off}</p> : null}
+      {/* A phone has no hover: a disabled Search now says why in a line above the buttons. Pause is said once above
+          the list instead (pageOff); the button keeps it as its tooltip. */}
+      {!wide && off && !pageOff ? <p className="w-full text-xs text-[var(--ink-3)]" data-testid="row-search-off">{off}</p> : null}
       <span className="inline-flex items-center gap-0.5" data-testid="row-actions">
         <Button size={size} variant="ghost" className={tip} disabled={!!off || search.isPending} aria-label={`Search now, ${name}`}
           title={off || (series ? "Search every monitored episode now, in every library (missing episodes and upgrades)" : "Search every monitored library now")}
@@ -351,8 +353,11 @@ export function TitleTable({ titles, more, onMore, seeFiles, manage, columns, so
     })),
   ];
   const showStatus = columns.some((c) => c.id === "status");
+  // Pause is global: on a phone it is said once above the cards, not in every card's actions.
+  const pageOff = manage && !wide ? globalDownloadsOff(titles.flatMap((t) => (t.versions ?? []).map((v) => v.control?.grab_state))) : undefined;
   return (
     <>
+      {pageOff ? <DownloadsOffNotice off={pageOff} className="mb-3" /> : null}
       <DataTable
         testid="title-table"
         rows={titles}
@@ -367,7 +372,7 @@ export function TitleTable({ titles, more, onMore, seeFiles, manage, columns, so
         selectAllLabel={`Select all ${titles.length} shown`}
         rowLabel={(t) => t.name ?? String(t.id)}
         rowProps={() => ({ className: "cv-auto-row-sm" })}
-        actions={manage ? (t) => <RowActions t={t} wide={wide} /> : undefined}
+        actions={manage ? (t) => <RowActions t={t} wide={wide} pageOff={!!pageOff} /> : undefined}
         cardHead={(t) => (
           // The status on its own line under the title, the same on every card.
           <div className="grid min-w-0 justify-items-start gap-0.5">

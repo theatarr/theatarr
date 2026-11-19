@@ -1176,6 +1176,20 @@ describe("Row actions", () => {
     expect(within(card("Copper Sky")).queryByTestId("row-search-off")).toBeNull();
   });
 
+  it("says Pause once above the phone cards, not in each card", async () => {
+    vi.stubGlobal("matchMedia", (q: string) => ({ matches: !q.includes("min-width"), media: q, addEventListener() {}, removeEventListener() {} }));
+    const paused = { ...on, pause_forced: true, will_grab: false };
+    const items = movies.map((m) => ({ ...m, versions: m.versions.map((v) => ({ ...v, control: { ...v.control, can_search: false, grab_state: paused } })) }));
+    mockFetch([movieRoutes()[0], { method: "GET", path: "/titles", reply: { items, total: 2, offset: 0 } }, movieRoutes()[2]]);
+    renderPage(<Catalog id="movies" />, "/movies");
+    await screen.findAllByText("Sundial");
+    expect(screen.getAllByTestId("downloads-off-notice")).toHaveLength(1);
+    expect(screen.queryByTestId("row-search-off")).toBeNull();
+    // The disabled button still names the reason.
+    const card = screen.getByRole("link", { name: "Copper Sky" }).closest("li") as HTMLElement;
+    expect((within(card).getByRole("button", { name: "Search now, Copper Sky" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it("puts the same buttons, with their words, at the end of a phone card", async () => {
     vi.stubGlobal("matchMedia", (q: string) => ({ matches: !q.includes("min-width"), media: q, addEventListener() {}, removeEventListener() {} }));
     mockFetch(movieRoutes());
