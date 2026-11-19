@@ -174,11 +174,11 @@ func TestPeriodicSceneRefresh(t *testing.T) {
 		t.Fatal("imported alias deleted")
 	}
 
-	// An alias Sonarr limits to some releases (filterRegex) is stored marked "Limited matching", and the same alias
-	// imported from an arr is marked too; one the feed also lists without a limit stays plain everywhere. Nothing is
+	// An alias Sonarr limits to some releases (filterRegex) is stored marked "Limited matching" whatever comment the
+	// feed gave it (a release group), and the same alias imported from an arr is marked too whatever its comment; one the feed also lists without a limit stays plain everywhere. Nothing is
 	// deleted, and the decision loader leaves the limited names out.
 	clock = clock.Add(SceneAge)
-	extra = `,{"tvdbId":371980,"title":"Remake Alias","searchTitle":"Remake Alias","sceneOrigin":"mixed","filterRegex":"(?i)^remake"}` +
+	extra = `,{"tvdbId":371980,"title":"Remake Alias","searchTitle":"Remake Alias","sceneOrigin":"mixed","comment":"HHWEB","filterRegex":"(?i)^remake"}` +
 		`,{"tvdbId":371980,"title":"Both Alias","searchTitle":"Both Alias","sceneOrigin":"mixed","filterRegex":"(?i)^both"}` +
 		`,{"tvdbId":371980,"title":"Both Alias","searchTitle":"Both Alias","sceneOrigin":"mixed"}`
 	for _, name := range []string{"Remake Alias", "Both Alias"} {
