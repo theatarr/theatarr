@@ -143,12 +143,11 @@ func TestAggregateLanguagesRules(t *testing.T) {
 			t.Errorf("%s: got %v %v, want %v %v", c.name, got, assumed, c.want, c.assumed)
 		}
 	}
-	// A normalised title longer than the tokens: the arr cut past the end and threw (we returned an error); the
-	// title is now looked for in the tokens themselves, is not there, and the parse stands.
+	// A title longer than the tokens: the arr cut past the end and threw (we returned an error); the title is now
+	// looked for in the tokens themselves, is not there, and the parse stands.
 	if got, _ := aggregateLanguages(langOps{
-		parse:     func(s string) []int { return []int{fr} },
-		normalize: func(s string) string { return "padding padding french" },
-	}, []int{fr}, "french", true, []string{"French"}, en, nil); !reflect.DeepEqual(got, []int{fr}) {
+		parse: func(s string) []int { return []int{fr} },
+	}, []int{fr}, "french", true, []string{"Padding Padding French"}, en, nil); !reflect.DeepEqual(got, []int{fr}) {
 		t.Errorf("title longer than the tokens: got %v, want [%d]", got, fr)
 	}
 }
@@ -172,6 +171,30 @@ func TestAggregateLanguagesTwoEpisodeTitles(t *testing.T) {
 		got, _ := aggregateLanguages(sonarrLangs, c.parsed, c.tokens, true, titles, en, nil)
 		if !reflect.DeepEqual(got, c.want) {
 			t.Errorf("%s: got %v, want %v", c.tokens, got, c.want)
+		}
+	}
+}
+
+// The title's own word runs are looked for, not the normaliser's output: the film normaliser drops part, special,
+// edition and christmas, so those titles were missed and their language word stayed. A series title keeps Sonarr's
+// trailing "(n)" rule. A cut leaves a space, so the letters on either side cannot join into a language code.
+func TestAggregateLanguagesTitleWords(t *testing.T) {
+	en, it, fr, el := radarr.LanguageEnglish.ID, radarr.LanguageItalian.ID, radarr.LanguageFrench.ID, radarr.LanguageGreek.ID
+	for _, c := range []struct {
+		name   string
+		ops    langOps
+		title  string
+		tokens string
+		parsed []int
+	}{
+		{"part", radarrLangs, "The Italian Part 2", ".The.Italian.Part.2.1080p.WEB-DL-GRP", []int{it}},
+		{"christmas", radarrLangs, "A French Christmas", ".A.French.Christmas.1080p.WEB-DL-GRP", []int{fr}},
+		{"special edition", radarrLangs, "The Greek Special Edition", ".The.Greek.Special.Edition.1080p-GRP", []int{el}},
+		{"series (n)", sonarrLangs, "The Italian Job (2)", ".The.Italian.Job.1080p.WEB-DL-GRP", []int{it}},
+		{"no fusing", sonarrLangs, "Jimmy the Greek", ".GRJimmy.The.GreekEEK.1080p-GRP", []int{el}},
+	} {
+		if got, _ := aggregateLanguages(c.ops, c.parsed, c.tokens, true, []string{c.title}, en, nil); !reflect.DeepEqual(got, []int{en}) {
+			t.Errorf("%s: got %v, want [%d]", c.name, got, en)
 		}
 	}
 }

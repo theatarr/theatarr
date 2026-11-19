@@ -40,15 +40,13 @@ type Release struct {
 }
 
 var radarrLangs = langOps{
-	parse:     func(s string) []int { return radarrIDs(radarr.ParseLanguages(s)) },
-	normalize: radarr.NormalizeMovieTitle,
-	multi:     radarr.HasMultipleLanguages,
+	parse: func(s string) []int { return radarrIDs(radarr.ParseLanguages(s)) },
+	multi: radarr.HasMultipleLanguages,
 }
 
 var sonarrLangs = langOps{
-	parse:     func(s string) []int { return sonarrIDs(sonarr.ParseLanguages(s)) },
-	normalize: sonarr.NormalizeEpisodeTitle,
-	multi:     sonarr.HasMultipleLanguages,
+	parse: func(s string) []int { return sonarrIDs(sonarr.ParseLanguages(s)) },
+	multi: sonarr.HasMultipleLanguages,
 }
 
 // Radarr builds the format input for a Radarr parse, as ParseCustomFormat(remoteMovie, 0) sees it after mapping and

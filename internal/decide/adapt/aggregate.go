@@ -9,6 +9,7 @@ package adapt
 // none (Release is null).
 
 import (
+	"regexp"
 	"strings"
 	"unicode"
 )
@@ -19,12 +20,10 @@ const (
 	langOriginal = -2
 )
 
-// langOps is one flavour's LanguageParser.ParseLanguages (as ids), title normaliser (Parser.NormalizeMovieTitle /
-// Parser.NormalizeEpisodeTitle) and Parser.HasMultipleLanguages.
+// langOps is one flavour's LanguageParser.ParseLanguages (as ids) and Parser.HasMultipleLanguages.
 type langOps struct {
-	parse     func(string) []int
-	normalize func(string) string
-	multi     func(string) bool
+	parse func(string) []int
+	multi func(string) bool
 }
 
 // aggregateLanguages is AggregateLanguages.Aggregate. parsed are the parsed languages, releaseTokens Radarr's
@@ -49,10 +48,10 @@ func aggregateLanguages(ops langOps, parsed []int, releaseTokens string, mapped 
 		languages = append([]int{}, rel.Languages...)
 	} else {
 		// The arr finds the normalised title in the normalised tokens and cuts that index out of the raw tokens,
-		// which cuts the wrong text, or past the end, once the two differ in length. Ours: the normalised title's
-		// words are found in the raw tokens themselves, case-insensitively and with any separators between them,
-		// and cut there, so each title is found in the tokens as the cuts before it left them and the rest keeps
-		// its case.
+		// which cuts the wrong text, or past the end, once the two differ in length. Ours: the title's words are
+		// found in the raw tokens themselves, case-insensitively and with any separators between them, and cut
+		// there (leaving a space), so each title is found in the tokens as the cuts before it left them and the
+		// rest keeps its case.
 		tokens := []rune(releaseTokens)
 		var languagesToRemove []int
 		for _, title := range titles {
@@ -60,8 +59,8 @@ func aggregateLanguages(ops langOps, parsed []int, releaseTokens string, mapped 
 			if contains(titleLanguage, langUnknown) {
 				continue
 			}
-			if start, end := findWords(tokens, strings.Fields(ops.normalize(title))); start >= 0 {
-				tokens = append(tokens[:start:start], tokens[end:]...)
+			if start, end := findWords(tokens, titleWords(title)); start >= 0 {
+				tokens = append(append(tokens[:start:start], ' '), tokens[end:]...)
 				languagesToRemove = append(languagesToRemove, titleLanguage...)
 			}
 		}
@@ -138,6 +137,16 @@ func removeFirst(s []int, v int) []int {
 		}
 	}
 	return s
+}
+
+// trailingPartRegex is Sonarr's NormalizeEpisodeTitle part rule: a trailing "(2)" is not part of the title.
+var trailingPartRegex = regexp.MustCompile(`\(\d+\)$`)
+
+// titleWords are the title's runs of word characters (what a normaliser's [^\w\s] keeps), without a trailing
+// "(n)". The normaliser's own output is not used: the film one also drops the words part, special, edition and
+// christmas, which the release tokens still hold.
+func titleWords(title string) []string {
+	return strings.FieldsFunc(trailingPartRegex.ReplaceAllString(title, ""), func(r rune) bool { return !wordRune(r) })
 }
 
 // findWords finds words (a normalised title: word characters only) in the tokens, case-insensitively, one after the
