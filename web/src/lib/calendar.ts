@@ -132,7 +132,7 @@ export type CalendarTone = "ok" | "progress" | "bad" | "neutral" | "idle";
 
 /**
  * What a calendar entry's status is, as a colour and a word (docs/design/ui.md "Status words"): Available or Partly
- * available (a file is held), the stage of a download in hand ("Queued", "Downloading", "Waiting for mount"; "Getting
+ * available (a file is held), the stage of a download in hand ("Queued", "Downloading", "Waiting for the mount"; "Getting
  * ready" without one), not monitored, upcoming, else missing. Upcoming is the rule the title page and the lists use: an
  * air moment still ahead; a date alone strictly after today's UTC day (upcomingRelease, the server's aired rule). A
  * movie's past cinema date is never missing: a film is missing from its digital or physical date (also when it joins

@@ -4,6 +4,7 @@ import { beforeEach, expect, it } from "vitest";
 import { mockFetch, renderPage, type Route } from "@/test/page";
 import { InteractiveSearchButton } from "./interactive-search";
 import { LibraryNamesProvider } from "@/lib/library-names";
+import { Toaster } from "@/components/toaster";
 
 const ME: Route = { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["browse", "see_files", "manage"] } };
 const control = (live: boolean) => ({ can_edit: true, can_search: live, live_releases: live });
@@ -556,3 +557,16 @@ it("keeps Show more open when the outcomes refresh after a grab further down", a
   expect(within(await table()).getAllByRole("row").filter((r) => r.dataset.releaseHash)).toHaveLength(60);
 });
 
+it("says Grab this release and Grab started, not the router", async () => {
+  mockFetch([
+    ME, TITLE, CURRENT,
+    { method: "GET", path: "/titles/7/releases", reply: answer() },
+    { method: "POST", path: "/titles/7/releases/grab", reply: sent },
+  ]);
+  renderPage(<><InteractiveSearchButton titleId={7} version="movie-web" /><Toaster /></>);
+  open();
+  const grab = await grabIn(0);
+  expect(grab.getAttribute("title")).toBe("Grab this release");
+  fireEvent.click(grab);
+  await waitFor(() => expect(screen.getAllByTestId("toast").at(-1)?.textContent).toContain("Grab started"));
+});

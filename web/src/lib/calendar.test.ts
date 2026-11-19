@@ -108,7 +108,7 @@ describe("calendarTone", () => {
     expect(tone({ ...movie("digital", "2026-11-10"), available: true, partial: true })).toEqual({ tone: "ok", label: "Partly available" });
     // A download in hand says its stage; without one (an older server), the neutral words.
     expect(tone({ ...ep, acquiring: true, monitored: false, stage: "queued" })).toEqual({ tone: "progress", label: "Queued" });
-    expect(tone({ ...ep, acquiring: true, stage: "waiting_mount" })).toEqual({ tone: "progress", label: "Waiting for mount" });
+    expect(tone({ ...ep, acquiring: true, stage: "waiting_mount" })).toEqual({ tone: "progress", label: "Waiting for the mount" });
     expect(tone({ ...ep, acquiring: true })).toEqual({ tone: "progress", label: "Getting ready" });
     expect(tone({ ...ep, monitored: false, date: "2026-12-01" })).toEqual({ tone: "idle", label: "Not monitored" });
     expect(tone({ ...ep, date: "2026-12-01" })).toEqual({ tone: "neutral", label: "Upcoming" });

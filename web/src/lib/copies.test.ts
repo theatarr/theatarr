@@ -26,7 +26,7 @@ describe("stage words", () => {
   it("words each stage, with progress and the upgrade prefix", () => {
     expect(stageWords(acq("downloading", { progress: 37.4 }))).toBe("Downloading · 37%");
     expect(stageWords(acq("downloading", { progress: 37, upgrade: true }))).toBe("Upgrade downloading · 37%");
-    expect(stageWords(acq("waiting_mount"))).toBe("Waiting for mount");
+    expect(stageWords(acq("waiting_mount"))).toBe("Waiting for the mount");
     expect(stageWords(undefined)).toBe("");
     expect(chipWords(acq("downloading", { progress: 99.6 }))).toBe("Downloading 100%");
     expect(chipWords(acq("queued"))).toBe("Queued");

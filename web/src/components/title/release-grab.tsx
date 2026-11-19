@@ -119,7 +119,7 @@ export function AddByHash({ titleId, version, label }: { titleId: number; versio
         Add by magnet or hash <VersionTag k={version} label={label} />
       </div>
       <p className="text-xs text-[var(--ink-3)]">
-        For a release the search does not find. It is judged by its name like any release and goes to the router like a grab; its size and seeders are not known.
+        For a release the search does not find. It is judged by its name like any release and grabbed like one; its size and seeders are not known.
       </p>
       <div className="flex flex-wrap items-end gap-2">
         <label className="min-w-56 flex-1 text-xs text-[var(--ink-2)]">

@@ -54,7 +54,8 @@ describe("acquiringStatus", () => {
   it("is the most advanced download's stage among libraries without a file, else a search under way", () => {
     expect(acquiringStatus([{ key: "r", has_file: false, monitored: true, acquisition: a("queued") }])).toBe("Waiting to start");
     expect(acquiringStatus([{ key: "r", label: "4K Remux", has_file: false, monitored: true, acquisition: a("queued") }, { key: "w", label: "4K WEB", has_file: false, monitored: true, acquisition: a("downloading", 37) }])).toBe("4K WEB: Downloading · 37%");
-    expect(acquiringStatus([{ key: "r", has_file: false, monitored: true, acquisition: a("waiting_mount") }])).toBe("Importing");
+    expect(acquiringStatus([{ key: "r", has_file: false, monitored: true, acquisition: a("waiting_mount") }])).toBe("Waiting for the mount");
+    expect(acquiringStatus([{ key: "r", has_file: false, monitored: true, acquisition: a("linking") }])).toBe("Importing");
     // A held library's upgrade does not count; another library's first download does.
     expect(acquiringStatus([{ key: "r", label: "4K Remux", has_file: true, monitored: true, acquisition: a("downloading", 10) }])).toBeUndefined();
     expect(acquiringStatus([{ key: "r", label: "4K Remux", has_file: true, monitored: true }, { key: "w", label: "4K WEB", has_file: false, monitored: true, acquisition: a("downloading", 40) }])).toBe("4K WEB: Downloading · 40%");

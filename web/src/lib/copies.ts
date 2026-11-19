@@ -21,7 +21,7 @@ const STAGE_SHORT: Record<Stage, string> = {
   starting: "Starting",
   downloading: "Downloading",
   complete: "Download complete",
-  waiting_mount: "Waiting for mount",
+  waiting_mount: "Waiting for the mount",
   linking: "Linking",
   blocked: "Blocked",
 };
@@ -36,7 +36,7 @@ const STAGE_COUNT: Record<Stage, string> = {
   blocked: "blocked",
 };
 
-/** A stage in a few words: "Downloading · 37%", "Waiting for mount", "Upgrade downloading · 37%" (the copy keeps its file). */
+/** A stage in a few words: "Downloading · 37%", "Waiting for the mount", "Upgrade downloading · 37%" (the copy keeps its file). */
 export function stageWords(a: Pick<Acquisition, "stage" | "progress" | "upgrade"> | undefined | null): string {
   if (!a) return "";
   let s = STAGE_SHORT[a.stage] ?? a.stage;

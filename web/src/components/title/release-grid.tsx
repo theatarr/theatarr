@@ -4,7 +4,7 @@
 // on, packs, indexer, quality, language) last as long as the grid: a new search starts without them. Sorting and
 // filtering take every release of the answer, then the grid pages; a new grid (a new search) starts in the best-match
 // order. The score opens the row's matched formats with each one's score (always shown on a card). With grab
-// (interactive search, managers) each row has Grab: an accepted release goes to the router at once; a rejected one, or
+// (interactive search, managers) each row has Grab: an accepted release is grabbed at once; a rejected one, or
 // one that would replace a better-scored file, asks first (release-grab.tsx GrabDialog), as does one the server
 // rejects at grab time. A table from md up, one card per release below it.
 // The status chips and score column follow show-releases' earlier table, adapted from Scryer
@@ -224,7 +224,7 @@ export function GrabCell({ c, target, o, sentFrom, onSent }: { c: Candidate; tar
       {
         onSuccess: () => {
           onSent();
-          toast({ tone: "ok", title: "Sent to the router", body: `${c.release ?? "The release"} for ${library}` });
+          toast({ tone: "ok", title: "Grab started", body: `${c.release ?? "The release"} for ${library}` });
         },
         onError: (e) => {
           const late = lateRejections(e);
@@ -278,7 +278,7 @@ export function GrabCell({ c, target, o, sentFrom, onSent }: { c: Candidate; tar
       variant={c.accepted ? "outline" : "ghost"}
       onClick={click}
       disabled={!c.info_hash || grab.isPending}
-      title={!c.info_hash ? "No info hash" : failed ? errText(grab.error) : ask ? "Asks first" : "Send this release to the router"}
+      title={!c.info_hash ? "No info hash" : failed ? errText(grab.error) : ask ? "Asks first" : "Grab this release"}
       data-testid="release-grab"
     >
       {grab.isPending ? <Loader2 className="animate-spin" /> : <Download />} {failed ? "Not sent" : failure ? "Try again" : ask ? "Grab…" : "Grab"}

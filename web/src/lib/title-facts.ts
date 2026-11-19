@@ -103,7 +103,8 @@ export function libraryOffWords(library: string): string {
   return `${library} is not monitored for this title: nothing is searched by itself. The switch keeps your choice.`;
 }
 
-/** The hero's word for an acquisition in hand: "Waiting to start", "Downloading · 37%" or "Importing". */
+/** The hero's word for an acquisition in hand: "Waiting to start", "Downloading · 37%", "Waiting for the mount" (the
+ *  queue's and the row's word) or "Importing". */
 export function heroStageWords(a: Pick<Acquisition, "stage" | "progress">): string {
   switch (a.stage) {
     case "queued":
@@ -113,6 +114,8 @@ export function heroStageWords(a: Pick<Acquisition, "stage" | "progress">): stri
       return a.progress !== undefined ? `Downloading · ${Math.round(Math.max(0, Math.min(a.progress, 100)))}%` : "Downloading";
     case "blocked":
       return "Blocked";
+    case "waiting_mount":
+      return "Waiting for the mount";
     default:
       return "Importing";
   }
