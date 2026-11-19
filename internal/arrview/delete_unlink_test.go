@@ -153,6 +153,18 @@ func TestDeleteKeepsTheClientsFlag(t *testing.T) {
 		t.Fatalf("kept file: %d %s", rec.Code, rec.Body.String())
 	}
 	hooks.check(t, "kept file", false)
+	// Files asked for, but the link stays for another library that still uses it: no files were deleted.
+	e = removeEnv(t)
+	hooks = deleteHooks(e)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (8, 1)`)
+	if rec := e.do("DELETE", "/v/movie-web/radarr/api/v3/movie/"+strconv.Itoa(IDBase+1)+"?deleteFiles=true", e.key,
+		nil); rec.Code != 200 {
+		t.Fatalf("shared file: %d %s", rec.Code, rec.Body.String())
+	}
+	if e.str(`SELECT state FROM link WHERE id = 8`) != "active" {
+		t.Fatalf("shared link unlinked")
+	}
+	hooks.check(t, "shared file", false)
 	// A refused pre-check removes nothing and sends nothing.
 	e = removeEnv(t)
 	hooks = deleteHooks(e)

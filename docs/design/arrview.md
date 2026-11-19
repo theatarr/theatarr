@@ -451,7 +451,7 @@ stay the view's.
   or refused path answers 409 with the title and links intact.
   The `MovieDelete`/`SeriesDelete` webhook (devices.md "Webhooks") is built before the removal, while the view still
   holds the title and its tags, and recorded only after the removal committed (nothing on a refusal or rollback);
-  its `deletedFiles` is true only when `deleteFiles=true` and no file was kept or failed to move.
+  its `deletedFiles` is true only when `deleteFiles=true` and no file was kept, stayed for another library or failed to move.
   Each version is unmonitored and listed in `arrview_removed_version`, which every view hides; the version row, its
   history and arr records stay (the view's own `arrview_title` row goes, the libraries' rows keep everything but the
   minimum availability choice), and nothing on the mount is touched. In the transaction of the hide the versions'

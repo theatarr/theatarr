@@ -1151,9 +1151,9 @@ func (s *Service) deleteTitle(w http.ResponseWriter, r *request) {
 		return
 	}
 	if hook != nil {
-		// Files deleted: asked for, and none kept or failed (Radarr's and Sonarr's deletedFiles).
+		// Files deleted: asked for, and none kept, shared with another library or failed (Radarr's and Sonarr's deletedFiles).
 		if b, ok := hookPayloadBody(hookPayload); ok {
-			b["deletedFiles"] = deleteFiles && err == nil && len(res.Kept) == 0 && len(res.Failed) == 0
+			b["deletedFiles"] = deleteFiles && err == nil && len(res.Kept) == 0 && len(res.Shared) == 0 && len(res.Failed) == 0
 		}
 		s.emit(withDeletePayload(ctx, hookPayload), *hook)
 	}
