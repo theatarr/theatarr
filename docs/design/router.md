@@ -136,7 +136,9 @@ minimum upgrade step; a router without an engine builds the same thresholds from
 current file's custom format score is recalculated under it from the file's stored inputs (`decide.ScoreFileWith`,
 as the decision compares an existing file), not taken from `link.score`, which
 is the import-time profile's: after a profile or TRaSH score change the router no longer cancels as
-`no_longer_upgrade` an upgrade the decision accepted (`TestFreshnessRescoresCurrentFile`). Without the engine's profiles the stored score stands.
+`no_longer_upgrade` an upgrade the decision accepted (`TestFreshnessRescoresCurrentFile`). Without the engine's profiles the stored score stands. Both checks apply the profile's upgrade permission the same way: with upgrades off, a better quality below the first
+allowed one and a held file of a quality the router does not know are not replaced; a same-quality revision gain
+still is (`TestAutomaticRouteRechecksCurrentMovieFile`).
 
 Form and JSON adder responses share bounded reading and body closure (1 MiB). A 429's numeric `Retry-After` is
 returned directly to the provider decoder as a duration. Confirmed user-delete JSON requests keep their existing target and refusal classification.

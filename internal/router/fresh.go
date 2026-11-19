@@ -460,7 +460,8 @@ func freshUpgrade(p *routeProfile, vp *policy.VersionPolicy, c Candidate, cur it
 	}
 	current, ok := profile.QualityByName(p.quality.Flavour, cur.quality)
 	if !ok {
-		return true, nil
+		// A held file of a quality not known here is replaced only when the profile allows upgrades.
+		return p.quality.UpgradeAllowed, nil
 	}
 	oldScore := 0
 	if cur.score != nil {
@@ -469,7 +470,10 @@ func freshUpgrade(p *routeProfile, vp *policy.VersionPolicy, c Candidate, cur it
 	newFile := decide.LinkedFile(vp.Kind, decide.Release{Release: c.Release}, c.Quality)
 	newModel := profile.QualityModel{Quality: quality, SeaDexPreference: newFile.SeaDexPreference, Revision: profile.Revision{Version: max(newFile.Revision, 1), Real: newFile.Real}}
 	currentModel := profile.QualityModel{Quality: current, SeaDexPreference: decide.FileSeaDexPreference(cur.file), Revision: profile.Revision{Version: max(cur.revision, 1), Real: cur.real}}
-	return newRouteComparison(p, vp, currentModel, oldScore, newModel, c.Score).upgradable() == profile.UpgradeNone, nil
+	// The profile's upgrade permission as the queue check applies it: a better quality below the first allowed one
+	// is no upgrade when upgrades are off; a same-quality revision gain stays allowed.
+	x := newRouteComparison(p, vp, currentModel, oldScore, newModel, c.Score)
+	return x.upgradable() == profile.UpgradeNone && x.engine.IsUpgradeAllowed(x.profile, x.cur, x.curF, x.new, x.newF), nil
 }
 
 // routeProfile is the version's profile for the freshness and queue checks: the decision engine's compiled profile

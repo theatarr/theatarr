@@ -111,17 +111,37 @@ func TestAutomaticRouteRechecksCurrentMovieFile(t *testing.T) {
 	for _, tc := range []struct {
 		name, current string
 		score         int
+		upgradesOff   bool
+		title         string
 		want          Outcome
 	}{
 		{name: "equal", current: "WEBDL-2160p", score: 100, want: OutcomeCancelled},
 		{name: "better score", current: "WEBDL-2160p", score: 200, want: OutcomeCancelled},
 		{name: "worse quality", current: "WEBDL-1080p", score: 100, want: OutcomeAdded},
+		// The profile's "upgrades off" holds for a better quality below the first allowed one and for a held
+		// quality the router does not know; a same-quality revision gain stays allowed.
+		{name: "upgrades off, below the floor", current: "WEBDL-720p", score: 100, upgradesOff: true,
+			want: OutcomeCancelled},
+		{name: "upgrades off, worse quality", current: "WEBDL-1080p", score: 100, upgradesOff: true,
+			want: OutcomeCancelled},
+		{name: "upgrades off, unknown quality", current: "Bogus-1080p", score: 100, upgradesOff: true,
+			want: OutcomeCancelled},
+		{name: "upgrades off, revision", current: "WEBDL-2160p", score: 100, upgradesOff: true,
+			title: "Movie.2024.2160p.PROPER.WEB-DL-GRP", want: OutcomeAdded},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := newEnv(t, true)
 			freshMovie(e)
+			if tc.upgradesOff {
+				off := false
+				e.pol.Profiles["fresh"].Upgrades = &off
+			}
 			e.link(1, 10, 0, tc.current, tc.score, 1000)
-			c := cand(h("a"), "Movie.2024.2160p.WEB-DL-GRP")
+			title := "Movie.2024.2160p.WEB-DL-GRP"
+			if tc.title != "" {
+				title = tc.title
+			}
+			c := cand(h("a"), title)
 			c.Score = 100
 			res, err := e.r.Route(e.ctx, freshReq(c, "wanted"))
 			if err != nil {
