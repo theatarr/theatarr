@@ -74,8 +74,13 @@ func TestAddDecidesAnime(t *testing.T) {
 		}
 	}
 	// Not anime by TMDb: the profile's non-anime versions.
-	check("TMDb not anime", addMovie(555, def, "/media/movies"), false, "tmdb", "movie-remux",
-		"movie-web")
+	plain := addMovie(555, def, "/media/movies")
+	check("TMDb not anime", plain, false, "tmdb", "movie-remux", "movie-web")
+	// The details read for the check give the new movie its original language (TMDb's code) before its first
+	// search; a series is unchanged.
+	if l := e.str(`SELECT COALESCE(original_language, '') FROM title WHERE id = ?`, plain); l != "en" {
+		t.Errorf("connected app's new movie: original language %q, want en", l)
+	}
 	// What the client says wins: the Anime profile.
 	check("client anime", addMovie(556, e.profileID("radarr", "Anime"), ""), true, "request", "anime-movie")
 	// No profile but a root folder: the root's versions, whatever Theatarr decides.
@@ -111,7 +116,11 @@ func TestAddDecidesAnime(t *testing.T) {
 	}
 	check("series mapped", addSeries(300, "standard"), true, "mapping", "anime-tv")
 	check("series TMDb anime", addSeries(301, "standard"), true, "tmdb", "anime-tv")
-	check("series TMDb not anime", addSeries(303, "standard"), false, "tmdb", "tv-2160p")
+	plainShow := addSeries(303, "standard")
+	check("series TMDb not anime", plainShow, false, "tmdb", "tv-2160p")
+	if l := e.str(`SELECT COALESCE(original_language, '') FROM title WHERE id = ?`, plainShow); l != "" {
+		t.Errorf("connected app's new series: original language %q, want none", l)
+	}
 	// Seerr's anime series type wins (TMDb knows nothing of 302).
 	check("series client anime", addSeries(302, "anime"), true, "request", "anime-tv")
 }

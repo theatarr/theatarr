@@ -228,8 +228,9 @@ const (
 // the anime mapping data first (an entry of a franchise naming the TMDb movie, or a mapping into the TVDB series),
 // then TMDb's Japanese-language animation (tmdb.LooksAnime over the movie's or series' details; a series is found by
 // the request's TMDb id, else by its TVDB id). No data, no TMDb client or TMDb has no such title: not anime
-// ("none"). Any other TMDb error: not anime for now ("unknown").
-func (s *Service) decideAnime(ctx context.Context, v *View, in *titleIn, ext int64) (bool, string) {
+// ("none"). Any other TMDb error: not anime for now ("unknown"). lang is a movie's TMDb original_language when its
+// details were read here (catalog.Input.OriginalLanguage), else empty.
+func (s *Service) decideAnime(ctx context.Context, v *View, in *titleIn, ext int64) (anime bool, source, lang string) {
 	q := `SELECT EXISTS (SELECT 1 FROM anime_entry e, json_each(e.tmdb_movie) j WHERE j.value = ?)`
 	if v.Flavour == Sonarr {
 		q = `SELECT EXISTS (SELECT 1 FROM anime_mapping WHERE tvdb_series = ? AND status <> 'rejected')`
@@ -238,14 +239,13 @@ func (s *Service) decideAnime(ctx context.Context, v *View, in *titleIn, ext int
 	if err := s.st.Reader().QueryRowContext(ctx, q, ext).Scan(&mapped); err != nil {
 		s.log.Warn("anime mapping lookup failed", "view", v.Key, "id", ext, "err", err)
 	} else if mapped {
-		return true, animeFromMapping
+		return true, animeFromMapping, ""
 	}
 	if s.tmdb == nil {
-		return false, animeFromNone
+		return false, animeFromNone, ""
 	}
 	tctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	var anime bool
 	var err error
 	if v.Flavour == Sonarr {
 		id := int(in.TmdbID)
@@ -261,18 +261,18 @@ func (s *Service) decideAnime(ctx context.Context, v *View, in *titleIn, ext int
 	} else {
 		var m *tmdb.Movie
 		if m, err = s.tmdb.Movie(tctx, int(ext)); err == nil {
-			anime = m.LooksAnime()
+			anime, lang = m.LooksAnime(), m.OriginalLanguage
 		}
 	}
 	if errors.Is(err, tmdb.ErrNotFound) {
-		return false, animeFromNone
+		return false, animeFromNone, ""
 	}
 	if err != nil {
 		s.log.Warn("anime check on TMDb failed; asked again at the next add, PUT or refresh", "view", v.Key,
 			"id", ext, "err", err)
-		return false, animeFromUnknown
+		return false, animeFromUnknown, ""
 	}
-	return anime, animeFromTMDb
+	return anime, animeFromTMDb, lang
 }
 
 // reclassify asks again about a title whose anime check could not reach TMDb (anime_source unknown in this view's
@@ -297,7 +297,7 @@ func (s *Service) reclassify(ctx context.Context, v *View, titleID int64, restor
 	if v.Flavour == Sonarr {
 		ext = tvdbID
 	}
-	anime, source := s.decideAnime(ctx, v, &in, ext)
+	anime, source, _ := s.decideAnime(ctx, v, &in, ext)
 	if source == animeFromUnknown {
 		return nil
 	}
@@ -691,7 +691,7 @@ func (s *Service) addTitle(w http.ResponseWriter, r *request) {
 		}
 	}
 	anime, source := s.animeHint(v, &hint), ""
-	held := false
+	held, lang := false, ""
 	if anime != nil && *anime {
 		source = animeFromRequest
 	} else if h, err := s.holds(ctx, v, &in, ext); err != nil {
@@ -699,7 +699,7 @@ func (s *Service) addTitle(w http.ResponseWriter, r *request) {
 		return
 	} else if held = h; !held {
 		var a bool
-		if a, source = s.decideAnime(ctx, v, &in, ext); a {
+		if a, source, lang = s.decideAnime(ctx, v, &in, ext); a {
 			anime = &a
 		}
 	}
@@ -712,7 +712,7 @@ func (s *Service) addTitle(w http.ResponseWriter, r *request) {
 	var titleID int64
 	err := s.st.WriteTx(ctx, func(tx *sqlTx) error {
 		ci := catalog.Input{Kind: v.kind(), Title: in.Title, Year: in.Year, ImdbID: in.ImdbID,
-			Anime: anime, Monitored: in.monitored(true), Source: v.Key, Policy: s.pol,
+			Anime: anime, Monitored: in.monitored(true), Source: v.Key, Policy: s.pol, OriginalLanguage: lang,
 			Versions: func(anime bool) ([]string, error) { return s.chooseVersions(v, &in, anime) }}
 		if v.Flavour == Sonarr {
 			ci.TvdbID = ext

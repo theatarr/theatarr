@@ -455,8 +455,10 @@ type AddRequest struct {
 	// moreSeasons are monitored in moreVersions, versions the series already has, leaving their other seasons as
 	// they are ("Request more seasons").
 	seasonVersions []string
-	moreVersions   []string
-	moreSeasons    []int
+	// originalLanguage is a new movie's TMDb original_language, from the details fillFromTMDb read.
+	originalLanguage string
+	moreVersions     []string
+	moreSeasons      []int
 	// newSeasonsOff: the copies this add turns on (and their partners in sync) leave a season they do not name
 	// unmonitored when it appears (monitor new items none); the copies the title had keep their own choice.
 	newSeasonsOff bool
@@ -559,13 +561,20 @@ func (w *Web) checkVersions(keys []string, kind policy.Kind) error {
 	return nil
 }
 
-// fillFromTMDb completes a request's name, year and ids from TMDb when they are missing (one details request).
+// fillFromTMDb completes a request's name, year and ids from TMDb when they are missing (one details request). A
+// movie the library does not hold yet is always read, for its original language: its first search, which runs
+// before the artwork job stores the metadata, judges releases by it. A details error leaves the add as it was.
 func (w *Web) fillFromTMDb(ctx context.Context, req *AddRequest, kind policy.Kind) {
 	if w.add.TMDb == nil || req.TMDbID <= 0 {
 		return
 	}
 	if strings.TrimSpace(req.Title) != "" && (kind == policy.KindMovie || req.TVDbID > 0) && req.Year > 0 {
-		return
+		if kind != policy.KindMovie {
+			return
+		}
+		if _, _, found, err := catalog.Lookup(ctx, w.st.Reader(), kind, req.TMDbID, 0); err != nil || found {
+			return
+		}
 	}
 	if kind == policy.KindMovie {
 		m, err := w.add.TMDb.MovieDetails(ctx, int(req.TMDbID))
@@ -573,6 +582,7 @@ func (w *Web) fillFromTMDb(ctx context.Context, req *AddRequest, kind policy.Kin
 			w.log.Warn("add: TMDb movie details", "tmdb", req.TMDbID, "err", err)
 			return
 		}
+		req.originalLanguage = m.OriginalLanguage
 		if strings.TrimSpace(req.Title) == "" {
 			req.Title = m.Title
 		}
@@ -693,7 +703,7 @@ func (w *Web) addTitle(ctx context.Context, req AddRequest, source string) (*Add
 	in := catalog.Input{Kind: kind, TitleID: req.TitleID, TmdbID: req.TMDbID, TvdbID: req.TVDbID, ImdbID: strings.TrimSpace(req.IMDbID),
 		Title: req.Title, Year: req.Year, Anime: req.Anime, Monitored: monitored, Seasons: req.Seasons, Source: source,
 		MonitorNew: req.MonitorNew, Monitor: req.Monitor, SeriesType: req.SeriesType, SeasonVersions: req.seasonVersions,
-		Policy: w.pol,
+		OriginalLanguage: req.originalLanguage, Policy: w.pol,
 		Versions: func(anime bool) ([]string, error) {
 			if req.Versions != nil {
 				return req.Versions, nil

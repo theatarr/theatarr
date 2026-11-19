@@ -145,6 +145,10 @@ func TestImportArrTitleDryRun(t *testing.T) {
 	if change, _ := importTitle(t, s, "anime-movie", ArrImportTitle{Kind: policy.KindMovie, TmdbID: 801}, false); change != "add_title" {
 		t.Errorf("anime movie, real run: %s", change)
 	}
+	// The details fetched for the add give the new movie TMDb's language code before its first search.
+	if countRows(t, st, `SELECT count(*) FROM title WHERE tmdb_id = 801 AND original_language = 'ja'`) != 1 {
+		t.Error("the imported new movie has no original language")
+	}
 }
 
 // Episode monitoring goes to the copy's episode states and the episodes' own flag, and the copy's state is

@@ -742,7 +742,7 @@ func (s *MovieIntake) addNewMovie(ctx context.Context, summary tmdb.MovieSummary
 		}
 		result, err = Add(ctx, tx, Input{Kind: policy.KindMovie, TmdbID: int64(m.ID), ImdbID: m.IMDbID, Title: m.Title, Year: year, Anime: &anime,
 			Versions: func(bool) ([]string, error) { return fit, nil }, Monitored: cfg.monitored, Source: "movie-list", AddMethod: method,
-			Policy: s.syncPolicy(cfg)}, now, s.Log)
+			OriginalLanguage: m.OriginalLanguage, Policy: s.syncPolicy(cfg)}, now, s.Log)
 		if err != nil {
 			return err
 		}

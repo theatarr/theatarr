@@ -167,6 +167,46 @@ func TestAddCreatesFindsAndRestores(t *testing.T) {
 
 // A series add keeps its monitoring as durable intent (monitor new items, season choices) for episodes a metadata
 // refresh adds later, and marks the series' metadata pending.
+// TestAddOriginalLanguage: a new movie stores the TMDb code it is given; a stored movie without one takes it later; a
+// stored language (an arr import's name, or a code) is never replaced, by an empty value or another one; a series
+// stores none.
+func TestAddOriginalLanguage(t *testing.T) {
+	t.Parallel()
+	st, _ := setup(t)
+	lang := func(id int64) string {
+		t.Helper()
+		var l sql.NullString
+		if err := st.Reader().QueryRow(`SELECT original_language FROM title WHERE id = ?`, id).Scan(&l); err != nil {
+			t.Fatal(err)
+		}
+		return l.String
+	}
+	r := add(t, st, Input{Kind: policy.KindMovie, TmdbID: 700, Title: "Film", Year: 2015, OriginalLanguage: "en",
+		Versions: fixed("movie-web"), Monitored: true})
+	if !r.Created || lang(r.TitleID) != "en" {
+		t.Fatalf("new movie: %+v, language %q", r, lang(r.TitleID))
+	}
+	add(t, st, Input{Kind: policy.KindMovie, TmdbID: 700, Versions: fixed("movie-web"), Monitored: true})
+	add(t, st, Input{Kind: policy.KindMovie, TmdbID: 700, OriginalLanguage: "fr", Versions: fixed("movie-web"), Monitored: true})
+	if l := lang(r.TitleID); l != "en" {
+		t.Errorf("stored language replaced: %q", l)
+	}
+	if _, err := st.Writer().Exec(`INSERT INTO title (id, kind, name, tmdb_id, original_language, created_at, updated_at)
+		VALUES (71, 'movie', 'Imported', 701, 'Japanese', 0, 0), (72, 'movie', 'Blank', 702, '', 0, 0)`); err != nil {
+		t.Fatal(err)
+	}
+	add(t, st, Input{Kind: policy.KindMovie, TmdbID: 701, OriginalLanguage: "ja", Versions: fixed("movie-web"), Monitored: true})
+	add(t, st, Input{Kind: policy.KindMovie, TmdbID: 702, OriginalLanguage: "ko", Versions: fixed("movie-web"), Monitored: true})
+	if lang(71) != "Japanese" || lang(72) != "ko" {
+		t.Errorf("imported %q (want Japanese kept), blank %q (want ko)", lang(71), lang(72))
+	}
+	s := add(t, st, Input{Kind: policy.KindSeries, TvdbID: 703, Title: "Show", OriginalLanguage: "ja",
+		Versions: fixed("tv-2160p"), Monitored: true})
+	if l := lang(s.TitleID); l != "" {
+		t.Errorf("series stored a language: %q", l)
+	}
+}
+
 func TestSeriesIntent(t *testing.T) {
 	t.Parallel()
 	st, _ := setup(t)

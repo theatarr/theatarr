@@ -72,6 +72,10 @@ type Input struct {
 	Source string
 	// AddMethod is Radarr's movie add method: manual (default), list or collection.
 	AddMethod string
+	// OriginalLanguage is a movie's TMDb original_language code ("en", "cn"), when the caller has its details: a new
+	// title stores it, a stored movie without one takes it; a stored language is never replaced. Empty stores
+	// nothing. A series ignores it (its language comes from its metadata, decide.LoadTitle).
+	OriginalLanguage string
 	// Policy's sync groups widen the add (TurnOnSynced): the libraries in sync with one that gains a copy get one
 	// too, with the same monitoring and, for a series, the same season choices. Nil: no widening (the one-time
 	// import from an arr).
@@ -134,6 +138,12 @@ func Add(ctx context.Context, tx *sql.Tx, in Input, now time.Time, log *slog.Log
 			"tvdb", in.TvdbID)
 	} else if err := fillIDs(ctx, tx, titleID, in); err != nil {
 		return nil, err
+	}
+	if lang := strings.TrimSpace(in.OriginalLanguage); lang != "" && in.Kind == policy.KindMovie && !res.Created {
+		if _, err := tx.ExecContext(ctx, `UPDATE title SET original_language = ? WHERE id = ?
+			AND COALESCE(original_language, '') = ''`, lang, titleID); err != nil {
+			return nil, err
+		}
 	}
 	res.TitleID, res.Anime = titleID, anime
 	keys, err := in.Versions(anime)
@@ -275,9 +285,14 @@ func create(ctx context.Context, tx *sql.Tx, in Input, anime bool, ms int64) (in
 	if in.Year > 0 {
 		year = in.Year
 	}
+	// A movie's language as TMDb's code, as the artwork refresh writes it (meta.art); decide.LoadTitle maps it.
+	var lang any
+	if l := strings.TrimSpace(in.OriginalLanguage); l != "" && in.Kind == policy.KindMovie {
+		lang = l
+	}
 	r, err := tx.ExecContext(ctx, `INSERT INTO title (kind, name, sort_name, year, tmdb_id, tvdb_id, imdb_id, anime,
-		monitored, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`, string(in.Kind), name,
-		strings.ToLower(name), year, tmdb, tvdb, imdb, anime, ms, ms)
+		original_language, monitored, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+		string(in.Kind), name, strings.ToLower(name), year, tmdb, tvdb, imdb, anime, lang, ms, ms)
 	if err != nil {
 		return 0, err
 	}

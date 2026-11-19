@@ -13,7 +13,11 @@ the art from the last good fetch. `tmdb_id` is the id the row was fetched with. 
 those it is found by the TVDB id, or else by the IMDb id.
 
 Movie decisions read runtime and original language from `title_meta`, falling back to historical imported TMDb
-cache rows (then the title's imported fields). Every successful metadata refresh also replaces TMDb's alternative
+cache rows (then the title's own column). A new movie has its language before this job runs: every add that creates
+one stores TMDb's code in `title.original_language` (the native add and a request's approval read the details once
+for it, even when the request names the title and year; collections, lists and the arr import pass the details they
+fetched; a connected app's add passes the details its anime check read). A details error leaves the add as it was,
+with no language until this job; a stored language is never replaced by an add. Every successful metadata refresh also replaces TMDb's alternative
 titles and translations in `title_alias`; source `tmdb-original` holds the original title as an alternative name.
 Arr-sourced aliases are preserved, and a failed refresh keeps the last good metadata and names.
 A movie refresh also updates the title's name, year, runtime, IMDb id and original language; a refresh without an

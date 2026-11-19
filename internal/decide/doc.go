@@ -49,8 +49,8 @@
 //     or a language); sizes override the arr's default quality definitions for that profile only (the arrs have
 //     one global table).
 //   - A movie's original language is TMDb's original_language from the cached TMDb answer, mapped as Radarr's
-//     SkyHookProxy does (IsoLanguages.Find, else English); without a cached answer, the arr's name an arr import
-//     stored (title.original_language); with neither it is Unknown, where Radarr's would be English (the
+//     SkyHookProxy does (IsoLanguages.Find, else English); without a cached answer, title.original_language (the
+//     arr's name an arr import stored, or the TMDb code a new movie's add stored); with neither it is Unknown, where Radarr's would be English (the
 //     MovieMetadata default): an "original" profile then rejects every release with a known language rather
 //     than taking an English one for a film that may not be English.
 //   - A series' original language is the arr's name an arr import stored (title.original_language); without one, the

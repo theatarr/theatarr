@@ -112,6 +112,9 @@ type fakeTMDb struct {
 	// answers, when set, answers each search by its lowercased query (none: nothing found); queries records them.
 	answers map[string][]tmdb.MultiResult
 	queries []string
+	// langs is each movie's original_language in its details; detailsFail fails every details request.
+	langs       map[int]string
+	detailsFail bool
 }
 
 func (f *fakeTMDb) SearchMulti(_ context.Context, q string) ([]tmdb.MultiResult, error) {
@@ -137,8 +140,12 @@ func (f *fakeTMDb) SearchMulti(_ context.Context, q string) ([]tmdb.MultiResult,
 func (f *fakeTMDb) MovieDetails(_ context.Context, id int) (*tmdb.Movie, error) {
 	f.mu.Lock()
 	f.details++
+	fail, lang := f.detailsFail, f.langs[id]
 	f.mu.Unlock()
-	return &tmdb.Movie{ID: id, Title: "Alpha Two", ReleaseDate: "2024-01-01", IMDbID: "tt0000555"}, nil
+	if fail {
+		return nil, errors.New("tmdb: HTTP 503")
+	}
+	return &tmdb.Movie{ID: id, Title: "Alpha Two", ReleaseDate: "2024-01-01", IMDbID: "tt0000555", OriginalLanguage: lang}, nil
 }
 
 func (f *fakeTMDb) TVDetails(_ context.Context, id int) (*tmdb.TV, error) {
@@ -2234,5 +2241,90 @@ func TestBringInSyncRestoresAMovie(t *testing.T) {
 			AND title_id = ?`, id).Scan(&got); err != nil || got != want {
 			t.Errorf("title %d: movie-hd minimum availability %q (%v), want %q", id, got, err, want)
 		}
+	}
+}
+
+// TestAddFilmKnowsItsLanguage: a new film added with its name and year still reads TMDb's details once and stores
+// the original language (TMDb's code) with the title, so its first decision, before the artwork job ran, judges an
+// explicitly English release by English: it passes an Original-language profile, as an untagged one does. A request
+// approval does the same; cn and yue read as Chinese; a details error leaves the add working as before.
+func TestAddFilmKnowsItsLanguage(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	e := newAddEnv(t, nil)
+	e.tm.langs = map[int]string{901: "en", 902: "cn", 903: "yue", 904: "en"}
+	dpol, err := policy.Load(filepath.Join("..", "decide", "testdata", "policy"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	eng, err := decide.New(dpol, decide.Options{Now: func() time.Time { return addNow }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	judge := func(id int64, release string) []string {
+		t.Helper()
+		ti, err := decide.LoadTitle(ctx, e.st.Reader(), id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		d, err := eng.Decide(ctx, decide.Release{Release: indexer.Release{Indexer: "public", Kind: "torznab",
+			Title: release, Size: 20 << 30, Seeders: 10, Peers: 12, Privacy: policy.PrivacyPublic}}, ti,
+			decide.Version{Key: "movie-original"}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, r := range d.Rejections {
+			out = append(out, r.Reason)
+		}
+		return out
+	}
+	stored := func(id int64) string {
+		t.Helper()
+		var l sql.NullString
+		if err := e.st.Reader().QueryRow(`SELECT original_language FROM title WHERE id = ?`, id).Scan(&l); err != nil {
+			t.Fatal(err)
+		}
+		return l.String
+	}
+	var res AddResult
+	e.call("POST", APIBase+"/titles", map[string]any{"kind": "movie", "tmdb_id": 901, "title": "Ex Machina",
+		"year": 2015, "search": true}, 201, &res)
+	if got := stored(res.Title.ID); got != "en" {
+		t.Errorf("stored language %q, want TMDb's code en", got)
+	}
+	if r := judge(res.Title.ID, "Ex.Machina.2015.2160p.WEB-DL.ENGLISH.DDP5.1-FLUX"); len(r) != 0 {
+		t.Errorf("explicitly English release rejected: %v", r)
+	}
+	if r := judge(res.Title.ID, "Ex.Machina.2015.2160p.WEB-DL.DDP5.1-FLUX"); len(r) != 0 {
+		t.Errorf("untagged release rejected: %v", r)
+	}
+	for id, name := range map[int64]string{902: "Chinese", 903: "Chinese"} {
+		e.call("POST", APIBase+"/titles", map[string]any{"kind": "movie", "tmdb_id": id, "title": "Film", "year": 2020},
+			201, &res)
+		ti, err := decide.LoadTitle(ctx, e.st.Reader(), res.Title.ID)
+		if err != nil || ti.OriginalLanguage != name {
+			t.Errorf("tmdb %d: language %q (%v), want %s", id, ti.OriginalLanguage, err, name)
+		}
+	}
+	// A request approval goes through the same add.
+	_, ann := e.user("ann", auth.RoleUser)
+	_, mgr := e.user("mgr", auth.RoleManager)
+	var cr CreateResult
+	e.callAs(ann, "POST", APIBase+"/requests", map[string]any{"kind": "movie", "tmdb_id": 904, "name": "Requested",
+		"year": 2021}, 201, &cr)
+	var ap ApproveResult
+	e.callAs(mgr, "POST", fmt.Sprintf("%s/requests/%d/approve", APIBase, cr.Request.ID), map[string]any{}, 200, &ap)
+	if ap.Request.TitleID == nil || stored(*ap.Request.TitleID) != "en" {
+		t.Fatalf("approved request: %+v", ap.Request)
+	}
+	// TMDb failing: the add works as before, with no language.
+	e.tm.mu.Lock()
+	e.tm.detailsFail = true
+	e.tm.mu.Unlock()
+	e.call("POST", APIBase+"/titles", map[string]any{"kind": "movie", "tmdb_id": 905, "title": "Offline",
+		"year": 2022}, 201, &res)
+	if !res.Created || stored(res.Title.ID) != "" {
+		t.Errorf("add with TMDb failing: created %v, language %q", res.Created, stored(res.Title.ID))
 	}
 }
