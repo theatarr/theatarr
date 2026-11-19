@@ -42,7 +42,8 @@ export function statusWords(s: Status, seeFiles: boolean): { label: string; tone
     case "not_aired":
       return { label: "Not aired", tone: "neutral" };
     case "no_file":
-      return { label: "No file", tone: "neutral" };
+      // Files are a manager's notion: to everyone else the episode is simply not there.
+      return { label: seeFiles ? "No file" : "Not available", tone: "neutral" };
     case "unmonitored":
       // Monitoring is a manager's notion; to everyone else the episode is simply not there.
       return { label: seeFiles ? "Not monitored" : "Not available", tone: "neutral" };

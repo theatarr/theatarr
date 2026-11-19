@@ -89,6 +89,8 @@ describe("season summary", () => {
     // Its cell in the library that lacks it says No file, not Missing; the library holding it keeps its file status.
     expect(cellStatus(half.versions[k1.key], true, false, true)).toBe("no_file");
     expect(statusWords("no_file", true).label).toBe("No file");
+    // An account without see files gets the wording it gets elsewhere.
+    expect(statusWords("no_file", false).label).toBe("Not available");
     expect(cellStatus(half.versions[k4.key], true, false, true)).toBe("available");
     expect(mergedStatus({ ...half, versions: { [k1.key]: cell({}) } }, [k1.key])).toBe("no_file");
   });

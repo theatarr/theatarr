@@ -174,7 +174,7 @@ function DetailsPart({ titleId, eid, epCode, d, aired, removed, manage, admin, s
       ) : null}
       {acquisition ? <AcquisitionPart a={acquisition} /> : null}
       {/* Why it is missing and what next: the season's last targeted search in this library, and the switches. */}
-      {!acquisition && !d.has_file && aired && d.monitored && d.library_monitored && c ? (
+      {!acquisition && !removed && !d.has_file && aired && d.monitored && d.library_monitored && c ? (
         <p className="text-xs text-[var(--ink-2)]" data-testid="episode-why">{missingLine(d, auto, undefined, manage && c.can_search)}</p>
       ) : null}
       {manage && c ? (
@@ -196,6 +196,8 @@ function DetailsPart({ titleId, eid, epCode, d, aired, removed, manage, admin, s
           </label>
           )}
           <span className="flex-1" />
+          {/* Nor is it searched for. */}
+          {removed ? null : (<>
           <Button
             size="sm"
             variant="outline"
@@ -207,6 +209,7 @@ function DetailsPart({ titleId, eid, epCode, d, aired, removed, manage, admin, s
             {search.isPending ? <Loader2 className="animate-spin" /> : <Search />} Search now
           </Button>
           {c.live_releases ? <InteractiveSearchButton titleId={titleId} version={d.key} episode={{ id: eid, code: epCode }} /> : null}
+          </>)}
         </div>
       ) : null}
       {manage ? <ControlNote c={c} kind="both" /> : null}

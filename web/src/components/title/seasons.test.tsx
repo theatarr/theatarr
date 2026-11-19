@@ -113,6 +113,52 @@ describe("Series page copies", () => {
     expect(puts.map((r) => (r.body as { episode_ids: number[] }).episode_ids)).toEqual([[103], [103]]);
   });
 
+  it("says one thing about a removed episode in the library that lacks it: No file, no monitoring mark, no search", async () => {
+    const gone = { id: 104, season: 1, number: 15, absolute: 15, name: "Lost Harbour", air_date: "2026-10-22", aired: true, monitored: true, removed: true, versions: { "anime-tv": cell(false), "anime-web": cell(true) } };
+    const tv = { ...episodes, versions: [{ ...episodes.versions[0], control: managed }, episodes.versions[1]], episodes: [...episodes.episodes, gone] };
+    mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: tv }]);
+    const user = userEvent.setup();
+    renderPage(<Seasons id="1" anime />, "/title/1");
+    await user.click(await screen.findByRole("radio", { name: "Anime Blu-ray" }));
+    const row = (await screen.findAllByRole("button", { name: /Episode 15/ }))[0];
+    expect(within(row).getByText("No file")).toBeTruthy();
+    expect(within(row).queryByLabelText(/^(Not )?[Mm]onitored$/)).toBeNull();
+    expect(within(row).queryByTestId("episode-search")).toBeNull();
+    // Its neighbour keeps all three.
+    const other = (await screen.findAllByRole("button", { name: /Episode 14/ }))[0];
+    expect(within(other).getByTestId("episode-search")).toBeTruthy();
+  });
+
+  it("drops ticks a collapsed season or a filter hides, as main does", async () => {
+    const two = {
+      ...episodes,
+      versions: [{ ...episodes.versions[0], control: managed }, episodes.versions[1]],
+      seasons: [...episodes.seasons, { season: 2, episodes: 1, aired: 1, versions: { "anime-tv": { have: 0, missing: 1, below_cutoff: 0, upgrade_seen: 0, monitored: 1 }, "anime-web": { have: 0, missing: 1, below_cutoff: 0, upgrade_seen: 0, monitored: 1 } } }],
+      episodes: [...episodes.episodes, { id: 201, season: 2, number: 1, absolute: 25, name: "New Tide", air_date: "2026-10-20", aired: true, monitored: true, versions: { "anime-tv": cell(false), "anime-web": cell(false) } }],
+    };
+    const m = mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: two },
+      { method: "PUT", path: "/titles/1/episodes/monitor", reply: { versions: ["anime-web"], skipped: [], episodes: 1, message: "Monitored 1 episode" } }]);
+    const user = userEvent.setup();
+    renderPage(<><Seasons id="1" anime /><Toaster /></>, "/title/1");
+    await screen.findAllByTestId("season-header");
+    // Season 2 opens first (the latest aired); open season 1 too, tick there, then collapse season 1.
+    await user.click(screen.getByRole("button", { name: "Season 1" }));
+    await user.click(await screen.findByRole("checkbox", { name: "Select episode 12" }));
+    expect(screen.getByTestId("bulk-scope").textContent).toContain("1 selected");
+    await user.click(screen.getByRole("button", { name: "Season 1" }));
+    expect(screen.queryByTestId("bulk-bar")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Season 1" }));
+    await user.click(await screen.findByRole("checkbox", { name: "Select episode 12" }));
+    await user.click(screen.getByRole("checkbox", { name: "Select episode 1" }));
+    expect(screen.getByTestId("bulk-scope").textContent).toContain("2 selected");
+    // A filter that hides the ticked E12 (Missing in season 1: both libraries hold it) drops it too.
+    const s1 = document.querySelector('[data-season="1"]') as HTMLElement;
+    await user.click(within(s1).getByRole("button", { name: /Missing/ }));
+    expect(screen.getByTestId("bulk-scope").textContent).toContain("1 selected");
+    await user.click(screen.getByTestId("bulk-monitor"));
+    expect(m.calls("PUT", "/titles/1/episodes/monitor").map((r) => (r.body as { episode_ids: number[] }).episode_ids)).toEqual([[201]]);
+  });
+
   it("offers no monitoring in the window of an episode the series no longer lists", async () => {
     const gone = { ...episodes.episodes[2], id: 104, number: 15, name: "Lost Harbour", removed: true };
     mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: { ...episodes, episodes: [...episodes.episodes, gone] } },
@@ -121,6 +167,10 @@ describe("Series page copies", () => {
     const dialog = await screen.findByRole("dialog");
     expect(await within(dialog).findByTestId("episode-removed-anime-web")).toBeTruthy();
     expect(within(dialog).queryByTestId("episode-monitor-anime-web")).toBeNull();
+    // Nor a search, nor the missing line, in either library: the note alone.
+    expect(within(dialog).queryByTestId("episode-search-anime-web")).toBeNull();
+    expect(within(dialog).queryByTestId("episode-search-anime-tv")).toBeNull();
+    expect(within(dialog).queryByTestId("episode-why")).toBeNull();
   });
 
   it("says the next search in plain words when the server sends it for the library in view", async () => {
@@ -534,6 +584,7 @@ describe("Acting on the libraries in view", () => {
   it("drops the ticks of a season that is collapsed", async () => {
     const two = {
       ...episodes,
+      versions: [{ ...episodes.versions[0], control: managed }, episodes.versions[1]],
       seasons: [...episodes.seasons, { ...episodes.seasons[0], season: 2 }],
       episodes: [...episodes.episodes, { ...episodes.episodes[0], id: 201, season: 2, number: 1, name: "Second Season" }],
     };

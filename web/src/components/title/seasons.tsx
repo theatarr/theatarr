@@ -122,7 +122,8 @@ const TONE: Record<Status, { text: string; dot: string }> = {
 const PHONE_ICON = "max-md:size-9";
 const PHONE_ICON_WRAP = "contents max-md:[&_button]:size-9";
 
-type StatusOf = { s: Status; label: string; quality?: string; cell?: Cell; upgrade?: string };
+/** removed: the series no longer lists the episode (kept for a file): no monitoring mark. */
+type StatusOf = { s: Status; label: string; quality?: string; cell?: Cell; upgrade?: string; removed?: boolean };
 
 /** What one place (a copy's cell, or the merged column) says about an episode: the status word, Upgrade found beside
  *  it, and the quality for managers. A gap in a library that is not monitored reads Not monitored, and such a library
@@ -136,16 +137,18 @@ function statusOf(e: Episode, copies: { key: string; monitored?: boolean }[], me
   }
   const c = e.versions[keys[0]];
   const s = cellStatus(c, aired(e), off.has(keys[0]), !!e.removed);
-  return { s, label: statusWords(s, seeFiles).label, quality: seeFiles && c?.has_file ? c.quality : undefined, cell: c, upgrade: off.has(keys[0]) ? undefined : cellUpgradeWord(c, seeFiles) };
+  return { s, label: statusWords(s, seeFiles).label, quality: seeFiles && c?.has_file ? c.quality : undefined, cell: c, upgrade: off.has(keys[0]) ? undefined : cellUpgradeWord(c, seeFiles), removed: !!e.removed };
 }
 
 /** A cell's tooltip: the quality word (none in a library that does not monitor the title, off, and none at the
  *  preferred quality or with only the score short, scoreOnly), release group, size, score (when scored) and
  *  monitoring. */
-function cellTitle(c: Cell | undefined, off = false): string | undefined {
+function cellTitle(c: Cell | undefined, off = false, removed = false): string | undefined {
   if (!c) return undefined;
   const quality = c.has_file && !off ? (c.upgrade_seen ? upgradeFoundWord(c.upgrade) : c.state === "filled" && !scoreOnly(c.upgrade) ? BELOW_PREFERRED : undefined) : undefined;
-  const parts = [quality, c.release_group, c.size_bytes ? fmtBytes(c.size_bytes) : undefined, c.score != null ? `profile score ${fmtNumber(c.score)}` : undefined, c.monitored ? "monitored" : "not monitored"];
+  // An episode the series no longer lists has no monitoring to tell.
+  const mon = removed ? undefined : c.monitored ? "monitored" : "not monitored";
+  const parts = [quality, c.release_group, c.size_bytes ? fmtBytes(c.size_bytes) : undefined, c.score != null ? `profile score ${fmtNumber(c.score)}` : undefined, mon];
   return parts.filter(Boolean).join(" · ") || undefined;
 }
 
@@ -153,7 +156,7 @@ function StatusText({ st, manage, className }: { st: StatusOf; manage: boolean; 
   const t = TONE[st.s];
   return (
     <span className={cn("inline-flex max-w-full items-center gap-1.5 text-[12.5px]", className)} data-status={st.s}>
-      {manage && st.cell ? (
+      {manage && st.cell && !st.removed ? (
         <Bookmark className={cn("size-3 shrink-0", st.cell.monitored ? "fill-current text-[var(--accent-ink)]" : "text-[var(--ink-3)]")} aria-label={st.cell.monitored ? "Monitored" : "Not monitored"} />
       ) : null}
       <span className={cn("size-2 shrink-0 rounded-full", t.dot)} aria-hidden />
@@ -288,7 +291,8 @@ function RemovedNote({ e }: { e: Episode }) {
 }
 
 function RowIcons({ e, live, act }: { e: Episode; live: ListProps["live"]; act: ListProps["act"] }) {
-  if (!act && !live) return null;
+  // An episode the series no longer lists is not searched for: it is kept for its file only.
+  if ((!act && !live) || e.removed) return null;
   const what = `Search ${epCode(e)} now in ${act?.scope.name}`;
   return (
     <span className="inline-flex items-center justify-end gap-0.5" onClick={(ev) => ev.stopPropagation()} onKeyDown={(ev) => ev.stopPropagation()}>
@@ -359,7 +363,7 @@ function ColumnCell({ id, e, c, seeFiles, day, off = false }: { id: EpisodeColum
     case "status": {
       const s = cellStatus(c, aired(e), off, !!e.removed);
       return (
-        <TableCell title={cellTitle(c, off)} data-col="status">
+        <TableCell title={cellTitle(c, off, !!e.removed)} data-col="status">
           <StatusText st={{ s, label: statusWords(s, seeFiles).label, upgrade: off ? undefined : cellUpgradeWord(c, seeFiles) }} manage={false} />
           <CellStage cell={c} />
         </TableCell>
@@ -547,7 +551,7 @@ function MatrixTable({ episodes, copies, merged, anime, manage, seeFiles, select
               copies.map((v) => {
                 const st = statusOf(e, [v], false, seeFiles);
                 return (
-                  <TableCell key={v.key} title={cellTitle(st.cell, seeFiles && v.monitored === false)} data-state={st.s}>
+                  <TableCell key={v.key} title={cellTitle(st.cell, seeFiles && v.monitored === false, !!e.removed)} data-state={st.s}>
                     <StatusText st={st} manage={manage} />
                     <CellStage cell={st.cell} />
                   </TableCell>
@@ -868,7 +872,7 @@ function BulkBar({ titleId, scope, rows, onClear }: { titleId: number; scope: Sc
   const actions = useSeasonActions(titleId, scope);
   const where = `in ${scope.name}`;
   const selected = rows.map((e) => e.id);
-  // Episodes the series no longer lists are kept for their files: monitoring leaves them out.
+  // Episodes the series no longer lists are kept for their files: monitoring and searching leave them out.
   const monitorable = rows.filter((e) => !e.removed).map((e) => e.id);
   const noMonitor = monitorable.length === 0;
   return (
@@ -884,7 +888,7 @@ function BulkBar({ titleId, scope, rows, onClear }: { titleId: number; scope: Sc
         <Button size="xs" variant="outline" disabled={actions.busy || !scope.edit || noMonitor} title={scope.edit ? `Stop monitoring ${where}` : scope.editWhy} onClick={() => actions.monitor({ episode_ids: monitorable }, false)} data-testid="bulk-unmonitor">
           Unmonitor
         </Button>
-        <Button size="xs" disabled={actions.busy || !scope.search} title={scope.search ? `Search now ${where}` : scope.searchWhy} onClick={() => actions.search({ episode_ids: selected })} data-testid="bulk-search">
+        <Button size="xs" disabled={actions.busy || !scope.search || noMonitor} title={scope.search ? `Search now ${where}` : scope.searchWhy} onClick={() => actions.search({ episode_ids: monitorable })} data-testid="bulk-search">
           {actions.searching ? <Loader2 className="animate-spin" /> : <Search />} Search
         </Button>
         <Button size="icon-xs" variant="ghost" className={PHONE_ICON} aria-label="Clear the selection" onClick={onClear}>
