@@ -2,6 +2,7 @@ package adapt
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/decide/format"
@@ -145,22 +146,49 @@ func TestAggregateLanguagesRules(t *testing.T) {
 			t.Errorf("%s: got %v %v %v, want %v %v", c.name, got, assumed, err, c.want, c.assumed)
 		}
 	}
-	// The normalised index applied to the raw tokens can run past the end: the arr throws, we return an error.
-	if _, _, err := aggregateLanguages(langOps{
+	// A normalised title longer than the tokens: the arr cut past the end and threw (we returned an error); the
+	// title is now looked for in the tokens themselves, is not there, and the parse stands.
+	if got, _, err := aggregateLanguages(langOps{
 		parse:     func(s string) []int { return []int{fr} },
 		normalize: func(s string) string { return "padding padding french" },
-	}, []int{fr}, "french", true, []string{"French"}, en, nil); err == nil {
-		t.Error("Remove past the end: no error")
+	}, []int{fr}, "french", true, []string{"French"}, en, nil); err != nil || !reflect.DeepEqual(got, []int{fr}) {
+		t.Errorf("title longer than the tokens: got %v %v, want [%d]", got, err, fr)
 	}
 }
 
-func TestIndexFold(t *testing.T) {
+// Two episode titles in one release: each is found and cut in the tokens as they stand after the cut before
+// (the arr indexes the stale normalised tokens and cuts the wrong text, here past the end), case-insensitively,
+// and the rest keeps its case, so the upper-case tags after the titles still read as languages.
+func TestAggregateLanguagesTwoEpisodeTitles(t *testing.T) {
+	en, it, el := sonarr.LanguageEnglish.ID, sonarr.LanguageItalian.ID, sonarr.LanguageGreek.ID
+	ja, de, pl := sonarr.LanguageJapanese.ID, sonarr.LanguageGerman.ID, sonarr.LanguagePolish.ID
+	titles := []string{"Jimmy the Greek", "The Italian Job"}
 	for _, c := range []struct {
-		s, n string
-		want int
-	}{{"abc", "", 0}, {"abc", "BC", 1}, {"xyz", "a", -1}, {"éé jimmy", "JIMMY", 3}, {"ab", "abc", -1}} {
-		if got := indexFold(c.s, c.n); got != c.want {
-			t.Errorf("indexFold(%q, %q) = %d, want %d", c.s, c.n, got, c.want)
+		tokens string
+		parsed []int
+		want   []int
+	}{
+		{".Jimmy.The.Greek.+.The.Italian.Job.[EN]-GRP", []int{el, it, en}, []int{en}},
+		{"..JIMMY...THE...GREEK..-..the.italian.job..[JA+DE+PL]-GRP", []int{el, it, ja, de, pl}, []int{ja, de, pl}},
+		{".Jimmy.The.Greek.Greek.The.Italian.Job.xyz-GRP", []int{el, it}, []int{el}},
+	} {
+		got, _, err := aggregateLanguages(sonarrLangs, c.parsed, c.tokens, true, titles, en, nil)
+		if err != nil || !reflect.DeepEqual(got, c.want) {
+			t.Errorf("%s: got %v %v, want %v", c.tokens, got, err, c.want)
+		}
+	}
+}
+
+// findWords replaces indexFold; its cases are kept (an empty title now matches nothing), plus separators.
+func TestFindWords(t *testing.T) {
+	for _, c := range []struct {
+		s, n       string
+		start, end int
+	}{{"abc", "", -1, -1}, {"abc", "BC", 1, 3}, {"xyz", "a", -1, -1}, {"éé jimmy", "JIMMY", 3, 8}, {"ab", "abc", -1, -1},
+		{".Jimmy..The-Greek.x", "jimmy the greek", 1, 17}, {"JimmyThe Greek", "jimmy the greek", -1, -1},
+		{"A_B a b", "a b", 4, 7}} {
+		if start, end := findWords([]rune(c.s), strings.Fields(c.n)); start != c.start || end != c.end {
+			t.Errorf("findWords(%q, %q) = %d, %d, want %d, %d", c.s, c.n, start, end, c.start, c.end)
 		}
 	}
 }

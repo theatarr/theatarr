@@ -93,4 +93,7 @@ a corpus that drops the key disagrees on Season Pack formats.
 - `internal/decide/adapt` turns each parser's output into `Input`. For Radarr it produces `SimpleReleaseTitle`, and it
   ports `AggregateLanguages`, because formats see the augmented languages: languages found only in the movie (or
   episode) title are dropped, the indexer's multi-languages are added, the original language stands in when the
-  result is empty or Unknown, and Original is expanded.
+  result is empty or Unknown, and Original is expanded. One fix of ours: a title's words are found and cut in the
+  release tokens themselves (case-insensitive, any separators between words), not at the index found in a normalised
+  copy, so a second episode title no longer cuts the wrong text or fails the decision, and upper-case tags such as
+  `EN` or `JA` outside the titles keep their case (`TestAggregateLanguagesTwoEpisodeTitles`).

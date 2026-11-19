@@ -9,10 +9,8 @@ package adapt
 // none (Release is null).
 
 import (
-	"fmt"
 	"strings"
 	"unicode"
-	"unicode/utf8"
 )
 
 // Language ids shared by both arrs.
@@ -50,26 +48,24 @@ func aggregateLanguages(ops langOps, parsed []int, releaseTokens string, mapped 
 		// "Languages provided by indexer, using release values"
 		languages = append([]int{}, rel.Languages...)
 	} else {
-		normalizedReleaseTokens := ops.normalize(releaseTokens)
+		// The arr finds the normalised title in the normalised tokens and cuts that index out of the raw tokens,
+		// which cuts the wrong text, or past the end, once the two differ in length. Ours: the normalised title's
+		// words are found in the raw tokens themselves, case-insensitively and with any separators between them,
+		// and cut there, so each title is found in the tokens as the cuts before it left them and the rest keeps
+		// its case.
+		tokens := []rune(releaseTokens)
 		var languagesToRemove []int
 		for _, title := range titles {
 			titleLanguage := ops.parse(title)
 			if contains(titleLanguage, langUnknown) {
 				continue
 			}
-			normalizedTitle := ops.normalize(title)
-			index := indexFold(normalizedReleaseTokens, normalizedTitle)
-			if index >= 0 {
-				// The index is into the normalised tokens but is applied to the raw ones, as in the arr.
-				r := []rune(releaseTokens)
-				n := utf8.RuneCountInString(normalizedTitle)
-				if index+n > len(r) {
-					return nil, false, fmt.Errorf("adapt: aggregate languages: Remove(%d, %d) on %d characters", index, n, len(r))
-				}
-				releaseTokens = string(r[:index]) + string(r[index+n:])
+			if start, end := findWords(tokens, strings.Fields(ops.normalize(title))); start >= 0 {
+				tokens = append(tokens[:start:start], tokens[end:]...)
 				languagesToRemove = append(languagesToRemove, titleLanguage...)
 			}
 		}
+		releaseTokens = string(tokens)
 
 		// Remove any languages still in the title that would normally be removed
 		languagesToRemove = except(languagesToRemove, ops.parse(releaseTokens))
@@ -144,26 +140,55 @@ func removeFirst(s []int, v int) []int {
 	return s
 }
 
-// indexFold is String.IndexOf(value, CurrentCultureIgnoreCase) as a rune index: the first position where needle
-// occurs in s, ignoring case; 0 for an empty needle; -1 when absent.
-func indexFold(s, needle string) int {
-	h, n := []rune(s), []rune(needle)
-	if len(n) == 0 {
-		return 0
+// findWords finds words (a normalised title: word characters only) in the tokens, case-insensitively, one after the
+// other with one or more separators (anything a normaliser turns into a space) between them; the first word may
+// start and the last end inside a token word, as a substring of the normalised tokens would. It returns the span,
+// or -1, -1 when there are no words or no match.
+func findWords(tokens []rune, words []string) (start, end int) {
+	if len(words) == 0 {
+		return -1, -1
 	}
-	for i := 0; i+len(n) <= len(h); i++ {
-		ok := true
-		for j := range n {
-			if !equalFold(h[i+j], n[j]) {
-				ok = false
-				break
+	ws := make([][]rune, len(words))
+	for i, w := range words {
+		ws[i] = []rune(w)
+	}
+	for i := range tokens {
+		if e := matchWords(tokens, i, ws); e >= 0 {
+			return i, e
+		}
+	}
+	return -1, -1
+}
+
+// matchWords matches ws at tokens[i:] and returns the end of the match, or -1.
+func matchWords(tokens []rune, i int, ws [][]rune) int {
+	for k, w := range ws {
+		if k > 0 {
+			j := i
+			for j < len(tokens) && !wordRune(tokens[j]) {
+				j++
+			}
+			if j == i {
+				return -1
+			}
+			i = j
+		}
+		if i+len(w) > len(tokens) {
+			return -1
+		}
+		for j, r := range w {
+			if !equalFold(tokens[i+j], r) {
+				return -1
 			}
 		}
-		if ok {
-			return i
-		}
+		i += len(w)
 	}
-	return -1
+	return i
+}
+
+// wordRune is .NET's \w: what a normaliser's [^\w\s] keeps.
+func wordRune(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.IsMark(r) || unicode.Is(unicode.Pc, r)
 }
 
 func equalFold(a, b rune) bool {
