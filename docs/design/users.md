@@ -165,13 +165,18 @@ and no other-requester list or count.
   seasons it holds, so asking for season 3 after an approved request for seasons 1-2 makes a new request.
   The UI: the request card and hero say **Request more seasons**, the Episodes tab shows the same entry above the
   seasons, and the sheet greys out seasons already monitored in every wanted version.
-- Status: `pending` → `approved` → `processing` (a download for a requested version is in hand; for a series request
+- Status: `pending` → `approved` → `processing` (a download for a requested version is in hand, an imported one not
+  included, as Activity counts them; for a series request
   naming seasons, one for those seasons or the whole series, the season match the request detail uses) → `available` (every
-  requested version has its file; for a series request naming seasons, every aired episode of those seasons, so a
+  requested version has its file; for a series request naming seasons, every aired episode (the pages' air clock: the
+  instant, else the day) of those seasons, so a
   version filled before the request does not count and a gap in another season does not hold it back; the library's
   available badge on such a request follows the same seasons) or `failed` (a download counted as above failed since the
-  approval); also `declined`, `canceled`. A sync loop and the
-  download events move it.
+  approval; for a series, only one for the whole series or naming an episode of the request still missing in that
+  library, so an old failure of an episode filled since does not count; `TestSeasonRequestImportedMissingFailed`);
+  also `declined`, `canceled`. A sync loop and the
+  download events move it. The request detail keeps the list's badge and counts the aired or held episodes only
+  (`TestRequestDetailOngoingSeries`).
 - SSE `request` events go to the requesters and to accounts with `manage_requests`. `Config.OnRequest` is an
   optional hook that hears every request change; request webhooks come from `internal/notify` ([manage.md](manage.md)
   "API").

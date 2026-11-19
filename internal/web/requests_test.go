@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/auth"
@@ -1038,5 +1039,54 @@ func TestRequestNewSeriesSeasonChoices(t *testing.T) {
 	}
 	if seasons != `{"0":false,"1":true,"2":false,"3":false}` || pending != "" {
 		t.Errorf("stored season choice %s, pending %q", seasons, pending)
+	}
+}
+
+// TestSeasonRequestImportedMissingFailed: an imported download is not in hand, so a season request with an imported
+// episode and a missing one is not "processing"; a failure counts only against an episode still missing in the
+// requested library (an old failure of an episode filled later does not fail the request), and an episode airing
+// later today is not yet aired.
+func TestSeasonRequestImportedMissingFailed(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, nil)
+	ctx := context.Background()
+	annID, _ := e.user("ann", auth.RoleUser)
+	now := store.Millis(addNow)
+	e.exec(`INSERT INTO request (id, user_id, kind, title_id, name, versions, seasons, status, decided_at, created_at,
+		updated_at) VALUES (601, ?, 'series', 10, 'The Show', '["tv-2160p"]', '[1]', 'approved', ?, ?, ?)`,
+		annID, now-10, now-10, now-10)
+	e.exec(`UPDATE episode SET air_date = '2020-01-01' WHERE id IN (101, 102)`)
+	e.exec(`UPDATE episode_version_state SET state = 'filled' WHERE episode_id = 101`)
+	status := func() string {
+		t.Helper()
+		if err := e.web.syncRequests(ctx); err != nil {
+			t.Fatal(err)
+		}
+		return e.requestStatus(601)
+	}
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, episodes,
+		created_at, updated_at) VALUES (71, 10, 10, 'tv-2160p', 'h71', 'The.Show.S01E01', 'x', 'imported', '[101]', ?, ?)`,
+		now, now)
+	if s := status(); s != ReqApproved {
+		t.Errorf("imported S01E01, S01E02 missing: %s", s)
+	}
+	// S01E01 failed once before its import: not a failure of the request.
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, episodes,
+		created_at, updated_at) VALUES (72, 10, 10, 'tv-2160p', 'h72', 'The.Show.S01E01.Other', 'x', 'failed', '[101]', ?, ?)`,
+		now, now)
+	if s := status(); s != ReqApproved {
+		t.Errorf("old failure of a filled episode: %s", s)
+	}
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, episodes,
+		created_at, updated_at) VALUES (73, 10, 10, 'tv-2160p', 'h73', 'The.Show.S01E02', 'x', 'failed', '[102]', ?, ?)`,
+		now, now)
+	if s := status(); s != ReqFailed {
+		t.Errorf("missing episode failed: %s", s)
+	}
+	// S01E02 airs later today: the season holds every aired episode.
+	e.exec(`UPDATE episode SET air_date = '2026-10-26', air_date_utc_at = ? WHERE id = 102`,
+		store.Millis(addNow.Add(2*time.Hour)))
+	if s := status(); s != ReqAvailable {
+		t.Errorf("episode airing later today: %s", s)
 	}
 }

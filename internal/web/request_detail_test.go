@@ -121,6 +121,8 @@ func TestRequestDetailRequestedSeasons(t *testing.T) {
 	path := fmt.Sprintf("%s/requests/%d", APIBase, cr.Request.ID)
 	e.call("POST", path+"/approve", nil, 200, nil)
 	now := store.Millis(addNow)
+	// The detail counts aired or held episodes: season 1's two have aired.
+	e.exec(`UPDATE episode SET air_date = '2020-01-01' WHERE id IN (101, 102)`)
 	// Season 2's download must not describe a season 1 request.
 	e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, state,
 		episodes, created_at, updated_at) SELECT title_id, id, policy_key, 'other', 'Other season', 'x', 'downloading',
@@ -141,7 +143,6 @@ func TestRequestDetailRequestedSeasons(t *testing.T) {
 	}
 	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (999, 102)`)
 	// The badge is the request's: every aired episode of its seasons imported.
-	e.exec(`UPDATE episode SET air_date = '2020-01-01' WHERE id IN (101, 102)`)
 	e.exec(`UPDATE episode_version_state SET state = 'filled' WHERE episode_id IN (101, 102)`)
 	d = RequestDetail{}
 	e.callAs(key, "GET", path, nil, 200, &d)
@@ -176,5 +177,43 @@ func TestRequestDetailConcurrentDownloads(t *testing.T) {
 	e.callAs(key, "GET", path, nil, 200, &d)
 	if len(d.Progress) != 2 || d.Progress[1].Words != "Download failed" {
 		t.Fatalf("failed: %+v", d.Progress)
+	}
+}
+
+// An ongoing show's whole-series request: the detail counts aired or held episodes only (not the monitored ones
+// still to air) and takes the library's badge from the same calculation as the list.
+func TestRequestDetailOngoingSeries(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, nil)
+	_, key := e.user("requester", auth.RoleUser)
+	e.exec(`UPDATE version SET monitored = 0 WHERE id = 10`)
+	var cr CreateResult
+	e.callAs(key, "POST", APIBase+"/requests", map[string]any{"title_id": 10}, 201, &cr)
+	path := fmt.Sprintf("%s/requests/%d", APIBase, cr.Request.ID)
+	e.call("POST", path+"/approve", nil, 200, nil)
+	now := store.Millis(addNow)
+	e.exec(`UPDATE episode SET air_date = '2020-01-01' WHERE id IN (101, 102, 103)`)
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, monitored, air_date, created_at, updated_at)
+		VALUES (104, 10, 2, 2, 'Next week', 1, '2099-01-01', ?, ?)`, now, now)
+	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, updated_at)
+		VALUES (10, 104, 1, 'wanted', ?)`, now)
+	e.exec(`UPDATE episode_version_state SET state = 'cutoff_met' WHERE episode_id IN (101, 102, 103)`)
+	e.exec(`UPDATE version SET state = 'cutoff_met' WHERE id = 10`)
+	e.exec(`INSERT INTO link (id, path, target, title_id, created_at, updated_at) VALUES (999, '/tv/e', '/zurg/e', 10, 0, 0)`)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (999, 10)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (999, 101), (999, 102), (999, 103)`)
+	var page RequestPage
+	e.call("GET", APIBase+"/requests?status=all", nil, 200, &page)
+	listed := false
+	for _, r := range page.Items {
+		if r.ID == cr.Request.ID {
+			listed = r.Versions[0].Available
+		}
+	}
+	var d RequestDetail
+	e.callAs(key, "GET", path, nil, 200, &d)
+	if !listed || len(d.Progress) != 1 || d.Progress[0].Total == nil || *d.Progress[0].Total != 3 ||
+		*d.Progress[0].Have != 3 || !d.Versions[0].Available || d.Progress[0].Words != "Available" {
+		t.Fatalf("ongoing series: list %v, detail %+v %+v", listed, d.Progress, d.Versions)
 	}
 }

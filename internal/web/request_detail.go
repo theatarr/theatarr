@@ -57,10 +57,15 @@ func (w *Web) requestDetail(ctx context.Context, r *Request) (*RequestDetail, er
 			p.Approval = "Approval records this request; automatic downloads are paused"
 			p.Words = "Automatic downloads are paused"
 		}
+		// The counts are the aired or held episodes (airClock), so an ongoing show's next episode is no gap. The
+		// library's badge stays the list's (fillRequests), the calculation the request's status uses.
 		if episodes != nil && len(episodes.Episodes) > 0 {
 			have, total := 0, 0
 			for _, e := range episodes.Episodes {
 				c := e.Versions[v.Key]
+				if e.removed || (!e.Aired && !c.HasFile) {
+					continue
+				}
 				if len(r.Seasons) > 0 {
 					if !slices.Contains(r.Seasons, int(e.Season)) {
 						continue
@@ -74,10 +79,6 @@ func (w *Web) requestDetail(ctx context.Context, r *Request) (*RequestDetail, er
 				}
 			}
 			p.Have, p.Total = &have, &total
-			if len(r.Seasons) == 0 {
-				// A request naming seasons keeps fillRequests' badge: every aired episode of its seasons, as its status.
-				v.Available = total > 0 && have == total
-			}
 		}
 		// Keep all concurrent acquisitions: a series can be downloading several requested episodes at once.
 		var latest *activity.Download

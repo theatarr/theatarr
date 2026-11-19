@@ -1570,19 +1570,37 @@ func (w *Web) requestStatus(ctx context.Context, r *Request) (string, error) {
 			args = append(args, n)
 		}
 	}
+	// In hand: a download still on its way (not failed, and not imported: an imported one is done, and what it
+	// brought is in the version's state above, as Activity counts them).
 	var inHand int
 	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM download WHERE `+where+`
-		AND state NOT IN ('failed')`, args...).Scan(&inHand); err != nil {
+		AND state NOT IN ('failed', 'imported')`, args...).Scan(&inHand); err != nil {
 		return "", err
 	}
 	if inHand > 0 {
 		return ReqProcessing, nil
 	}
 	// Failed: since the approval, a download of a missing version failed (one not started because downloads were off
-	// does not count: activity.NotStarted).
+	// does not count: activity.NotStarted). For a series only a failure for a gap still open counts: a download for
+	// the whole series, or one naming an episode (of the request's seasons) that the version does not hold. An old
+	// failure of an episode filled since does not fail the request.
+	failArgs := append(slices.Clone(args), r.decidedAt)
+	gap := ""
+	if r.Kind == string(policy.KindSeries) {
+		gap = ` AND (json_array_length(download.episodes) = 0 OR EXISTS (SELECT 1 FROM json_each(download.episodes) j
+			JOIN episode e ON e.id = j.value WHERE NOT EXISTS (SELECT 1 FROM episode_version_state s
+				WHERE s.episode_id = e.id AND s.version_id = download.version_id AND s.state IN ('filled', 'cutoff_met'))`
+		if len(r.Seasons) > 0 {
+			gap += ` AND e.season IN (` + store.Placeholders(len(r.Seasons)) + `)`
+			for _, n := range r.Seasons {
+				failArgs = append(failArgs, n)
+			}
+		}
+		gap += `))`
+	}
 	var failed int
 	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM download WHERE `+where+`
-		AND state = 'failed' AND NOT `+activity.NotStartedSQL+` AND updated_at >= ?`, append(args, r.decidedAt)...).Scan(&failed); err != nil {
+		AND state = 'failed' AND NOT `+activity.NotStartedSQL+` AND updated_at >= ?`+gap, failArgs...).Scan(&failed); err != nil {
 		return "", err
 	}
 	if failed > 0 {
@@ -1591,23 +1609,24 @@ func (w *Web) requestStatus(ctx context.Context, r *Request) (string, error) {
 	return ReqApproved, nil
 }
 
-// seasonsFilled reports whether a version holds every aired episode of these seasons (and at least one).
+// seasonsFilled reports whether a version holds every aired episode (airClock) of these seasons (and at least one).
 func (w *Web) seasonsFilled(ctx context.Context, versionID int64, seasons []int) (bool, error) {
-	args := []any{versionID, versionID, w.now().UTC().Format(time.DateOnly)}
+	aired, airedArgs := newAirClock(w.now()).airedSQL("e")
+	args := append([]any{versionID, versionID}, airedArgs...)
 	for _, n := range seasons {
 		args = append(args, n)
 	}
-	var aired, held int
+	var n, held int
 	err := w.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(s.state IN ('filled', 'cutoff_met')), 0)
 		FROM episode e LEFT JOIN episode_version_state s ON s.episode_id = e.id AND s.version_id = ?
 		WHERE e.title_id = (SELECT title_id FROM version WHERE id = ?) AND e.removed_at IS NULL
-		AND e.air_date IS NOT NULL AND e.air_date <> '' AND e.air_date <= ? AND e.season IN (`+
-		store.Placeholders(len(seasons))+`)`, args...).Scan(&aired, &held)
-	return aired > 0 && held == aired, err
+		AND `+aired+` AND e.season IN (`+store.Placeholders(len(seasons))+`)`, args...).Scan(&n, &held)
+	return n > 0 && held == n, err
 }
 
 // requestSeasonsFilled is seasonsFilled for every decided series request naming seasons, in one query: per
-// request, per library, whether the library holds every aired episode of the request's seasons (and at least one).
+// request, per library, whether the library holds every aired episode (airClock) of the request's seasons (and at
+// least one).
 func (w *Web) requestSeasonsFilled(ctx context.Context, items []Request) (map[int64]map[string]bool, error) {
 	type ask struct {
 		ID      int64 `json:"id"`
@@ -1627,6 +1646,7 @@ func (w *Web) requestSeasonsFilled(ctx context.Context, items []Request) (map[in
 		return out, nil
 	}
 	b, _ := json.Marshal(asks)
+	aired, airedArgs := newAirClock(w.now()).airedSQL("e")
 	err := scanAll(ctx, w.st.Reader(), `WITH q AS (SELECT json_extract(a.value, '$.id') AS rid,
 			json_extract(a.value, '$.t') AS tid, s.value AS season
 			FROM json_each(?) a, json_each(json_extract(a.value, '$.s')) s)
@@ -1634,8 +1654,8 @@ func (w *Web) requestSeasonsFilled(ctx context.Context, items []Request) (map[in
 		FROM q JOIN episode e ON e.title_id = q.tid AND e.season = q.season
 		JOIN version v ON v.title_id = q.tid
 		LEFT JOIN episode_version_state st ON st.episode_id = e.id AND st.version_id = v.id
-		WHERE e.removed_at IS NULL AND e.air_date IS NOT NULL AND e.air_date <> '' AND e.air_date <= ?
-		GROUP BY q.rid, v.policy_key`, []any{string(b), w.now().UTC().Format(time.DateOnly)}, func(rows *sql.Rows) error {
+		WHERE e.removed_at IS NULL AND `+aired+`
+		GROUP BY q.rid, v.policy_key`, append([]any{string(b)}, airedArgs...), func(rows *sql.Rows) error {
 		var id int64
 		var key string
 		var aired, held int
