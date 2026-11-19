@@ -189,10 +189,13 @@ func (r *Router) lookupAdding(ctx context.Context, dl int64, lists *accountLists
 			unknown = append(unknown, "reading "+pk+"'s torrents failed: "+err.Error())
 			continue
 		}
+		// A healthy entry of the hash first; an errored one still shows the add landed when no other is listed.
 		for _, t := range list {
-			if strings.EqualFold(t.Hash, hash) && t.ID != "" {
+			if strings.EqualFold(t.Hash, hash) && t.ID != "" && (c.tid == "" || t.State != provider.StateError) {
 				c.pk, c.tid, c.why = pk, t.ID, "the account shows the hash on "+pk+" (torrent "+t.ID+")"
-				break
+				if t.State != provider.StateError {
+					break
+				}
 			}
 		}
 		if c.tid != "" {

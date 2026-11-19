@@ -223,6 +223,28 @@ func TestReconcileErroredEntryShowsTheAddLanded(t *testing.T) {
 	}
 }
 
+// The account list's fallback prefers a healthy entry of the hash over an errored one listed before it.
+func TestReconcileListPrefersHealthyEntry(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state,
+		provider, created_at, updated_at) VALUES (1, 1, 10, 'movie', ?, 'R', 'pub', 'adding', 'rd', 0, ?)`,
+		h("a"), e.clock.Add(-addSettle-time.Minute).UnixMilli())
+	e.pr["rd"].list = []provider.Torrent{{ID: "T8", Hash: h("a"), State: provider.StateError},
+		{ID: "T9", Hash: h("a"), State: provider.StateDownloaded}}
+	c, err := e.r.lookupAdding(e.ctx, 1, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.rec != recFound || c.tid != "T9" {
+		t.Fatalf("%+v", c)
+	}
+	e.pr["rd"].list = e.pr["rd"].list[:1] // only the errored one: it still shows the add landed
+	if c, err = e.r.lookupAdding(e.ctx, 1, nil); err != nil || c.rec != recFound || c.tid != "T8" {
+		t.Fatalf("%+v %v", c, err)
+	}
+}
+
 // A route job that lost its lease right before the add sends nothing; a second worker that takes over the expired
 // lease resumes the same download and adds it once.
 func TestLostLeaseBeforeAddThenTakeover(t *testing.T) {
