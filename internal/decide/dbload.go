@@ -462,6 +462,9 @@ func scanTitle(rows *sql.Rows) (Title, error) {
 		return t, nil
 	}
 	t.Runtime, t.OriginalLanguage = runtime, lang
+	if _, known := radarr.LanguageByName(lang); lang != "" && !known {
+		t.OriginalLanguage = tmdbOriginalLanguage(lang) // a TMDb code (a new film before its metadata row); ours
+	}
 	if d := gunzipDetails(body); d != nil {
 		t.OriginalTitle, t.OriginalLanguage = d.OriginalTitle, tmdbOriginalLanguage(d.OriginalLanguage)
 		if d.Runtime > 0 {
@@ -515,24 +518,35 @@ var metadataLanguageAliases = map[string]sonarr.Language{
 }
 
 // tmdbOriginalLanguage is SkyHookProxy.MapMovie's original language: IsoLanguages.Find(original_language.ToLower()),
-// else English. Port of Radarr src/NzbDrone.Core/MetadataSource/SkyHook/SkyHookProxy.cs @ a96bf7c (line 244). Ours:
-// movieLanguageAliases first, the codes TMDb sends that Radarr's table knows under another code.
+// else English. Port of Radarr src/NzbDrone.Core/MetadataSource/SkyHook/SkyHookProxy.cs @ a96bf7c (line 244). Ours,
+// as seriesOriginalLanguage: the code trimmed, movieLanguageAliases first (the codes TMDb sends that Radarr's table
+// knows under another code), and the base before a hyphen when the whole code is unknown ("yue-hk").
 func tmdbOriginalLanguage(code string) string {
-	code = strings.ToLower(code)
-	if l, ok := movieLanguageAliases[code]; ok {
-		return l.Name
+	find := func(code string) string {
+		if l, ok := movieLanguageAliases[code]; ok {
+			return l.Name
+		}
+		if iso := radarr.FindIsoLanguage(code); iso != nil {
+			return iso.Language.Name
+		}
+		return ""
 	}
-	if iso := radarr.FindIsoLanguage(code); iso != nil {
-		return iso.Language.Name
+	code = strings.ToLower(strings.TrimSpace(code))
+	name := find(code)
+	if base, _, ok := strings.Cut(code, "-"); name == "" && ok {
+		name = find(base)
 	}
-	return radarr.LanguageEnglish.Name
+	if name == "" {
+		return radarr.LanguageEnglish.Name
+	}
+	return name
 }
 
 // movieLanguageAliases are metadataLanguageAliases for Radarr's table, which already reads cn as Chinese: yue
-// (Cantonese), Norwegian Nynorsk, and the old ISO codes for Hebrew and Indonesian.
+// (Cantonese), Norwegian Nynorsk, the old ISO codes for Hebrew and Indonesian, and Latin American Spanish.
 var movieLanguageAliases = map[string]radarr.Language{
-	"yue": radarr.LanguageChinese, "nn": radarr.LanguageNorwegian, "iw": radarr.LanguageHebrew,
-	"in": radarr.LanguageIndonesian,
+	"yue": radarr.LanguageChinese, "nn": radarr.LanguageNorwegian, "nno": radarr.LanguageNorwegian,
+	"iw": radarr.LanguageHebrew, "in": radarr.LanguageIndonesian, "es-419": radarr.LanguageSpanishLatino,
 }
 
 func gunzipDetails(body []byte) *tmdbDetails {

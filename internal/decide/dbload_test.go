@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -481,9 +482,49 @@ func TestMovieOriginalLanguageCodes(t *testing.T) {
 		"en": "English", "ja": "Japanese", "cn": "Chinese", "zh": "Chinese", "yue": "Chinese", "YUE": "Chinese",
 		"nn": "Norwegian", "no": "Norwegian", "nb": "Norwegian", "iw": "Hebrew", "he": "Hebrew", "in": "Indonesian",
 		"id": "Indonesian", "ko": "Korean", "xx": "English", "": "English",
+		"nno": "Norwegian", "es-419": "Spanish (Latino)", "yue-hk": "Chinese", " ja ": "Japanese", "pt-br": "Portuguese (Brazil)",
 	} {
 		if got := tmdbOriginalLanguage(code); got != want {
 			t.Errorf("%q: %s, want %s", code, got, want)
 		}
+	}
+}
+
+// A film whose title.original_language holds a TMDb code (a new film before its metadata row) reads it as a
+// language; a stored name (an arr import) is kept as it is. The decision on an Original profile then takes it.
+func TestMovieOriginalLanguageColumnCodes(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	st, err := store.Open(ctx, storetest.Seed(t, filepath.Join(t.TempDir(), "theatarr.db")), store.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	if _, err := st.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	want := map[int64]string{1: "Chinese", 2: "Chinese", 3: "Norwegian", 4: "Hebrew", 5: "English", 6: "Japanese", 7: "Chinese"}
+	for id, code := range map[int64]string{1: "yue", 2: "cn", 3: "nn", 4: "iw", 5: "xx", 6: "Japanese", 7: " yue-hk "} {
+		if _, err := st.Writer().ExecContext(ctx, `INSERT INTO title (id, kind, name, year, tmdb_id, original_language,
+			created_at, updated_at) VALUES (?, 'movie', ?, 2020, ?, ?, 0, 0)`, id, fmt.Sprintf("Film %d", id), 100+id, code); err != nil {
+			t.Fatal(err)
+		}
+	}
+	titles, err := LoadMovies(ctx, st.Reader())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for id, w := range want {
+		if got := titles[id].OriginalLanguage; got != w {
+			t.Errorf("title %d: %q, want %s", id, got, w)
+		}
+	}
+	e := testEngine(t)
+	d, err := e.Decide(ctx, rel("Film.1.2020.2160p.WEB-DL.DDP5.1-FLUX", "public", 25*gb), titles[1], Version{Key: "movie-original"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(d.Languages, ",") != "Chinese" || reasons(d) != "" {
+		t.Errorf("yue film, untagged release: languages %v, rejections %s; want Chinese, accepted", d.Languages, reasons(d))
 	}
 }
