@@ -172,7 +172,8 @@ func TestRequestDetailConcurrentDownloads(t *testing.T) {
 		t.Fatalf("concurrent: %+v %+v", d, d.Progress)
 	}
 	// Once the acquisitions fail, show the latest failure in Activity's words, without its diagnostic.
-	e.exec(`UPDATE download SET state = 'failed', error = 'secret diagnostic'`)
+	// (They fail after the approval: a failure from before it counts neither in the status nor here.)
+	e.exec(`UPDATE download SET state = 'failed', error = 'secret diagnostic', updated_at = updated_at + 200`)
 	d = RequestDetail{}
 	e.callAs(key, "GET", path, nil, 200, &d)
 	if len(d.Progress) != 2 || d.Progress[1].Words != "Download failed" {

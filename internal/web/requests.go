@@ -1580,33 +1580,56 @@ func (w *Web) requestStatus(ctx context.Context, r *Request) (string, error) {
 	if inHand > 0 {
 		return ReqProcessing, nil
 	}
-	// Failed: since the approval, a download of a missing version failed (one not started because downloads were off
-	// does not count: activity.NotStarted). For a series only a failure for a gap still open counts: a download for
-	// the whole series, or one naming an episode (of the request's seasons) that the version does not hold. An old
-	// failure of an episode filled since does not fail the request.
-	failArgs := append(slices.Clone(args), r.decidedAt)
+	failed, err := w.requestFailures(ctx, r, missing)
+	if err != nil {
+		return "", err
+	}
+	if len(failed) > 0 {
+		return ReqFailed, nil
+	}
+	return ReqApproved, nil
+}
+
+// requestFailures are the failed downloads that count against request r in the versions vids, the one selection the
+// status (and so the request-failed notification) and the request detail use: failed since the approval (one not
+// started because downloads were off does not count: activity.NotStarted) and, for a series, covering a gap still
+// open: a download for the whole series, or one naming a current (not removed), aired episode of the request's
+// seasons (any season without) that the version does not hold. An import that closed the gap since, or the episode's
+// removal from the series, hides the failure.
+func (w *Web) requestFailures(ctx context.Context, r *Request, vids []int64) (map[int64]bool, error) {
+	out := map[int64]bool{}
+	if len(vids) == 0 {
+		return out, nil
+	}
+	args := make([]any, 0, len(vids)+8)
+	for _, id := range vids {
+		args = append(args, id)
+	}
+	args = append(args, r.decidedAt)
 	gap := ""
 	if r.Kind == string(policy.KindSeries) {
+		aired, airedArgs := newAirClock(w.now()).airedSQL("e")
 		gap = ` AND (json_array_length(download.episodes) = 0 OR EXISTS (SELECT 1 FROM json_each(download.episodes) j
-			JOIN episode e ON e.id = j.value WHERE NOT EXISTS (SELECT 1 FROM episode_version_state s
-				WHERE s.episode_id = e.id AND s.version_id = download.version_id AND s.state IN ('filled', 'cutoff_met'))`
+			JOIN episode e ON e.id = j.value WHERE e.removed_at IS NULL AND ` + aired + ` AND NOT EXISTS (SELECT 1
+				FROM episode_version_state s WHERE s.episode_id = e.id AND s.version_id = download.version_id
+				AND s.state IN ('filled', 'cutoff_met'))`
+		args = append(args, airedArgs...)
 		if len(r.Seasons) > 0 {
 			gap += ` AND e.season IN (` + store.Placeholders(len(r.Seasons)) + `)`
 			for _, n := range r.Seasons {
-				failArgs = append(failArgs, n)
+				args = append(args, n)
 			}
 		}
 		gap += `))`
 	}
-	var failed int
-	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM download WHERE `+where+`
-		AND state = 'failed' AND NOT `+activity.NotStartedSQL+` AND updated_at >= ?`+gap, failArgs...).Scan(&failed); err != nil {
-		return "", err
-	}
-	if failed > 0 {
-		return ReqFailed, nil
-	}
-	return ReqApproved, nil
+	err := scanAll(ctx, w.st.Reader(), `SELECT id FROM download WHERE version_id IN (`+store.Placeholders(len(vids))+`)
+		AND state = 'failed' AND NOT `+activity.NotStartedSQL+` AND updated_at >= ?`+gap, args, func(rows *sql.Rows) error {
+		var id int64
+		err := rows.Scan(&id)
+		out[id] = true
+		return err
+	})
+	return out, err
 }
 
 // seasonsFilled reports whether a version holds every aired episode (airClock) of these seasons (and at least one).

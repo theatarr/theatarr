@@ -172,8 +172,10 @@ and no other-requester list or count.
   instant, else the day) of those seasons, so a
   version filled before the request does not count and a gap in another season does not hold it back; the library's
   available badge on such a request follows the same seasons) or `failed` (a download counted as above failed since the
-  approval; for a series, only one for the whole series or naming an episode of the request still missing in that
-  library, so an old failure of an episode filled since does not count; `TestSeasonRequestImportedMissingFailed`);
+  approval; for a series, only one for the whole series or naming a current, aired episode of the request still
+  missing in that library, so an old failure of an episode filled or removed since does not count; the request
+  detail and the request-failed notification use the same selection, `requestFailures`;
+  `TestSeasonRequestImportedMissingFailed`);
   also `declined`, `canceled`. A sync loop and the
   download events move it. The request detail keeps the list's badge and counts the aired or held episodes only
   (`TestRequestDetailOngoingSeries`).

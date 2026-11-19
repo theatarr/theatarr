@@ -926,6 +926,8 @@ func TestOverlappingRequestsApproveApart(t *testing.T) {
 	}
 
 	// Both requests on one library (tv-a), seasons 1 and 2, approved: downloads count for their own seasons only.
+	// (The episodes have aired: a failure counts only for an aired gap.)
+	e.exec(`UPDATE episode SET air_date = '2020-01-01' WHERE title_id = 10`)
 	e.exec(`UPDATE request SET versions = '["tv-a"]' WHERE id = ?`, s2.Request.ID)
 	var va int64
 	e.st.Reader().QueryRow(`SELECT id FROM version WHERE title_id = 10 AND policy_key = 'tv-a'`).Scan(&va)
@@ -1051,7 +1053,20 @@ func TestSeasonRequestImportedMissingFailed(t *testing.T) {
 	e := newAddEnv(t, nil)
 	ctx := context.Background()
 	annID, _ := e.user("ann", auth.RoleUser)
+	_, mgr := e.user("mgr", auth.RoleManager)
 	now := store.Millis(addNow)
+	// The detail names a failure exactly when the request's status counts one.
+	detailFailed := func() bool {
+		t.Helper()
+		var d RequestDetail
+		e.callAs(mgr, "GET", APIBase+"/requests/601", nil, 200, &d)
+		for _, p := range d.Progress {
+			if p.Words == "Download failed" {
+				return true
+			}
+		}
+		return false
+	}
 	e.exec(`INSERT INTO request (id, user_id, kind, title_id, name, versions, seasons, status, decided_at, created_at,
 		updated_at) VALUES (601, ?, 'series', 10, 'The Show', '["tv-2160p"]', '[1]', 'approved', ?, ?, ?)`,
 		annID, now-10, now-10, now-10)
@@ -1074,15 +1089,28 @@ func TestSeasonRequestImportedMissingFailed(t *testing.T) {
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, episodes,
 		created_at, updated_at) VALUES (72, 10, 10, 'tv-2160p', 'h72', 'The.Show.S01E01.Other', 'x', 'failed', '[101]', ?, ?)`,
 		now, now)
-	if s := status(); s != ReqApproved {
-		t.Errorf("old failure of a filled episode: %s", s)
+	if s := status(); s != ReqApproved || detailFailed() {
+		t.Errorf("old failure of a filled episode: %s, detail failed %v", s, detailFailed())
 	}
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, episodes,
 		created_at, updated_at) VALUES (73, 10, 10, 'tv-2160p', 'h73', 'The.Show.S01E02', 'x', 'failed', '[102]', ?, ?)`,
 		now, now)
-	if s := status(); s != ReqFailed {
-		t.Errorf("missing episode failed: %s", s)
+	if s := status(); s != ReqFailed || !detailFailed() {
+		t.Errorf("missing episode failed: %s, detail failed %v", s, detailFailed())
 	}
+	// The failed episode is removed from the series while another aired episode is still missing: its failure no
+	// longer counts, in the status and in the detail.
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, monitored, air_date, created_at, updated_at)
+		VALUES (105, 10, 1, 3, 'Third of one', 1, '2020-01-01', ?, ?)`, now, now)
+	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, updated_at)
+		VALUES (10, 105, 1, 'wanted', ?)`, now)
+	e.exec(`UPDATE episode SET removed_at = ? WHERE id = 102`, now)
+	if s := status(); s != ReqApproved || detailFailed() {
+		t.Errorf("failure of a removed episode: %s, detail failed %v", s, detailFailed())
+	}
+	e.exec(`UPDATE episode SET removed_at = NULL WHERE id = 102`)
+	e.exec(`DELETE FROM episode_version_state WHERE episode_id = 105`)
+	e.exec(`DELETE FROM episode WHERE id = 105`)
 	// S01E02 airs later today: the season holds every aired episode.
 	e.exec(`UPDATE episode SET air_date = '2026-10-26', air_date_utc_at = ? WHERE id = 102`,
 		store.Millis(addNow.Add(2*time.Hour)))

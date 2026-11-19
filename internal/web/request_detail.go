@@ -34,11 +34,22 @@ func (w *Web) requestDetail(ctx context.Context, r *Request) (*RequestDetail, er
 		r.Status != ReqDeclined && r.Status != ReqCanceled
 	var downloads []activity.Download
 	var episodes *EpisodeList
+	// The failures shown are the ones the status counts (requestFailures).
+	counted := map[int64]bool{}
 	open := r.Status != ReqPending && r.Status != ReqDeclined && r.Status != ReqCanceled
 	if open && r.TitleID != nil {
 		var err error
 		downloads, err = activity.Downloads(ctx, w.st.Reader(), activity.Filter{TitleIDs: []int64{*r.TitleID}, Versions: r.keys})
 		if err != nil {
+			return nil, err
+		}
+		var vids []int64
+		for _, d := range downloads {
+			if d.State == "failed" && !slices.Contains(vids, d.VersionID) {
+				vids = append(vids, d.VersionID)
+			}
+		}
+		if counted, err = w.requestFailures(ctx, r, vids); err != nil {
 			return nil, err
 		}
 		if r.Kind == "series" {
@@ -81,11 +92,18 @@ func (w *Web) requestDetail(ctx context.Context, r *Request) (*RequestDetail, er
 			p.Have, p.Total = &have, &total
 		}
 		// Keep all concurrent acquisitions: a series can be downloading several requested episodes at once.
-		var latest *activity.Download
+		// failed is the latest failure the status counts against this library (requestFailures).
+		var failed *activity.Download
 		var current []activity.Download
 		for j := range downloads {
 			d := &downloads[j]
-			if d.Version != v.Key || d.Updated.Before(r.CreatedAt) {
+			if d.Version != v.Key {
+				continue
+			}
+			if counted[d.ID] && (failed == nil || d.Updated.After(failed.Updated)) {
+				failed = d
+			}
+			if d.Updated.Before(r.CreatedAt) {
 				continue
 			}
 			if episodes != nil && len(d.Episodes) > 0 && len(r.Seasons) > 0 {
@@ -98,9 +116,6 @@ func (w *Web) requestDetail(ctx context.Context, r *Request) (*RequestDetail, er
 				if !matches {
 					continue
 				}
-			}
-			if latest == nil || d.Updated.After(latest.Updated) {
-				latest = d
 			}
 			if slices.Contains(activity.InHand, d.State) {
 				current = append(current, *d)
@@ -122,8 +137,8 @@ func (w *Web) requestDetail(ctx context.Context, r *Request) (*RequestDetail, er
 				out.Progress = append(out.Progress, q)
 			}
 			continue
-		case latest != nil && latest.State == "failed":
-			p.Words, p.Updated = latest.Words(""), &latest.Updated
+		case failed != nil:
+			p.Words, p.Updated = failed.Words(""), &failed.Updated
 		case episodes != nil && (p.Total == nil || *p.Total == 0):
 			p.Words = "Waiting for episode information"
 		}
