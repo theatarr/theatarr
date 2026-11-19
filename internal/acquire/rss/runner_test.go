@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/tasks"
 )
@@ -38,6 +39,37 @@ func TestRSSCatchupPagesThroughPreviousCursor(t *testing.T) {
 	// The whole page holding the previous head is read, the items below it too (200, not 151).
 	if end != rssReached || newest == nil || newest.key != "h:"+items[0].hash || len(res.Releases) != 200 || res.Requests != 3 {
 		t.Fatalf("catch-up end=%v newest=%+v releases=%d requests=%d", end, newest, len(res.Releases), res.Requests)
+	}
+}
+
+// A feed whose page_cap asks for 50 a page is paged by what it sent: a full 50-item page is not the end of the
+// feed, and the next page starts at item 50, so the previous head on page two is reached.
+func TestRSSCatchupPagesByRequestedLimit(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, false)
+	e.pol.Indexers["prowlarr"].PageCap = 50
+	svc, err := indexer.New(e.pol, e.gw, indexer.Options{Logger: e.log, CacheTTL: -1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.svc = svc
+	e.build(nil)
+	items := make([]item, 205)
+	for i := range items {
+		items[i] = item{title: fmt.Sprintf("Release.%03d.2024.1080p.WEB-DL-GRP", i),
+			hash: fmt.Sprintf("%040x", i+1), pub: t0.Add(-time.Duration(i) * time.Minute)}
+	}
+	e.prow.setRSS(items...)
+	res, end, newest, err := e.r.rssPages(e.ctx, "prowlarr", []int{2000}, rssCursor{key: "h:" + items[75].hash})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if end != rssReached || newest == nil || newest.key != "h:"+items[0].hash || len(res.Releases) != 100 || res.Requests != 3 {
+		t.Fatalf("catch-up end=%v newest=%+v releases=%d requests=%d", end, newest, len(res.Releases), res.Requests)
+	}
+	reqs := e.net.requests("prowlarr.test/1/api")
+	if last := reqs[len(reqs)-1]; !strings.Contains(last, "offset=50") || !strings.Contains(last, "limit=50") {
+		t.Errorf("second page %s", last)
 	}
 }
 

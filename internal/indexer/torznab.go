@@ -246,7 +246,13 @@ func (t *torznab) searchPaged(ctx context.Context, key string, q Query, c *caps,
 				}
 				p.Set("limit", strconv.Itoa(rl))
 			case q.RSSLimit > 0:
-				p.Set("limit", strconv.Itoa(min(q.RSSLimit, t.pageCap)))
+				// The feed's own maximum and page_cap bound one RSS page; the sync judges the end of the feed by
+				// the limit asked for.
+				rl := min(q.RSSLimit, t.pageCap, limit)
+				if rl < q.RSSLimit {
+					res.RSSLimit = rl
+				}
+				p.Set("limit", strconv.Itoa(rl))
 			}
 		} else {
 			p.Set("limit", strconv.Itoa(n))

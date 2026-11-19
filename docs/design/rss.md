@@ -30,7 +30,9 @@ index is reloaded all the same.
   head too, so an item rejected for a temporary reason is decided again while it stays in the feed. A durable
   per-feed cursor (the head's key and publish date) only bounds catch-up paging: pages are read up to the one holding
   the previous head or an item published before it, at most ten. Page length and cursor keys come from the upstream
-  page as sent, before any filtering (Torznab's repeated-GUID dedupe, identity conflicts, eligibility). The cursor
+  page as sent, before any filtering (Torznab's repeated-GUID dedupe, identity conflicts, eligibility). Each page asks
+  for 100; a Torznab feed's `page_cap` or caps maximum can lower that, and the end of the feed is a page shorter than
+  the limit actually asked for. The next page's offset is the number of items read so far. The cursor
   moves only after routing, in the same transaction as the seen marks, so an error leaves both and the next sync
   reads the same pages. At the ten-page cap the cursor moves on to the new head at once and the run reports the gap
   (`gap` in the run summary, a warning in the log), as the arrs do. A feed that ends without the previous head

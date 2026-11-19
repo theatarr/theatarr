@@ -34,6 +34,9 @@ type Result struct {
 	// RSSPage preserves upstream cursor fields before any filtering (adapter dedupe, identity conflicts, eligibility):
 	// one entry per upstream item, so RSS catch-up paging depends only on what the feed sent. Never used for decisions.
 	RSSPage []Release
+	// RSSLimit is the page size an RSS request actually asked the feed for when the adapter bounded the query's
+	// (page_cap, the caps maximum); 0 when it asked for the query's own RSSLimit.
+	RSSLimit int
 	// SeaDex contains complete per-entry recommendation snapshots, before query filters.
 	SeaDex []SeaDexSnapshot
 	// Requests is how many upstream requests the search made.

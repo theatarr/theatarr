@@ -404,11 +404,12 @@ func (r *Runner) rssPages(ctx context.Context, key string, cats []int, cursor rs
 	var newest *rssCursor
 	seen := map[string]bool{}
 	eligibleSeen := map[string]bool{}
+	offset := 0
 	for page := 0; ; page++ {
 		if page == rssCatchupPages {
 			return out, rssCapped, newest, nil
 		}
-		q := indexer.Query{Type: indexer.QueryRSS, Categories: cats, RSSOffset: page * rssPageSize, RSSLimit: rssPageSize,
+		q := indexer.Query{Type: indexer.QueryRSS, Categories: cats, RSSOffset: offset, RSSLimit: rssPageSize,
 			RSSFeed: list}
 		res, err := r.idx.Search(ctx, ik, q)
 		if err != nil {
@@ -433,6 +434,13 @@ func (r *Runner) rssPages(ctx context.Context, key string, cats []int, cursor rs
 		}
 		if len(pageItems) == 0 {
 			return out, rssFeedEnd, newest, nil
+		}
+		// The next page starts after what this one held, and a page shorter than the limit actually asked for (a
+		// feed's page_cap or caps maximum can lower it) is the end of the feed.
+		offset += len(pageItems)
+		limit := rssPageSize
+		if res.RSSLimit > 0 {
+			limit = res.RSSLimit
 		}
 		if page == 0 {
 			newest = &rssCursor{indexer: key, key: itemKey(pageItems[0]), published: pageItems[0].PublishDate}
@@ -459,7 +467,7 @@ func (r *Runner) rssPages(ctx context.Context, key string, cats []int, cursor rs
 		case reached:
 			// Without a cursor the arrs read one page (HttpIndexerBase: no lastReleaseInfo ends the loop).
 			return out, rssReached, newest, nil
-		case len(pageItems) < rssPageSize || added == 0:
+		case len(pageItems) < limit || added == 0:
 			return out, rssFeedEnd, newest, nil
 		}
 	}
