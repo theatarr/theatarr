@@ -503,9 +503,10 @@ func (s *Service) write(ctx context.Context, m *Meta, movie *tmdb.Movie) error {
 		if err != nil || movie == nil {
 			return err
 		}
-		// Radarr Movies/RefreshMovieService.cs:106-133 refreshes identity, keeping user settings.
+		// Radarr Movies/RefreshMovieService.cs:106-133 refreshes identity, keeping user settings. A refresh without
+		// an IMDb id keeps the stored one and never writes a blank.
 		if _, err := tx.ExecContext(ctx, `UPDATE title SET name = ?, sort_name = ?, year = ?, runtime_minutes = COALESCE(?, runtime_minutes),
-			imdb_id = ?, original_language = ?, updated_at = ? WHERE id = ?`, movie.Title, strings.ToLower(movie.Title),
+			imdb_id = COALESCE(NULLIF(?, ''), imdb_id), original_language = ?, updated_at = ? WHERE id = ?`, movie.Title, strings.ToLower(movie.Title),
 			nullPos(movie.Year()), nullPos(movie.Runtime), movie.IMDbID, movie.OriginalLanguage, store.Millis(m.AttemptedAt), m.TitleID); err != nil {
 			return err
 		}

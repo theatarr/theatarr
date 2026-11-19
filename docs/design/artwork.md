@@ -16,6 +16,8 @@ Movie decisions read runtime and original language from `title_meta`, falling ba
 cache rows (then the title's imported fields). Every successful metadata refresh also replaces TMDb's alternative
 titles and translations in `title_alias`; source `tmdb-original` holds the original title as an alternative name.
 Arr-sourced aliases are preserved, and a failed refresh keeps the last good metadata and names.
+A movie refresh also updates the title's name, year, runtime, IMDb id and original language; a refresh without an
+IMDb id keeps the stored one (never a blank), and an add that knows the id fills a missing or blank one.
 
 ## The `meta.art` job
 

@@ -303,7 +303,7 @@ func fillIDs(ctx context.Context, tx *sql.Tx, titleID int64, in Input) error {
 		}
 	}
 	if in.ImdbID != "" {
-		if _, err := tx.ExecContext(ctx, `UPDATE title SET imdb_id = ? WHERE id = ? AND imdb_id IS NULL`, in.ImdbID,
+		if _, err := tx.ExecContext(ctx, `UPDATE title SET imdb_id = ? WHERE id = ? AND COALESCE(imdb_id, '') = ''`, in.ImdbID,
 			titleID); err != nil {
 			return err
 		}

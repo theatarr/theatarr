@@ -41,6 +41,8 @@ type fakeTMDb struct {
 	reqs []string
 	fail bool // TMDb answers 500
 	png  []byte
+	// noIMDb blanks the movie fixture's IMDb id, as TMDb does for a film it has none for.
+	noIMDb bool
 }
 
 func (f *fakeTMDb) count(prefix string) int {
@@ -95,6 +97,14 @@ func (f *fakeTMDb) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/3/movie/603":
 		if q.Get("append_to_response") != tmdb.MovieAppendDetails || q.Get("include_image_language") != "en,null" {
 			http.Error(w, "want append_to_response", http.StatusBadRequest)
+			return
+		}
+		if f.noIMDb {
+			b, err := os.ReadFile(filepath.Join("testdata", "movie_603.json"))
+			if err != nil {
+				f.t.Fatal(err)
+			}
+			w.Write(bytes.ReplaceAll(b, []byte(`"imdb_id": "tt0133093"`), []byte(`"imdb_id": ""`)))
 			return
 		}
 		fixture("movie_603.json")
@@ -501,5 +511,29 @@ func TestMovieIdentityRefresh(t *testing.T) {
 	}
 	if name != "The Matrix" || sortName != "the matrix" || year != 1999 || runtime != 136 || language != "en" || monitored {
 		t.Fatalf("identity %q %q %d %d %q monitored=%v", name, sortName, year, runtime, language, monitored)
+	}
+}
+
+// A refresh without an IMDb id keeps the stored one and never stores a blank (the title_imdb index skips only NULL).
+func TestMovieIdentityRefreshKeepsIMDb(t *testing.T) {
+	e := newTestEnv(t)
+	e.seed(t)
+	e.fake.mu.Lock()
+	e.fake.noIMDb = true
+	e.fake.mu.Unlock()
+	for _, want := range []any{"tt0133093", nil} {
+		if want == nil {
+			e.exec(t, `UPDATE title SET imdb_id = NULL WHERE id = 1`)
+		}
+		if err := e.svc.FillTitle(context.Background(), 1); err != nil {
+			t.Fatal(err)
+		}
+		var got any
+		if err := e.st.Reader().QueryRow(`SELECT imdb_id FROM title WHERE id = 1`).Scan(&got); err != nil {
+			t.Fatal(err)
+		}
+		if got != want {
+			t.Fatalf("imdb_id = %#v, want %#v", got, want)
+		}
 	}
 }

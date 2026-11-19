@@ -155,6 +155,14 @@ func TestAddCreatesFindsAndRestores(t *testing.T) {
 	if err := st.Reader().QueryRow(`SELECT imdb_id FROM title WHERE id = ?`, m.TitleID).Scan(&imdb); err != nil || imdb != "tt0077" {
 		t.Errorf("imdb %q %v", imdb, err)
 	}
+	// A blank IMDb id (an older refresh stored one) is filled like a missing one.
+	if _, err := st.Writer().Exec(`UPDATE title SET imdb_id = '' WHERE id = ?`, m.TitleID); err != nil {
+		t.Fatal(err)
+	}
+	add(t, st, Input{Kind: policy.KindMovie, TmdbID: 77, ImdbID: "tt0078", Versions: fixed("movie-web"), Monitored: true})
+	if err := st.Reader().QueryRow(`SELECT imdb_id FROM title WHERE id = ?`, m.TitleID).Scan(&imdb); err != nil || imdb != "tt0078" {
+		t.Errorf("blank imdb filled %q %v", imdb, err)
+	}
 }
 
 // A series add keeps its monitoring as durable intent (monitor new items, season choices) for episodes a metadata
