@@ -273,6 +273,21 @@ func TestDanglingReportNoVideo(t *testing.T) {
 		t.Errorf("actions %s", n)
 	}
 
+	// The movies root cannot be read: its rows are kept, and a kept no-video row still counts as one.
+	if err := os.Rename(e.movies, e.movies+".off"); err != nil {
+		t.Fatal(err)
+	}
+	e.now = e.now.Add(6 * time.Hour)
+	if sum, err = e.lib.DanglingReport(e.ctx); err != nil || sum.Dangling != 2 || sum.Zurg.NoVideo != 1 {
+		t.Fatalf("report with the root unread: %+v %+v %v", sum, sum.Zurg, err)
+	}
+	if _, last, _ = Dangling(e.ctx, e.st.Reader()); last.Zurg == nil || last.Zurg.NoVideo != 1 {
+		t.Errorf("stored no-video count with the root unread: %+v", last.Zurg)
+	}
+	if err := os.Rename(e.movies+".off", e.movies); err != nil {
+		t.Fatal(err)
+	}
+
 	// zurg not answering: the report still runs, unclassified, and says why.
 	srv.set(func(s *zurgServer) { s.fail = true })
 	e.now = e.now.Add(6 * time.Hour)

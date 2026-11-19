@@ -397,7 +397,10 @@ func printDangling(out io.Writer, rows []library.DanglingRow, sum *library.Dangl
 		fmt.Fprintln(out, "no dangling-link report yet (theatarr serve writes one at start and every library.dangling.interval; or run with -scan)")
 		return nil
 	}
-	fmt.Fprintf(out, "report of %s: %d dangling of %d links into the mount (took %v)\n", sum.At.UTC().Format(time.RFC3339),
+	// The total also holds rows kept from earlier reports where this scan could not look, so the links it saw are
+	// named apart.
+	fmt.Fprintf(out, "report of %s: %d dangling; %d links into the mount seen in this scan (took %v)\n",
+		sum.At.UTC().Format(time.RFC3339),
 		sum.Dangling, sum.Links, sum.Took.Round(time.Millisecond))
 	for _, e := range sum.Errors {
 		fmt.Fprintf(out, "  not walked: %s\n", e)

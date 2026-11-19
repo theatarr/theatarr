@@ -171,16 +171,21 @@ func (l *Library) DanglingReport(ctx context.Context) (*DanglingSummary, error) 
 	sum.Took = time.Since(start)
 	now := store.Millis(sum.At)
 	var kept map[string]int // rows kept unchecked, by root
+	var freshNoVideo int
+	if sum.Zurg != nil {
+		freshNoVideo = sum.Zurg.NoVideo
+	}
 	err = l.st.WriteTx(ctx, func(tx *sql.Tx) error {
 		kept = map[string]int{}
-		rows, err := tx.QueryContext(ctx, `SELECT path, root FROM library_dangling`)
+		keptNoVideo := 0
+		rows, err := tx.QueryContext(ctx, `SELECT path, root, COALESCE(cause, '') FROM library_dangling`)
 		if err != nil {
 			return err
 		}
 		var gone []string
 		for rows.Next() {
-			var p, root string
-			if err := rows.Scan(&p, &root); err != nil {
+			var p, root, cause string
+			if err := rows.Scan(&p, &root, &cause); err != nil {
 				rows.Close()
 				return err
 			}
@@ -191,12 +196,22 @@ func (l *Library) DanglingReport(ctx context.Context) (*DanglingSummary, error) 
 				return policy.Within(p, d)
 			}) {
 				kept[root]++ // unchanged (first and last sighting), counted in this report
+				if cause == CauseNoVideo {
+					keptNoVideo++
+				}
 				continue
 			}
 			gone = append(gone, p)
 		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return err
+		}
 		rows.Close()
 		sum.Dangling = len(found)
+		if z := sum.Zurg; z != nil && z.Error == "" {
+			z.NoVideo = freshNoVideo + keptNoVideo
+		}
 		for _, n := range kept {
 			sum.Dangling += n
 		}

@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -211,5 +212,20 @@ func TestRcloneForgetSetting(t *testing.T) {
 	pol.Library.Mount.RcloneRC = nil
 	if f := newRcloneForget(pol, pol.LibrarySettings(), gw); f != nil {
 		t.Error("forget wired without rclone_rc")
+	}
+}
+
+// The dangling summary names the report's total and the links this scan saw apart: rows kept from earlier reports
+// (a root that could not be read) count in the total without being seen.
+func TestPrintDanglingTotals(t *testing.T) {
+	var b strings.Builder
+	sum := &library.DanglingSummary{At: time.Date(2026, 11, 19, 0, 0, 0, 0, time.UTC), Dangling: 1, Links: 0,
+		ByRoot: map[string]int{}}
+	if err := printDangling(&b, nil, sum, false, false); err != nil {
+		t.Fatal(err)
+	}
+	if out := b.String(); strings.Contains(out, "dangling of") ||
+		!strings.Contains(out, "1 dangling; 0 links into the mount seen in this scan") {
+		t.Errorf("summary line %q", out)
 	}
 }
