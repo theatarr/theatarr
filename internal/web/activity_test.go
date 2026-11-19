@@ -1582,3 +1582,62 @@ func TestHistoryTitleIDNotMatchedByName(t *testing.T) {
 		t.Errorf("journal title_id=1: %d", code)
 	}
 }
+
+// TestActivityAttemptsWholeError: a download's Details (the attempts reply) carries the whole stored message, up to 500
+// runes, for an account that manages and sees files, also while the download waits on the mount; the list row keeps
+// its short text; a household account and "View as a user" get no Details at all; a message whose whole text holds a
+// URL falls back to today's short text.
+func TestActivityAttemptsWholeError(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	key := e.apiKey()
+	now := store.Millis(testNow)
+	long := "file unreadable on the mount: library: mount unhealthy: read /mnt/zurg/__all__/Whiplash.2014.2160p.UHD.BluRay.REMUX-GRP/Whiplash.2014.2160p.UHD.BluRay.REMUX-GRP.mkv: input/output error"
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
+		state, added_at, ready_at, created_at, updated_at) VALUES (1, 1, 2, 'movie-web', ?1, 'Whiplash.Release', 'dmm',
+		'rd', 'ready', ?2, ?2, ?2, ?2)`, hashA, now)
+	e.exec(`INSERT INTO library_import (download_id, state, mount_folder, last_error, plan, created_at, updated_at)
+		VALUES (1, 'waiting_mount', 'Whiplash.Release', ?, '{}', ?, ?)`, long, now, now)
+	var a ActivityAttempts
+	if code := e.getKey(APIBase+"/activity/downloads/1/attempts", key, &a); code != 200 || a.Message != long {
+		t.Fatalf("admin details: %d %q", code, a.Message)
+	}
+	// The list row keeps its cap.
+	var p ActivityPage
+	if e.getKey(APIBase+"/activity?state=now", key, &p); len(p.Now) != 1 || len([]rune(p.Now[0].Error)) != 120 ||
+		!strings.HasSuffix(p.Now[0].Error, "…") {
+		t.Errorf("queue row %+v", p.Now)
+	}
+	// A manager (manage and see files) reads it too.
+	mgr, _ := e.session(e.account("mgr", auth.RoleManager, auth.StatusActive, false))
+	if rec := e.get(APIBase+"/activity/downloads/1/attempts", mgr); rec.Code != 200 || !strings.Contains(rec.Body.String(), "input/output error") {
+		t.Errorf("manager details: %d %s", rec.Code, rec.Body.String())
+	}
+	// A household account, and an admin viewing as a user, are refused, naming the permission.
+	kid, _ := e.session(e.account("kid", auth.RoleUser, auth.StatusActive, false))
+	if rec := e.get(APIBase+"/activity/downloads/1/attempts", kid); rec.Code != 403 || strings.Contains(rec.Body.String(), "unreadable") {
+		t.Errorf("household details: %d %s", rec.Code, rec.Body.String())
+	}
+	var refused apiError
+	if rec := e.get(APIBase+"/activity/downloads/1/attempts?as=user", e.login()); rec.Code != 403 ||
+		json.Unmarshal(rec.Body.Bytes(), &refused) != nil || refused.Error != "provider attempts need the see-files permission" {
+		t.Errorf("as a user: %d %s", rec.Code, rec.Body.String())
+	}
+	// Longer than 500 runes: cut there.
+	e.exec(`UPDATE library_import SET last_error = ? WHERE download_id = 1`, long+strings.Repeat(" x", 400))
+	if e.getKey(APIBase+"/activity/downloads/1/attempts", key, &a); len([]rune(a.Message)) > 500 || len([]rune(a.Message)) < 495 ||
+		!strings.HasPrefix(a.Message, long) || !strings.HasSuffix(a.Message, "…") {
+		t.Errorf("cut %d %q", len([]rune(a.Message)), a.Message)
+	}
+	// A URL past the short text's cut: the whole text is not sent, today's short text is.
+	e.exec(`UPDATE library_import SET last_error = ? WHERE download_id = 1`, long+" (see http://192.0.2.7:9999/health)")
+	if e.getKey(APIBase+"/activity/downloads/1/attempts", key, &a); a.Message != activityMessage(long) || strings.Contains(a.Message, "://") {
+		t.Errorf("url %q", a.Message)
+	}
+	// A failed download's stored error, the same way.
+	e.exec(`UPDATE download SET state = 'failed', error = ? WHERE id = 1`, long)
+	e.exec(`DELETE FROM library_import`)
+	if e.getKey(APIBase+"/activity/downloads/1/attempts", key, &a); a.Message != long {
+		t.Errorf("failed %q", a.Message)
+	}
+}

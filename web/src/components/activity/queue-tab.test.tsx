@@ -293,3 +293,29 @@ it("keeps the last rows with a notice and Retry when a refresh fails, actions st
   expect(await screen.findByText("Could not load this")).toBeTruthy();
   expect(screen.queryByTestId("stale-notice")).toBeNull();
 });
+
+it("shows a mount wait's whole message in Details, wraps the row's words, and lines the step connectors up between the dots", async () => {
+  const whole = "file unreadable on the mount: library: mount unhealthy: read /mnt/zurg/__all__/Whiplash.2014.2160p.UHD.BluRay.REMUX-GRP/Whiplash.2014.2160p.UHD.BluRay.REMUX-GRP.mkv: input/output error";
+  const waiting = { ...base, id: 70, title: { id: 8, name: "Whiplash", kind: "movie", poster: "" }, state: "ready", import_state: "waiting_mount", step: "ready",
+    steps: [{ key: "queued", label: "Queued", state: "done" }, { key: "adding", label: "Adding", state: "done" }, { key: "downloading", label: "Downloading", state: "done" }, { key: "ready", label: "Download complete", state: "current" }, { key: "linked", label: "Imported", state: "todo" }],
+    words: "Waiting for the mount", detail: "Added to AllDebrid, waiting for the mount to show the files", error: whole.slice(0, 119) + "…", release: "Whiplash.2014.2160p", info_hash: "ac" };
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: me },
+    { method: "GET", path: "/activity", reply: { state: "now", admin: true, total: 1, now: [waiting] } },
+    { method: "GET", path: "/activity/downloads/70/attempts", reply: { attempts: [], message: whole } },
+  ]);
+  renderPage(<QueueTab admin show="all" onShow={() => {}} />, "/activity?open=70");
+  const row = await screen.findByTestId("download");
+  // The words under the stage wrap instead of being cut with an ellipsis.
+  expect(within(row).getByTestId("words").className).not.toContain("truncate");
+  const panel = await screen.findByTestId("download-open");
+  expect(await within(panel).findByText(whole)).toBeTruthy();
+  expect(within(panel).queryByText(waiting.error)).toBeNull();
+  // Equal steps, each connector drawn from the dot before to this one's dot (not against the label's width).
+  const steps = within(panel).getAllByRole("listitem").filter((li) => li.closest('[aria-label="Steps"]'));
+  expect(steps.length).toBe(5);
+  for (const li of steps) expect(li.className).toContain("flex-1");
+  const lines = panel.querySelectorAll('[aria-label="Steps"] [data-slot="step-line"]');
+  expect(lines).toHaveLength(4);
+  for (const l of lines) expect(l.className).toContain("right-[calc(50%+14px)]");
+});

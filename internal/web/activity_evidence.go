@@ -11,6 +11,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/arr"
+	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/journal"
 	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/store"
@@ -113,19 +114,38 @@ func activityMessage(s string) string {
 	return s
 }
 
+// detailsMessageRunes caps the whole message a download's Details shows.
+const detailsMessageRunes = 500
+
+// detailsMessage is a stored message for a download's Details: normalised and cut at 500 runes, not 120; when the
+// whole text trips the unsafe-value check, the short text the list shows (activityMessage) instead.
+func detailsMessage(s string) string {
+	full := provider.NormalizeMessage(s)
+	if r := []rune(full); len(r) > detailsMessageRunes {
+		full = strings.TrimSpace(string(r[:detailsMessageRunes-1])) + "…"
+	}
+	if arr.UnsafeValue(full) {
+		return activityMessage(s)
+	}
+	return full
+}
+
 // ActivityAttempts is the full history loaded when a download's Inspect/Details panel opens.
 // For a failed or refused download, its reason in plain sentences (failureWords: Reason, ReasonDetail) and the stored
-// text (Error), for the title page's attempt Details.
+// text (Error), for the title page's attempt Details. Message is the download's stored message (its error, else its
+// import's, as the list row's Error) up to 500 runes rather than the row's 120, also while it waits on the mount; only
+// for accounts that manage and see files (detailsMessage).
 type ActivityAttempts struct {
 	Attempts     []journal.Attempt `json:"attempts"`
 	Reason       string            `json:"reason,omitempty"`
 	ReasonDetail string            `json:"reason_detail,omitempty"`
 	Error        string            `json:"error,omitempty"`
+	Message      string            `json:"message,omitempty"`
 }
 
 func (w *Web) apiActivityAttempts(rw http.ResponseWriter, r *http.Request) {
 	if !w.viewerAdmin(r) {
-		writeJSON(rw, http.StatusForbidden, apiError{Error: "provider attempts require see_files permission"})
+		writeJSON(rw, http.StatusForbidden, apiError{Error: "provider attempts need the see-files permission"})
 		return
 	}
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -134,10 +154,11 @@ func (w *Web) apiActivityAttempts(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var f failureFacts
-	var state string
+	var state, importErr string
 	err = w.st.Reader().QueryRowContext(r.Context(), `SELECT d.state, COALESCE(d.error, ''), COALESCE(d.provider, ''),
-		COALESCE(li.state, '') FROM download d LEFT JOIN library_import li ON li.download_id = d.id WHERE d.id = ?`, id).
-		Scan(&state, &f.Err, &f.Provider, &f.ImportState)
+		COALESCE(li.state, ''), COALESCE(li.last_error, '') FROM download d LEFT JOIN library_import li
+		ON li.download_id = d.id WHERE d.id = ?`, id).
+		Scan(&state, &f.Err, &f.Provider, &f.ImportState, &importErr)
 	if errors.Is(err, sql.ErrNoRows) {
 		notFound(rw)
 		return
@@ -164,6 +185,15 @@ func (w *Web) apiActivityAttempts(rw http.ResponseWriter, r *http.Request) {
 	if err := rows.Err(); err != nil {
 		w.internal(rw, err)
 		return
+	}
+	// The whole message, as the list row picks it (downloadViews): the download's error unless it never started,
+	// else its import's.
+	if w.permsOf(r).Bits.Has(auth.PermManage) {
+		if msg := f.Err; msg != "" && activity.NotStarted(msg) == "" {
+			out.Message = detailsMessage(msg)
+		} else if msg == "" && importErr != "" {
+			out.Message = detailsMessage(importErr)
+		}
 	}
 	failed := state == "failed" && activity.NotStarted(f.Err) == ""
 	if failed || f.ImportState == "rejected" || f.ImportState == "failed" {

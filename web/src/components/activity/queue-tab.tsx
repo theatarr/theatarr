@@ -79,10 +79,11 @@ function DownloadDetails({ d }: { d: ActivityDownload }) {
             <div className="mt-1"><InfoHash hash={d.info_hash} admin={admin} /></div>
           </div>
         ) : null}
-        {d.error ? (
+        {d.error || history.data?.message ? (
           <div>
             <Label>{failedWhy(d) ? "Technical details" : "Message"}</Label>
-            <p className="mt-1 whitespace-pre-wrap break-words text-sm text-[var(--warn-ink)]">{d.error}</p>
+            {/* The whole message once Details has loaded it (up to 500 characters); the row's short text before. */}
+            <p className="mt-1 whitespace-pre-wrap break-words text-sm text-[var(--warn-ink)]">{history.data?.message || d.error}</p>
           </div>
         ) : null}
       </div>
@@ -148,7 +149,7 @@ function Stage({ d, admin, attention }: { d: ActivityDownload; admin: boolean; a
   return (
     <div className="min-w-0">
       <p className={cn("text-sm font-medium", WORD_TONE[tone])} data-testid="stage" title={stageMeaning(label) || undefined}>{label}</p>
-      {words && words !== label ? <p className={cn("text-xs text-muted-foreground", reason ? "line-clamp-2 break-words" : "truncate")} data-testid="words" title={words}>{words}</p> : null}
+      {words && words !== label ? <p className={cn("text-xs text-muted-foreground", reason ? "line-clamp-2 break-words" : "break-words")} data-testid="words" title={words}>{words}</p> : null}
     </div>
   );
 }

@@ -63,16 +63,19 @@ export function StepTrack({ steps, compact = false }: { steps: ActivityDownload[
   // On a phone the labels under the dots are hidden; the step it stopped at or is on is named under the track.
   const at = steps.find((s) => s.state === "failed") ?? steps.find((s) => s.state === "current");
   const track = (
-    <ol className="flex w-full items-center" aria-label="Steps">
+    // Equal steps with the dot centred in each: a connector runs from the dot before (half a step back) to this one,
+    // so a long label ("Download complete") never pushes a dot off its line.
+    <ol className="flex w-full items-start" aria-label="Steps">
       {steps.map((s, i) => (
-        <li key={s.key} className={cn("flex items-start", i > 0 && "flex-1")} aria-current={s.state === "current" ? "step" : undefined}>
+        <li key={s.key} className="relative flex min-w-0 flex-1 justify-center" aria-current={s.state === "current" ? "step" : undefined}>
           {i > 0 ? (
             <span
               aria-hidden
-              className={cn("mx-1 mt-[9px] h-0.5 flex-1 rounded-full", s.state === "todo" ? "bg-border" : "bg-[color-mix(in_srgb,var(--accent)_55%,transparent)]")}
+              data-slot="step-line"
+              className={cn("absolute left-[calc(-50%+14px)] right-[calc(50%+14px)] top-[9px] h-0.5 rounded-full", s.state === "todo" ? "bg-border" : "bg-[color-mix(in_srgb,var(--accent)_55%,transparent)]")}
             />
           ) : null}
-          <span className="flex flex-col items-center gap-1">
+          <span className="flex min-w-0 flex-col items-center gap-1 text-center">
             <span
               className={cn(
                 "grid size-5 place-items-center rounded-full border text-[10px]",
