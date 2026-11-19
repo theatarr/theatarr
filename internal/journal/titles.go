@@ -84,7 +84,8 @@ func (b *builder) title(id int64) (*titleInfo, error) {
 			}
 		}
 		rows.Close()
-		rows, err = b.db.QueryContext(b.ctx, `SELECT DISTINCT name FROM title_scene_mapping WHERE title_id = ?`, id)
+		rows, err = b.db.QueryContext(b.ctx, `SELECT DISTINCT name FROM title_scene_mapping WHERE title_id = ?
+			AND comment != 'Limited matching'`, id)
 		if err != nil {
 			return nil, err
 		}

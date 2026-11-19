@@ -521,6 +521,27 @@ func TestDownloadChecks(t *testing.T) {
 	}
 }
 
+// A series name Sonarr limits to some releases ("Limited matching") does not vouch for a release name: a grab named
+// only by it is flagged as naming another series; one named by a plain alias is not.
+func TestTitleCheckLeavesOutLimitedAliases(t *testing.T) {
+	e := newEnv(t)
+	if _, err := e.st.Writer().Exec(`INSERT INTO title_scene_mapping (title_id, source, name, comment) VALUES
+		(3, 'tvrefresh:sonarr', 'Remade Name', 'Limited matching'), (3, 'tvrefresh:sonarr', 'Gamma Alt', '')`); err != nil {
+		t.Fatal(err)
+	}
+	base := testNow.Add(-40 * 24 * time.Hour)
+	e.dlEvent(70, "added", base, 3, 3, "tv-2160p", fmt.Sprintf("%040d", 70), "Remade.Name.S01E01.2160p.WEB-DL-X",
+		"WEBDL-2160p", 100, 4<<30, []int64{101}, "")
+	e.dlEvent(71, "added", base.Add(time.Hour), 3, 3, "tv-2160p", fmt.Sprintf("%040d", 71), "Gamma.Alt.S01E01.2160p.WEB-DL-X",
+		"WEBDL-2160p", 100, 4<<30, []int64{101}, "")
+	if hasFlag(e.get("dl:70"), CheckTitle) == nil {
+		t.Error("a release named by a limited alias is not flagged")
+	}
+	if f := hasFlag(e.get("dl:71"), CheckTitle); f != nil {
+		t.Errorf("a release named by a plain alias is flagged: %+v", f)
+	}
+}
+
 func TestPrune(t *testing.T) {
 	e := newEnv(t)
 	old := testNow.Add(-200 * 24 * time.Hour)

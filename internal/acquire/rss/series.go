@@ -83,8 +83,10 @@ func (r *Runner) seriesIndex(ctx context.Context, cands map[int64][]seriesCandid
 	}
 	list, _ := json.Marshal(ids)
 	scene := map[int64][]string{}
+	// A "Limited matching" alias (Sonarr limits it to some releases; the regex is not evaluated) finds no series.
 	rows, err := r.st.Reader().QueryContext(ctx, `SELECT title_id, name FROM title_scene_mapping
-		WHERE title_id IN (SELECT value FROM json_each(?)) ORDER BY title_id, source, rowid`, string(list))
+		WHERE title_id IN (SELECT value FROM json_each(?)) AND comment != 'Limited matching' ORDER BY title_id, source, rowid`,
+		string(list))
 	if err != nil {
 		return nil, err
 	}

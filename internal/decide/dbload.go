@@ -199,8 +199,11 @@ func loadSeriesVersions(ctx context.Context, db *sql.DB, titles []*Title, versio
 		return nil
 	}
 	list, _ := json.Marshal(ids)
+	// An alias Sonarr limits to some releases ("Limited matching") finds and matches nothing: its regex is not
+	// evaluated (series.go), and loading it could hide the same alias stored plain under another source.
 	rows, err := db.QueryContext(ctx, `SELECT title_id, name, season_number, scene_season_number, scene_origin, comment
-		FROM title_scene_mapping WHERE title_id IN (SELECT value FROM json_each(?)) ORDER BY title_id, source, rowid`,
+		FROM title_scene_mapping WHERE title_id IN (SELECT value FROM json_each(?)) AND comment != 'Limited matching'
+		ORDER BY title_id, source, rowid`,
 		string(list))
 	if err != nil {
 		return err

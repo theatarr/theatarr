@@ -24,12 +24,22 @@ func TestRSSSeriesBySceneName(t *testing.T) {
 	e := newEnv(t, false)
 	e.seed(t)
 	e.seedShow(t)
+	// A same-name remake whose alias Sonarr limits to its own releases ("Limited matching"): the name matches only
+	// the series with the plain alias.
+	at := store.Millis(t0)
+	e.exec(t, `INSERT INTO title (id, kind, name, sort_name, year, tvdb_id, imdb_id, monitored, series_type,
+		runtime_minutes, created_at, updated_at) VALUES (6, 'series', 'The Show Remake', 'show remake', 2025, 1002,
+		'tt1001002', 1, 'standard', 45, ?, ?)`, at, at)
+	e.exec(t, `INSERT INTO title_scene_mapping (title_id, source, name, scene_season_number, scene_origin, comment)
+		VALUES (6, 'tvrefresh:sonarr', 'Show Alt', -1, '', 'Limited matching')`)
+	e.exec(t, `INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at)
+		VALUES (10, 6, 'tv', 1, 'wanted', ?, ?)`, at, at)
 	e.prow.setRSS(item{title: "Show.Alt.S01E03.2160p.WEB-DL-GRP", hash: hShowE03, size: 8e9, pub: t0, tv: true})
 	rs, err := e.r.RSS(e.ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rs.Routed != 1 || len(e.rec.reqs) != 1 {
+	if rs.Routed != 1 || len(e.rec.reqs) != 1 || rs.Decided != 1 {
 		t.Fatalf("rss %+v", rs)
 	}
 	if req := e.rec.reqs[0]; req.Version != "tv" || len(req.Candidates[0].Episodes) != 1 {

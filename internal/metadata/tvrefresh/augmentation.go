@@ -31,6 +31,31 @@ type sceneName struct {
 	SceneSeason *int   `json:"sceneSeasonNumber"`
 	Origin      string `json:"sceneOrigin"`
 	Comment     string `json:"comment"`
+	// FilterRegex limits the alias to release titles it matches. The regex is not evaluated here: such a row is
+	// stored marked limitedMatching, and names are never matched or searched through it.
+	FilterRegex string `json:"filterRegex"`
+}
+
+// limitedMatching marks an alias Sonarr limits to some releases (its API's comment for such a mapping). Every reader
+// that finds or matches series by name leaves these rows out.
+const limitedMatching = "Limited matching"
+
+// sceneAliasKey is one alias of a series: name, seasons and origin.
+type sceneAliasKey struct {
+	name          string
+	season, scene int
+	origin        string
+}
+
+func aliasKeyOf(n sceneName) sceneAliasKey {
+	k := sceneAliasKey{name: n.Title, season: -2, scene: -2, origin: n.Origin}
+	if n.Season != nil {
+		k.season = *n.Season
+	}
+	if n.SceneSeason != nil {
+		k.scene = *n.SceneSeason
+	}
+	return k
 }
 
 type xemNumber struct {
@@ -130,13 +155,38 @@ func (s *Service) sceneNames(ctx context.Context, id int64, tvdb int, source str
 		if err := s.exec(ctx, tx, `DELETE FROM title_scene_mapping WHERE title_id = ? AND source = ?`, id, "tvrefresh:"+source); err != nil {
 			return err
 		}
+		usable := func(n sceneName) bool {
+			return n.TVDB == tvdb && strings.TrimSpace(n.Title) != "" && strings.TrimSpace(n.SearchTitle) != ""
+		}
+		plain := map[sceneAliasKey]bool{}
 		for _, n := range names {
-			if n.TVDB != tvdb || strings.TrimSpace(n.Title) == "" || strings.TrimSpace(n.SearchTitle) == "" {
+			if usable(n) && n.FilterRegex == "" {
+				plain[aliasKeyOf(n)] = true
+			}
+		}
+		for _, n := range names {
+			if !usable(n) {
 				continue
+			}
+			comment := n.Comment
+			if n.FilterRegex != "" {
+				if plain[aliasKeyOf(n)] {
+					continue // the feed also has the alias without a limit
+				}
+				comment = limitedMatching
 			}
 			if err := s.exec(ctx, tx, `INSERT OR IGNORE INTO title_scene_mapping
     (title_id, source, name, season_number, scene_season_number, scene_origin, comment) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-				id, "tvrefresh:"+source, n.Title, n.Season, n.SceneSeason, n.Origin, n.Comment); err != nil {
+				id, "tvrefresh:"+source, n.Title, n.Season, n.SceneSeason, n.Origin, comment); err != nil {
+				return err
+			}
+			if comment != limitedMatching {
+				continue
+			}
+			// The same alias from another source (an arr import carries it without its limit) is limited too.
+			if err := s.exec(ctx, tx, `UPDATE title_scene_mapping SET comment = ? WHERE title_id = ? AND source != ?
+    AND name = ? AND season_number IS ? AND scene_season_number IS ? AND scene_origin = ?`,
+				limitedMatching, id, "tvrefresh:"+source, n.Title, n.Season, n.SceneSeason, n.Origin); err != nil {
 				return err
 			}
 		}

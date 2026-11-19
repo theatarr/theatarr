@@ -29,6 +29,7 @@ func TestPeriodicSceneRefresh(t *testing.T) {
 	clock := now
 	e.svc.now = func() time.Time { return clock }
 	alias, sceneEpisode, fail, empty := "Season Alias", 11, false, false
+	extra := "" // more Sonarr feed rows
 	emptyIDs := false
 	calls := map[string]int{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -46,7 +47,7 @@ func TestPeriodicSceneRefresh(t *testing.T) {
 				fmt.Fprint(w, `[]`)
 				return
 			}
-			fmt.Fprintf(w, `[{"tvdbId":371980,"title":%q,"searchTitle":%q,"season":1,"sceneSeasonNumber":2,"sceneOrigin":"mixed"}]`, alias, alias)
+			fmt.Fprintf(w, `[{"tvdbId":371980,"title":%q,"searchTitle":%q,"season":1,"sceneSeasonNumber":2,"sceneOrigin":"mixed"}%s]`, alias, alias, extra)
 		case "/map/allNames":
 			if r.URL.Query().Get("seasonNumbers") != "true" || r.URL.Query().Get("origin") != "tvdb" {
 				t.Error("bad XEM names query")
@@ -171,6 +172,63 @@ func TestPeriodicSceneRefresh(t *testing.T) {
 	}
 	if e.count(t, `SELECT COUNT(*) FROM title_scene_mapping WHERE title_id=? AND name='Imported Alias'`, id) != 1 {
 		t.Fatal("imported alias deleted")
+	}
+
+	// An alias Sonarr limits to some releases (filterRegex) is stored marked "Limited matching", and the same alias
+	// imported from an arr is marked too; one the feed also lists without a limit stays plain everywhere. Nothing is
+	// deleted, and the decision loader leaves the limited names out.
+	clock = clock.Add(SceneAge)
+	extra = `,{"tvdbId":371980,"title":"Remake Alias","searchTitle":"Remake Alias","sceneOrigin":"mixed","filterRegex":"(?i)^remake"}` +
+		`,{"tvdbId":371980,"title":"Both Alias","searchTitle":"Both Alias","sceneOrigin":"mixed","filterRegex":"(?i)^both"}` +
+		`,{"tvdbId":371980,"title":"Both Alias","searchTitle":"Both Alias","sceneOrigin":"mixed"}`
+	for _, name := range []string{"Remake Alias", "Both Alias"} {
+		if _, err := e.st.Writer().Exec(`INSERT INTO title_scene_mapping(title_id,source,name,scene_origin,comment)
+			VALUES(?,'sonarr_4k_debrid',?,'mixed','GroupA')`, id, name); err != nil {
+			t.Fatal(err)
+		}
+	}
+	refresh()
+	comments := func(name string) string {
+		t.Helper()
+		rows, err := e.st.Reader().Query(`SELECT source || '=' || comment FROM title_scene_mapping WHERE title_id=? AND name=?
+			ORDER BY source`, id, name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		var out []string
+		for rows.Next() {
+			var c string
+			if err := rows.Scan(&c); err != nil {
+				t.Fatal(err)
+			}
+			out = append(out, c)
+		}
+		return strings.Join(out, ", ")
+	}
+	if got := comments("Remake Alias"); got != "sonarr_4k_debrid=Limited matching, tvrefresh:sonarr=Limited matching" {
+		t.Errorf("limited alias rows: %s", got)
+	}
+	if got := comments("Both Alias"); got != "sonarr_4k_debrid=GroupA, tvrefresh:sonarr=" {
+		t.Errorf("alias listed with and without a limit: %s", got)
+	}
+	if got := comments("Imported Alias"); got != "sonarr_4k_debrid=" {
+		t.Errorf("plain imported alias: %s", got)
+	}
+	ti, err = decide.LoadTitle(ctx, e.st.Reader(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := decide.LoadSeriesVersion(ctx, e.st.Reader(), &ti, vid); err != nil {
+		t.Fatal(err)
+	}
+	var loaded []string
+	for _, m := range ti.SceneMappings {
+		loaded = append(loaded, m.Title)
+	}
+	if strings.Contains(strings.Join(loaded, "|"), "Remake Alias") || !strings.Contains(strings.Join(loaded, "|"), "Both Alias") ||
+		!strings.Contains(strings.Join(loaded, "|"), "Imported Alias") {
+		t.Errorf("decide loaded %q", loaded)
 	}
 }
 
