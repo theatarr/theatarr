@@ -15,7 +15,10 @@ export type RestorePlan = Schemas["TorrentRestorePlan"];
 export const GROUPS = [
   { id: "", label: "All" },
   { id: "unused", label: "Not used by Theatarr" },
-  { id: "duplicate_hash", label: "Duplicate hash" },
+  // A hash an account holds two or more times: the cleanup group (its address stays ?group=duplicate_hash).
+  { id: "duplicate_hash", label: "Duplicate on account" },
+  // A hash on two or more accounts: copies kept on purpose. A torrent can be in both.
+  { id: "several_accounts", label: "On several accounts" },
   { id: "duplicate_title", label: "Duplicate title" },
   { id: "failed", label: "Failed" },
   { id: "stalled", label: "Stalled" },
@@ -54,7 +57,17 @@ export function groupKeys(r: TorrentReport, g: GroupID): Set<string> | null {
       members(r.largest);
       break;
     case "duplicate_hash":
-      r.duplicate_hash.forEach((x) => members(x.members));
+      // Of each hash group, the members whose account holds the hash more than once.
+      r.duplicate_hash.forEach((x) => {
+        const per = new Map<string, number>();
+        x.members.forEach((m) => per.set(m.provider, (per.get(m.provider) ?? 0) + 1));
+        members(x.members.filter((m) => (per.get(m.provider) ?? 0) > 1));
+      });
+      break;
+    case "several_accounts":
+      r.duplicate_hash.forEach((x) => {
+        if (new Set(x.members.map((m) => m.provider)).size > 1) members(x.members);
+      });
       break;
     case "duplicate_title":
       r.duplicate_title.forEach((x) => members(x.members));
@@ -119,6 +132,27 @@ export function sortTorrents(list: Torrent[], key: SortKey, desc = key !== "name
     return a.name.localeCompare(b.name);
   };
   return [...list].sort((a, b) => (desc ? -cmp(a, b) : cmp(a, b)) || keyOf(a).localeCompare(keyOf(b)));
+}
+
+/** Each group's number of torrents on one account ("" for every one), whatever the text filter: the counts on the
+ *  group controls. */
+export function groupCounts(r: TorrentReport, provider: string): Record<GroupID, number> {
+  return Object.fromEntries(GROUPS.map((g) => [g.id, filterTorrents(r, provider, g.id, "").length])) as Record<GroupID, number>;
+}
+
+/** The groups that list copies of a hash: its copies sit together. */
+export const BY_HASH: readonly GroupID[] = ["duplicate_hash", "several_accounts"];
+
+/** A sorted list with each hash's copies together (by account, then id), the hashes in the order the list first
+ *  shows them. */
+export function hashesTogether(list: Torrent[]): Torrent[] {
+  const byHash = new Map<string, Torrent[]>();
+  for (const t of list) byHash.set(t.hash, [...(byHash.get(t.hash) ?? []), t]);
+  const out: Torrent[] = [];
+  for (const copies of byHash.values()) {
+    out.push(...copies.sort((a, b) => a.provider.localeCompare(b.provider) || a.id.localeCompare(b.id, undefined, { numeric: true })));
+  }
+  return out;
 }
 
 /** A reference kind in words. */

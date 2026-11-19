@@ -129,7 +129,12 @@ link or download names its title (`title_id`, `title`); `titles` lists the disti
 references, also those past the listed 20, read with the references themselves (no extra query). Groups:
 
 - **unused**;
-- **duplicate hash**: the same hash twice on one account or on several accounts;
+- **duplicate hash**: the same hash twice on one account or on several accounts (each group's members carry the
+  account key and id). The Torrents page splits it in two: **Duplicate on account** (`?group=duplicate_hash`, the
+  cleanup view: the members whose account holds the hash two or more times) and **On several accounts**
+  (`?group=several_accounts`: every member of a hash held by two or more accounts, copies kept on purpose); a torrent
+  can be in both. In these two views a hash's copies sit together, by account and then id, the hashes in the chosen
+  sort; each group control shows its count for the chosen account. The API and the CLI keep the one group;
 - **duplicate title**: the same parsed title and episode (Sonarr's parser) or title and year (Radarr's) across
   different hashes, with each one's quality. A film whose year the series parser reads as its episode
   ("The.Dark.Knight.Rises.2012" as S20E12, "Gladiator.2000" as absolute episode 2000) is parsed as the film: when the

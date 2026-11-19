@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fmtTime } from "./format";
-import { deleteScope, providerProblem, usageWord, deleteSelection, filterTorrents, groupKeys, refSummary, restoreScope, servedByLine, sortTorrents, usageDetail, type DeletePlan, type Torrent, type TorrentReport } from "./torrents";
+import { deleteScope, providerProblem, usageWord, deleteSelection, filterTorrents, groupCounts, groupKeys, hashesTogether, refSummary, restoreScope, servedByLine, sortTorrents, usageDetail, type DeletePlan, type Torrent, type TorrentReport } from "./torrents";
 
 const t = (provider: string, id: string, name: string, bytes: number, added: string, extra: Partial<Torrent> = {}): Torrent => ({
   provider,
@@ -66,6 +66,30 @@ describe("filters", () => {
     const r2 = { ...report, providers: [{ ...report.providers[0], torrents: [A, pair] }] };
     for (const q of ["S07E03", "S07E01E03"]) expect(filterTorrents(r2, "", "", q).map((x) => x.id)).toEqual(["7"]);
     expect(filterTorrents(r2, "", "", "S07E02").map((x) => x.id)).toEqual([]);
+  });
+  it("splits a hash held twice on one account from a hash on several accounts, and counts each for the chosen account", () => {
+    const h = "d".repeat(40);
+    const rd1 = t("rd", "11", "Dup.2020.1080p", 500, "2026-10-01T00:00:00Z", { hash: h });
+    const rd2 = t("rd", "12", "Dup.2020.1080p", 500, "2026-10-02T00:00:00Z", { hash: h });
+    const ad = t("ad", "13", "Dup.2020.1080p", 500, "2026-10-03T00:00:00Z", { hash: h });
+    const r: TorrentReport = {
+      ...report,
+      providers: [{ ...report.providers[0], torrents: [A, rd1, rd2] }, { ...report.providers[1], provider: "ad", kind: "alldebrid", torrents: [ad] }],
+      duplicate_hash: [{ key: h, label: "Dup", members: [{ provider: "rd", id: "11" }, { provider: "rd", id: "12" }, { provider: "ad", id: "13" }] }],
+    };
+    expect(filterTorrents(r, "", "duplicate_hash", "").map((x) => x.id)).toEqual(["11", "12"]);
+    expect(filterTorrents(r, "ad", "duplicate_hash", "")).toEqual([]);
+    expect(filterTorrents(r, "ad", "several_accounts", "").map((x) => x.id)).toEqual(["13"]);
+    expect(filterTorrents(r, "", "several_accounts", "").map((x) => x.id)).toEqual(["11", "12", "13"]);
+    expect(groupCounts(r, "rd")).toMatchObject({ "": 3, duplicate_hash: 2, several_accounts: 2 });
+    expect(groupCounts(r, "ad")).toMatchObject({ "": 1, duplicate_hash: 0, several_accounts: 1 });
+    expect(groupCounts(r, "")).toMatchObject({ "": 4, duplicate_hash: 2, several_accounts: 3, unused: 1 });
+  });
+  it("keeps one hash's copies together, by account and id, the hashes in the chosen order", () => {
+    const x = (p: string, id: string, hash: string, bytes: number) => t(p, id, "N", bytes, "2026-10-01T00:00:00Z", { hash });
+    const big = "b".repeat(40), small = "c".repeat(40);
+    const list = sortTorrents([x("rd", "2", small, 10), x("tb", "5", big, 900), x("rd", "9", big, 100), x("rd", "3", big, 100), x("rd", "1", small, 20)], "size");
+    expect(hashesTogether(list).map((y) => `${y.provider}:${y.id}`)).toEqual(["rd:3", "rd:9", "tb:5", "rd:1", "rd:2"]);
   });
   it("sorts by size, age and name", () => {
     expect(sortTorrents([A, B, C], "size").map((x) => x.id)).toEqual(["2", "1", "3"]);

@@ -181,8 +181,34 @@ describe("torrents page", () => {
     const line = await screen.findByTestId("unused-summary");
     await waitFor(() => expect(line.textContent).toContain("any of the 2 folders of other libraries listed in settings"));
     expect(screen.getByTestId("scan-roots-link").getAttribute("href")).toBe("/admin/settings/downloads/torrents#scan-roots");
-    expect(screen.getByTestId("group-unused").textContent).toBe("Not used by Theatarr");
+    expect(screen.getByTestId("group-unused").textContent).toBe("Not used by Theatarr 1");
     expect(screen.queryByRole("heading", { name: "Other libraries’ folders" })).toBeNull();
+  });
+
+  it("splits a hash held twice on one account from a hash on several accounts; each chip counts the chosen account", async () => {
+    const h = "d".repeat(40);
+    const dup = (p: string, id: string, bytes: number) => ({ ...torrent(id, h, `Dup.${p}.${id}`, "unused"), provider: p, bytes });
+    const ad = { provider: "ad", kind: "alldebrid", ok: true, as_of: "2026-10-29T11:00:00Z", account_torrents: 1, unique_hashes: 1, bytes: 1, usage: { used: 0, unused: 1, unknown: 0, unused_bytes: 1, unknown_bytes: 0 },
+      torrents: [dup("ad", "13", 1)] };
+    const rep = { ...report, providers: [{ ...report.providers[0], torrents: [dup("rd", "12", 5000), report.providers[0].torrents[0], dup("rd", "11", 1)] }, ad],
+      duplicate_hash: [{ key: h, label: "Dup", members: [{ provider: "rd", id: "12" }, { provider: "rd", id: "11" }, { provider: "ad", id: "13" }] }] };
+    mockFetch([
+      { method: "GET", path: "/torrents/report", reply: rep },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+    ]);
+    renderPage(<TorrentsPage />, "/admin/torrents?provider=rd&group=duplicate_hash");
+    await screen.findByText("Dup.rd.12");
+    expect(screen.getByTestId("group-duplicate_hash").textContent).toBe("Duplicate on account 2");
+    expect(screen.getByTestId("group-several_accounts").textContent).toBe("On several accounts 2");
+    // The copies sit together by id, not by size.
+    expect(screen.getAllByTestId("torrent-row").map((r) => r.querySelector("[title]")?.textContent)).toEqual(["Dup.rd.11", "Dup.rd.12"]);
+    fireEvent.click(screen.getByRole("tab", { name: "AD" }));
+    expect(screen.getByTestId("group-count-duplicate_hash").textContent).toBe("0");
+    expect(screen.getByTestId("group-count-several_accounts").textContent).toBe("1");
+    expect(screen.getByText("Nothing matches.")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("group-several_accounts"));
+    expect(screen.getAllByTestId("torrent-row")).toHaveLength(1);
+    expect(screen.getByText("Dup.ad.13")).toBeTruthy();
   });
 
   it("keeps the provider, filter, text and sort in the URL", async () => {

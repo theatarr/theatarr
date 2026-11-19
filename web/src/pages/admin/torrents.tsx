@@ -22,10 +22,13 @@ import { fmtAgo, fmtBytes, fmtNumber, fmtTime, plural } from "@/lib/format";
 import { TitleLinks, UsageBadge, UsageDetail } from "@/components/torrent-usage";
 import { AddToProviders } from "@/components/title/add-to-providers";
 import {
+  BY_HASH,
   GROUPS,
   deleteScope,
   deleteSelection,
   filterTorrents,
+  groupCounts,
+  hashesTogether,
   keyOf,
   providerCodes,
   providerProblem,
@@ -76,7 +79,12 @@ export function TorrentsPage() {
   const actions = useTorrentActions();
 
   const rows = useMemo(
-    () => (report.data ? sortTorrents(filterTorrents(report.data, provider, group, text), sort) : []),
+    () => {
+      if (!report.data) return [];
+      const sorted = sortTorrents(filterTorrents(report.data, provider, group, text), sort);
+      // A hash's copies sit together in the duplicate groups, so a pair is read (and ticked) side by side.
+      return BY_HASH.includes(group) ? hashesTogether(sorted) : sorted;
+    },
     [report.data, provider, group, text, sort],
   );
   const chosen = Object.values(selected);
@@ -129,6 +137,7 @@ export function TorrentsPage() {
 
   const r = report.data;
   const codes = useMemo(() => (r ? providerCodes(r) : {}), [r]);
+  const counts = useMemo(() => (r ? groupCounts(r, provider) : null), [r, provider]);
   return (
     <div>
       <PageHeader
@@ -163,7 +172,7 @@ export function TorrentsPage() {
           <div className="mb-1 flex flex-wrap items-center gap-1">
             {GROUPS.map((g) => (
               <Button key={g.id || "all"} size="xs" variant={g.id === group ? "secondary" : "ghost"} onClick={() => setGroup(g.id)} data-testid={`group-${g.id || "all"}`}>
-                {g.label}
+                {g.label}{counts ? <> <span className="tabular-nums text-muted-foreground" data-testid={`group-count-${g.id || "all"}`}>{fmtNumber(counts[g.id])}</span></> : null}
               </Button>
             ))}
             <Input className="h-8 w-full sm:ml-auto sm:max-w-xs" placeholder="Name or hash" value={text} onChange={(e) => setText(e.target.value)} aria-label="Filter torrents" />
