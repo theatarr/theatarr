@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -716,6 +717,89 @@ func TestImportBackup(t *testing.T) {
 	}
 	if _, _, err := e.m.ImportBackup(ctx, dmm, "xx", "admin"); err == nil {
 		t.Error("an unknown provider is refused")
+	}
+	// An upload that would store a backup no restore can read is refused before anything is written or journaled:
+	// an empty hash, a list without a provider, and (with no target) a provider not configured here.
+	own := func(prov, hash string) []byte {
+		return []byte(`{"format":"` + BackupFormat + `","version":2,"providers":[{"provider":"` + prov +
+			`","ok":true,"torrents":[{"id":"1","hash":"` + hash + `","name":"X"}]}]}`)
+	}
+	before, _ := e.m.Backups()
+	journalRows := func() (n int) {
+		_ = e.st.Reader().QueryRow(`SELECT COUNT(*) FROM torrent_journal WHERE action = 'backup'`).Scan(&n)
+		return n
+	}
+	journaled := journalRows()
+	for _, tc := range []struct {
+		name, target string
+		data         []byte
+	}{
+		{"dmm empty hash", "rd", []byte(`[{"filename":"A","hash":" "}]`)},
+		{"empty hash", "rd", own("rd", "")},
+		{"no provider", "", own("", hA)},
+		{"provider not configured", "", own("xx", hA)},
+	} {
+		e.now = e.now.Add(time.Second) // a backup id is unique to the millisecond
+		if _, _, err := e.m.ImportBackup(ctx, tc.data, tc.target, "admin"); err == nil {
+			t.Errorf("%s: stored", tc.name)
+		}
+	}
+	e.now = e.now.Add(time.Second)
+	if after, _ := e.m.Backups(); len(after) != len(before) {
+		t.Errorf("a refused upload left a backup: %d, then %d", len(before), len(after))
+	}
+	if n := journalRows(); n != journaled {
+		t.Errorf("a refused upload was journaled: %d, then %d", journaled, n)
+	}
+	if b, _, err := e.m.ImportBackup(ctx, own("tb", hA), "", "admin"); err != nil || b.Providers[0].Provider != "tb" {
+		t.Errorf("a backup of a configured provider: %+v %v", b, err)
+	}
+}
+
+// Each provider's file cache comes from that provider's newest successful listing: an outage of one provider in one
+// backup does not make the next backup read every torrent of it again (with more torrents than one backup reads).
+func TestBackupCacheSurvivesAProviderOutage(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	ctx := context.Background()
+	old := e.now.Add(-72 * time.Hour)
+	n := detailBudget + 10
+	e.rd.detail = map[string]*provider.Torrent{}
+	for i := range n {
+		id := strconv.Itoa(i + 1)
+		hash := fmt.Sprintf("%040x", i+1)
+		e.rd.list = append(e.rd.list, tor(id, hash, "T"+id, 10, old, provider.StateDownloaded))
+		e.rd.detail[id] = &provider.Torrent{ID: id, Hash: hash, State: provider.StateDownloaded,
+			Files: []provider.File{{ID: "1", Path: "/T" + id + "/t.mkv", Bytes: 10, Selected: true}}}
+	}
+	e.tb.list = []provider.Torrent{{ID: "9", Hash: hC, Name: "C", Bytes: 30, Added: old,
+		Files: []provider.File{{ID: "0", Path: "C/c.mkv", Bytes: 30, Selected: true}}}}
+	if _, _, err := e.m.TakeBackup(ctx, BackupOptions{Reason: ReasonScheduled}); err != nil {
+		t.Fatal(err)
+	}
+	e.now = e.now.Add(time.Hour)
+	e.rd.listErr = errors.New("rd is down")
+	if _, _, err := e.m.TakeBackup(ctx, BackupOptions{Reason: ReasonScheduled}); err != nil {
+		t.Fatal(err)
+	}
+	e.now = e.now.Add(time.Hour)
+	e.rd.listErr = nil
+	reads := e.rd.reads
+	b, _, err := e.m.TakeBackup(ctx, BackupOptions{Reason: ReasonScheduled})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := e.rd.reads - reads; got != n-detailBudget {
+		t.Errorf("the recovery backup read %d details, want %d", got, n-detailBudget)
+	}
+	known := 0
+	for _, bt := range b.Providers[0].Torrents {
+		if bt.FilesKnown && len(bt.Files) == 1 {
+			known++
+		}
+	}
+	if b.Providers[0].Provider != "rd" || known != n {
+		t.Errorf("rd torrents with files after the outage: %d of %d", known, n)
 	}
 }
 

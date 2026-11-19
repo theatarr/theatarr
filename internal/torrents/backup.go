@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -250,31 +251,37 @@ func (m *Manager) TakeBackup(ctx context.Context, o BackupOptions) (*Backup, Bac
 	return b, info, nil
 }
 
-// fileCache is the files of every torrent in the newest backup that knew them, by provider, id and hash: a settled
-// selection does not change, so a backup reads each torrent's detail once. An unknown selection (one Real-Debrid still
-// awaited, or a version 1 backup's empty list) and an empty one are not cached; a delete's backup reads its torrents
-// again anyway.
+// fileCache is the files of every torrent by provider, id and hash, each provider's from its newest successful
+// listing (an account listed with no torrents counts): a settled selection does not change, so a backup reads each
+// torrent's detail once, and one provider's outage in one backup does not empty its cache. An unknown selection (one
+// Real-Debrid still awaited, or a version 1 backup's empty list) and an empty one are not cached; a delete's backup
+// reads its torrents again anyway.
 func (m *Manager) fileCache() map[string][]BackupFile {
 	out := map[string][]BackupFile{}
 	list, err := m.Backups()
 	if err != nil {
 		return out
 	}
+	keys, seeded := m.keys(), map[string]bool{}
 	for _, in := range list {
+		if !slices.ContainsFunc(keys, func(k string) bool { return !seeded[k] }) {
+			break // every configured provider has its listing
+		}
 		b, err := m.ReadBackup(in.ID)
 		if err != nil || b.Reason == ReasonImport {
 			continue
 		}
 		for _, p := range b.Providers {
+			if !p.OK || seeded[p.Provider] {
+				continue
+			}
+			seeded[p.Provider] = true
 			for _, t := range p.Torrents {
 				k := p.Provider + "\x00" + t.ID + "\x00" + t.Hash
 				if _, seen := out[k]; !seen && t.FilesKnown && len(t.Files) > 0 && t.ID != "" {
 					out[k] = t.Files
 				}
 			}
-		}
-		if len(out) > 0 {
-			break // the newest backup with files is enough; older ones only repeat it
 		}
 	}
 	return out
@@ -576,6 +583,19 @@ func (m *Manager) ImportBackup(ctx context.Context, data []byte, target, by stri
 				p.Torrents[i].Hash = strings.ToLower(p.Torrents[i].Hash)
 			}
 			b.Providers = append(b.Providers, p)
+		}
+	}
+	// Refuse what no restore could read, before anything is written or journaled: an empty hash, a list without a
+	// provider, or (with no target) a provider not configured here.
+	if err := b.validate(b.ID); err != nil {
+		return nil, BackupInfo{}, fmt.Errorf("torrents: the backup cannot be stored: %v", err)
+	}
+	if target == "" {
+		for _, p := range b.Providers {
+			if m.Policy.Providers[p.Provider] == nil {
+				return nil, BackupInfo{}, fmt.Errorf("torrents: the backup's provider %q is not configured here; "+
+					"choose the provider to restore to", p.Provider)
+			}
 		}
 	}
 	info, err := m.write(b)

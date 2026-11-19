@@ -169,8 +169,9 @@ restoring re-adds them to a provider and does not change Theatarr settings.
 `POST /torrents/backups` (queues job `torrents.backup`), `theatarr torrents backup`. A backup lists every configured
 provider: per torrent the provider id, hash, name, size, added date, status and the selected files (id, path, size).
 TorBox lists files with the torrent; Real-Debrid and AllDebrid lists do not, so a backup reads up to 50 torrents'
-details per provider and reuses what the newest earlier backup holds for the same id and hash: a few backups fill in
-every torrent. A torrent whose files the backup never read is restored with all its files.
+details per provider and reuses what the newest earlier backup that listed that provider holds for the same id and
+hash (each provider from its own newest successful listing, so one provider's outage does not empty its cache): a
+few backups fill in every torrent (`TestBackupCacheSurvivesAProviderOutage`). A torrent whose files the backup never read is restored with all its files.
 
 - **Selection known or not** (format version 2). A torrent Real-Debrid still holds in
   `waiting_files_selection` (or `magnet_conversion`) has files but no selection yet: the backup marks it
@@ -203,6 +204,9 @@ every torrent. A torrent whose files the backup never read is restored with all 
   `{filename, hash}`).
 - Import (`POST /torrents/backups/import?provider=KEY`, `theatarr torrents import -file F -provider KEY`): a Theatarr
   backup, or a DMM backup with the account to restore it to. Stored as a backup of reason `import`; nothing is sent.
+  An upload that no restore could read (a torrent without a hash, a list without a provider, or, with no provider
+  chosen, a provider not configured here) is refused with that reason before anything is written or journaled
+  (`TestImportBackup`).
 - A full backup is taken automatically before every delete (below).
 
 ## Restore
