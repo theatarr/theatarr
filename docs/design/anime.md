@@ -330,8 +330,8 @@ refuses any other target). Building only writes mappings; episodes whose mapping
 TVDB's numbering, and their conflicts show in Settings › Anime mappings. With a source missing, the "Anime builds" health
 check says which, and nothing builds; manual builds are refused the same way.
 
-**Discovery.** Every anime series (`title.anime`, kind series, with a TVDB id) that no franchise maps into gets a
-discovery pass, one at a time:
+**Discovery.** Every anime series (`title.anime`, kind series, with a TVDB id) that no franchise maps into and that
+is still in the library (not every copy removed) gets a discovery pass, one at a time:
 
 1. Covered when a franchise has a mapping into the TVDB series, or an entry for one of its AniList ids (a franchise
    whose mapping was rejected still covers it), applied or in a refresh held for review (`pending_result`).

@@ -69,7 +69,7 @@ type Uncovered struct {
 }
 
 // ListUncovered lists the anime series in the library no franchise maps into (the loop's discovery candidates), by
-// name. A series every copy of which was removed is left out (discovery itself is unchanged).
+// name. A series every copy of which was removed is left out, as discovery leaves it out.
 func ListUncovered(ctx context.Context, st *store.Store, jobs *Jobs) ([]Uncovered, error) {
 	rows, err := st.Reader().QueryContext(ctx, `SELECT t.id, COALESCE(t.name, ''), t.tvdb_id, COALESCE(d.outcome, ''),
 		COALESCE(d.franchise, ''), COALESCE(d.detail, ''), d.tried_at FROM title t

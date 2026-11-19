@@ -69,7 +69,11 @@ func TestLoopDiscoversOncePerUncoveredTitle(t *testing.T) {
 	exec(t, st, `INSERT INTO title (id, kind, name, tvdb_id, anime, created_at, updated_at) VALUES
 		(1, 'series', 'Uncovered', 500, 1, 0, 0), (2, 'series', 'Covered', 600, 1, 0, 0),
 		(3, 'series', 'Not anime', 900, 0, 0, 0), (4, 'series', 'No TVDB', NULL, 1, 0, 0),
-		(5, 'movie', 'Anime movie', NULL, 1, 0, 0)`)
+		(5, 'movie', 'Anime movie', NULL, 1, 0, 0), (6, 'series', 'Removed', 700, 1, 0, 0)`)
+	// Every copy of title 6 was removed: it is in no library, so it is not discovered.
+	exec(t, st, `INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
+		(60, 6, 'tv-web', 1, 'wanted', 0, 0)`)
+	exec(t, st, `INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (60, 'sonarr', 0)`)
 	exec(t, st, `INSERT INTO anime_franchise (slug, name, seed_anilist, built_at, created_at, updated_at) VALUES ('big', 'Big', 1, ?, 0, 0)`,
 		store.Millis(c.now()))
 	exec(t, st, `INSERT INTO anime_mapping (franchise, entry_key, status, tvdb_series, updated_at) VALUES ('big', 'al:1', 'auto', 600, 0)`)
@@ -109,8 +113,8 @@ func TestLoopDiscoversOncePerUncoveredTitle(t *testing.T) {
 	if jobsFor(TVDBKey(500)) != 2 {
 		t.Fatal("not retried after the refresh interval")
 	}
-	if jobsFor(TVDBKey(600)) != 0 || jobsFor(TVDBKey(900)) != 0 {
-		t.Fatal("covered or non-anime series queued")
+	if jobsFor(TVDBKey(600)) != 0 || jobsFor(TVDBKey(900)) != 0 || jobsFor(TVDBKey(700)) != 0 {
+		t.Fatal("covered, non-anime or removed series queued")
 	}
 }
 
