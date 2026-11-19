@@ -61,7 +61,8 @@ type DanglingZurg struct {
 type reportRoot struct{ root, version string }
 
 // DanglingReport walks the roots, records the dangling links (replacing the last report) and returns the summary.
-// A mount outage stops it before anything is recorded: nothing is read as dangling then.
+// A mount outage stops it before anything is recorded: nothing is read as dangling then. Rows of a root that could
+// not be read, and of links into a folder the mount would not list, are kept as they were and counted.
 func (l *Library) DanglingReport(ctx context.Context) (*DanglingSummary, error) {
 	if l.set.MountPath == "" {
 		return nil, errors.New("library: library.mount.path is not set")
@@ -110,16 +111,22 @@ func (l *Library) DanglingReport(ctx context.Context) (*DanglingSummary, error) 
 	}
 	found := map[string]DanglingRow{}
 	seen := map[string]bool{}
+	// What this scan could not check keeps its last row: the roots that could not be read and the links into folders
+	// the mount would not list.
+	failedRoot := map[string]bool{}
+	unchecked := map[string]bool{}
 	for _, r := range roots {
 		sum.Roots = append(sum.Roots, r.root)
 		var sc LinkScan
 		if err := l.gate.Reachable(ctx, r.root); err != nil {
 			sum.Errors = append(sum.Errors, fmt.Sprintf("%s: %v", r.root, err))
+			failedRoot[r.root] = true
 			continue
 		}
 		links, err := l.scanRoot(ctx, r.root, &sc)
 		if err != nil {
 			sum.Errors = append(sum.Errors, fmt.Sprintf("%s: %v", r.root, err))
+			failedRoot[r.root] = true
 			continue
 		}
 		for _, ml := range links {
@@ -130,6 +137,7 @@ func (l *Library) DanglingReport(ctx context.Context) (*DanglingSummary, error) 
 			sum.Links++
 			ok, err := ix.has(ml.folder, ml.inner)
 			if errors.Is(err, errFolderUnreadable) {
+				unchecked[ml.path] = true
 				continue // no verdict on a link into a folder the mount would not list
 			}
 			if err != nil {
@@ -157,27 +165,36 @@ func (l *Library) DanglingReport(ctx context.Context) (*DanglingSummary, error) 
 			sum.ByRoot[r.root]++
 		}
 	}
-	sum.Dangling = len(found)
 	sum.Took = time.Since(start)
 	now := store.Millis(sum.At)
-	rootsJSON, _ := json.Marshal(sum.Roots)
+	var kept map[string]int // rows kept unchecked, by root
 	err = l.st.WriteTx(ctx, func(tx *sql.Tx) error {
-		rows, err := tx.QueryContext(ctx, `SELECT path FROM library_dangling`)
+		kept = map[string]int{}
+		rows, err := tx.QueryContext(ctx, `SELECT path, root FROM library_dangling`)
 		if err != nil {
 			return err
 		}
 		var gone []string
 		for rows.Next() {
-			var p string
-			if err := rows.Scan(&p); err != nil {
+			var p, root string
+			if err := rows.Scan(&p, &root); err != nil {
 				rows.Close()
 				return err
 			}
-			if _, still := found[p]; !still {
-				gone = append(gone, p)
+			if _, still := found[p]; still {
+				continue
 			}
+			if unchecked[p] || (failedRoot[root] && !seen[p]) {
+				kept[root]++ // unchanged (first and last sighting), counted in this report
+				continue
+			}
+			gone = append(gone, p)
 		}
 		rows.Close()
+		sum.Dangling = len(found)
+		for _, n := range kept {
+			sum.Dangling += n
+		}
 		for _, p := range gone {
 			if _, err := tx.ExecContext(ctx, `DELETE FROM library_dangling WHERE path = ?`, p); err != nil {
 				return err
@@ -204,6 +221,7 @@ func (l *Library) DanglingReport(ctx context.Context) (*DanglingSummary, error) 
 				zurgErr = z.Error
 			}
 		}
+		rootsJSON, _ := json.Marshal(sum.Roots)
 		_, err = tx.ExecContext(ctx, `INSERT INTO library_dangling_scan (at, roots, links, dangling, error, took_ms,
 			no_video, no_video_torrents, repairing, zurg_error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, now,
 			string(rootsJSON), sum.Links, sum.Dangling, errText, sum.Took.Milliseconds(), noVideo, noVideoTorrents,
@@ -212,6 +230,9 @@ func (l *Library) DanglingReport(ctx context.Context) (*DanglingSummary, error) 
 	})
 	if err != nil {
 		return nil, fmt.Errorf("library: dangling report: %w", err)
+	}
+	for root, n := range kept {
+		sum.ByRoot[root] += n
 	}
 	return sum, nil
 }

@@ -242,6 +242,23 @@ func TestDanglingReport(t *testing.T) {
 	if n := e.one(`SELECT COUNT(*) FROM library_dangling_scan`); n != "2" {
 		t.Errorf("scans %s", n)
 	}
+	// A root that cannot be read keeps its rows as they were (counted, last sighting unchanged); a healthy root
+	// whose link was fixed still loses its row.
+	seen := e.now
+	e.release("Lost", map[string]float64{"x.mkv": 1})
+	if err := os.Rename(downloads, downloads+".off"); err != nil {
+		t.Fatal(err)
+	}
+	e.now = e.now.Add(6 * time.Hour)
+	sum, err = e.lib.DanglingReport(e.ctx)
+	if err != nil || sum.Dangling != 1 || sum.ByRoot[downloads] != 1 || len(sum.Errors) != 1 {
+		t.Fatalf("report with a failed root %+v %v", sum, err)
+	}
+	rows, last, _ = Dangling(e.ctx, e.st.Reader())
+	if len(rows) != 1 || !strings.HasSuffix(rows[0].Path, "y.mkv") || !rows[0].FirstSeen.Equal(first) ||
+		!rows[0].LastSeen.Equal(seen) || last.Dangling != 1 {
+		t.Errorf("rows with a failed root %+v last %+v", rows, last)
+	}
 }
 
 // A release folder whose name starts with ".." is inside the mount: its links are listed and reported like any other.
