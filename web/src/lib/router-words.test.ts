@@ -23,5 +23,5 @@ it("words what each provider answered for a failed release, the 451 and file-nam
 });
 
 it("words a provider that holds only a failed copy", () => {
-  expect(attemptCodeWords("held_error")).toBe("a failed copy is on the account; delete it under Torrents to use this provider");
+  expect(attemptCodeWords("held_error")).toBe("a failed copy is on the account; an admin can delete it under Torrents");
 });

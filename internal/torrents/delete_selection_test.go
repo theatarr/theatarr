@@ -226,6 +226,29 @@ func TestBackupV1EmptySelectionIsUnknown(t *testing.T) {
 	}
 }
 
+// A scheduled backup of a downloaded torrent whose read answers files: [] records its selection as unknown, so a
+// restore does not select every file for it.
+func TestBackupDownloadedEmptyFilesIsUnknown(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	ctx := context.Background()
+	e.rd.list = []provider.Torrent{tor("1", hA, "A", 10, e.now.Add(-72*time.Hour), provider.StateDownloaded)}
+	e.rd.detail = map[string]*provider.Torrent{"1": {ID: "1", Hash: hA, State: provider.StateDownloaded,
+		Status: "downloaded", Files: []provider.File{}}}
+	b, _, err := e.m.TakeBackup(ctx, BackupOptions{Reason: ReasonScheduled})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := b.Providers[0].Torrents[0]; got.FilesKnown || !got.SelectionUnknown {
+		t.Fatalf("backup: %+v", got)
+	}
+	e.rd.list = nil
+	plan, err := e.m.PlanRestore(ctx, RestoreRequest{BackupID: b.ID})
+	if err != nil || plan.Items[0].Selection != SelUnknown {
+		t.Fatalf("restore selection: %+v %v", plan, err)
+	}
+}
+
 // restoreFixture: a backup of rd with A (two files, e2 selected), B (awaiting its selection) and C (files never
 // read), all gone from rd since.
 func restoreFixture(t *testing.T) (*env, RestoreRequest) {

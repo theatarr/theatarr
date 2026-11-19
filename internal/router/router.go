@@ -937,14 +937,13 @@ func (r *Router) candidate(ctx context.Context, s *routeState, c *Candidate) (ve
 		st := Step{Outcome: "miss", Code: "miss", Message: msg}
 		if len(heldErr) > 0 {
 			msg = FailedCopyOnAccount + " (" + strings.Join(slices.Sorted(maps.Keys(heldErr)), ", ") +
-				"); delete it under Torrents to use this provider"
+				"); an admin can delete it under Torrents"
 			st = Step{Outcome: "skipped", Code: codeHeldError, Message: msg}
 		}
 		step(st)
 		if !s.dry {
-			noMiss := maps.Clone(heldErr)
-			maps.Copy(noMiss, s.skipProvider)
-			if err := r.recordMiss(ctx, hash, provs, noMiss, now, r.verdictTTL(ctx, s, now)); err != nil {
+			maps.Copy(heldErr, s.skipProvider) // the live skips: no miss is cached for those either
+			if err := r.recordMiss(ctx, hash, provs, heldErr, now, r.verdictTTL(ctx, s, now)); err != nil {
 				return 0, time.Time{}, err
 			}
 			return vContent, time.Time{}, r.failDownload(ctx, s.dlID, msg, StateQueued)
