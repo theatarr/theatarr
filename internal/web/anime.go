@@ -208,10 +208,10 @@ func (w *Web) animeStore() *animestore.Store { return &animestore.Store{DB: w.st
 func (w *Web) listFranchises(ctx context.Context, admin bool) ([]AnimeFranchise, error) {
 	db := w.st.Reader()
 	var out []AnimeFranchise
-	err := scanAll(ctx, db, `SELECT f.slug, f.name, f.source, f.built_at, f.pending_result IS NOT NULL,
+	err := scanAll(ctx, db, `SELECT f.slug, f.name, f.source, f.built_at, ? AND f.pending_result IS NOT NULL,
 		(SELECT count(*) FROM anime_entry e WHERE e.franchise = f.slug),
-		(SELECT count(*) FROM anime_review r WHERE r.franchise = f.slug AND r.state = 'open')
-		FROM anime_franchise f ORDER BY f.name`, nil, func(r *sql.Rows) error {
+		CASE WHEN ? THEN (SELECT count(*) FROM anime_review r WHERE r.franchise = f.slug AND r.state = 'open') ELSE 0 END
+		FROM anime_franchise f ORDER BY f.name`, []any{admin, admin}, func(r *sql.Rows) error {
 		var f AnimeFranchise
 		var built sql.NullInt64
 		if err := r.Scan(&f.Slug, &f.Name, &f.Source, &built, &f.Pending, &f.Entries, &f.OpenReview); err != nil {
@@ -251,9 +251,6 @@ func (w *Web) listFranchises(ctx context.Context, admin bool) ([]AnimeFranchise,
 		return nil, err
 	}
 	if !admin {
-		for i := range out {
-			out[i].Pending, out[i].OpenReview = false, 0
-		}
 		return out, nil
 	}
 	return out, w.annotateBuilds(ctx, out)

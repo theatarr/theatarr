@@ -1276,7 +1276,7 @@ func TestAdoptedLinkFileSizes(t *testing.T) {
 	e.exec(`DELETE FROM link WHERE id = 91`)
 	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (8, 42), (8, 43)`)
 	const want = 3000000000
-	list, err := e.web.titleEpisodes(context.Background(), 4, 1, true)
+	list, err := e.web.titleEpisodes(context.Background(), 4, 1, true, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

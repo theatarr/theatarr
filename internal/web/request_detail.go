@@ -53,7 +53,7 @@ func (w *Web) requestDetail(ctx context.Context, r *Request) (*RequestDetail, er
 			return nil, err
 		}
 		if r.Kind == "series" {
-			episodes, err = w.titleEpisodes(ctx, *r.TitleID, -1, false)
+			episodes, err = w.titleEpisodes(ctx, *r.TitleID, -1, false, 0)
 			if err != nil {
 				return nil, err
 			}
