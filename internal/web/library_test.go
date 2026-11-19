@@ -767,6 +767,18 @@ func TestDiscover(t *testing.T) {
 		t.Errorf("missing with the cached flag off: %q", got)
 	}
 	e.exec(`UPDATE episode SET monitored = 1 WHERE title_id = 4`)
+	// An aired episode with no library row keeps its cached flag, as on the calendar: monitored, it is missing.
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, air_date, air_date_utc_at, monitored, created_at,
+		updated_at) VALUES (49, 4, 1, 9, 'Stateless', '2026-01-10', ?, 1, 0, 0)`,
+		store.Millis(time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC)))
+	if got := missing(); got != "Delta|2 episodes missing|2026-01-15; Alpha|4K WEB|2020-08-01" {
+		t.Errorf("missing with an episode without a library row: %q", got)
+	}
+	e.exec(`UPDATE episode SET monitored = 0 WHERE id = 49`)
+	if got := missing(); got != "Delta|1 episode missing|2026-01-15; Alpha|4K WEB|2020-08-01" {
+		t.Errorf("missing with an unmonitored episode without a library row: %q", got)
+	}
+	e.exec(`DELETE FROM episode WHERE id = 49`)
 	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (4, 'sonarr', 0)`)
 	if got := missing(); got != "Alpha|4K WEB|2020-08-01" {
 		t.Errorf("missing after removing the copy: %q", got)

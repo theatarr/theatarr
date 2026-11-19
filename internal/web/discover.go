@@ -333,12 +333,22 @@ func (w *Web) missingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 		}
 	}
 	aired, airedArgs := newAirClock(now).airedSQL("e")
-	err = scanAll(ctx, db, `SELECT e.title_id, COUNT(DISTINCT e.id), MAX(e.air_date), MAX(e.air_date_utc_at)
-		FROM episode_version_state s
+	// An episode with no library row at all keeps its cached flag, as on the calendar (activity.EpisodeMonitoredSQL):
+	// aired, monitored that way and held by no file, it is missing.
+	aired2, airedArgs2 := newAirClock(now).airedSQL("e")
+	err = scanAll(ctx, db, `SELECT title_id, COUNT(DISTINCT id), MAX(air_date), MAX(air_date_utc_at) FROM (
+		SELECT e.title_id, e.id, e.air_date, e.air_date_utc_at FROM episode_version_state s
 		JOIN episode e ON e.id = s.episode_id JOIN version v ON v.id = s.version_id JOIN title t ON t.id = e.title_id
 		WHERE s.state = 'wanted' AND s.monitored = 1 AND v.monitored = 1 AND t.monitored = 1 AND `+liveVersion+`
 			AND e.season > 0 AND e.removed_at IS NULL AND `+aired+`
-		GROUP BY e.title_id`, airedArgs, func(r *sql.Rows) error {
+		UNION ALL
+		SELECT e.title_id, e.id, e.air_date, e.air_date_utc_at FROM episode e JOIN title t ON t.id = e.title_id
+		WHERE e.season > 0 AND e.removed_at IS NULL AND `+aired2+` AND `+inLibrary+`
+			AND NOT EXISTS (SELECT 1 FROM episode_version_state s0 WHERE s0.episode_id = e.id)
+			AND NOT EXISTS (SELECT 1 FROM link_episode le JOIN link l ON l.id = le.link_id WHERE le.episode_id = e.id
+				AND l.state = 'active')
+			AND `+activity.EpisodeMonitoredSQL+`)
+		GROUP BY title_id`, append(airedArgs, airedArgs2...), func(r *sql.Rows) error {
 		var p pick
 		var n int
 		var day sql.NullString
