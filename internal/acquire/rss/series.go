@@ -65,11 +65,14 @@ func (r *Runner) seriesCandidates(ctx context.Context) (map[int64][]seriesCandid
 type seriesIndex struct {
 	byClean map[string][]int64
 	byTVDB  map[int]int64
-	loaded  map[int64]decide.Title
+	// byIMDb is the series by normalised IMDb id: the fallback for an item with no TVDB id whose name finds none.
+	byIMDb map[string][]int64
+	loaded map[int64]decide.Title
 }
 
 func (r *Runner) seriesIndex(ctx context.Context, cands map[int64][]seriesCandidate) (*seriesIndex, error) {
-	ix := &seriesIndex{byClean: map[string][]int64{}, byTVDB: map[int]int64{}, loaded: map[int64]decide.Title{}}
+	ix := &seriesIndex{byClean: map[string][]int64{}, byTVDB: map[int]int64{}, byIMDb: map[string][]int64{},
+		loaded: map[int64]decide.Title{}}
 	if len(cands) == 0 {
 		return ix, nil
 	}
@@ -109,12 +112,15 @@ func (r *Runner) seriesIndex(ctx context.Context, cands map[int64][]seriesCandid
 		if t.TVDB > 0 {
 			ix.byTVDB[t.TVDB] = id
 		}
+		if imdb := sonarr.NormalizeImdbID(t.IMDb); imdb != "" {
+			ix.byIMDb[imdb] = append(ix.byIMDb[imdb], id)
+		}
 	}
 	return ix, nil
 }
 
 // decideSeriesItem maps an RSS item to our series (the indexer's TVDB id, else the parsed series title against the
-// titles and scene mappings) and decides it for every candidate version with the RSS path (no search criteria).
+// titles and scene mappings, else, with no TVDB id, the one series with the item's IMDb id) and decides it for every candidate version with the RSS path (no search criteria).
 // ranked is rel with the cache evidence the decision ranks by, as for decideItem.
 func (r *Runner) decideSeriesItem(ctx context.Context, rel, ranked indexer.Release, cands map[int64][]seriesCandidate,
 	ix *seriesIndex, sum *RSSSummary) (bool, error) {
@@ -139,6 +145,11 @@ func (r *Runner) decideSeriesItem(ctx context.Context, rel, ranked indexer.Relea
 					ids = append(ids, id)
 				}
 			}
+		}
+		// No TVDB id and no series by name: the item's IMDb id, when exactly one series has it (DMM sends IMDb
+		// ids, no TVDB). The decision checks the episode as usual.
+		if imdb := sonarr.NormalizeImdbID(rel.IMDb); len(ids) == 0 && rel.TVDB == 0 && imdb != "" && len(ix.byIMDb[imdb]) == 1 {
+			ids = ix.byIMDb[imdb]
 		}
 	}
 	matched := false
