@@ -651,6 +651,12 @@ takes a corrected episode first, and the other files still import as usual (`Tes
    episode" counts the other unmatched files. Example: with XEM swapping canonical E01 and E02, a
    download for E01 does not link the file named S01E01 (canonical E02) as E01 (`TestResolverAnswerIsNotOverridden`). A
    manual choice (step 1) still decides such a file.
+   A file whose own name parses as a whole season with no episode numbers (`Show.S02.NCOP…`, "S01 Making Of";
+   Sonarr's `FullSeasonSpecification`) maps to no episode: no release-title, folder or canonical reading either
+   (`decide.HowSeasonFile`). It stays unmatched like any extra, so it is neither a sample-guard failure nor a reason to
+   fail or blocklist the download (download 21: a held Remux season with season-named NCOP/NCED clips ended
+   "not an upgrade", `TestImportSeasonNamedClipsBesideHeldEpisodes`). A file whose own name parses to nothing
+   (`S01/obfuscated.mkv`) keeps the release's and folder's reading; a manual choice still decides any file.
    In particular, an automatic multi-episode file overlapping an episode an earlier accepted file claimed is left
    wholly unmatched; its free episodes remain wanted unless another file fills them. This matches Sonarr's
    `ImportApprovedEpisodes` overlap check. It does not link the overlapping file for just its free episodes.

@@ -2,8 +2,10 @@ package library
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -674,5 +676,72 @@ func TestManualImportSkipsUpgradeCheck(t *testing.T) {
 	}
 	if len(plan.Links) != 1 || len(plan.Links[0].Replaces) != 1 {
 		t.Errorf("plan %+v", plan)
+	}
+}
+
+// The download 21 shape: a season pack whose episodes are all held by better files, with opening and ending clips
+// named for the whole season. The clips are no episode, so the import ends "not an upgrade" with no blocklist row;
+// with an episode missing, the pack fills it.
+func TestImportSeasonNamedClipsBesideHeldEpisodes(t *testing.T) {
+	t.Parallel()
+	for _, missing := range []bool{false, true} {
+		e := importUpEnv(t, "")
+		eps := []int64{201, 202, 203, 204}
+		if missing {
+			eps = eps[:3]
+		}
+		for _, ep := range eps {
+			e.heldLink(ep, "Bluray-2160p Remux", fmt.Sprintf("Show.S01E%02d.2160p.BluRay.REMUX.HEVC-OLD", ep-200), ep)
+		}
+		e.release(packRelease, map[string]float64{
+			"Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2700, "Show.S01E02.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2700,
+			"Show.S01E03.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2700, "Show.S01E04.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2700,
+			"Show.S01.NCOP.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 92, "Show.S01.NCED.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 92})
+		e.seriesDownload(1, 2, 20, hashA, packRelease, "[201, 202, 203, 204]", nil)
+		e.exec(`UPDATE download SET quality = 'WEBDL-2160p' WHERE id = 1`)
+		plan, err := e.lib.Import(e.ctx, 1, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, f := range plan.Rejected {
+			if !f.NotUpgrade {
+				t.Errorf("missing %v: rejected %s: %s", missing, f.Rel, f.Reason)
+			}
+		}
+		if got := e.one(`SELECT COUNT(*) FROM router_blocklist`); got != "0" {
+			t.Errorf("missing %v: blocklist rows %s", missing, got)
+		}
+		if !missing {
+			if len(plan.Links) != 0 || plan.Why != "not an upgrade for the existing files" {
+				t.Errorf("links %+v, why %q", plan.Links, plan.Why)
+			}
+			continue
+		}
+		if got := linkedEpisodes(plan); len(got) != 1 || got[0] != 204 {
+			t.Errorf("linked %v, want the missing E04 only", got)
+		}
+		if got := e.one(`SELECT state FROM download WHERE id = 1`); got != "imported" {
+			t.Errorf("download state %s", got)
+		}
+	}
+}
+
+// A long extra named for the whole season (it passes the runtime guard) never takes the season's episodes.
+func TestImportLongSeasonNamedExtraNeverLinks(t *testing.T) {
+	t.Parallel()
+	e := importUpEnv(t, "")
+	e.release(packRelease, map[string]float64{
+		"Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2700, "Show.S01E02.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2700,
+		"Show.S01.Making.Of.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 4 * 2700})
+	e.seriesDownload(1, 2, 20, hashA, packRelease, "[201, 202, 203, 204]", nil)
+	plan, err := e.lib.Import(e.ctx, 1, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := e.links(plan); strings.Contains(got, "Making") || len(plan.Links) != 2 {
+		t.Errorf("links\n%s", got)
+	}
+	if !slices.Contains(plan.Unmatched, "Show.S01.Making.Of.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv") {
+		t.Errorf("unmatched %v", plan.Unmatched)
 	}
 }

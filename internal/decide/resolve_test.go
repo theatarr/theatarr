@@ -53,6 +53,14 @@ func TestResolveFile(t *testing.T) {
 		{"decision's mapping now a conflict", unreviewed, FileInput{Path: "[Group] Isekai Monogatari - 01 (1080p).mkv",
 			OtherVideoFiles: true, Mapping: &EpisodeMap{How: AnimeMapFranchise, Entry: "al:2"}}, "[301] file"},
 		{"unparseable", show(), FileInput{Path: "random.mkv", OtherVideoFiles: true}, "[] "},
+		// A file whose own name is a whole season (an opening clip, a making-of) is no episode, whatever the
+		// release or folder says; one whose own name says nothing keeps the release's reading.
+		{"season-named clip in a pack", show(), FileInput{Path: "The.Show.S01.NCOP.1080p.BluRay-GRP.mkv",
+			OtherVideoFiles: true}, "[] season"},
+		{"season-named file of an episode release", show(), FileInput{Path: "The.Show.S01.Making.Of.1080p.WEB-DL-GRP.mkv",
+			Release: "The.Show.S01E03.1080p.WEB-DL-GRP"}, "[] season"},
+		{"obfuscated file in a season folder", show(), FileInput{Path: "S01/abc123.mkv",
+			Release: "The.Show.S01E03.1080p.WEB-DL-GRP"}, "[103] release"},
 	}
 	for _, c := range cases {
 		got, err := ResolveFile(&c.t, c.in)

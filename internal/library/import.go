@@ -1349,7 +1349,7 @@ func (l *Library) planSeries(ctx context.Context, d *importDownload, vn *Version
 			plan.Unresolved[f.Rel] = unresolved
 			continue
 		}
-		if len(eps) == 0 && how != HowManual && unresolved == "" {
+		if len(eps) == 0 && how != HowManual && how != decide.HowSeasonFile && unresolved == "" {
 			info := sonarr.ParsePath(f.Rel)
 			if info == nil {
 				info = sonarr.ParseTitle(filepath.Base(f.Rel))

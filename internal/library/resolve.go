@@ -22,6 +22,9 @@ import (
 //     cut, with the decision's own mapping (download.episode_map) for files that do not name it;
 //  4. else the file's canonical season and episode numbers (and, for anime, TVDB absolute numbers).
 //
+// A file whose own name is a whole season (Show.S02.NCOP, "S01 Making Of") is no episode in 3 and 4 (Sonarr's
+// FullSeasonSpecification): it stays unmatched like any extra, and is no reason to fail the download.
+//
 // Files with a choice made by hand (1, and a recorded one an admin's Change episodes wrote, how manual) take their
 // episodes before the other files: an automatic mapping of another file of the download never takes them first.
 //
@@ -296,6 +299,9 @@ func (r *resolver) episodes(rel string, taken map[int64]bool) (eps []episodeInfo
 	}
 	if res.Refused != "" {
 		return nil, res.How, "refused: " + res.Refused, nil
+	}
+	if res.How == decide.HowSeasonFile {
+		return nil, res.How, "", nil // named for a whole season: no episode, and no canonical reading either
 	}
 	if len(res.EpisodeIDs) == 0 {
 		return nil, "", "", nil // nothing authoritative: the canonical numbers decide

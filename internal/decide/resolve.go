@@ -87,7 +87,7 @@ type FileInput struct {
 }
 
 // FileEpisodes is what ResolveFile found: the episode ids (of Title.Episodes), in order, and how: the parse used
-// ("file", "folder", "release", "special") and, for the anime seam, its mapping ("franchise:<entry>",
+// ("file", "folder", "release", "special"; HowSeasonFile for a file named as a whole season, with none) and, for the anime seam, its mapping ("franchise:<entry>",
 // "alt_cut:<name>").
 type FileEpisodes struct {
 	EpisodeIDs []int64
@@ -96,12 +96,22 @@ type FileEpisodes struct {
 	Refused string
 }
 
+// HowSeasonFile is FileEpisodes.How for a file whose own name parses as a whole season with no episode numbers: it
+// maps to no episode, and callers must not read it by its folder, its release or its numbers either.
+const HowSeasonFile = "season"
+
 // ResolveFile maps one file of a release to episodes of the series t (loaded with LoadSeriesVersion), with the
 // Sonarr parser. No episodes is not an error: the file is unmatched.
 func ResolveFile(t *Title, in FileInput) (FileEpisodes, error) {
 	s := newSeries(t)
 	s.known = true
 	p, how := s.bestFileInfo(in)
+	if own := sonarr.ParseTitle(fileTitle(in.Path)); own != nil && own.FullSeason && len(own.EpisodeNumbers) == 0 &&
+		len(own.AbsoluteEpisodeNumbers) == 0 {
+		// Sonarr's FullSeasonSpecification: a file whose own name is a whole season (an opening clip, a making-of)
+		// is no episode. Nothing else may map it (HowSeasonFile), and an explicit choice is the caller's.
+		return FileEpisodes{How: HowSeasonFile}, nil
+	}
 	if p == nil {
 		return FileEpisodes{}, nil
 	}
