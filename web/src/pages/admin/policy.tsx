@@ -19,6 +19,8 @@ export function PolicyFiles() {
   if (pol.isPending) return <Loading />;
   if (pol.error) return <ErrorState error={pol.error} />;
   const p = pol.data;
+  // The YAML files on disk (GET /policy reads the directory): without any there is nothing to validate.
+  const hasFiles = p.files.length > 0;
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -27,9 +29,11 @@ export function PolicyFiles() {
           sets), custom formats, naming and libraries are managed on their own tabs. Pause, arr views and the other sections
           (library and Plex, notifications, metadata, egress and the rest) are managed in Settings. The files here are imported only when you run an import (Import &amp; export).
         </p>
-        <Button variant="outline" onClick={() => (check ? val.refetch() : setCheck(true))} disabled={val.isFetching}>Validate now</Button>
+        {hasFiles ? (
+          <Button variant="outline" onClick={() => (check ? val.refetch() : setCheck(true))} disabled={val.isFetching}>Validate YAML files</Button>
+        ) : null}
       </div>
-      {check && val.data ? (
+      {hasFiles && check && val.data ? (
         <Card className="mb-4" data-testid="validate-result">
           <div className="flex items-center gap-2 font-medium">
             {val.data.ok ? <CheckCircle2 className="size-5 text-[var(--ok)]" /> : <XCircle className="size-5 text-[var(--bad)]" />}
@@ -102,7 +106,9 @@ export function PolicyFiles() {
         </Section>
       </div>
       <Section title="Files">
-        <p className="text-sm text-muted-foreground">{p.files.map((f) => <Mono key={f} className="mr-3 inline-block">{f}</Mono>)}</p>
+        <p className="text-sm text-muted-foreground">
+          {hasFiles ? p.files.map((f) => <Mono key={f} className="mr-3 inline-block">{f}</Mono>) : "No YAML files in the policy directory."}
+        </p>
       </Section>
     </div>
   );

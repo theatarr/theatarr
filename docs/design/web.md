@@ -103,7 +103,7 @@ the router list the same operations. JSON errors are `{"error": "..."}`. The bas
 | `GET /versions`, `/versions/{id}` | versions; filters `key`, `state`, `has_file` |
 | `GET /jobs` | counts by state and jobs (running, queued by run time, latest finished); `state`, `kind`, `limit`. Payloads are left out |
 | `GET /gateway` | egress paths (VPN ok, exit IP, age, stale), budgets (rate, caps, this hour's and today's use, users, back-off), all back-offs |
-| `GET /policy`, `/policy/validate` | the running policy summarised (env var names, never values); a fresh validation of the policy directory when one is configured, which never reloads |
+| `GET /policy`, `/policy/validate` | the running policy summarised (env var names, never values), with `files` the policy directory's YAML files on disk (none on an install whose settings live in the database); a fresh validation of the policy directory when one is configured, which never reloads. The YAML page offers "Validate YAML files" only when `files` lists some (`TestPolicyFilesFromDisk`) |
 | `GET /events` | Server-Sent Events: `jobs` and `gateway` (below) |
 | `POST /auth/login`, `POST /auth/logout`, `GET /auth/me` | session login (JSON), logout, who am I (with the CSRF token for a session) |
 | `GET/POST /keys`, `DELETE /keys/{id}` | API key list, create (key in the response only), revoke. Open to API keys with the owner's permissions |

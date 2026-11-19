@@ -13,3 +13,15 @@ it("says the policy files are read only by an import", async () => {
   expect(intro.textContent).toContain("Policy directory: /config/policy. Indexers, providers, budgets, quality profiles (with their format sets), custom formats, naming and libraries are managed on their own tabs.");
   expect(intro.textContent).not.toContain("DB settings");
 });
+
+it("offers validation only when the policy directory has YAML files", async () => {
+  mockFetch([{ method: "GET", path: "/policy", reply: { dir: "/config/policy", versions: [], indexers: [], outbound_hosts: [], budgets: [], files: [] } }]);
+  const { unmount } = renderPage(<PolicyFiles />);
+  await screen.findByText(/^Policy directory:/);
+  expect(screen.queryByRole("button", { name: /validate/i })).toBeNull();
+  expect(screen.getByText("No YAML files in the policy directory.")).toBeTruthy();
+  unmount();
+  mockFetch([{ method: "GET", path: "/policy", reply: { dir: "/config/policy", versions: [], indexers: [], outbound_hosts: [], budgets: [], files: ["versions.yaml"] } }]);
+  renderPage(<PolicyFiles />);
+  expect(await screen.findByRole("button", { name: "Validate YAML files" })).toBeTruthy();
+});

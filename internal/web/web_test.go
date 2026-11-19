@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -862,4 +863,25 @@ func TestAPILogoutCSRF(t *testing.T) {
 // an air time does; "aired" reads the instant.
 func airAtMidnight(exec func(string, ...any)) {
 	exec(`UPDATE episode SET air_date_utc_at = CAST(strftime('%s', air_date) AS INTEGER) * 1000 WHERE air_date IS NOT NULL`)
+}
+
+// The YAML page's file list (and so its validation action) comes from the policy directory on disk, not from the
+// running policy: an install whose settings live in the database has no files to validate.
+func TestPolicyFilesFromDisk(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	key := e.apiKey()
+	var ps PolicySummary
+	if code := e.getKey(APIBase+"/policy", key, &ps); code != 200 || len(ps.Files) == 0 {
+		t.Fatalf("policy with files: %d %+v", code, ps.Files)
+	}
+	dir := t.TempDir()
+	e.web.policyDir = dir // no policy files, as on a database-only install
+	if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ps = PolicySummary{}
+	if code := e.getKey(APIBase+"/policy", key, &ps); code != 200 || len(ps.Files) != 0 || len(ps.Versions) == 0 {
+		t.Errorf("database-only policy: %d files %v, %d libraries", code, ps.Files, len(ps.Versions))
+	}
 }

@@ -7,6 +7,8 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -358,8 +360,32 @@ func summarise(p *policy.Policy) PolicySummary {
 	return s
 }
 
+// apiPolicy answers GET /policy. Files are the policy directory's YAML files on disk (what Validate checks), not the
+// running policy's: an install whose settings live in the database has none, and the page offers no validation.
 func (w *Web) apiPolicy(rw http.ResponseWriter, r *http.Request) {
-	writeJSON(rw, http.StatusOK, summarise(w.pol))
+	s := summarise(w.pol)
+	s.Files = policyFilesOnDisk(w.policyDir)
+	writeJSON(rw, http.StatusOK, s)
+}
+
+// policyFilesOnDisk lists the policy files in dir as policy.Load reads them: .yaml and .yml files directly in it,
+// dotfiles left out, sorted. None when dir is unset or unreadable.
+func policyFilesOnDisk(dir string) []string {
+	files := []string{}
+	if dir == "" {
+		return files
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return files
+	}
+	for _, e := range entries {
+		ext := strings.ToLower(filepath.Ext(e.Name()))
+		if !e.IsDir() && (ext == ".yaml" || ext == ".yml") && !strings.HasPrefix(e.Name(), ".") {
+			files = append(files, e.Name())
+		}
+	}
+	return files
 }
 
 // ValidateResult is a fresh validation of the policy directory. It never reloads the running policy.
