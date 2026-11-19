@@ -52,10 +52,7 @@ func TestAggregateLanguagesFixture(t *testing.T) {
 			if tokens == "" {
 				tokens = c.title
 			}
-			got, _, err := aggregateLanguages(fl.ops, c.parsed, tokens, true, []string{c.mediaTitle}, en, nil)
-			if err != nil {
-				t.Fatalf("%s %s: %v", fl.name, c.name, err)
-			}
+			got, _ := aggregateLanguages(fl.ops, c.parsed, tokens, true, []string{c.mediaTitle}, en, nil)
 			if c.containsMeans {
 				if !contains(got, c.wantContains) {
 					t.Errorf("%s %s: %v does not contain %d", fl.name, c.name, got, c.wantContains)
@@ -102,18 +99,18 @@ func TestAggregateLanguagesIndexerFixture(t *testing.T) {
 		ops  langOps
 	}{{"radarr", radarrLangs}, {"sonarr", sonarrLangs}} {
 		for _, c := range cases {
-			got, _, err := aggregateLanguages(fl.ops, c.parsed, c.rel.Title, true, []string{"Some Movie"}, en, c.rel)
-			if err != nil || !reflect.DeepEqual(got, c.want) {
-				t.Errorf("%s %s: got %v %v, want %v", fl.name, c.name, got, err, c.want)
+			got, _ := aggregateLanguages(fl.ops, c.parsed, c.rel.Title, true, []string{"Some Movie"}, en, c.rel)
+			if !reflect.DeepEqual(got, c.want) {
+				t.Errorf("%s %s: got %v, want %v", fl.name, c.name, got, c.want)
 			}
 		}
 	}
 	// Unmapped: the indexer's languages, else the parse.
-	got, _, _ := aggregateLanguages(radarrLangs, []int{fr}, mt, false, nil, 0, &Release{Title: mt, Languages: []int{de}})
+	got, _ := aggregateLanguages(radarrLangs, []int{fr}, mt, false, nil, 0, &Release{Title: mt, Languages: []int{de}})
 	if !reflect.DeepEqual(got, []int{de}) {
 		t.Errorf("unmapped with release languages: %v", got)
 	}
-	got, _, _ = aggregateLanguages(radarrLangs, []int{fr}, mt, false, nil, 0, &Release{Title: mt, MultiLanguages: multi})
+	got, _ = aggregateLanguages(radarrLangs, []int{fr}, mt, false, nil, 0, &Release{Title: mt, MultiLanguages: multi})
 	if !reflect.DeepEqual(got, []int{fr}) {
 		t.Errorf("unmapped without release languages: %v", got)
 	}
@@ -140,19 +137,19 @@ func TestAggregateLanguagesRules(t *testing.T) {
 		{"Unknown with another stays", []int{langUnknown, fr}, true, ja, []int{langUnknown, fr}, false},
 	}
 	for _, c := range cases {
-		got, assumed, err := aggregateLanguages(radarrLangs, c.parsed, "Movie.2020.1080p.WEB-DL-GRP", c.mapped, []string{"Movie"},
+		got, assumed := aggregateLanguages(radarrLangs, c.parsed, "Movie.2020.1080p.WEB-DL-GRP", c.mapped, []string{"Movie"},
 			c.original, nil)
-		if err != nil || !reflect.DeepEqual(got, c.want) || assumed != c.assumed {
-			t.Errorf("%s: got %v %v %v, want %v %v", c.name, got, assumed, err, c.want, c.assumed)
+		if !reflect.DeepEqual(got, c.want) || assumed != c.assumed {
+			t.Errorf("%s: got %v %v, want %v %v", c.name, got, assumed, c.want, c.assumed)
 		}
 	}
 	// A normalised title longer than the tokens: the arr cut past the end and threw (we returned an error); the
 	// title is now looked for in the tokens themselves, is not there, and the parse stands.
-	if got, _, err := aggregateLanguages(langOps{
+	if got, _ := aggregateLanguages(langOps{
 		parse:     func(s string) []int { return []int{fr} },
 		normalize: func(s string) string { return "padding padding french" },
-	}, []int{fr}, "french", true, []string{"French"}, en, nil); err != nil || !reflect.DeepEqual(got, []int{fr}) {
-		t.Errorf("title longer than the tokens: got %v %v, want [%d]", got, err, fr)
+	}, []int{fr}, "french", true, []string{"French"}, en, nil); !reflect.DeepEqual(got, []int{fr}) {
+		t.Errorf("title longer than the tokens: got %v, want [%d]", got, fr)
 	}
 }
 
@@ -172,9 +169,9 @@ func TestAggregateLanguagesTwoEpisodeTitles(t *testing.T) {
 		{"..JIMMY...THE...GREEK..-..the.italian.job..[JA+DE+PL]-GRP", []int{el, it, ja, de, pl}, []int{ja, de, pl}},
 		{".Jimmy.The.Greek.Greek.The.Italian.Job.xyz-GRP", []int{el, it}, []int{el}},
 	} {
-		got, _, err := aggregateLanguages(sonarrLangs, c.parsed, c.tokens, true, titles, en, nil)
-		if err != nil || !reflect.DeepEqual(got, c.want) {
-			t.Errorf("%s: got %v %v, want %v", c.tokens, got, err, c.want)
+		got, _ := aggregateLanguages(sonarrLangs, c.parsed, c.tokens, true, titles, en, nil)
+		if !reflect.DeepEqual(got, c.want) {
+			t.Errorf("%s: got %v, want %v", c.tokens, got, c.want)
 		}
 	}
 }

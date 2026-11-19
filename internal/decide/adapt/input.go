@@ -91,10 +91,8 @@ func RadarrRelease(p *radarr.ParsedMovieInfo, m *Movie, rel *Release) (*format.I
 		original = m.OriginalLanguage
 		in.Media = &format.Media{Year: m.Year, OriginalLanguage: m.OriginalLanguage}
 	}
-	if in.Languages, in.LanguagesAssumed, err = aggregateLanguages(radarrLangs, radarrIDs(p.Languages), tokens, m != nil, titles,
-		original, rel); err != nil {
-		return nil, err
-	}
+	in.Languages, in.LanguagesAssumed = aggregateLanguages(radarrLangs, radarrIDs(p.Languages), tokens, m != nil, titles,
+		original, rel)
 	if rel != nil {
 		in.Size, in.IndexerFlags = rel.Size, rel.IndexerFlags
 	}
@@ -139,10 +137,8 @@ func SonarrRelease(p *sonarr.ParsedEpisodeInfo, s *Series, episodes []Episode, r
 		original = s.OriginalLanguage
 		in.Media = &format.Media{Year: s.Year, OriginalLanguage: s.OriginalLanguage}
 	}
-	if in.Languages, in.LanguagesAssumed, err = aggregateLanguages(sonarrLangs, sonarrIDs(p.Languages), tokens, s != nil, titles,
-		original, rel); err != nil {
-		return nil, err
-	}
+	in.Languages, in.LanguagesAssumed = aggregateLanguages(sonarrLangs, sonarrIDs(p.Languages), tokens, s != nil, titles,
+		original, rel)
 	if rel != nil {
 		in.Size, in.IndexerFlags = rel.Size, rel.IndexerFlags
 	}

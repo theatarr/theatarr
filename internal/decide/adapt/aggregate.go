@@ -33,15 +33,15 @@ type langOps struct {
 // language. rel is the indexer release, nil for none (the parse context). assumed is whether the original language
 // stood in for none found.
 func aggregateLanguages(ops langOps, parsed []int, releaseTokens string, mapped bool, titles []string,
-	original int, rel *Release) (languages []int, assumed bool, err error) {
+	original int, rel *Release) (languages []int, assumed bool) {
 	languages = parsed
 	releaseLanguages := rel != nil && len(rel.Languages) > 0
 	if !mapped {
 		// "Unable to aggregate languages, using parsed values"
 		if releaseLanguages {
-			return append([]int{}, rel.Languages...), false, nil
+			return append([]int{}, rel.Languages...), false
 		}
-		return languages, false, nil
+		return languages, false
 	}
 
 	if releaseLanguages {
@@ -93,7 +93,7 @@ func aggregateLanguages(ops langOps, parsed []int, releaseTokens string, mapped 
 			languages = append(languages, langUnknown)
 		}
 	}
-	return languages, assumed, nil
+	return languages, assumed
 }
 
 // FallbackLanguage is AggregateLanguages' fallback: no language, or Unknown alone, becomes the original language.
