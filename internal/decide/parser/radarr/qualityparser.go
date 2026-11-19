@@ -8,9 +8,11 @@ import (
 )
 
 var (
+	// sourceRegex reads EAC3 or a separated DDP 5.1 after a bare WEB, and ATVP before it, as WEB-DL (ours, Sonarr v5's
+	// source rule): `HDR.WEB.EAC3`, `WEB.DDP.5.1` and `ATVP.WEB` were HDTV.
 	sourceRegex = re(`\b(?:
                                                             (?<bluray>M?Blu[-_. ]?Ray|HD[-_. ]?DVD|BD(?!$)|UHD2?BD|BDISO|BDMux|BD25|BD50|BR[-_. ]?DISK)|
-                                                            (?<webdl>WEB[-_. ]?DL(?:mux)?|AmazonHD|AmazonSD|iTunesHD|MaxdomeHD|NetflixU?HD|WebHD|HBOMaxHD|DisneyHD|[. ]WEB[. ](?:[xh][ .]?26[45]|AVC|HEVC|DDP?5[. ]1)|[. ](?-i:WEB)$|(?:\d{3,4}0p)[-. ](?:Hybrid[-_. ]?)?WEB[-. ]|[-. ]WEB[-. ]\d{3,4}0p|\b\s\/\sWEB\s\/\s\b|(?:AMZN|NF|DP)[. -]WEB[. -](?!Rip))|
+                                                            (?<webdl>WEB[-_. ]?DL(?:mux)?|AmazonHD|AmazonSD|iTunesHD|MaxdomeHD|NetflixU?HD|WebHD|HBOMaxHD|DisneyHD|[. ]WEB[. ](?:[xh][ .]?26[45]|AVC|HEVC|EAC3|DDP?[ .]?5[. ]1)|[. ](?-i:WEB)$|(?:\d{3,4}0p)[-. ](?:Hybrid[-_. ]?)?WEB[-. ]|[-. ]WEB[-. ]\d{3,4}0p|\b\s\/\sWEB\s\/\s\b|(?:AMZN|ATVP|NF|DP)[. -]WEB[. -](?!Rip))|
                                                             (?<webrip>WebRip|Web-Rip|WEBMux)|
                                                             (?<hdtv>HDTV)|
                                                             (?<bdrip>BDRip|BDLight|HD[-_. ]?DVDRip|UHDBDRip)|

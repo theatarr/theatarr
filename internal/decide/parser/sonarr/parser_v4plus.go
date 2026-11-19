@@ -20,6 +20,7 @@ package sonarr
 // | TAoE, QxR, Vialle as groups; encoders are not  | 83b2c9e97, b00229e53, 5eb18fe27      | exception group patterns   |
 // | -GER/-FRA/-FRE/-ITA and 10-bit are not groups  | 9e5ebdc62, 3e2e8e938, d09e7893b, 350dea10d | releaseGroupRegex4p  |
 // | WEB with EAC3 is WEB-DL                        | 6421bb621 (#8923)                    | sourceRegex4p              |
+// | WEB with DDP.5.1, ATVP WEB as WEB-DL           | v5 SourceRegex                       | sourceRegex4p              |
 // | "10 bits", "8 bits", "10-bits" are a bit depth | ours                                 | simpleTitleRegex4p         |
 //
 // Left out on purpose (each behind a regression on the corpus, or needing v5's mapping): the pattern order of
@@ -93,8 +94,10 @@ var (
 		format: simpleTitleRegex.format,
 	}
 
-	// sourceRegex4p is v4's source pattern with EAC3 after [. ]WEB[. ] (6421bb621): `HDR.WEB.EAC3` is WEB-DL.
-	sourceRegex4p = patched(sourceRegex, optI|optX, `|AVC|HEVC|DDP?5[. ]1)`, `|AVC|HEVC|EAC3|DDP?5[. ]1)`)
+	// sourceRegex4p is v4's source pattern with EAC3 after [. ]WEB[. ] (6421bb621): `HDR.WEB.EAC3` is WEB-DL; and
+	// with v5's separated DDP 5.1 after it and ATVP before it: `WEB.DDP.5.1` and `ATVP.WEB` are WEB-DL.
+	sourceRegex4p = patched(patched(sourceRegex, optI|optX, `|AVC|HEVC|DDP?5[. ]1)`, `|AVC|HEVC|EAC3|DDP?[ .]?5[. ]1)`),
+		optI|optX, `(?:AMZN|NF|DP)[. -]WEB`, `(?:AMZN|ATVP|NF|DP)[. -]WEB`)
 
 	// languageRegex4p is v5's LanguagesOnlyRegex (e06c6ba64 and the commits in the table above) without the seven
 	// new languages and without the SUBS look-ahead (subtitleMatches4p does that check), with Japanese bounded

@@ -159,6 +159,26 @@ func TestExportedParserIsV4Plus(t *testing.T) {
 	}
 }
 
+// TestV4PlusWebTokens: ATVP before WEB and a separated DDP 5.1 after WEB read as WEB-DL, as Sonarr v5's source
+// rule does; DD5.1, DDP5.1 and an explicit WEBRip keep their reading.
+func TestV4PlusWebTokens(t *testing.T) {
+	t.Parallel()
+	for title, want := range map[string]string{
+		"Severance.S02E01.2160p.ATVP.WEB.DDP.5.1.DV.HDR.H.265-GRP": "WEBDL-2160p",
+		"Show.S01E01.2160p.ATVP.WEB.DV.HDR-GRP":                    "WEBDL-2160p",
+		"Show.S01E01.2160p.HDR.WEB.DDP.5.1-GRP":                    "WEBDL-2160p",
+		"Show S01E01 2160p HDR WEB DDP 5.1 GRP":                    "WEBDL-2160p",
+		"Show.S01E01.2160p.HDR.WEB.EAC3-GRP":                       "WEBDL-2160p",
+		"Show.S01E01.2160p.HDR.WEB.DD5.1-GRP":                      "WEBDL-2160p",
+		"Show.S01E01.2160p.HDR.WEB.DDP5.1-GRP":                     "WEBDL-2160p",
+		"Show.S01E01.2160p.ATVP.WEBRip.DDP.5.1-GRP":                "WEBRip-2160p",
+	} {
+		if q := ParseQuality(title).Quality.Name; q != want {
+			t.Errorf("%s: %s, want %s", title, q, want)
+		}
+	}
+}
+
 // TestV4PlusBitDepth: "10 bits", "8 bits" and "10-bits" are a bit depth, not an episode number (ours); a number
 // next to "bits" that is not a standalone 8 or 10 bit depth parses as in v4.
 func TestV4PlusBitDepth(t *testing.T) {

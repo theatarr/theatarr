@@ -34,6 +34,8 @@ and models three versions with two criteria each.
 - **`Engine.Decide(ctx, release, title, version, existing)`**, pure and deterministic. For a movie version it
   follows Radarr's `DownloadDecisionMaker` with search criteria:
   1. **Parse** with the Radarr port. A title it cannot read is rejected `UnableToParse`.
+     Changes of ours (`radarr.TestWebTokens`): a bare `WEB` with `EAC3` or a separated `DDP.5.1` after it, or
+     `ATVP` before it, is WEB-DL, as Sonarr v5 reads it (the series parser takes the same, `TestV4PlusWebTokens`).
   2. **Map** the release to the title (port of `ParsingService.FindMovie`):
      - the indexer's IMDb id, then its TMDb id; through `Library`, these can name another title in the library;
      - then the searched title's clean title, original title and aliases, with arabic and roman numerals
