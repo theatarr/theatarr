@@ -100,6 +100,8 @@ func (z *zilean) Search(ctx context.Context, q Query) (*Result, error) {
 		case err != nil && len(res.Releases) == 0 && res.Requests == 1:
 			return nil, err
 		case err != nil:
+			// Answered in part: returned, but not cached (the next search tries the title again).
+			res.Truncated, res.failed = true, true
 			res.Notes = append(res.Notes, fmt.Sprintf("title search failed, IMDb results only: %v", err))
 		default:
 			added, foreign := add(list, q.IMDb != "")

@@ -308,7 +308,8 @@ func (s *Service) run(ctx context.Context, ck, key string, sr Searcher, q Query,
 	if s.inflight[ck] == f {
 		delete(s.inflight, ck)
 	}
-	if err == nil && s.ttl > 0 && !uncached && q.Type != QueryRSS && ctx.Err() == nil {
+	// A partly failed answer (a request or page failed) is returned but not remembered; a deliberate page cap is.
+	if err == nil && s.ttl > 0 && !uncached && !res.failed && q.Type != QueryRSS && ctx.Err() == nil {
 		now := s.now()
 		s.cache[ck] = cacheEntry{res: res, at: now}
 		if now.Sub(s.lastGC) > s.ttl {

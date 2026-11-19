@@ -155,6 +155,34 @@ func TestErrorsAreNotCached(t *testing.T) {
 	if _, err := h.svc.Search(context.Background(), "torrentio", q); err != nil || hits.Load() != 2 {
 		t.Fatalf("retry: %v hits %d", err, hits.Load())
 	}
+
+	// A partial success (Zilean's IMDb lookup answered, its title lookup failed) is returned but not remembered:
+	// the next search reaches upstream again.
+	loadFixtures(t, "zilean_imdb.json", "zilean_title.json")
+	var titleHits atomic.Int32
+	n.serve("zilean.test", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Has("ImdbId") {
+			w.Write(fixtureBytes("zilean_imdb.json"))
+			return
+		}
+		if titleHits.Add(1) == 1 {
+			http.Error(w, "nope", http.StatusBadGateway)
+			return
+		}
+		w.Write(fixtureBytes("zilean_title.json"))
+	}))
+	zq := Query{Type: QuerySeries, IMDb: "tt0000001", Title: "Show", Season: 1}
+	res, err := h.svc.Search(context.Background(), "zilean", zq)
+	if err != nil || len(res.Releases) != 2 || !res.Truncated {
+		t.Fatalf("partial: %v %+v", err, res)
+	}
+	res, err = h.svc.Search(context.Background(), "zilean", zq)
+	if err != nil || res.Cached || titleHits.Load() != 2 || len(res.Releases) != 3 {
+		t.Fatalf("partial result was cached: %v %+v title hits %d", err, res, titleHits.Load())
+	}
+	if res, err = h.svc.Search(context.Background(), "zilean", zq); err != nil || !res.Cached {
+		t.Fatalf("complete result not cached: %v %+v", err, res)
+	}
 }
 
 func TestPlanSearch(t *testing.T) {
