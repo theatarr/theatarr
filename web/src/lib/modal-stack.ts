@@ -7,6 +7,8 @@
 // - pushModal: the stack of open modals. Everything beside the top modal's root, among <body>'s children, gets the
 //   inert attribute (no focus, no clicks, hidden from assistive tech); a modal below the top is inert too. Closing
 //   the top hands the page back to the next one, or to nobody. Attributes set by others are left alone.
+// - subscribeModals / modalOpen: whether any modal is open, for the toasts (they move to the top of the screen meanwhile,
+//   off a dialog's buttons).
 
 type ClassHolder = { classList: { add(c: string): void; remove(c: string): void } };
 
@@ -44,6 +46,22 @@ type Host = { children: ArrayLike<StackNode> };
 
 const stack: StackNode[] = [];
 const ours = new Set<StackNode>();
+const listeners = new Set<() => void>();
+
+/** Calls fn whenever a modal opens or closes (useSyncExternalStore's subscribe); returns the unsubscribe. */
+export function subscribeModals(fn: () => void): () => void {
+  listeners.add(fn);
+  return () => {
+    listeners.delete(fn);
+  };
+}
+
+/** Whether any modal is open. */
+export const modalOpen = (): boolean => stack.length > 0;
+
+const changed = () => {
+  for (const fn of [...listeners]) fn();
+};
 
 function sync(host: Host) {
   for (const el of ours) el.removeAttribute("inert");
@@ -62,6 +80,7 @@ function sync(host: Host) {
 export function pushModal(el: StackNode, host: Host): () => void {
   stack.push(el);
   sync(host);
+  changed();
   let done = false;
   return () => {
     if (done) return;
@@ -69,6 +88,7 @@ export function pushModal(el: StackNode, host: Host): () => void {
     const i = stack.lastIndexOf(el);
     if (i >= 0) stack.splice(i, 1);
     sync(host);
+    changed();
   };
 }
 

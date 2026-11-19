@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { MemoryRouter } from "react-router";
 import { afterEach, expect, it, vi } from "vitest";
 import { dismiss, toast, Toaster } from "./toaster";
+import { Modal } from "./ui/modal";
 
 afterEach(() => vi.useRealTimers());
 
@@ -94,4 +95,19 @@ it("counts a repeat of the same words, tone and link on the toast already shown;
   expect(within(screen.getAllByTestId("toast")[0]).getByTestId("toast-count").textContent).toBe("×3");
   act(() => vi.advanceTimersByTime(2_500));
   expect(screen.queryAllByTestId("toast")).toHaveLength(0);
+});
+
+it("moves the toasts to the top of the screen while a modal is open, off a dialog's buttons, and back after", () => {
+  fresh();
+  act(() => {
+    toast({ tone: "ok", title: "one" });
+    toast({ tone: "ok", title: "two" });
+  });
+  expect(screen.getByTestId("toasts").dataset.placement).toBe("bottom");
+  const dialog = render(<Modal label="Confirm" onClose={() => {}}><button type="button">Confirm</button></Modal>);
+  expect(screen.getByTestId("toasts").dataset.placement).toBe("top");
+  expect(screen.getByTestId("toasts").className).toContain("top-");
+  expect(screen.getByTestId("toasts").className).not.toContain("bottom-");
+  dialog.unmount();
+  expect(screen.getByTestId("toasts").dataset.placement).toBe("bottom");
 });

@@ -71,8 +71,10 @@ calls them. The UI shares two things with them (§3, §6): the add path (`catalo
   release names, paths and numbers, Newsreader for page and title names (one token, `--f-display`, so headings can
   switch to Plex Sans). The primitives (button, input, select, switch, checkbox, chip, tag, table, dialog, sheet,
   tabs, toast, skeleton, empty state) live in `web/src/components/ui`. Toasts stack above every dialog and sheet (z-[95]; dialogs and sheets are z-[70] to z-[85],
-  the skip link z-[100]), so a grab's "Sent to the router" or "Not sent" shows over Interactive search; the stack
-  lets clicks through and each toast takes its own. A toast stays while it is hovered or focused and gets its full time
+  the skip link z-[100]), so a grab's "Grab started" or "Not sent" shows over Interactive search; the stack
+  lets clicks through and each toast takes its own. While any modal is open (`lib/modal-stack.ts` modalOpen) the stack
+  moves to the top of the screen (centred from sm up, clear of a side sheet), so no toast covers a dialog's or sheet's
+  buttons at the bottom; it goes back to the corner when the last modal closes. A toast stays while it is hovered or focused and gets its full time
   again after; the same toast again (same words, tone and link) while it shows counts on it ("×2") instead of stacking
   a copy.
 - **Phone:** a bottom tab bar: Home, Browse (a sheet with Movies, Series, Anime, Collections for managers), Activity,

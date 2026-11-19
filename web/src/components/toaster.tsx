@@ -4,6 +4,7 @@
 import { CheckCircle2, Info, TriangleAlert, X, XCircle } from "lucide-react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Link } from "react-router";
+import { modalOpen, subscribeModals } from "@/lib/modal-stack";
 import { cn } from "@/lib/utils";
 
 export type ToastTone = "ok" | "info" | "warn" | "bad";
@@ -107,14 +108,24 @@ function ToastCard({ t }: { t: Toast }) {
 }
 
 /** The toasts, above every dialog and sheet (z-[70] to z-[85], with their scrims) and below the skip link
- *  (z-[100]); the stack lets clicks through, each toast takes its own. */
+ *  (z-[100]); the stack lets clicks through, each toast takes its own. While a modal is open the stack sits at the top
+ *  of the screen (centred from sm up, clear of a side sheet), so it never covers a dialog's or sheet's buttons at the
+ *  bottom. */
 export function Toaster() {
   const list = useSyncExternalStore(subscribe, () => toasts, () => toasts);
+  const top = useSyncExternalStore(subscribeModals, modalOpen, () => false);
   if (list.length === 0) return null;
   return (
     <div
       aria-live="polite"
-      className="pointer-events-none fixed inset-x-4 bottom-20 z-[95] flex flex-col items-stretch gap-2 sm:inset-x-auto sm:right-5 sm:bottom-5 sm:w-[360px] md:bottom-5"
+      data-placement={top ? "top" : "bottom"}
+      data-testid="toasts"
+      className={cn(
+        "pointer-events-none fixed z-[95] flex flex-col items-stretch gap-2",
+        top
+          ? "inset-x-4 top-[calc(1rem+env(safe-area-inset-top))] sm:inset-x-auto sm:left-1/2 sm:w-[360px] sm:-translate-x-1/2"
+          : "inset-x-4 bottom-20 sm:inset-x-auto sm:right-5 sm:bottom-5 sm:w-[360px] md:bottom-5",
+      )}
     >
       {list.map((t) => (
         <ToastCard key={t.id} t={t} />
