@@ -1878,6 +1878,32 @@ func TestRemovedEpisodesNotCurrent(t *testing.T) {
 		a, _ := json.Marshal(after)
 		t.Errorf("removed episodes counted:\nbefore %s\n after %s", b, a)
 	}
+	// The grid marks the removed episode it keeps for its file.
+	var l EpisodeList
+	e.getKey(APIBase+"/titles/4/episodes", key, &l)
+	for _, ep := range l.Episodes {
+		if ep.Removed != (ep.ID == 48) {
+			t.Errorf("episode %d removed %v", ep.ID, ep.Removed)
+		}
+	}
+	// A copy whose only file holds a removed episode has no current file: Epsilon is missing, not partly available.
+	e.exec(`INSERT INTO title (id, kind, name, year, tvdb_id, anime, created_at, updated_at) VALUES
+		(5, 'series', 'Epsilon', 2023, 505, 1, 0, 0)`)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES (50, 5, 'anime-tv', 'wanted', 0, 0)`)
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, air_date, air_date_utc_at, removed_at, created_at,
+		updated_at) VALUES (51, 5, 1, 1, 'Here', '2026-01-20', ?, NULL, 0, 0), (52, 5, 1, 2, 'Gone', '2026-01-21', ?, 1, 0, 0)`,
+		store.Millis(time.Date(2026, 1, 20, 0, 0, 0, 0, time.UTC)), store.Millis(time.Date(2026, 1, 21, 0, 0, 0, 0, time.UTC)))
+	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, state, updated_at) VALUES (50, 51, 'wanted', 0),
+		(50, 52, 'filled', 0)`)
+	e.exec(`INSERT INTO link (id, path, target, title_id, quality, file_metadata, adopted, created_at, updated_at) VALUES
+		(95, '/anime/Epsilon/S01E02.mkv', '/zurg/Epsilon/S01E02.mkv', 5, 'WEBDL-1080p', '{"Size":1000}', 1, 0, 0)`)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (95, 50)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (95, 52)`)
+	var page TitlePage
+	e.getKey(APIBase+"/titles?anime=true", key, &page)
+	if row := rowOf(t, page, 5); row.Availability != "missing" {
+		t.Errorf("Epsilon: %s", row.Availability)
+	}
 }
 
 // A household account's episode grid keeps each season's total (aired or held episodes), so its header can say

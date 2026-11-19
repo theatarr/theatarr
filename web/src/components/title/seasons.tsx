@@ -281,6 +281,11 @@ function openOnKey(e: KeyboardEvent, id: number, onOpen: (id: number) => void) {
 }
 
 /** The row's Search (the libraries in view) and Interactive search icons. They never open the episode overview. */
+/** An episode the series no longer lists, kept in the list for its file: it is counted nowhere and not monitored. */
+function RemovedNote({ e }: { e: Episode }) {
+  return e.removed ? <div className="text-xs text-muted-foreground" data-testid={`episode-removed-${e.id}`}>No longer in the series' episode list</div> : null;
+}
+
 function RowIcons({ e, live, act }: { e: Episode; live: ListProps["live"]; act: ListProps["act"] }) {
   if (!act && !live) return null;
   const what = `Search ${epCode(e)} now in ${act?.scope.name}`;
@@ -442,7 +447,7 @@ function LibraryTable({ episodes, copies, anime, manage, seeFiles, selected, onS
               ) : null}
               {act ? (
                 <TableCell className="pr-0">
-                  {c ? (
+                  {c && !e.removed ? (
                     <Kept inactive={inactive}>
                       <MonitorSwitch
                         size="sm"
@@ -462,6 +467,7 @@ function LibraryTable({ episodes, copies, anime, manage, seeFiles, selected, onS
               </TableCell>
               <TableCell>
                 <div className={cn("font-medium", manage && !on && "text-muted-foreground")}>{e.name || `Episode ${e.number}`}</div>
+                <RemovedNote e={e} />
               </TableCell>
               {columns.map((id) => (
                 <ColumnCell key={id} id={id} e={e} c={c} seeFiles={seeFiles} day={day} off={seeFiles && v?.monitored === false} />
@@ -529,6 +535,7 @@ function MatrixTable({ episodes, copies, merged, anime, manage, seeFiles, select
             </TableCell>
             <TableCell>
               <div className={cn("font-medium", manage && !e.monitored && "text-muted-foreground")}>{e.name || `Episode ${e.number}`}</div>
+                <RemovedNote e={e} />
             </TableCell>
             <TableCell className="whitespace-nowrap text-muted-foreground">{e.air_date ? day(e.air_date) : "—"}</TableCell>
             {merged ? (
@@ -591,6 +598,7 @@ function EpisodeRows({ episodes, copies, merged, anime, manage, seeFiles, select
               {/* The name has the first line to itself; number, date, status and quality share the second. */}
               <div className="min-w-0 flex-1">
                 <div className={cn("truncate text-sm font-medium", manage && !e.monitored && "text-muted-foreground")} data-testid="episode-name">{e.name || `Episode ${e.number}`}</div>
+                <RemovedNote e={e} />
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
                   <span className="whitespace-nowrap">
                     <span className="tabular-nums" data-testid="episode-number">{episodeNumber(e, anime)}</span>

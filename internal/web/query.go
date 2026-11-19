@@ -132,8 +132,12 @@ type TitlePage struct {
 	Items  []TitleRow `json:"items"`
 }
 
-// hasFileSQL is true when version v has a file: an active link.
-const hasFileSQL = `EXISTS (SELECT 1 FROM link_version lv JOIN link l ON l.id = lv.link_id WHERE lv.version_id = v.id AND l.state = 'active')`
+// hasFileSQL is true when version v has a file: an active link (a series' link holding a current episode: one only
+// for episodes the metadata source removed is no file of the series now).
+const hasFileSQL = `EXISTS (SELECT 1 FROM link_version lv JOIN link l ON l.id = lv.link_id WHERE lv.version_id = v.id
+	AND l.state = 'active' AND (NOT EXISTS (SELECT 1 FROM link_episode le_h WHERE le_h.link_id = l.id)
+		OR EXISTS (SELECT 1 FROM link_episode le_h JOIN episode e_h ON e_h.id = le_h.episode_id
+			WHERE le_h.link_id = l.id AND e_h.removed_at IS NULL)))`
 
 func (f TitleFilter) where() (string, []any) {
 	// Only titles in the library (a current copy): a removed title is in no list, total or facet.

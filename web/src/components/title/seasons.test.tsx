@@ -69,6 +69,20 @@ describe("Series page copies", () => {
     expect(within(header).queryByTestId("season-summary")).toBeNull();
   });
 
+  it("keeps an episode the series no longer lists for its file, uncounted and without a monitor switch", async () => {
+    const gone = { id: 104, season: 1, number: 15, absolute: 15, name: "Lost Harbour", air_date: "2026-10-22", aired: true, monitored: true, removed: true, versions: { "anime-tv": cell(false), "anime-web": cell(true) } };
+    mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: { ...episodes, episodes: [...episodes.episodes, gone] } }]);
+    const user = userEvent.setup();
+    renderPage(<Seasons id="1" anime />, "/title/1");
+    const header = await screen.findByTestId("season-header");
+    expect(within(header).getByTestId("season-summary").textContent).toBe("3 of 3 available · 2 missing in Anime Blu-ray");
+    await user.click(screen.getByRole("radio", { name: "Anime WEB" }));
+    expect(await screen.findByTestId("episode-removed-104")).toBeTruthy();
+    expect(screen.getByText("No longer in the series' episode list")).toBeTruthy();
+    expect(screen.queryByTestId("episode-monitor-104")).toBeNull();
+    expect(screen.getByTestId("episode-monitor-103")).toBeTruthy();
+  });
+
   it("says the next search in plain words when the server sends it for the library in view", async () => {
     const at = new Date(Date.now() + 3 * 3600_000).toISOString();
     const timed = { ...episodes, seasons: [{ ...episodes.seasons[0], versions: { ...episodes.seasons[0].versions, "anime-web": { ...episodes.seasons[0].versions["anime-web"], next_search_at: at, next_search_why: "new" } } }] };

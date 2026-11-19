@@ -149,7 +149,9 @@ export type SeasonSummary = {
  * copies as one, naming none: an episode is missing only when no copy holds it. A copy that is not monitored has no
  * missing episodes (off).
  */
-export function seasonSummary(episodes: Episode[], copies: { key: string; label: string; monitored?: boolean }[], seeFiles: boolean, merged = false): SeasonSummary {
+export function seasonSummary(all: Episode[], copies: { key: string; label: string; monitored?: boolean }[], seeFiles: boolean, merged = false): SeasonSummary {
+  // An episode the series no longer lists (kept in the list for its file) is counted nowhere, as the server counts.
+  const episodes = all.filter((e) => !e.removed);
   // Library monitoring is a manager's notion: without "see files" the counts stay watchability.
   const off = offCopies(copies, seeFiles);
   if (merged && copies.length > 1) {

@@ -74,7 +74,7 @@ func (w *Web) requestDetail(ctx context.Context, r *Request) (*RequestDetail, er
 			have, total := 0, 0
 			for _, e := range episodes.Episodes {
 				c := e.Versions[v.Key]
-				if e.removed || (!e.Aired && !c.HasFile) {
+				if e.Removed || (!e.Aired && !c.HasFile) {
 					continue
 				}
 				if len(r.Seasons) > 0 {

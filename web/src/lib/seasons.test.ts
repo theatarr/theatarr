@@ -77,6 +77,11 @@ describe("season summary", () => {
     expect(s.text).toBe("3 of 6 available · 2 missing · 1 upgrade found · 1 not aired");
     expect([s.available, s.total, s.missing, s.upgrades, s.notAired]).toEqual([3, 6, 2, 1, 1]);
   });
+  it("leaves out an episode the series no longer lists, kept for its file", () => {
+    const gone = { ...ep(8, "2026-09-02", { "tv-2160p": cell({ has_file: true }) }), removed: true };
+    expect(seasonSummary([...season, gone], [k4], true).text).toBe("3 of 6 available · 2 missing · 1 upgrade found · 1 not aired");
+    expect(seasonSummary([...season, gone], [k4, k1], false, true).text).toBe("4 of 6 available · 1 missing · 1 not aired");
+  });
   it("names the copy a missing count belongs to when several are in view", () => {
     expect(seasonSummary(season, [k4, k1], true).text).toBe("4 of 6 available · 2 missing in 4K · 1 missing in 1080p · 1 upgrade found · 1 not aired");
   });

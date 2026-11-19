@@ -108,8 +108,9 @@ type Episode struct {
 	RuntimeMinutes *int64                 `json:"runtime_minutes,omitempty"`
 	Monitored      bool                   `json:"monitored"`
 	Versions       map[string]EpisodeCell `json:"versions"`
-	// removed: the metadata source no longer lists it (removed_at); listed only while it holds a file, and not counted.
-	removed bool
+	// Removed: the metadata source no longer lists it (removed_at). The grid lists it only while it holds a file (an
+	// explicit lookup by id always answers it), counts it nowhere and offers no monitoring for it.
+	Removed bool `json:"removed,omitempty"`
 }
 
 // EpisodeList is the answer of GET titles/{id}/episodes.
@@ -202,7 +203,7 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 		var e Episode
 		var rt, abs, airAt sql.NullInt64
 		if err := r.Scan(&e.ID, &e.Season, &e.Number, &e.Name, &e.AirDate, &rt, &e.Monitored, &abs, &airAt,
-			&e.removed); err != nil {
+			&e.Removed); err != nil {
 			return err
 		}
 		e.Aired = clock.aired(airAt, e.AirDate)
@@ -326,7 +327,7 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 			out.Episodes = append(out.Episodes, e)
 		}
 		// A removed episode is listed for its file, not counted.
-		if e.removed {
+		if e.Removed {
 			continue
 		}
 		s.Episodes++
