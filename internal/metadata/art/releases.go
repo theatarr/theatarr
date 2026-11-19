@@ -17,20 +17,14 @@ func writeMovieDates(ctx context.Context, tx *sql.Tx, titleID int64, m *tmdb.Mov
 		return err
 	}
 	dates := movieDates(m)
+	// Availability's first cinema date is the schedule's theatrical_limited, stored as a canonical row of that type,
+	// which the calendar and the displayed dates do not read.
 	for kind, d := range dates {
 		if d.IsZero() {
 			continue
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO title_release_date (title_id, source, country, type, date, fetched_at)
 			VALUES (?, 'tmdb-art', '', ?, ?, ?)`, titleID, kind, d.Format(time.DateOnly), store.Millis(now)); err != nil {
-			return err
-		}
-	}
-	// Availability's first cinema date (availability.FirstCinema), stored only when earlier than the canonical one: a
-	// canonical theatrical_limited row, which the calendar and the displayed dates do not read.
-	if first := m.FirstCinema(); !first.IsZero() && first.Before(dates["theatrical"]) {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO title_release_date (title_id, source, country, type, date, fetched_at)
-			VALUES (?, 'tmdb-art', '', ?, ?, ?)`, titleID, availability.FirstCinema, first.Format(time.DateOnly), store.Millis(now)); err != nil {
 			return err
 		}
 	}

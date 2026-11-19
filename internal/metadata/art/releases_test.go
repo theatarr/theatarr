@@ -27,7 +27,8 @@ func TestMovieDates(t *testing.T) {
 		{"US wide before limited, no premieres or TV", tmdb.Movie{ReleaseDates: tmdb.ReleaseDates{Results: []tmdb.CountryReleases{
 			{Country: "US", Releases: []tmdb.Release{{Type: 1, Date: day("2026-01-01")}, {Type: 2, Date: day("2026-02-01")}, {Type: 3, Date: day("2026-03-01")}, {Type: 3, Date: day("2026-03-02")}, {Type: 4, Date: day("2026-04-01")}, {Type: 5, Date: day("2026-05-01")}, {Type: 6, Date: day("2026-01-01")}}},
 			{Country: "DE", Releases: []tmdb.Release{{Type: 3, Date: day("2025-01-01")}, {Type: 4, Date: day("2025-01-01")}, {Type: 5, Date: day("2025-01-01")}}},
-		}}}, map[string]string{"theatrical": "2026-03-01", "digital": "2026-04-01", "physical": "2026-05-01"}},
+		}}}, map[string]string{"theatrical": "2026-03-01", "digital": "2026-04-01", "physical": "2026-05-01",
+			"theatrical_limited": "2025-01-01"}},
 		{"limited and worldwide fallback", tmdb.Movie{ReleaseDates: tmdb.ReleaseDates{Results: []tmdb.CountryReleases{
 			{Country: "US", Releases: []tmdb.Release{{Type: 2, Date: day("2026-02-01")}}},
 			{Country: "GB", Releases: []tmdb.Release{{Type: 4, Date: day("2026-04-02")}}},

@@ -4,6 +4,9 @@ import "time"
 
 // ReleaseSchedule selects US releases, falling back to worldwide dates when a type has no US date.
 // Premieres and TV broadcasts are not cinema or home releases; limited theatrical is a fallback for wide.
+// theatrical_limited is availability's first cinema date (availability.FirstCinema): the earliest wide or limited
+// cinema release in any country, present only when earlier than the chosen cinema date. TMDb's general release date
+// (often a festival premiere) is never it.
 func (m *Movie) ReleaseSchedule() map[string]time.Time {
 	dates := map[string]time.Time{}
 	us := map[string]time.Time{}
@@ -25,6 +28,10 @@ func (m *Movie) ReleaseSchedule() map[string]time.Time {
 			}
 		}
 	}
+	first := dates["theatrical"]
+	if l := dates["theatrical_limited"]; !l.IsZero() && (first.IsZero() || l.Before(first)) {
+		first = l
+	}
 	for kind, date := range us {
 		dates[kind] = date
 	}
@@ -37,25 +44,10 @@ func (m *Movie) ReleaseSchedule() map[string]time.Time {
 		}
 	}
 	delete(dates, "theatrical_limited")
-	return dates
-}
-
-// FirstCinema is the movie's first real cinema date: the earliest wide or limited theatrical release in any country;
-// zero without one. Premieres (festivals) and TMDb's general release date never count. Availability counts from it
-// when it is earlier than the canonical cinema date (docs/design/acquisition.md "Minimum availability").
-func (m *Movie) FirstCinema() time.Time {
-	var first time.Time
-	for _, c := range m.ReleaseDates.Results {
-		for _, r := range c.Releases {
-			if kind := TypeName(r.Type); r.Date.IsZero() || kind != "theatrical" && kind != "theatrical_limited" {
-				continue
-			}
-			if d := r.Date.UTC().Truncate(24 * time.Hour); first.IsZero() || d.Before(first) {
-				first = d
-			}
-		}
+	if !first.IsZero() && first.Before(dates["theatrical"]) {
+		dates["theatrical_limited"] = first
 	}
-	return first
+	return dates
 }
 
 // PrimaryCountry is the country of the movie's primary release (docs/design/ui.md "Release dates"), the dates the

@@ -31,7 +31,7 @@ func Available(minimum string, dates map[string]time.Time, now time.Time, delay 
 }
 
 // FirstCinema is the release type of the canonical row that holds a movie's first real cinema date anywhere (wide or
-// limited, any country; tmdb.Movie.FirstCinema), stored by the metadata refresh only when it is earlier than the
+// limited, any country; tmdb.ReleaseSchedule's theatrical_limited), stored with the schedule only when earlier than the
 // canonical cinema date ("theatrical"). Only availability reads it: the calendar and every displayed date keep the
 // canonical cinema date.
 const FirstCinema = "theatrical_limited"

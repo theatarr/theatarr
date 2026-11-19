@@ -415,6 +415,15 @@ func TestListRowFacts(t *testing.T) {
 	e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES
 		(35, 'tmdb-art', '', 'theatrical', '2026-10-01'), (35, 'tmdb-art', '', 'theatrical_limited', '1988-05-11'),
 		(35, 'tmdb', 'US', 'theatrical', '2026-10-01')`)
+	// Soon: a limited run abroad on Oct 1 (stored only in the country rows), US cinemas on Nov 1, no home date: still
+	// to come for availability (Dec 30); its home release shows the canonical estimate, Jan 30, as before.
+	e.exec(`INSERT INTO title (id, kind, name, year, tmdb_id, created_at, updated_at) VALUES
+		(36, 'movie', 'Soon', 2026, 536, ?, ?)`, now, now)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
+		(36, 36, 'movie-web', 1, 'wanted', ?, ?)`, now, now)
+	e.exec(`INSERT INTO title_meta (title_id, movie_dates_at, attempted_at, refresh_after) VALUES (36, 1, 1, 1)`)
+	e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES
+		(36, 'tmdb-art', '', 'theatrical', '2026-11-01'), (36, 'tmdb', 'GB', 'theatrical_limited', '2026-10-01')`)
 
 	var page TitlePage
 	e.call("GET", APIBase+"/titles?limit=100", nil, 200, &page)
@@ -453,12 +462,23 @@ func TestListRowFacts(t *testing.T) {
 	if rerun.HomeRelease != "1988-08-09" || rerun.InCinemas != "2026-10-01" || rerun.Released != "2026-10-01" {
 		t.Errorf("Rerun's title page: home release %s, in cinemas %s, released %s", rerun.HomeRelease, rerun.InCinemas, rerun.Released)
 	}
+	// A list add before its refresh stores the schedule as source tmdb (catalog): its first cinema date is not one of
+	// the release dates shown.
+	e.exec(`INSERT INTO title (id, kind, name, year, tmdb_id, created_at, updated_at) VALUES
+		(37, 'movie', 'Listed', 1988, 537, ?, ?)`, now, now)
+	e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES
+		(37, 'tmdb', '', 'theatrical', '2026-12-01'), (37, 'tmdb', '', 'theatrical_limited', '1988-05-11')`)
+	var undated TitleDetail
+	e.call("GET", fmt.Sprintf("%s/titles/%d", APIBase, 37), nil, 200, &undated)
+	if len(undated.ReleaseDates) != 1 || undated.ReleaseDates[0].Type != "theatrical" {
+		t.Errorf("release dates before the refresh: %+v", undated.ReleaseDates)
+	}
 	var missing TitlePage
 	e.call("GET", APIBase+"/titles?limit=100&availability=missing", nil, 200, &missing)
 	if !slices.ContainsFunc(missing.Items, func(r TitleRow) bool { return r.ID == 35 }) {
 		t.Errorf("Rerun is not missing: %+v", missing.Items)
 	}
-	for id, want := range map[int64]string{30: "2026-11-20", 31: "2026-10-01", 32: "2026-12-25", 33: "2026-10-16", 34: "", 10: "", 35: "1988-08-09"} {
+	for id, want := range map[int64]string{30: "2026-11-20", 31: "2026-10-01", 32: "2026-12-25", 33: "2026-10-16", 34: "", 10: "", 35: "1988-08-09", 36: "2027-01-30"} {
 		r := rowOf(t, page, id)
 		if r.HomeRelease != want {
 			t.Errorf("%s home_release %q, want %q", r.Name, r.HomeRelease, want)

@@ -264,17 +264,23 @@ func TestIntakeAvailabilityAndSearchOnAdd(t *testing.T) {
 	for _, tc := range []struct {
 		name, minimum, cinema, digital string
 		search                         bool
+		releases                       []tmdb.CountryReleases
 	}{
-		{"announced without dates", "announced", "", "", true},
-		{"future cinema", "inCinemas", "2026-11-01", "", false},
-		{"in cinemas", "inCinemas", "2026-10-01", "2026-11-01", true},
-		{"digital not yet released", "released", "2026-10-01", "2026-11-01", false},
-		{"digital released", "released", "2026-10-01", "2026-10-26", true},
-		{"cinema ninety days", "released", "2026-07-01", "", true},
-		{"unknown dates", "released", "", "", false},
+		{"announced without dates", "announced", "", "", true, nil},
+		{"future cinema", "inCinemas", "2026-11-01", "", false, nil},
+		{"in cinemas", "inCinemas", "2026-10-01", "2026-11-01", true, nil},
+		{"digital not yet released", "released", "2026-10-01", "2026-11-01", false, nil},
+		{"digital released", "released", "2026-10-01", "2026-10-26", true, nil},
+		{"cinema ninety days", "released", "2026-07-01", "", true, nil},
+		{"unknown dates", "released", "", "", false, nil},
+		// Z4.2: first in cinemas abroad in 1988, its US re-release still to come: out at home long ago.
+		{"first run abroad, US re-release to come", "released", "1988-05-11", "", true, []tmdb.CountryReleases{
+			{Country: "FR", Releases: []tmdb.Release{{Type: 3, Date: time.Date(1988, 5, 11, 0, 0, 0, 0, time.UTC)}}},
+			{Country: "US", Releases: []tmdb.Release{{Type: 3, Date: time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC)}}}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := &tmdb.Movie{ID: 201, Title: "Movie", ReleaseDate: tc.cinema}
+			m.ReleaseDates.Results = tc.releases
 			if tc.digital != "" {
 				date, err := time.Parse(time.DateOnly, tc.digital)
 				if err != nil {
