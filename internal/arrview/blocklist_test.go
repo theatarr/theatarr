@@ -104,6 +104,14 @@ func TestBlocklistList(t *testing.T) {
 			t.Errorf("%s: %+v", q, p)
 		}
 	}
+	// Given in any case and any order, a non-torrent filter matches none (an empty value does not count).
+	for _, q := range []string{"Protocols=1", "Protocols=&protocols=1", "protocols=1&Protocols="} {
+		p.Records = nil
+		e.call("GET", "/radarr/api/v3/blocklist?"+q, nil, 200, &p)
+		if p.TotalRecords != 0 {
+			t.Errorf("%s: %+v", q, p)
+		}
+	}
 	// Radarr's per-movie list.
 	var list []map[string]any
 	e.call("GET", "/radarr/api/v3/blocklist/movie?movieId="+strconv.Itoa(IDBase+1), nil, 200, &list)

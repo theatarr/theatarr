@@ -176,21 +176,23 @@ func (s *Service) blocklist(w http.ResponseWriter, r *request) {
 		q += ` AND b.title_id IN (SELECT value FROM json_each(?))`
 		args = append(args, jsonIDs(ids))
 	}
-	if protos, ok := r.query("protocols"); ok {
-		torrent := false
-		for k, vs := range r.URL.Query() {
-			if !strings.EqualFold(k, "protocols") {
-				continue
-			}
-			for _, x := range vs {
-				for _, v := range strings.Split(x, ",") {
+	// protocols, in any case, repeated or comma-separated: given when any value is; only torrent rows exist.
+	given, torrent := false, false
+	for k, vs := range r.URL.Query() {
+		if !strings.EqualFold(k, "protocols") {
+			continue
+		}
+		for _, x := range vs {
+			for _, v := range strings.Split(x, ",") {
+				if v = strings.TrimSpace(v); v != "" {
+					given = true
 					torrent = torrent || v == "2" || strings.EqualFold(v, "torrent")
 				}
 			}
 		}
-		if protos != "" && !torrent {
-			q += ` AND 0`
-		}
+	}
+	if given && !torrent {
+		q += ` AND 0`
 	}
 	if err := s.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*)`+q, args...).Scan(&p.TotalRecords); err != nil {
 		s.internal(w, r, err)
