@@ -27,6 +27,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/theatarr/theatarr/internal/indexer"
+	"github.com/theatarr/theatarr/internal/logring"
 )
 
 // DefaultListen is the default listen address. 7700 clashes with nothing in the stack (arrs 7878-7882 and
@@ -312,11 +313,29 @@ func (l *LogLevel) Set(level string) error {
 	return nil
 }
 
-// NewRuntimeLogger returns a JSON logger and its live level controller.
+// NewRuntimeLogger returns a JSON logger and its live level controller. An attribute whose key names a secret
+// (logring.SecretKey, with its groups) is written as "[redacted]", as the in-memory ring keeps it: on the record,
+// from With and inside groups.
 func NewRuntimeLogger(w io.Writer, level string) (*slog.Logger, *LogLevel, error) {
 	ctl := &LogLevel{}
 	if err := ctl.Set(level); err != nil {
 		return nil, nil, err
 	}
-	return slog.New(slog.NewJSONHandler(w, &slog.HandlerOptions{Level: &ctl.value})), ctl, nil
+	return slog.New(slog.NewJSONHandler(w, &slog.HandlerOptions{Level: &ctl.value, ReplaceAttr: redactAttr})), ctl, nil
+}
+
+// redactAttr is the runtime log's ReplaceAttr: a secret-named attribute's value becomes "[redacted]".
+func redactAttr(groups []string, a slog.Attr) slog.Attr {
+	if a.Value.Kind() == slog.KindGroup || (len(groups) == 0 && (a.Key == slog.TimeKey || a.Key == slog.LevelKey ||
+		a.Key == slog.MessageKey || a.Key == slog.SourceKey)) {
+		return a
+	}
+	key := a.Key
+	if len(groups) > 0 {
+		key = strings.Join(groups, ".") + "." + key
+	}
+	if logring.SecretKey(key) {
+		return slog.String(a.Key, "[redacted]")
+	}
+	return a
 }

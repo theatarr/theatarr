@@ -240,3 +240,17 @@ func TestPrintDanglingTotals(t *testing.T) {
 		t.Errorf("summary with zurg down %q", out)
 	}
 }
+
+// The startup line for an HTTP-followed zurg log names the scheme and host only: a credential in the path or query
+// never reaches the log.
+func TestZurgLogURLLogsOriginOnly(t *testing.T) {
+	for raw, want := range map[string]string{
+		"http://zurg:9999/s3cr3t-token/logs?key=s3cr3t-q": "http://zurg:9999",
+		"https://zurg.example/logs":                       "https://zurg.example",
+		"http://zurg:9999":                                "http://zurg:9999",
+	} {
+		if got := logOrigin(raw); got != want {
+			t.Errorf("%s: %q, want %q", raw, got, want)
+		}
+	}
+}

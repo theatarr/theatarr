@@ -216,3 +216,6 @@ latest 2,000 lines and clears old-process lines when the boot ID changes, even i
 ring overwrites unread entries, `skipped` reports matching log lines lost under the same level/component filters,
 using the previous page's `seen` count. A filter change starts a fresh cursor. The page shows a “log lines skipped”
 marker and a separate restart notice when `boot_id` changes. `/logs/files` lists persistent log downloads for older lines.
+The persistent log (stderr and the rotated files) redacts secret-named attributes as the ring does
+(`logring.SecretKey`, on the record, from `With` and inside groups; `TestRuntimeLogLevelAllOutputs`), and the zurg log
+follower's startup line names the URL's scheme and host only.

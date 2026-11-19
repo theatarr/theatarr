@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -206,6 +207,15 @@ func (s *serveLibrary) current() *library.Library {
 	return current.lib
 }
 
+// logOrigin is a URL as the log names it: scheme and host only (a path or query can hold a credential).
+func logOrigin(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	return u.Scheme + "://" + u.Host
+}
+
 // Run loops until ctx ends. The relink sweep, the dangling report and the trash purge are tasks on tb (System ›
 // Tasks); the import pass is not (it runs on every poll and wake-up).
 func (s *serveLibrary) Run(ctx context.Context, tb *tasks.Table) {
@@ -241,7 +251,7 @@ func (s *serveLibrary) Run(ctx context.Context, tb *tasks.Table) {
 					}
 				}}
 			followers.Go(func() { f.Run(ctx) })
-			s.log.Info("library: following zurg's log for renames", "url", s.set.ZurgLog,
+			s.log.Info("library: following zurg's log for renames", "url", logOrigin(s.set.ZurgLog),
 				"interval", s.set.ZurgLogInterval)
 		} else {
 			f := &library.ZurgLogFollower{Path: s.set.ZurgLog, OnRenames: onRenames, OnLine: nowPlayingLine}

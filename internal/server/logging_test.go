@@ -154,4 +154,13 @@ func TestRuntimeLogLevelAllOutputs(t *testing.T) {
 	if restarted.Level() != "INFO" {
 		t.Error("runtime level persisted")
 	}
+	// A secret-shaped attribute is redacted in the file and on stderr, as in the ring: on the record, from With and
+	// inside a group. An ordinary attribute is written as it is.
+	file.Reset()
+	child.WithGroup("indexer").With("api_key", "s3cr3t-with").Error("redacted", "token", "s3cr3t-record",
+		slog.Group("auth", "password", "s3cr3t-group"), "name", "plain-value", "keyword", "plain-too")
+	if out := file.String(); strings.Contains(out, "s3cr3t") || !strings.Contains(out, "plain-value") ||
+		!strings.Contains(out, "plain-too") || strings.Count(out, "[redacted]") != 3 {
+		t.Errorf("redaction: %s", out)
+	}
 }
