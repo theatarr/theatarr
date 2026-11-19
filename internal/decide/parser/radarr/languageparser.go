@@ -49,11 +49,12 @@ var (
                                                                                                           (?<japanese>\bJA\b))(?:(?i)(?![\W|_|^]SUB))`, optX)
 
 	// Subtitle spans (ours), removed before the audio languages are read: a language tag directly before the whole
-	// word SUB, SUBS, SUBBED, SUBTITLE(S) or SUBTITLED (`ENG.SUBS`, `[English Subs]`), in every form the readings
-	// above accept (`pt-BR`, `GER.DUB`, `PL.DUB`, `(JA)`, `[CHS]`, `2xUKR`, a word or code); SUB joined before a
+	// word SUB, SUBS, SUBBED, SUBTITLE(S) or SUBTITLED (`ENG.SUBS`, `[English Subs]`), in the plain forms the readings
+	// above accept (`pt-BR`, `GER.DUB`, `PL.DUB`, `(JA)`, `2xUKR`, a word or code; a bracketed tag before a marker
+	// outside it, `[French Audio] SUBS`, is left alone on purpose); SUB joined before a
 	// language word (`SUBFRENCH`, French subtitles); and everything from a "Multiple Subtitle" marker on
 	// (Erai-raws' `[Multiple Subtitle] [ENG][POR-BR]`).
-	subtitleBeforeRegex = re(`(?<=^|[-_. \[(+,])(?<lang>pt-BR|ger[. ]dub|PL\W?(?:DUB|LEK)|(?:DUB|LEK)\W?PL|\(JA\)|\[[^\[\]]+\]|[\p{L}\d]+)[-_. ]sub(?:s|bed|titles?|titled)?(?![\p{L}\d])`, optI)
+	subtitleBeforeRegex = re(`(?<=^|[-_. \[(+,])(?<lang>pt-BR|ger[. ]dub|PL\W?(?:DUB|LEK)|(?:DUB|LEK)\W?PL|\(JA\)|[\p{L}\d]+)[-_. ]sub(?:s|bed|titles?|titled)?(?![\p{L}\d])`, optI)
 	subtitleJoinedRegex = re(`(?<![\p{L}\d])sub(?<lang>\p{L}+)(?![\p{L}\d])`, optI)
 	subtitleListRegex   = re(`\[?\bMultiple[-_. ]Subtitles?\b`, optI)
 

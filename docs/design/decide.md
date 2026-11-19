@@ -39,8 +39,9 @@ and models three versions with two criteria each.
      v5's pattern `DDP?[ .]?5[. ]1` also takes a separated `WEB.DD.5.1`, kept on purpose.
      `JPN`, `(JA)` and upper-case `JA` are Japanese. Subtitle spans are removed once before any of the three language
      readings (codes, upper-case codes, full names): a language tag right before the whole word `SUB`, `SUBS`,
-     `SUBBED` or `SUBTITLE(S)`, in every tag form the readings accept (`PT-BR`, `GER.DUB`, `PL.DUB`, `(JA)`, `[CHS]`,
-     `2xUKR`, a word or code; `JPN.ENG.SUBS` and `JPN.English.Subs` are Japanese, `ENG.PT-BR.SUBS` English,
+     `SUBBED` or `SUBTITLE(S)`, in the plain tag forms the readings accept (`PT-BR`, `GER.DUB`, `PL.DUB`, `(JA)`,
+     `2xUKR`, a word or code; a bracketed tag before a marker outside it, `[French Audio] SUBS` or `[JPN][CHS].SUBS`, is
+     left alone on purpose and reads as on main; `JPN.ENG.SUBS` and `JPN.English.Subs` are Japanese, `ENG.PT-BR.SUBS` English,
      `[English Subs]` gives no English), `SUB` joined before a
      language (`SUBFRENCH`: French subtitles; `ENG.SUBFRENCH` stays English), and everything from `Multiple Subtitle`
      on (`radarr.TestJapaneseAndSubtitleLanguages`). Only the last language before `SUBS` is a subtitle, unlike the
