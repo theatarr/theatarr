@@ -180,7 +180,8 @@ func redactEpisodeCells(e *Episode) {
 }
 
 // redactEpisodes strips GET titles/{id}/episodes for a caller without SeeFiles: no cutoff, upgrade explanations,
-// below-cutoff counts, sizes or scores; qualities become resolutions.
+// below-cutoff counts, sizes or scores; qualities become resolutions. The season counts (have, total, missing,
+// monitored) stay: the season header says them.
 func redactEpisodes(out *EpisodeList) {
 	for i := range out.Versions {
 		out.Versions[i].Cutoff = nil
@@ -188,7 +189,8 @@ func redactEpisodes(out *EpisodeList) {
 	}
 	for i := range out.Seasons {
 		for k, c := range out.Seasons[i].Versions {
-			out.Seasons[i].Versions[k] = SeasonCounts{Have: c.Have, Missing: c.Missing, Monitored: c.Monitored}
+			out.Seasons[i].Versions[k] = SeasonCounts{Have: c.Have, Missing: c.Missing, Total: c.Total,
+				Monitored: c.Monitored}
 		}
 	}
 	for i := range out.Episodes {

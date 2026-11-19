@@ -1879,3 +1879,24 @@ func TestRemovedEpisodesNotCurrent(t *testing.T) {
 		t.Errorf("removed episodes counted:\nbefore %s\n after %s", b, a)
 	}
 }
+
+// A household account's episode grid keeps each season's total (aired or held episodes), so its header can say
+// "2 of 3": only the file details are stripped.
+func TestHouseholdSeasonHeaderKeepsTotal(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	e.seedLibrary()
+	r := httptest.NewRequest("GET", APIBase+"/titles/4/episodes", nil)
+	r.Header.Set(auth.APIKeyHeader, e.apiKey())
+	rec := httptest.NewRecorder()
+	e.userMux().ServeHTTP(rec, r)
+	var l EpisodeList
+	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &l) != nil {
+		t.Fatalf("household episodes: %d %s", rec.Code, rec.Body.String())
+	}
+	for _, s := range l.Seasons {
+		if c := s.Versions["anime-tv"]; s.Season == 1 && (c.Total != 3 || c.Have != 2 || c.SizeBytes != nil) {
+			t.Errorf("household season 1: %+v", c)
+		}
+	}
+}

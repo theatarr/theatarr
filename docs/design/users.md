@@ -188,6 +188,8 @@ and no other-requester list or count.
     Remux-2160p is 2160p, a quality with none is left out), in rows, search, the title page, episodes, activity and
     facets (the quality facet counts titles per resolution, and `quality=1080p` filters by it);
   - no file counts, per-version or per-file added dates, cutoff, upgrade explanation or history (title and episode);
+  - the episode grid's season counts stay (have, total, missing, monitored: the season header says "2 of 3";
+    `TestHouseholdSeasonHeaderKeepsTotal`);
     the title's own `added_at` stays (Home's "Recently added"); a library facet (`GET titles/facets` versions) keeps
     its `titles` and drops `with_file`, `wanted`, `filled` and `cutoff_met` (`TestTitleFacets`);
   - `cutoff_met` reads as `filled`, a title below cutoff as `available`, the upgrades row is empty, and
