@@ -4,8 +4,8 @@ import (
 	"context"
 	"path"
 	"path/filepath"
-	"regexp"
 	"slices"
+	"strings"
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/decide/format"
@@ -26,7 +26,7 @@ func (l *Library) fileFacts(d *importDownload, plan *Plan, f *PlannedFile, episo
 		folder = m[1] // zurg's " {hash6}" is not part of the name the arr would see
 	}
 	in := decide.ImportFile{Path: path.Join(folder, filepath.ToSlash(f.Rel)), Folder: folder, Client: d.ReleaseTitle,
-		Grabbed: d.ReleaseTitle, OtherVideoFiles: nonSamples(plan, d.Version.Title) > 1, EpisodeTitles: episodeTitles}
+		Grabbed: d.ReleaseTitle, OtherVideoFiles: nonSamples(plan, d.Version.Title, f.Size) > 1, EpisodeTitles: episodeTitles}
 	if p := f.Probe; p != nil {
 		m := &decide.MediaInfo{Title: p.Title}
 		if p.Video != nil {
@@ -50,21 +50,26 @@ func (l *Library) fileFacts(d *importDownload, plan *Plan, f *PlannedFile, episo
 	return facts, err
 }
 
-// sampleNameRE is a file named as a sample ("sample.mkv", "Movie.2001.sample.mkv"), which the extras' "-sample"
-// suffix misses.
-var sampleNameRE = regexp.MustCompile(`(?i)(?:^|[ ._-])sample[ ._-]`)
+// sampleMarked says a file's name marks it a sample: the whole stem is "sample", or "sample" is its last token
+// (Movie.2001.sample.mkv, movie-sample.mkv). A title word alone ("Sample People") is no marker.
+func sampleMarked(rel string) bool {
+	stem := strings.ToLower(strings.TrimSuffix(filepath.Base(rel), filepath.Ext(rel)))
+	tokens := strings.FieldsFunc(stem, func(r rune) bool { return strings.ContainsRune(" ._-", r) })
+	return len(tokens) > 0 && tokens[len(tokens)-1] == "sample"
+}
 
 // nonSamples counts the release's video files that the arrs' DetectSample does not take for samples (the
-// title's runtime; an unprobed file counts, and so does a film's file the import left unread unless its name says it
-// is an extra or a sample: another cut is another video), as ImportDecisionMaker's nonSampleVideoFileCount.
-func nonSamples(plan *Plan, t titleInfo) int {
+// title's runtime; an unprobed file counts), as ImportDecisionMaker's nonSampleVideoFileCount. A film's file the
+// import left unread counts only when its name is no extra and carries no sample marker and it is at least a third
+// of the chosen file's size (chosen): another cut is comparable in size, a clip is not.
+func nonSamples(plan *Plan, t titleInfo, chosen int64) int {
 	expected := t.Runtime
 	if t.Kind != "movie" && expected == 0 {
 		expected = 45
 	}
 	n := 0
 	for _, f := range plan.Files {
-		if f.Unread && (isExtraFile(f.Rel) || sampleNameRE.MatchString(filepath.Base(f.Rel))) {
+		if f.Unread && (isExtraFile(f.Rel) || sampleMarked(f.Rel) || 3*f.Size < chosen) {
 			continue
 		}
 		if f.Probe == nil || f.Probe.RunTimeSeconds >= float64(arrMinimumRuntime(expected)) {

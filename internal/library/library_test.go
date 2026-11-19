@@ -499,25 +499,49 @@ func TestImportMovieSkipsExtras(t *testing.T) {
 	}
 }
 
-// A film release with two full-length cuts: the smaller cut is not read once the larger passes, but it is still
-// another video file, so the chosen cut keeps its own scene name ({Original Title}) instead of the release title.
+// An unread film file counts as another video for the scene name only when its name is no extra, it carries no
+// sample marker, and it is at least a third of the chosen file's size: another cut keeps the chosen cut's own name
+// ({Original Title}), even in a film whose title starts with "Sample"; a small making-of or a sample.mkv does not.
 func TestImportMovieOtherCutUnreadKeepsSceneName(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true)
-	e.pol.Versions["movie-remux"].Naming.File = "{Original Title}"
-	theatrical := "Amelie.2001.Theatrical.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-GRP.mkv"
-	e.release(movieRelease, map[string]float64{theatrical: 7000,
-		"Amelie.2001.Directors.Cut.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-GRP.mkv": 7600})
-	if err := os.WriteFile(filepath.Join(e.mount, "__all__", movieRelease, theatrical), make([]byte, 64), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
-	plan, err := e.lib.Import(e.ctx, 1, true)
-	if err != nil || len(plan.Links) != 1 {
-		t.Fatalf("plan %+v %v", plan, err)
-	}
-	if got := filepath.Base(plan.Links[0].Path); got != theatrical {
-		t.Errorf("named %s, want the cut's own name", got)
+	for _, c := range []struct {
+		name, chosen, other string
+		otherSize           int
+		own                 bool
+	}{
+		{"two full cuts", "Amelie.2001.Theatrical.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-GRP.mkv",
+			"Amelie.2001.Directors.Cut.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-GRP.mkv", 50, true},
+		{"a title starting with Sample", "Sample.People.2001.Theatrical.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-GRP.mkv",
+			"Sample.People.2001.Directors.Cut.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-GRP.mkv", 50, true},
+		{"a small making-of", "Amelie.2001.Theatrical.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-GRP.mkv",
+			"Making.Of.mkv", 5, false},
+		{"a sample marker", "Amelie.2001.Theatrical.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-GRP.mkv",
+			"Amelie.2001.Theatrical.2160p-sample.mkv", 50, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			e := newEnv(t, true)
+			e.pol.Versions["movie-remux"].Naming.File = "{Original Title}"
+			e.release(movieRelease, map[string]float64{c.chosen: 7000, c.other: 7600})
+			dir := filepath.Join(e.mount, "__all__", movieRelease)
+			if err := os.WriteFile(filepath.Join(dir, c.chosen), make([]byte, 64), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, c.other), make([]byte, c.otherSize), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
+			plan, err := e.lib.Import(e.ctx, 1, true)
+			if err != nil || len(plan.Links) != 1 {
+				t.Fatalf("plan %+v %v", plan, err)
+			}
+			want := movieRelease + ".mkv"
+			if c.own {
+				want = c.chosen
+			}
+			if got := filepath.Base(plan.Links[0].Path); got != want {
+				t.Errorf("named %s, want %s", got, want)
+			}
+		})
 	}
 }
 

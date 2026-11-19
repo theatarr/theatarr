@@ -283,8 +283,10 @@ mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
    that passes both guards: smaller files are not probed and leave no rejection, and an extra is not read while the
    release has another video file (never the largest file; a release of nothing but extras is judged as before). Only
    the download's own files count (decypharr's file list), so a shared folder of another torrent still waits. An
-   unread file still counts as another video for the scene name unless its name says extra or sample (another cut
-   keeps the chosen cut's own name: `TestImportMovieOtherCutUnreadKeepsSceneName`). A
+   unread file counts as another video for the scene name only when its name is no extra, carries no sample marker
+   (the stem is `sample`, or `sample` is its last token) and it is at least a third of the chosen file's size: another
+   cut keeps the chosen cut's own name, a small making-of or a sample does not
+   (`TestImportMovieOtherCutUnreadKeepsSceneName`). A
    series extra is a candidate only when every episode it maps to is a special (`TestImportMixedPackSpecialsDailyScene`
    keeps its Extras special); mapped to a regular episode it stays unmatched, in `rescope` too. Discovery lists every
    file, so a client's explicit files, Manual import's list (an unread film file says "Not checked: the import took a
