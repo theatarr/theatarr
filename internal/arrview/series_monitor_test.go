@@ -234,3 +234,41 @@ func TestProfileEditPartnerSeasons(t *testing.T) {
 		})
 	}
 }
+
+// Seerr's season request on an unmonitored series turns the series back on: the season goes to every library of the
+// view, also one whose episodes of it were off while another's were on (the season read monitored by intent). The
+// series' own echo, still unmonitored, changes nothing.
+func TestSeasonRequestReenablingSeriesReachesEveryLibrary(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	cp := *e.pol.Versions["tv-2160p"]
+	cp.Library = "/media/tv-copy"
+	e.pol.Versions["tv-copy"] = &cp
+	e.pol.Views["sonarr"].Versions = []string{"tv-2160p", "tv-copy"}
+	e.exec(`UPDATE version SET monitored = 0 WHERE id = 10`)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at)
+		VALUES (20, 10, 'tv-copy', 0, 'wanted', 0, 0)`)
+	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, updated_at)
+		SELECT 20, id, 0, 'wanted', 0 FROM episode WHERE title_id = 10`)
+	e.start()
+	path := "/sonarr/api/v3/series/" + strconv.Itoa(IDBase+10)
+	copyOn := func() string {
+		return e.str(`SELECT group_concat(episode_id || ':' || monitored, ',') FROM (SELECT episode_id, monitored
+			FROM episode_version_state WHERE version_id = 20 AND episode_id IN (101, 102, 103) ORDER BY episode_id)`)
+	}
+	var s map[string]any
+	e.call("GET", path, nil, 200, &s)
+	if s["monitored"] != false || !seasonsOf(t, s)[1] {
+		t.Fatalf("series before %v %v", s["monitored"], seasonsOf(t, s))
+	}
+	e.call("PUT", path, s, 202, nil)
+	if got := copyOn(); got != "101:0,102:0,103:0" {
+		t.Errorf("echo of the unmonitored series changed tv-copy: %s", got)
+	}
+	e.call("GET", path, nil, 200, &s)
+	s["monitored"] = true
+	e.call("PUT", path, s, 202, nil)
+	if got := copyOn(); got != "101:1,102:1,103:1" {
+		t.Errorf("requested season not on tv-copy: %s", got)
+	}
+}

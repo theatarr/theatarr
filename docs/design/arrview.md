@@ -410,7 +410,8 @@ stay the view's.
   replaced on the view's versions; Sonarr seasons set per-version episode monitoring. As in Sonarr's `SeriesService.UpdateSeries`, only a
   season whose `monitored` differs from what the view reports (monitored when one of its episodes is) changes its
   episodes: Seerr re-requests a season by PUTting the whole lookup back, and a partly monitored season it echoes keeps
-  its unmonitored episodes. A season the view has no episodes for only records the choice; versions the PUT's profile
+  its unmonitored episodes. A PUT that turns an unmonitored series back on compares with no season monitored (what was
+  in effect), so a season it monitors reaches every library of the view (`TestSeasonRequestReenablingSeriesReachesEveryLibrary`). A season the view has no episodes for only records the choice; versions the PUT's profile
   turns on (new, restored or unmonitored before) take every season of the body (`TestPutProfileTurnsOnSeasonsOfExistingCopy`), and a version the new profile picks that was already on takes a season
   the body monitors when none of its own episodes of that season is (`TestSeasonRequestForMonitoredCopyWithSeasonOff`).
   `monitorNewItems` goes to the versions' intent (`series_monitor`), from
