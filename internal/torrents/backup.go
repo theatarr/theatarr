@@ -196,6 +196,7 @@ func (m *Manager) TakeBackup(ctx context.Context, o BackupOptions) (*Backup, Bac
 			bt := BackupTorrent{ID: t.ID, Hash: strings.ToLower(t.Hash), Name: t.Name, Bytes: t.Bytes, Added: t.Added,
 				Status: t.Status}
 			files, status := t.Files, t.Status
+			noFiles := false // a torrent not yet (or never) downloaded whose detail read named no files
 			if files == nil {
 				need := o.Need[k][t.ID]
 				if c, ok := prev[k+"\x00"+t.ID+"\x00"+bt.Hash]; ok && !need && !awaitingSelection(t.Status) {
@@ -206,6 +207,8 @@ func (m *Manager) TakeBackup(ctx context.Context, o BackupOptions) (*Backup, Bac
 					}
 					full, err := m.Providers[k].Torrent(ctx, t.ID)
 					switch {
+					case err == nil && len(full.Files) == 0 && full.State != provider.StateDownloaded:
+						noFiles, status = true, full.Status
 					case err == nil && full.Files != nil:
 						files, status = full.Files, full.Status
 					case need:
@@ -214,7 +217,15 @@ func (m *Manager) TakeBackup(ctx context.Context, o BackupOptions) (*Backup, Bac
 					}
 				}
 			}
-			if files != nil && awaitingSelection(status) {
+			if noFiles {
+				// A failed or queued torrent: no files to read. The selection an earlier backup recorded for it
+				// stands; without one the selection is unknown (a restore never selects every file for it).
+				if c, ok := prev[k+"\x00"+t.ID+"\x00"+bt.Hash]; ok {
+					bt.FilesKnown, bt.Files = true, c
+				} else {
+					bt.SelectionUnknown = true
+				}
+			} else if files != nil && awaitingSelection(status) {
 				// The provider awaits a selection: no file is selected yet, and the selection made later is not
 				// this one. Not cached by later backups (fileCache takes FilesKnown only).
 				bt.SelectionUnknown = true
@@ -241,7 +252,8 @@ func (m *Manager) TakeBackup(ctx context.Context, o BackupOptions) (*Backup, Bac
 
 // fileCache is the files of every torrent in the newest backup that knew them, by provider, id and hash: a settled
 // selection does not change, so a backup reads each torrent's detail once. An unknown selection (one Real-Debrid still
-// awaited, or a version 1 backup's empty list) is not cached; a delete's backup reads its torrents again anyway.
+// awaited, or a version 1 backup's empty list) and an empty one are not cached; a delete's backup reads its torrents
+// again anyway.
 func (m *Manager) fileCache() map[string][]BackupFile {
 	out := map[string][]BackupFile{}
 	list, err := m.Backups()
@@ -256,7 +268,7 @@ func (m *Manager) fileCache() map[string][]BackupFile {
 		for _, p := range b.Providers {
 			for _, t := range p.Torrents {
 				k := p.Provider + "\x00" + t.ID + "\x00" + t.Hash
-				if _, seen := out[k]; !seen && t.FilesKnown && t.ID != "" {
+				if _, seen := out[k]; !seen && t.FilesKnown && len(t.Files) > 0 && t.ID != "" {
 					out[k] = t.Files
 				}
 			}

@@ -404,3 +404,66 @@ func TestDeleteTorrentAwaitingSelection(t *testing.T) {
 		}
 	}
 }
+
+// A failed or queued torrent whose detail read succeeds with no files can be deleted: the backup keeps the selection
+// an earlier backup recorded for it, else records the selection as unknown. A downloaded torrent with no files still
+// refuses.
+func TestDeleteFailedTorrentWithoutFiles(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		state provider.State
+		prior bool // an earlier backup recorded its files
+		ok    bool
+	}{
+		{name: "failed", state: provider.StateError, ok: true},
+		{name: "queued, earlier selection", state: provider.StateQueued, prior: true, ok: true},
+		{name: "downloaded", state: provider.StateDownloaded},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := deleteFixture(t)
+			ctx := context.Background()
+			e.rd.list = append(e.rd.list, tor("9", hG, "Movie.G.2010.1080p.WEB-DL", 900, e.now.Add(-72*time.Hour),
+				tc.state))
+			e.content(hG, 1)
+			if tc.prior {
+				e.rd.detail = map[string]*provider.Torrent{"9": {ID: "9", Hash: hG, State: provider.StateDownloaded,
+					Files: []provider.File{{ID: "1", Path: "/G/g.mkv", Bytes: 900, Selected: true}}}}
+				if _, _, err := e.m.TakeBackup(ctx, BackupOptions{Reason: ReasonScheduled}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			e.rd.detail = map[string]*provider.Torrent{"9": {ID: "9", Hash: hG, State: tc.state,
+				Status: string(tc.state), OriginalName: "Movie.G.2010.1080p.WEB-DL"}}
+			// A queued torrent needs allow_recent like any busy one.
+			sel := []DeleteSelection{{Provider: "rd", ID: "9", Hash: hG, AllowRecent: tc.state == provider.StateQueued}}
+			plan, err := e.m.PlanDelete(ctx, sel)
+			if err != nil || plan.Count != 1 {
+				t.Fatalf("plan: %+v %v", plan, err)
+			}
+			done, err := e.m.Delete(ctx, sel, plan.Token, "admin")
+			if !tc.ok {
+				if !errors.Is(err, ErrBackupFailed) || e.ard.deleted != 0 {
+					t.Fatalf("a downloaded torrent without files: %v, %d deleted", err, e.ard.deleted)
+				}
+				return
+			}
+			if err != nil || done.Deleted != 1 {
+				t.Fatalf("delete: %+v %v", done, err)
+			}
+			b, err := e.m.ReadBackup(done.BackupID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, bt := range b.Providers[0].Torrents {
+				if bt.ID != "9" {
+					continue
+				}
+				if tc.prior && (!bt.FilesKnown || len(bt.Files) != 1 || bt.Files[0].Path != "/G/g.mkv") ||
+					!tc.prior && (!bt.SelectionUnknown || bt.FilesKnown) {
+					t.Fatalf("backup: %+v", bt)
+				}
+			}
+		})
+	}
+}

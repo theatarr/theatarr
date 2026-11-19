@@ -178,7 +178,11 @@ every torrent. A torrent whose files the backup never read is restored with all 
   selections are cached). A version 1 backup's empty known selection is read as unknown for the same reason. The
   torrents a delete removes are read again for its pre-delete backup whatever an earlier backup holds, and that
   backup must know each one's selection (the files, or that it awaits one)
-  (`TestBackupRefreshesSelectionBeforeDelete`, `TestBackupV1EmptySelectionIsUnknown`).
+  (`TestBackupRefreshesSelectionBeforeDelete`, `TestBackupV1EmptySelectionIsUnknown`). A torrent that is not
+  downloaded (by provider state: failed, queued, still downloading) whose detail read succeeds with no files keeps
+  the selection the newest earlier backup recorded for it, else is marked `selection_unknown`; a downloaded torrent
+  whose read names no files, and a read error, still fail a delete's backup. An empty selection is not reused by
+  later backups (`TestDeleteFailedTorrentWithoutFiles`).
 - **Listing** reads a lightweight summary of each file (no file lists), cached per process by path, size and
   modification time (backups are written once, atomically). A restore, a download and the file cache read the
   whole backup and validate it: format, a version this build reads, the id it was written as, a provider on every
@@ -368,7 +372,8 @@ or an admin's API key, which confirms like a session, as with settings; the toke
    change answers 422 with the new preview. The token a preview returns (`d2-…`, restore `r2-…`) is bound to the caller: an HMAC, under a random key made once per process and never stored, of the caller's confirmer (`user:<id>` for a session, `key:<id>` for an API key) and the plan digest. Restore and delete plan again and compare against the HMAC for the current caller: no preview, no token; another key, another user or a session gets 422 (`ErrConfirmation`) from the same token; a revoked key cannot authenticate. After a restart or a changed plan, preview again. The CLI (no confirmer, previewing and confirming in two processes as the local operator) gets the plain digest instead.
    Override tokens (step 3) are not bound to the caller.
 6. **A full backup** of every provider (reason `pre-delete`) is taken first and must hold every torrent being deleted
-   with its files. No backup, no delete (503, nothing deleted).
+   with its files (for a failed or queued torrent without files: the earlier selection, or that it is unknown). No
+   backup, no delete (503, nothing deleted).
 7. **A last usage check per torrent**, right before its own delete (after the 250 ms pacing wait), under the
    router's add lock (`Router.AddLock`), which each delete holds from that check until the provider answered: a torrent a route reused
    or re-added while the backup ran (on AllDebrid an add of a hash on the account hands back the same magnet), or

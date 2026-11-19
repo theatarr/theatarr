@@ -571,8 +571,11 @@ func TestBackup(t *testing.T) {
 	old := e.now.Add(-72 * time.Hour)
 	e.rd.list = []provider.Torrent{tor("1", hA, "A", 10, old, provider.StateDownloaded),
 		tor("2", hB, "B", 20, old, provider.StateDownloaded)}
+	// rd 2 has a selected file: an empty selection is not cached, so it would be read again.
 	e.rd.detail = map[string]*provider.Torrent{"1": {ID: "1", Hash: hA, Files: []provider.File{
-		{ID: "1", Path: "/A/a.mkv", Bytes: 9, Selected: true}, {ID: "2", Path: "/A/a.nfo", Bytes: 1}}}}
+		{ID: "1", Path: "/A/a.mkv", Bytes: 9, Selected: true}, {ID: "2", Path: "/A/a.nfo", Bytes: 1}}},
+		"2": {ID: "2", Hash: hB, State: provider.StateDownloaded, Files: []provider.File{
+			{ID: "1", Path: "/B/b.mkv", Bytes: 20, Selected: true}}}}
 	e.tb.list = []provider.Torrent{{ID: "9", Hash: strings.ToUpper(hC), Name: "C", Bytes: 30, Added: old,
 		Files: []provider.File{{ID: "0", Path: "C/c.mkv", Bytes: 30, Selected: true}}}}
 	b, info, err := e.m.TakeBackup(ctx, BackupOptions{Reason: ReasonManual, By: "admin"})
