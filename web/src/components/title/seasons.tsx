@@ -863,9 +863,12 @@ function SeasonBlock({
 }
 
 /** The bar that acts on the selected episodes in the libraries in view: monitor, unmonitor, search, clear. */
-function BulkBar({ titleId, scope, selected, onClear }: { titleId: number; scope: Scope; selected: number[]; onClear: () => void }) {
+function BulkBar({ titleId, scope, selected, removed, onClear }: { titleId: number; scope: Scope; selected: number[]; removed: Set<number>; onClear: () => void }) {
   const actions = useSeasonActions(titleId, scope);
   const where = `in ${scope.name}`;
+  // Episodes the series no longer lists are kept for their files: monitoring leaves them out.
+  const monitorable = selected.filter((id) => !removed.has(id));
+  const noMonitor = monitorable.length === 0;
   return (
     <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-20 md:bottom-4" data-testid="bulk-bar">
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--th-baccent)] bg-[var(--surface)] px-3 py-2 shadow-[var(--shadow-2)]">
@@ -873,10 +876,10 @@ function BulkBar({ titleId, scope, selected, onClear }: { titleId: number; scope
           {fmtNumber(selected.length)} selected · {scope.name}
         </span>
         <span className="flex-1" />
-        <Button size="xs" variant="outline" disabled={actions.busy || !scope.edit} title={scope.edit ? `Monitor ${where}` : scope.editWhy} onClick={() => actions.monitor({ episode_ids: selected }, true)} data-testid="bulk-monitor">
+        <Button size="xs" variant="outline" disabled={actions.busy || !scope.edit || noMonitor} title={scope.edit ? `Monitor ${where}` : scope.editWhy} onClick={() => actions.monitor({ episode_ids: monitorable }, true)} data-testid="bulk-monitor">
           Monitor
         </Button>
-        <Button size="xs" variant="outline" disabled={actions.busy || !scope.edit} title={scope.edit ? `Stop monitoring ${where}` : scope.editWhy} onClick={() => actions.monitor({ episode_ids: selected }, false)} data-testid="bulk-unmonitor">
+        <Button size="xs" variant="outline" disabled={actions.busy || !scope.edit || noMonitor} title={scope.edit ? `Stop monitoring ${where}` : scope.editWhy} onClick={() => actions.monitor({ episode_ids: monitorable }, false)} data-testid="bulk-unmonitor">
           Unmonitor
         </Button>
         <Button size="xs" disabled={actions.busy || !scope.search} title={scope.search ? `Search now ${where}` : scope.searchWhy} onClick={() => actions.search({ episode_ids: selected })} data-testid="bulk-search">
@@ -998,6 +1001,7 @@ export function Seasons({ id, anime, franchises = [], history }: { id: string; a
   const latest = [...l.seasons].filter((s) => s.season > 0 && s.aired > 0).pop()?.season ?? l.seasons[0].season;
   const opened = open ?? [latest];
   const toggle = (s: number) => setOpen(opened.includes(s) ? opened.filter((x) => x !== s) : [...opened, s]);
+  const removedIds = new Set(l.episodes.filter((e) => e.removed).map((e) => e.id));
   const manage = perms.manage;
   const seeFiles = perms.seeFiles;
   const layout = episodeLayout({ wide, copies: l.versions.length, seeFiles, picked });
@@ -1119,7 +1123,7 @@ export function Seasons({ id, anime, franchises = [], history }: { id: string; a
       <p className="pt-1 text-xs text-muted-foreground">
         {manage ? "Open an episode for its file, history and releases; tick episodes to act on several." : "Open an episode for its details."}
       </p>
-      {manage && selected.size > 0 && copies.length > 0 ? <BulkBar titleId={titleId} scope={scope} selected={[...selected]} onClear={() => setSelected(new Set())} /> : null}
+      {manage && selected.size > 0 && copies.length > 0 ? <BulkBar titleId={titleId} scope={scope} selected={[...selected]} removed={removedIds} onClear={() => setSelected(new Set())} /> : null}
       {picker ? (
         <ColumnPicker
           label="Episode columns"

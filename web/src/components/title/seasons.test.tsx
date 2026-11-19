@@ -76,11 +76,29 @@ describe("Series page copies", () => {
     renderPage(<Seasons id="1" anime />, "/title/1");
     const header = await screen.findByTestId("season-header");
     expect(within(header).getByTestId("season-summary").textContent).toBe("3 of 3 available · 2 missing in Anime Blu-ray");
+    // Anime Blu-ray lacks it too, yet it is never missing: the Missing chip counts the two the header names.
+    expect(document.querySelector('[data-filter="missing"]')?.textContent).toBe("Missing2");
     await user.click(screen.getByRole("radio", { name: "Anime WEB" }));
     expect(await screen.findByTestId("episode-removed-104")).toBeTruthy();
     expect(screen.getByText("No longer in the series' episode list")).toBeTruthy();
     expect(screen.queryByTestId("episode-monitor-104")).toBeNull();
     expect(screen.getByTestId("episode-monitor-103")).toBeTruthy();
+    // Bulk monitoring leaves it out: with only it ticked, Monitor and Unmonitor are off.
+    await user.click(screen.getByRole("checkbox", { name: "Select episode 15" }));
+    expect((screen.getByTestId("bulk-monitor") as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByTestId("bulk-unmonitor") as HTMLButtonElement).disabled).toBe(true);
+    await user.click(screen.getByRole("checkbox", { name: "Select episode 14" }));
+    expect((screen.getByTestId("bulk-monitor") as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("offers no monitoring in the window of an episode the series no longer lists", async () => {
+    const gone = { ...episodes.episodes[2], id: 104, number: 15, name: "Lost Harbour", removed: true };
+    mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: { ...episodes, episodes: [...episodes.episodes, gone] } },
+      { method: "GET", path: "/titles/1/episodes/104", reply: { ...detail, episode: gone } }]);
+    renderPage(<Seasons id="1" anime />, "/title/1?episode=104");
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByTestId("episode-removed-anime-web")).toBeTruthy();
+    expect(within(dialog).queryByTestId("episode-monitor-anime-web")).toBeNull();
   });
 
   it("says the next search in plain words when the server sends it for the library in view", async () => {

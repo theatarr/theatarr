@@ -153,7 +153,7 @@ function attempts(rows: EpisodeVersionDetail["history"]): Schemas["HistoryEvent"
 }
 
 /** One copy's Details, for callers who see files: state, controls, the download in hand, the upgrade and the file. */
-function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, acquisition, onReleases, auto }: { titleId: number; eid: number; epCode: string; d: EpisodeVersionDetail; aired: boolean; manage: boolean; admin: boolean; single: boolean; acquisition?: Acquisition; onReleases: () => void; auto?: EpisodeDetail["auto_search"] }) {
+function DetailsPart({ titleId, eid, epCode, d, aired, removed, manage, admin, single, acquisition, onReleases, auto }: { titleId: number; eid: number; epCode: string; d: EpisodeVersionDetail; aired: boolean; removed: boolean; manage: boolean; admin: boolean; single: boolean; acquisition?: Acquisition; onReleases: () => void; auto?: EpisodeDetail["auto_search"] }) {
   const monitor = useMonitor(titleId);
   const search = useScopedSearch(titleId);
   const nameOf = useLibraryName();
@@ -179,6 +179,10 @@ function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, ac
       ) : null}
       {manage && c ? (
         <div className="flex flex-wrap items-center gap-3">
+          {/* An episode the series no longer lists is kept for its file: nothing to monitor. */}
+          {removed ? (
+            <span className="text-sm text-muted-foreground" data-testid={`episode-removed-${d.key}`}>No longer in the series' episode list</span>
+          ) : (
           <label className="flex items-center gap-2 text-sm">
             <MonitorSwitch
               on={d.monitored}
@@ -190,6 +194,7 @@ function DetailsPart({ titleId, eid, epCode, d, aired, manage, admin, single, ac
             />
             <span>Monitored</span>
           </label>
+          )}
           <span className="flex-1" />
           <Button
             size="sm"
@@ -269,7 +274,7 @@ function CopyTabs({ titleId, d, aired, manage, admin, acquisitions }: { titleId:
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         <TabsContent value="details" className="mt-0 space-y-4">
           {d.versions.map((v) => (
-            <DetailsPart key={v.key} titleId={titleId} eid={d.episode.id} epCode={epCode} d={v} aired={aired} manage={manage} admin={admin} single={single} acquisition={acquisitions?.[v.key]} onReleases={() => setTab("releases")} auto={d.auto_search} />
+            <DetailsPart key={v.key} titleId={titleId} eid={d.episode.id} epCode={epCode} d={v} aired={aired} removed={!!d.episode.removed} manage={manage} admin={admin} single={single} acquisition={acquisitions?.[v.key]} onReleases={() => setTab("releases")} auto={d.auto_search} />
           ))}
         </TabsContent>
         <TabsContent value="history" className="mt-0 space-y-4">
