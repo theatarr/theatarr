@@ -558,14 +558,14 @@ func TestSeries(t *testing.T) {
 	rec = e.call("GET", "/sonarr/api/v3/series/lookup?term=tvdb:999", nil, 200, &lk)
 	e.golden("sonarr-lookup-unknown", rec.Body.Bytes())
 
-	// An unmonitored series keeps its episodes' own flags and numbers (SeriesStatisticsRepository uses the episode
-	// flag alone); Wanted still leaves it out.
+	// An unmonitored series keeps its numbers (SeriesStatisticsRepository counts by the episode flag alone); the
+	// flags stay effective (off), and Wanted still leaves it out.
 	e.exec(`UPDATE version SET monitored = 0 WHERE id = 10`)
 	one = nil
 	e.call("GET", "/sonarr/api/v3/series/"+strconv.Itoa(IDBase+10), nil, 200, &one)
 	s1 = one["seasons"].([]any)[1].(map[string]any)
 	st = s1["statistics"].(map[string]any)
-	if one["monitored"] != false || s1["monitored"] != true || st["episodeCount"].(float64) != 2 {
+	if one["monitored"] != false || s1["monitored"] != false || st["episodeCount"].(float64) != 2 {
 		t.Errorf("unmonitored series, season 1 %v", s1)
 	}
 	if total := one["statistics"].(map[string]any); total["episodeCount"].(float64) != 2 {
@@ -573,7 +573,7 @@ func TestSeries(t *testing.T) {
 	}
 	ep = nil
 	e.call("GET", "/sonarr/api/v3/episode/102", nil, 200, &ep)
-	if ep["monitored"] != true {
+	if ep["monitored"] != false {
 		t.Errorf("unmonitored series, episode/102 %v", ep)
 	}
 	var missing map[string]any

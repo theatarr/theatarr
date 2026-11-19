@@ -230,7 +230,7 @@ reference type that is null is left out; value types are always written; `id` 0 
 | `GET movie/lookup?term=`, `movie/lookup/tmdb?tmdbId=` | `MovieResource` | `tmdb:N`, `imdb:tt…` or text. Text: the catalog's titles by name, then TMDb's title search for movies the catalog lacks (below) |
 | `GET moviefile/{id}` | `MovieFileResource` | Files of the view's versions |
 | `POST movie`, `PUT movie[/{id}]`, `DELETE movie/{id}` | | See Writes. POST 201, PUT 202, DELETE 200 with no body |
-| `GET series[?tvdbId=]`, `series/{id}`, `series/lookup?term=` | `SeriesResource` with `seasons[].statistics` and `statistics` | Counts follow `SeriesStatisticsRepository`: `episodeCount` = monitored (the episode's own flag, whatever the series') and aired, or with a file; `totalEpisodeCount` = all; `episodeFileCount` = with a file. `seasonCount` leaves out specials |
+| `GET series[?tvdbId=]`, `series/{id}`, `series/lookup?term=` | `SeriesResource` with `seasons[].statistics` and `statistics` | Counts follow `SeriesStatisticsRepository`: `episodeCount` = monitored by the episode's own intent (whatever the series' flag; the `monitored` flags stay effective) and aired, or with a file; `totalEpisodeCount` = all; `episodeFileCount` = with a file. `seasonCount` leaves out specials |
 | `POST series`, `PUT series[/{id}]`, `DELETE series/{id}` | | As for movies; `seasons[].monitored` sets the per-version episode monitoring |
 | `GET episode?seriesId=[&seasonNumber=]`, `?episodeIds=`, `episode/{id}` | `EpisodeResource` | `monitored` and `hasFile` are the view's (below) |
 | `PUT episode/monitor` | `EpisodeResource[]`, 202 | Sets `episode_version_state.monitored` for the view's versions |
@@ -410,8 +410,7 @@ stay the view's.
   replaced on the view's versions; Sonarr seasons set per-version episode monitoring. As in Sonarr's `SeriesService.UpdateSeries`, only a
   season whose `monitored` differs from what the view reports (monitored when one of its episodes is) changes its
   episodes: Seerr re-requests a season by PUTting the whole lookup back, and a partly monitored season it echoes keeps
-  its unmonitored episodes. A PUT that turns an unmonitored series back on compares with no season monitored (what was
-  in effect), so a season it monitors reaches every library of the view (`TestSeasonRequestReenablingSeriesReachesEveryLibrary`). A season the view has no episodes for only records the choice; versions the PUT's profile
+  its unmonitored episodes. A season the view has no episodes for only records the choice; versions the PUT's profile
   turns on (new, restored or unmonitored before) take every season of the body (`TestPutProfileTurnsOnSeasonsOfExistingCopy`), and a version the new profile picks that was already on takes a season
   the body monitors when none of its own episodes of that season is (`TestSeasonRequestForMonitoredCopyWithSeasonOff`).
   `monitorNewItems` goes to the versions' intent (`series_monitor`), from
@@ -533,11 +532,12 @@ stay the view's.
   come from each link's saved import metadata; incomplete metadata is skipped. Applying a rename relinks the same
   target through the library gate, then removes the old link.
 - **Per-version episode state.** Episode monitoring writes `episode_version_state` rows for the view's versions,
-  creating `wanted` rows where none exist. An episode reads as monitored by its own intent, as Sonarr keeps the
-  episode flag apart from the series': when such a row of a monitored view version says so (of any view version
-  when the series is unmonitored), else when the episode is. So an unmonitored series keeps its season flags and
-  `episodeCount`; Wanted, the calendar filter and the searches keep effective monitoring (series and episode). It
-  has a file when a view version's state is `filled` or `cutoff_met`, or an active link of a view version holds it.
+  creating `wanted` rows where none exist. An episode reads as monitored when such a row says so (and the version is
+  monitored), else when the episode and the series are: the `monitored` flags of seasons and episodes, the PUT's
+  season comparison, Wanted and the searches all use this effective state. The numbers (`episodeCount`, season and
+  series statistics) follow the episode's own intent, as Sonarr counts by the episode flag alone: the highest row
+  flag over the monitored view versions when the series is monitored, else over all of them, else the episode's
+  flag, so an unmonitored series keeps its counts. It has a file when a view version's state is `filled` or `cutoff_met`, or an active link of a view version holds it.
 
 ## Tags per version
 

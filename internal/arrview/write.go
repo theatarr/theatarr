@@ -882,14 +882,6 @@ func (s *Service) updateTitle(w http.ResponseWriter, r *request) {
 			s.internal(w, r, err)
 			return
 		}
-		// A PUT that turns the series back on compares with what was in effect before: no season, so a season the
-		// body monitors reaches every library of the view (the view shows the seasons' own intent, which one
-		// library alone can make monitored). An echo that keeps the series off compares with that intent.
-		if !e.monitored() && in.monitored(false) {
-			for n := range reported {
-				reported[n] = false
-			}
-		}
 	}
 	// A movie's minimum availability is stored per library, never on the view's record.
 	var minAvail string

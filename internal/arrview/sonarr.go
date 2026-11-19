@@ -123,17 +123,19 @@ type ep struct {
 	airDate   string
 	airUTC    sql.NullInt64
 	runtime   int
-	monitored bool // the episode's intent in the view: see loadEpisodes
+	monitored bool // the view's effective flag: see loadEpisodes
+	intent    bool // the episode's own intent, whatever the series' flag: see loadEpisodes
 	hasFile   bool
 	fileID    int64
 	size      int64
 	absolute  sql.NullInt64
 }
 
-// loadEpisodes reads the episodes of the given series with the view's state. An episode is monitored by its own
-// intent, as Sonarr keeps the episode flag apart from the series': when a per-version state row of a monitored view
-// version says so (of any view version when the series is unmonitored); with no such row, when the episode is.
-// Wanted and the searches keep effective monitoring (series and episode) themselves. It has a file when a view version's state is filled or cutoff_met, or an active link of a
+// loadEpisodes reads the episodes of the given series with the view's state. An episode is monitored when a
+// per-version state row of a view version says so; with no such row, when the episode and some view version of the
+// series are monitored. Its intent, which only the statistics read (Sonarr counts by the episode flag alone), is the
+// highest state-row flag over the monitored view versions when the series is monitored, else over all of them; with
+// no row, the episode's flag. It has a file when a view version's state is filled or cutoff_met, or an active link of a
 // view version holds it (the link id is its episodeFileId). Episodes the metadata source no longer lists (removed_at,
 // kept only for their files and history) are left out, as Sonarr deletes them on refresh.
 func (s *Service) loadEpisodes(ctx context.Context, v *View, es []*entry) (map[int64][]*ep, error) {
@@ -180,6 +182,8 @@ func (s *Service) loadEpisodesWith(ctx context.Context, v *View, es []*entry, re
 			rows.Close()
 			return nil, err
 		}
+		x.intent = x.monitored
+		x.monitored = x.monitored && seriesMon[x.titleID]
 		byID[x.id] = x
 		out[x.titleID] = append(out[x.titleID], x)
 	}
@@ -201,10 +205,10 @@ func (s *Service) loadEpisodesWith(ctx context.Context, v *View, es []*entry, re
 			return nil, err
 		}
 		if x := byID[id]; x != nil {
+			x.monitored, x.intent, x.hasFile = mon, mon, has
 			if !seriesMon[x.titleID] {
-				mon = anyMon
+				x.intent = anyMon
 			}
-			x.monitored, x.hasFile = mon, has
 		}
 	}
 	if err := closeRows(rows); err != nil {
@@ -280,7 +284,7 @@ func (s *Service) seriesResource(v *View, e *entry, eps []*ep) seriesResource {
 			a.st.EpisodeFileCount++
 			a.st.SizeOnDisk += x.size
 		}
-		if (x.monitored && x.aired(now)) || x.hasFile {
+		if (x.intent && x.aired(now)) || x.hasFile {
 			a.st.EpisodeCount++
 		}
 		if x.airUTC.Valid {

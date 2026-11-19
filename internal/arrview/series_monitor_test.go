@@ -235,40 +235,74 @@ func TestProfileEditPartnerSeasons(t *testing.T) {
 	}
 }
 
-// Seerr's season request on an unmonitored series turns the series back on: the season goes to every library of the
-// view, also one whose episodes of it were off while another's were on (the season read monitored by intent). The
-// series' own echo, still unmonitored, changes nothing.
+// An unmonitored series with two libraries of the view: tv-2160p holds season 1 but S01E02, tv-copy nothing. The
+// view reports its seasons off (effective), so clients send back what they read: turning the series on changes no
+// episode choice, a season request reaches both libraries and no other season, and a season sent off while turning
+// the series on stays off.
 func TestSeasonRequestReenablingSeriesReachesEveryLibrary(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t)
-	cp := *e.pol.Versions["tv-2160p"]
-	cp.Library = "/media/tv-copy"
-	e.pol.Versions["tv-copy"] = &cp
-	e.pol.Views["sonarr"].Versions = []string{"tv-2160p", "tv-copy"}
-	e.exec(`UPDATE version SET monitored = 0 WHERE id = 10`)
-	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at)
-		VALUES (20, 10, 'tv-copy', 0, 'wanted', 0, 0)`)
-	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, updated_at)
-		SELECT 20, id, 0, 'wanted', 0 FROM episode WHERE title_id = 10`)
-	e.start()
+	setup := func() *env {
+		e := newEnv(t)
+		cp := *e.pol.Versions["tv-2160p"]
+		cp.Library = "/media/tv-copy"
+		e.pol.Versions["tv-copy"] = &cp
+		e.pol.Views["sonarr"].Versions = []string{"tv-2160p", "tv-copy"}
+		now := ms(testNow)
+		e.exec(`INSERT INTO episode (id, title_id, season, number, name, monitored, created_at, updated_at) VALUES
+			(201, 10, 2, 1, 'Two', 0, ?, ?), (202, 10, 2, 2, 'Two b', 0, ?, ?)`, now, now, now, now)
+		e.exec(`UPDATE version SET monitored = 0 WHERE id = 10`)
+		e.exec(`UPDATE episode_version_state SET monitored = 0 WHERE version_id = 10 AND episode_id = 102`)
+		e.exec(`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, updated_at)
+			SELECT 10, id, 0, 'wanted', 0 FROM episode WHERE id IN (201, 202)`)
+		e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at)
+			VALUES (20, 10, 'tv-copy', 0, 'wanted', 0, 0)`)
+		e.exec(`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, updated_at)
+			SELECT 20, id, 0, 'wanted', 0 FROM episode WHERE title_id = 10`)
+		e.start()
+		return e
+	}
 	path := "/sonarr/api/v3/series/" + strconv.Itoa(IDBase+10)
-	copyOn := func() string {
+	states := func(e *env, version int) string {
 		return e.str(`SELECT group_concat(episode_id || ':' || monitored, ',') FROM (SELECT episode_id, monitored
-			FROM episode_version_state WHERE version_id = 20 AND episode_id IN (101, 102, 103) ORDER BY episode_id)`)
+			FROM episode_version_state WHERE version_id = ? AND episode_id IN (101, 102, 103, 201, 202)
+			ORDER BY episode_id)`, version)
 	}
-	var s map[string]any
-	e.call("GET", path, nil, 200, &s)
-	if s["monitored"] != false || !seasonsOf(t, s)[1] {
-		t.Fatalf("series before %v %v", s["monitored"], seasonsOf(t, s))
+	const was10, was20 = "101:1,102:0,103:1,201:0,202:0", "101:0,102:0,103:0,201:0,202:0"
+	put := func(e *env, edit func(s map[string]any)) {
+		var s map[string]any
+		e.call("GET", path, nil, 200, &s)
+		if s["monitored"] != false || seasonsOf(t, s)[1] {
+			t.Fatalf("series before %v %v", s["monitored"], seasonsOf(t, s))
+		}
+		s["monitored"] = true
+		edit(s)
+		e.call("PUT", path, s, 202, nil)
 	}
-	e.call("PUT", path, s, 202, nil)
-	if got := copyOn(); got != "101:0,102:0,103:0" {
-		t.Errorf("echo of the unmonitored series changed tv-copy: %s", got)
+	season := func(s map[string]any, n int, on bool) {
+		for _, x := range s["seasons"].([]any) {
+			if se := x.(map[string]any); se["seasonNumber"].(float64) == float64(n) {
+				se["monitored"] = on
+			}
+		}
 	}
-	e.call("GET", path, nil, 200, &s)
-	s["monitored"] = true
-	e.call("PUT", path, s, 202, nil)
-	if got := copyOn(); got != "101:1,102:1,103:1" {
-		t.Errorf("requested season not on tv-copy: %s", got)
+
+	// A series toggle (Ruddarr): no episode choice changes.
+	e := setup()
+	put(e, func(map[string]any) {})
+	if got10, got20 := states(e, 10), states(e, 20); got10 != was10 || got20 != was20 {
+		t.Errorf("toggle changed episodes: tv-2160p %s, tv-copy %s", got10, got20)
+	}
+	// Seerr requests season 2: both libraries take it, season 1 stays as it was.
+	e = setup()
+	put(e, func(s map[string]any) { season(s, 2, true) })
+	if got10, got20 := states(e, 10), states(e, 20); got10 != "101:1,102:0,103:1,201:1,202:1" ||
+		got20 != "101:0,102:0,103:0,201:1,202:1" {
+		t.Errorf("season 2 request: tv-2160p %s, tv-copy %s", got10, got20)
+	}
+	// Season 1 sent off while turning the series on: tv-copy's season 1 stays off.
+	e = setup()
+	put(e, func(s map[string]any) { season(s, 1, false) })
+	if got20 := states(e, 20); got20 != was20 {
+		t.Errorf("season 1 off: tv-copy %s", got20)
 	}
 }
