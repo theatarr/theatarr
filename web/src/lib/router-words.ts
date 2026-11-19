@@ -36,6 +36,7 @@ const CODES: Record<string, string> = {
   cached_first: "cached on another provider first",
   add_unsettled: "add not settled yet",
   held_unread: "held, not readable yet",
+  held_error: "a failed copy is on the account; delete it under Torrents to use this provider",
   download_moved_on: "the download moved on",
   reconciled: "settled from the account",
   upgrades_off: "upgrades are off",

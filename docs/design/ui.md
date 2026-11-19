@@ -797,7 +797,8 @@ Rejection reasons (`rejection-words.ts`: "DiskHigherPreference" reads "The file 
 "Next" line, "Limited release"), anime formats, mapping statuses, roles, sources and order kinds (`anime-words.ts`:
 "TVDB_SPECIAL" reads "TVDB special", "heuristic" "Matched by date and title"), the router's attempt outcomes, step
 codes, cache states and sources and back-off subjects (`router-words.ts`: "uncached_deleted" reads "not cached, our
-add deleted", "router:miss" "from a search that found it nowhere"), torrent states and the torrents journal
+add deleted", "held_error" "a failed copy is on the account; delete it under Torrents to use this provider",
+"router:miss" "from a search that found it nowhere"), torrent states and the torrents journal
 (`torrent-words.ts`: "downloaded" reads "Complete", "backup ok" "Backed up", "schedule" "Scheduled"), and job kinds
 (`jobs.ts`). A code no map knows reads as itself made readable (underscores and camel case to words, sentence case:
 "some_new_code" reads "Some new code"), never blank. Where an admin may need the code, it stays as the element's

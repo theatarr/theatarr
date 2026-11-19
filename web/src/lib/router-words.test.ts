@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { attemptMessageWords, providerAnswersWords } from "./router-words";
+import { attemptCodeWords, attemptMessageWords, providerAnswersWords } from "./router-words";
 
 it("words the attempt messages that name a setting by its key", () => {
   expect(attemptMessageWords("min_gap 20s since the last add")).toBe("Waiting for the 20 s minimum gap between adds");
@@ -20,4 +20,8 @@ it("words what each provider answered for a failed release, the 451 and file-nam
   expect(w.line).toBe("RD: a file name Real-Debrid refuses · AD: the provider refuses this title · TB: not cached");
   expect(w.full.split("\n")[0]).toBe("RD: a file name Real-Debrid refuses (a file name RD refuses)");
   expect(providerAnswersWords(undefined)).toEqual({ line: "", full: "" });
+});
+
+it("words a provider that holds only a failed copy", () => {
+  expect(attemptCodeWords("held_error")).toBe("a failed copy is on the account; delete it under Torrents to use this provider");
 });
