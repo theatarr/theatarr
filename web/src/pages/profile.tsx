@@ -115,7 +115,7 @@ function PasswordForm() {
           <Input id="pw-again" type="password" autoComplete="new-password" minLength={12} required value={again} onChange={(e) => setAgain(e.target.value)} />
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit" disabled={change.isPending}>{change.isPending ? <Loader2 className="animate-spin" /> : null} Change password</Button>
+          <Button type="submit" disabled={change.isPending || !current || !next || !again}>{change.isPending ? <Loader2 className="animate-spin" /> : null} Change password</Button>
           {msg ? <span className={msg.ok ? "text-sm text-[var(--ok-ink)]" : "text-sm text-[var(--bad-ink)]"}>{msg.text}</span> : null}
         </div>
       </form>

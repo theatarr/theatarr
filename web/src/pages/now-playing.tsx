@@ -46,20 +46,13 @@ export function NowPlayingPage() {
         }
         actions={data?.updated_at ? <span className="text-sm text-muted-foreground">Updated {fmtAgo(data.updated_at)}</span> : null}
       />
-      {perms.admin ? (
-        <>
-          <RcloneConnection />
-          <p className="-mt-2 mb-4 text-sm">
-            <Link className="text-[var(--accent-ink)] hover:underline" to={settingHref("library", "mount")!}>rclone remote control settings</Link>
-          </p>
-        </>
-      ) : null}
+      {perms.admin ? <RcloneConnection /> : null}
       {q.isLoading ? <Loading /> : null}
       {q.error ? <ErrorState error={q.error} /> : null}
       {data && !data.enabled ? (
         <Empty icon={MonitorPlay}>
           {perms.admin ? (
-            <>Now playing is off. Set up Plex in <Link to={settingHref("library", "plex")!}>Plex &amp; playback</Link> (Plex server: address and token, Now playing on).</>
+            <>Now playing is off. Set up Plex in <Link className="text-[var(--accent-ink)] underline underline-offset-2" to={settingHref("library", "plex")!}>Plex &amp; playback</Link> (Plex server: address and token, Now playing on).</>
           ) : (
             "Now playing is off. Ask an administrator to set up Plex."
           )}

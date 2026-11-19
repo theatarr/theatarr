@@ -374,7 +374,10 @@ describe("Bulk Tags…", () => {
     await user.click(await within(await bar()).findByRole("button", { name: "Tags…" }));
     const dialog = await screen.findByRole("dialog", { name: "Tags for 5 titles" });
     expect(within(dialog).getByLabelText("Add a tag")).toBeTruthy();
+    expect(within(dialog).getByTestId("tag-add").textContent).toBe("Add");
     await user.click(within(dialog).getByTestId("bulk-tags-remove"));
+    // Staging a label to remove is choosing it, not adding it.
+    expect(within(dialog).getByTestId("tag-add").textContent).toBe("Choose");
     // The box names what it does in remove mode.
     const box = within(dialog).getByLabelText("Tag to remove");
     expect(box.getAttribute("placeholder")).toBe("Tag to remove");

@@ -34,7 +34,7 @@ function useSpelling(own: string[] = []): (tag: string) => string {
 
 /** The box that adds a label: Enter or Add puts what is typed (trimmed, lower-case) through onAdd; a label outside
  *  the rule is refused with the rule's words as it is typed. The dialog holds the text (draftOf). */
-export function TagBox({ text, onText, onAdd, label = "Add a tag" }: { text: string; onText: (t: string) => void; onAdd: (tag: string) => void; label?: string }) {
+export function TagBox({ text, onText, onAdd, label = "Add a tag", action = "Add" }: { text: string; onText: (t: string) => void; onAdd: (tag: string) => void; label?: string; action?: string }) {
   const list = useId();
   const labels = useTagLabels(true);
   const { tag, bad } = draftOf(text);
@@ -54,7 +54,7 @@ export function TagBox({ text, onText, onAdd, label = "Add a tag" }: { text: str
               add();
             }
           }} data-testid="tag-input" />
-        <Button variant="outline" size="sm" className="h-8" disabled={tag === "" || bad} onClick={add} data-testid="tag-add">Add</Button>
+        <Button variant="outline" size="sm" className="h-8" disabled={tag === "" || bad} onClick={add} data-testid="tag-add">{action}</Button>
       </div>
       <datalist id={list}>
         {(labels.data?.tags ?? []).map((l) => <option key={l} value={l} />)}
@@ -225,7 +225,7 @@ export function BulkTagsDialog({ titleIds, onClose, onDone }: { titleIds: number
             {radio("remove", "Remove from these titles")}
           </div>
           <TagChips tags={chosen.map(spell)} empty={draft.tag && !draft.bad ? "" : "No tags chosen"} onRemove={unchip} />
-          <TagBox text={text} onText={setText} onAdd={(g) => setTags((ts) => (ts.includes(g) ? ts : [...ts, g]))} label={add ? "Add a tag" : "Tag to remove"} />
+          <TagBox text={text} onText={setText} onAdd={(g) => setTags((ts) => (ts.includes(g) ? ts : [...ts, g]))} label={add ? "Add a tag" : "Tag to remove"} action={add ? "Add" : "Choose"} />
           <p className="text-xs text-[var(--ink-3)]" data-testid="bulk-tags-help">{BULK_TAGS_HELP}</p>
         </div>
       }

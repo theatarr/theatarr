@@ -429,7 +429,8 @@ export function Catalog({ id }: { id: CatalogId }) {
                   Select all {total} matches
                 </button>
               ) : null}
-              <button type="button" className="text-[var(--accent-ink)] hover:underline" onClick={() => select.all(false)}>Clear selection</button>
+              {/* Only with something to clear: a selection, or a Select all still loading (Clear cancels it). */}
+              {chosen.size > 0 || loadingAll ? <button type="button" className="text-[var(--accent-ink)] hover:underline" onClick={() => select.all(false)}>Clear selection</button> : null}
             </div>
           ) : null}
           {view === "table" ? (

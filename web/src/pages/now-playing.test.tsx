@@ -36,3 +36,20 @@ describe("Now playing with a Plex error", () => {
     expect(screen.queryByText("playbacks")).toBeNull();
   });
 });
+
+describe("Now playing's settings links", () => {
+  it("gives a configured rclone connection one Edit, and the Plex link looks like a link", async () => {
+    mockFetch([
+      { method: "GET", path: "/auth/me", reply: { id: 9, username: "owner", permissions: ["browse", "see_files", "manage", "admin"], csrf_token: "t" } },
+      { method: "GET", path: "/nowplaying", reply: { enabled: false, sessions: [] } },
+      { method: "GET", path: "/settings/sections", reply: { source: "db", generation: 1, sections: [{ key: "library", live: true, config: { mount: { rclone_rc: { url: "http://10.0.0.5:5572" } } }, yaml: "", secrets: [] }] } },
+    ]);
+    renderPage(<NowPlayingPage />, "/now-playing");
+    expect(await screen.findByText(/rclone remote control at 10\.0\.0\.5:5572/)).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "Edit" })).toHaveLength(1);
+    expect(screen.queryByRole("link", { name: "rclone remote control settings" })).toBeNull();
+    const plex = screen.getByRole("link", { name: "Plex & playback" });
+    expect(plex.className).toContain("text-[var(--accent-ink)]");
+    expect(plex.className).toContain("underline");
+  });
+});

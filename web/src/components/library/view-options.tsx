@@ -13,7 +13,7 @@ const SIZES: PosterSize[] = ["small", "medium", "large"];
 
 export function PosterOptions({ catalog, prefs, seeFiles, onChange, onClose }: { catalog?: CatalogId; prefs: PosterPrefs; seeFiles: boolean; onChange: (p: PosterPrefs) => void; onClose: () => void }) {
   return (
-    <OptionsDialog label="Poster options" note="Choose the size and what shows under each poster. The status bar and the library lines always show." onClose={onClose}>
+    <OptionsDialog label="Poster options" note={seeFiles ? "Choose the size and what shows under each poster. The status bar and the library lines always show." : "Choose the size and what shows under each poster."} onClose={onClose}>
       <div>
         <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.05em] text-[var(--ink-3)]">Poster size</div>
         <div role="group" aria-label="Poster size" className="flex gap-2">

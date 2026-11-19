@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Catalog } from "./catalog";
 import { Toaster } from "@/components/toaster";
 import { searchOff } from "@/components/library/title-table";
+import { PosterOptions } from "@/components/library/view-options";
 import { expectNamedControls, mockFetch, renderPage } from "@/test/page";
 
 // The lists open the shell's search overlay; the provider lives in the shell, so the context is stubbed here.
@@ -1190,6 +1191,19 @@ describe("Row actions", () => {
     expect((within(card).getByRole("button", { name: "Search now, Copper Sky" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it("offers Clear selection only while something is selected", async () => {
+    mockFetch(movieRoutes());
+    const user = userEvent.setup();
+    renderPage(<Catalog id="movies" />, "/movies");
+    await screen.findAllByText("Sundial");
+    await user.click(screen.getByRole("button", { name: "Select" }));
+    expect(screen.queryByRole("button", { name: "Clear selection" })).toBeNull();
+    await user.click(screen.getByRole("checkbox", { name: "Select Sundial" }));
+    await user.click(screen.getByRole("button", { name: "Clear selection" }));
+    expect(screen.queryByRole("button", { name: "Clear selection" })).toBeNull();
+    expect(screen.queryAllByRole("checkbox", { checked: true })).toHaveLength(0);
+  });
+
   it("puts the same buttons, with their words, at the end of a phone card", async () => {
     vi.stubGlobal("matchMedia", (q: string) => ({ matches: !q.includes("min-width"), media: q, addEventListener() {}, removeEventListener() {} }));
     mockFetch(movieRoutes());
@@ -1198,6 +1212,18 @@ describe("Row actions", () => {
     const card = screen.getByRole("link", { name: "Copper Sky" }).closest("li") as HTMLElement;
     expect(within(card).getByRole("button", { name: "Search now, Copper Sky" }).textContent).toBe("Search now");
     expect(within(card).getByRole("button", { name: "Interactive search, Copper Sky" }).textContent).toBe("Interactive search");
+  });
+});
+
+describe("Poster options' words", () => {
+  it("mentions the status bar and library lines only to accounts that see them", () => {
+    const prefs = { size: "medium" as const, details: [] };
+    const first = renderPage(<PosterOptions catalog="movies" prefs={prefs} seeFiles={false} onChange={() => {}} onClose={() => {}} />);
+    expect(screen.getByText("Choose the size and what shows under each poster.")).toBeTruthy();
+    expect(screen.queryByText(/status bar/)).toBeNull();
+    first.unmount();
+    renderPage(<PosterOptions catalog="movies" prefs={prefs} seeFiles onChange={() => {}} onClose={() => {}} />);
+    expect(screen.getByText("Choose the size and what shows under each poster. The status bar and the library lines always show.")).toBeTruthy();
   });
 });
 

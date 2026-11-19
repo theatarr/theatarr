@@ -156,8 +156,9 @@ source, fetch and pre-warm, the cause detail, zurg's stream count and the rclone
 playbacks, matched on the Plex account linked to their Theatarr account (plex.tv id or name), with the verdict and cause
 but no detail, and of the source only the title (for the link to its page). Plex's error text is replaced by "Plex
 does not answer". While the tracker is off the answer is `{"enabled": false, "sessions": []}` and the page says what
-turns it on: admins get the link to Plex & playback, everyone else is told to ask an administrator (the settings
-page is admin-only).
+turns it on: admins get the link to Plex & playback (styled as a link), everyone else is told to ask an administrator
+(the settings page is admin-only). Admins edit the rclone remote control in the one line at the top ("rclone remote
+control at <host> · Edit"); there is no second link to its settings.
 
 Admins also get a **Now playing** card at the top of Home (`web/src/components/now-playing-card.tsx`): one line per
 playback (what, who, player, position, health badge), each linked to the page. It shows nothing while the feature is
