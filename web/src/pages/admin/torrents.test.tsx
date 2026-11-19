@@ -26,7 +26,7 @@ const plan = (override: boolean) => ({
   items: [
     { provider: "rd", id: "1", hash: h1, name: "Unused.Movie", bytes: 1024, usage: "unused", action: "delete" },
     override
-      ? { provider: "rd", id: "2", hash: h2, name: "Used.Movie", bytes: 1024, usage: "used", action: "delete", override: true, override_token: "o1-x" }
+      ? { provider: "rd", id: "2", hash: h2, name: "Used.Movie", bytes: 1024, usage: "used", action: "delete", override: true, override_token: "o1-x", expected_override_token: "o1-x", refs: { link: 1 }, ref_list: [{ kind: "link", detail: "/lib/Used.mkv" }] }
       : { provider: "rd", id: "2", hash: h2, name: "Used.Movie", bytes: 1024, usage: "used", action: "refuse", refusal: "used: referenced by 1 link", needs_override: true, expected_override_token: "o1-x", refs: { link: 1 }, ref_list: [{ kind: "link", detail: "/lib/Used.mkv" }] },
   ],
   count: override ? 2 : 1, bytes: override ? 2048 : 1024, refused: override ? 0 : 1, digest: "d", confirmation_token: override ? "d1-2" : "d1-1",
@@ -244,7 +244,7 @@ describe("torrents page", () => {
     fireEvent.click(screen.getByLabelText("Select all shown"));
     fireEvent.click(screen.getByTestId("delete-selected"));
     expect(await screen.findByRole("heading", { name: /Delete 1 torrent/ })).toBeTruthy();
-    expect(screen.getByText("A full backup of every provider is taken first")).toBeTruthy();
+    expect(screen.getByText("A backup is taken first. If a torrent due for deletion can't be backed up, nothing is deleted.")).toBeTruthy();
     expect(screen.getByTestId("refused-item").textContent).toContain("/lib/Used.mkv");
     fireEvent.click(screen.getByTestId("override"));
     await waitFor(() => expect(screen.getByRole("heading", { name: /Delete 2 torrents/ })).toBeTruthy());
@@ -255,6 +255,130 @@ describe("torrents page", () => {
     const sent = api.calls("POST", "/torrents/delete");
     expect(sent).toHaveLength(1);
     expect((sent[0].body as { confirmation_token: string }).confirmation_token).toBe("d1-2");
+  });
+
+  it("keeps an overridden row listed with its checkbox; untick, tick and Confirm send exactly the last preview's set", async () => {
+    const api = mockFetch([
+      { method: "GET", path: "/torrents/report", reply: report },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+      { method: "POST", path: "/torrents/delete/preview", reply: (r: { body?: { items: { override?: boolean }[] } }) => plan(!!r.body?.items.some((i) => i.override)) },
+      { method: "POST", path: "/torrents/delete", reply: { ...plan(false), backup_id: "b", deleted: 1 } },
+    ]);
+    renderPage(<TorrentsPage />);
+    await screen.findByText("Used.Movie");
+    fireEvent.click(screen.getByLabelText("Select all shown"));
+    fireEvent.click(screen.getByTestId("delete-selected"));
+    await screen.findByRole("heading", { name: /Delete 1 torrent/ });
+    // Nothing chosen was added in the last day: the recent choice is not offered.
+    expect(screen.queryByTestId("allow-recent")).toBeNull();
+    fireEvent.click(screen.getByTestId("override"));
+    await screen.findByRole("heading", { name: /Delete 2 torrents/ });
+    // The overridden torrent is still listed, ticked, with its references.
+    expect(screen.getByTestId("refused-item").textContent).toContain("Used.Movie");
+    expect((screen.getByTestId("override") as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByTestId("override"));
+    await screen.findByRole("heading", { name: /Delete 1 torrent/ });
+    expect((screen.getByTestId("override") as HTMLInputElement).checked).toBe(false);
+    fireEvent.click(screen.getByTestId("confirm-ok"));
+    await screen.findByTestId("confirm-done");
+    const sent = api.calls("POST", "/torrents/delete")[0].body as { items: unknown[]; confirmation_token: string };
+    expect(sent).toEqual({ items: [{ provider: "rd", id: "1", hash: h1 }, { provider: "rd", id: "2", hash: h2 }], confirmation_token: "d1-1" });
+    // Done: the recent and override choices are gone.
+    expect(screen.queryByTestId("allow-recent")).toBeNull();
+    expect(screen.queryByTestId("override")).toBeNull();
+  });
+
+  it("takes only the newest preview: a slow earlier answer arriving late is ignored, and Confirm waits for a pending one", async () => {
+    const waiting: (() => void)[] = [];
+    let n = 0;
+    const api = mockFetch([
+      { method: "GET", path: "/torrents/report", reply: report },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+      { method: "POST", path: "/torrents/delete/preview", reply: (r: { body?: { items: { override?: boolean }[] } }) => {
+        const p = plan(!!r.body?.items.some((i) => i.override));
+        // The second preview (the tick) answers only when released; the others at once.
+        return ++n === 2 ? new Promise((res) => waiting.push(() => res(p))) : p;
+      } },
+      { method: "POST", path: "/torrents/delete", reply: { ...plan(false), backup_id: "b", deleted: 1 } },
+    ]);
+    renderPage(<TorrentsPage />);
+    await screen.findByText("Used.Movie");
+    fireEvent.click(screen.getByLabelText("Select all shown"));
+    fireEvent.click(screen.getByTestId("delete-selected"));
+    await screen.findByRole("heading", { name: /Delete 1 torrent/ });
+    fireEvent.click(screen.getByTestId("override"));
+    await waitFor(() => expect(waiting).toHaveLength(1));
+    expect((screen.getByTestId("confirm-ok") as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByTestId("override"));
+    await waitFor(() => expect(api.calls("POST", "/torrents/delete/preview")).toHaveLength(3));
+    await waitFor(() => expect((screen.getByTestId("confirm-ok") as HTMLButtonElement).disabled).toBe(false));
+    waiting[0]();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.getByRole("heading", { name: /Delete 1 torrent/ })).toBeTruthy();
+    expect((screen.getByTestId("override") as HTMLInputElement).checked).toBe(false);
+    fireEvent.click(screen.getByTestId("confirm-ok"));
+    await screen.findByTestId("confirm-done");
+    expect(api.calls("POST", "/torrents/delete")[0].body).toEqual({ items: [{ provider: "rd", id: "1", hash: h1 }, { provider: "rd", id: "2", hash: h2 }], confirmation_token: "d1-1" });
+  });
+
+  it("tick all that have another complete copy ticks only those; a used and recent torrent offers both choices", async () => {
+    const h3 = "3".repeat(40), h4 = "4".repeat(40);
+    const rep = { ...report, providers: [{ ...report.providers[0], torrents: [torrent("2", h2, "Used.Movie", "used"), torrent("3", h3, "Copy.Movie", "used"), torrent("4", h4, "Lone.Movie", "used")] }] };
+    const refs = Array.from({ length: 18 }, (_, i) => ({ kind: "link", detail: `/lib/E${i + 1}.mkv` }));
+    const item = (id: string, hash: string, name: string, tok: string, sent: Record<string, string>, extra = {}) =>
+      sent[`rd:${id}`] === tok
+        ? { provider: "rd", id, hash, name, bytes: 1, usage: "used", action: "delete", override: true, override_token: tok, expected_override_token: tok, refs: { link: 18 }, ref_list: refs, ...extra }
+        : { provider: "rd", id, hash, name, bytes: 1, usage: "used", action: "refuse", refusal: "used: referenced by 18 links", needs_override: true, expected_override_token: tok, refs: { link: 18 }, ref_list: refs, ...extra };
+    const api = mockFetch([
+      { method: "GET", path: "/torrents/report", reply: rep },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+      { method: "POST", path: "/torrents/delete/preview", reply: (r: { body?: { items: { id: string; override_token?: string }[] } }) => {
+        const sent = Object.fromEntries((r.body?.items ?? []).filter((i) => i.override_token).map((i) => [`rd:${i.id}`, i.override_token as string]));
+        const items = [
+          item("2", h2, "Used.Movie", "o2", sent, { surviving_copy: "12" }),
+          item("3", h3, "Copy.Movie", "o3", sent, { surviving_copy: "13" }),
+          item("4", h4, "Lone.Movie", "o4", sent, { needs_recent: true }),
+        ];
+        const count = items.filter((i) => i.action === "delete").length;
+        return { items, count, bytes: count, refused: 3 - count, digest: "d", confirmation_token: `d1-${count}`, warning: "", deleted: 0, failed: 0 };
+      } },
+    ]);
+    renderPage(<TorrentsPage />);
+    await screen.findByText("Lone.Movie");
+    fireEvent.click(screen.getByLabelText("Select all shown"));
+    fireEvent.click(screen.getByTestId("delete-selected"));
+    await screen.findByRole("heading", { name: /Delete 0 torrents/ });
+    expect(screen.getAllByTestId("surviving-copy").map((x) => x.textContent)).toEqual(["Another complete copy stays on RD.", "Another complete copy stays on RD."]);
+    // The used and recent torrent: its override and the recent choice both show.
+    expect(screen.getByTestId("allow-recent")).toBeTruthy();
+    expect(screen.getAllByTestId("override")).toHaveLength(3);
+    // Three references, the rest folded.
+    expect(screen.getAllByTestId("override-refs")[0].querySelectorAll(":scope > ul > li")).toHaveLength(3);
+    expect(screen.getAllByTestId("override-refs-more")[0].textContent).toBe("and 15 more");
+    fireEvent.click(screen.getByTestId("override-all-copies"));
+    await screen.findByRole("heading", { name: /Delete 2 torrents/ });
+    const last = () => api.calls("POST", "/torrents/delete/preview").at(-1)?.body as { items: { id: string; override?: boolean }[] };
+    expect(last().items.filter((i) => i.override).map((i) => i.id)).toEqual(["2", "3"]);
+    expect((screen.getByTestId("override-all-copies") as HTMLInputElement).checked).toBe(true);
+    expect(screen.getAllByTestId("override").map((x) => (x as HTMLInputElement).checked)).toEqual([true, true, false]);
+    fireEvent.click(screen.getByTestId("override-all-copies"));
+    await screen.findByRole("heading", { name: /Delete 0 torrents/ });
+    expect(last().items.filter((i) => i.override)).toEqual([]);
+    expect(screen.getByTestId("confirm-blocked").textContent).toBe("Nothing chosen can be deleted as it is.");
+  });
+
+  it("says how many chosen torrents the filter hides", async () => {
+    mockFetch([
+      { method: "GET", path: "/torrents/report", reply: report },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+      { method: "POST", path: "/torrents/delete/preview", reply: plan(false) },
+    ]);
+    renderPage(<TorrentsPage />);
+    await screen.findByText("Used.Movie");
+    fireEvent.click(screen.getByLabelText("Select all shown"));
+    fireEvent.click(screen.getByTestId("group-unused"));
+    fireEvent.click(screen.getByTestId("delete-selected"));
+    expect((await screen.findByTestId("chosen-outside")).textContent).toBe("1 chosen torrent is outside the current filter.");
   });
 
   it("names a refused torrent by its selected name when the provider could not be listed", async () => {

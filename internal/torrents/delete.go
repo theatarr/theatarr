@@ -6,7 +6,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -63,8 +65,12 @@ type DeleteItem struct {
 	NeedsRecent   bool   `json:"needs_recent,omitempty"`
 	// ExpectedOverride is the override token this item needs (set when it is used or unknown).
 	ExpectedOverride string `json:"expected_override_token,omitempty"`
-	Outcome          string `json:"outcome,omitempty"`
-	Error            string `json:"error,omitempty"`
+	// SurvivingCopy is the id of another complete entry of the same hash on the same account, outside the selection,
+	// with the same file selection where the list shows one (sameSelection): the copy that stays. Shown only; the
+	// override is still needed.
+	SurvivingCopy string `json:"surviving_copy,omitempty"`
+	Outcome       string `json:"outcome,omitempty"`
+	Error         string `json:"error,omitempty"`
 	// Note says how a delete was settled when the provider's answer alone did not say (TorBox's 500 for a gone id).
 	Note string `json:"note,omitempty"`
 }
@@ -88,8 +94,7 @@ type DeletePlan struct {
 }
 
 // DeleteWarning is the plan's warning.
-const DeleteWarning = "A full backup of every provider is taken first; a deleted torrent can be re-added from it " +
-	"while the provider still holds the content."
+const DeleteWarning = "A backup is taken first. If a torrent due for deletion can't be backed up, nothing is deleted."
 
 // ErrTooMany: more selections than MaxDelete.
 var ErrTooMany = fmt.Errorf("torrents: at most %d torrents per delete", MaxDelete)
@@ -118,6 +123,7 @@ func (m *Manager) planDelete(ctx context.Context, sel []DeleteSelection, lists m
 	listErr := map[string]error{}
 	now := m.now()
 	seen := map[string]bool{}
+	fresh := map[int]bool{} // the items found on a fresh list with the hash selected
 	for _, s := range sel {
 		it := DeleteItem{DeleteSelection: s, Action: ActRefuse}
 		it.Hash = strings.ToLower(strings.TrimSpace(s.Hash))
@@ -156,6 +162,7 @@ func (m *Manager) planDelete(ctx context.Context, sel []DeleteSelection, lists m
 		}
 		seen[key] = true
 		if found && it.Refusal == "" {
+			fresh[len(plan.Items)] = true
 			it.Hash = indexer.NormalizeHash(t.Hash)
 			it.Name, it.Bytes, it.Added, it.State = t.Name, t.Bytes, t.Added, t.State
 			it.Usage, it.Refs, it.RefList, it.Reasons, err = m.deleteUsage(ctx, s.Provider, t, ix,
@@ -168,6 +175,8 @@ func (m *Manager) planDelete(ctx context.Context, sel []DeleteSelection, lists m
 			}
 			recent := t.Added.IsZero() || now.Sub(t.Added) < YoungAfter
 			busy := t.State == provider.StateQueued || t.State == provider.StateDownloading
+			// Said before the usage refusal too, so a used and recent torrent shows both at once.
+			it.NeedsRecent = (recent || busy) && !s.AllowRecent
 			switch {
 			case it.Usage != Unused && !s.Override:
 				it.NeedsOverride = true
@@ -176,8 +185,7 @@ func (m *Manager) planDelete(ctx context.Context, sel []DeleteSelection, lists m
 				it.NeedsOverride = true
 				it.Refusal = "the override does not name this torrent's references as they are now: " +
 					describe(it.Refs, it.Reasons)
-			case (recent || busy) && !s.AllowRecent:
-				it.NeedsRecent = true
+			case it.NeedsRecent:
 				it.Refusal = "added in the last 24 hours (or the date is unknown)"
 				if busy {
 					it.Refusal = "still downloading"
@@ -194,9 +202,60 @@ func (m *Manager) planDelete(ctx context.Context, sel []DeleteSelection, lists m
 		}
 		plan.Items = append(plan.Items, it)
 	}
+	chosen := map[string]bool{}
+	for _, s := range sel {
+		chosen[s.Provider+"\x00"+s.ID] = true
+	}
+	for i := range plan.Items {
+		it := &plan.Items[i]
+		if fresh[i] {
+			it.SurvivingCopy = survivingCopy(plan.lists[it.Provider], it.Provider, it.ID, chosen)
+		}
+	}
 	digest, token := deleteToken(plan)
 	plan.Digest, plan.Token = digest, callerToken(ctx, "d2-", token)
 	return plan, nil
+}
+
+// survivingCopy is the id of another complete entry of id's hash in its account's list, outside the selection
+// (chosen), with the same file selection; "" without one.
+func survivingCopy(list []provider.Torrent, prov, id string, chosen map[string]bool) string {
+	var t *provider.Torrent
+	for i := range list {
+		if list[i].ID == id {
+			t = &list[i]
+			break
+		}
+	}
+	if t == nil || indexer.NormalizeHash(t.Hash) == "" {
+		return ""
+	}
+	for _, o := range list {
+		if o.ID != id && !chosen[prov+"\x00"+o.ID] && o.State == provider.StateDownloaded &&
+			indexer.NormalizeHash(o.Hash) == indexer.NormalizeHash(t.Hash) && sameSelection(*t, o) {
+			return o.ID
+		}
+	}
+	return ""
+}
+
+// sameSelection: two entries of one hash select the same files, as far as the list shows: the same size (Real-Debrid
+// reports the size of the selected files) and, when the list gives files (TorBox), the same selected paths.
+func sameSelection(a, b provider.Torrent) bool {
+	if a.Bytes != b.Bytes || (a.Files == nil) != (b.Files == nil) {
+		return false
+	}
+	sel := func(t provider.Torrent) []string {
+		var out []string
+		for _, f := range t.Files {
+			if f.Selected {
+				out = append(out, f.Path)
+			}
+		}
+		sort.Strings(out)
+		return out
+	}
+	return slices.Equal(sel(a), sel(b))
 }
 
 func describe(refs map[string]int, reasons []string) string {
@@ -204,12 +263,24 @@ func describe(refs map[string]int, reasons []string) string {
 		var parts []string
 		for _, k := range []string{RefLink, RefDownload, RefScan} {
 			if n := refs[k]; n > 0 {
-				parts = append(parts, fmt.Sprintf("%d %s", n, k))
+				parts = append(parts, plural(n, k))
 			}
 		}
 		return "referenced by " + strings.Join(parts, ", ")
 	}
 	return strings.Join(reasons, "; ")
+}
+
+// plural is "1 link", "18 links", "2,946 torrents".
+func plural(n int, what string) string {
+	s := strconv.Itoa(n)
+	for i := len(s) - 3; i > 0 && s[i-1] != '-'; i -= 3 {
+		s = s[:i] + "," + s[i:]
+	}
+	if n != 1 {
+		what += "s"
+	}
+	return s + " " + what
 }
 
 // overrideToken names a used or unknown torrent's references: an override is valid only for them.

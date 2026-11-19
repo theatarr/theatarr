@@ -201,22 +201,25 @@ export function deleteSelection(chosen: Torrent[], overrides: Record<string, str
   });
 }
 
-/** The delete confirmation: count, size, the backup it takes first, the warning, and what is refused. */
+/** What a delete guarantees about its backup (the server's warning, internal/torrents DeleteWarning): the backup must
+ *  hold every torrent due for deletion with its file selection, or nothing is deleted. */
+export const BACKUP_FIRST = "A backup is taken first. If a torrent due for deletion can't be backed up, nothing is deleted.";
+
+/** The delete confirmation: count, size, the backup it takes first, and what is refused. */
 export function deleteScope(p: DeletePlan): Scope {
   const n = p.count;
   return {
     title: `Delete ${fmtNumber(n)} torrent${n === 1 ? "" : "s"} (${fmtBytes(p.bytes)})`,
     does: [
-      "Take a full backup of every provider first; if it fails, nothing is deleted",
+      BACKUP_FIRST,
       `Delete ${fmtNumber(n)} torrent${n === 1 ? "" : "s"} from the provider, one by one, each written to the torrent journal`,
-      p.warning,
     ],
     keeps: [
       p.refused > 0 ? `${fmtNumber(p.refused)} chosen torrent${p.refused === 1 ? " is" : "s are"} refused and kept (see below)` : "Every torrent you did not choose",
       "Library links: nothing in the library is touched",
     ],
     confirm: `Delete ${fmtNumber(n)}`,
-    blocked: n === 0 ? "Nothing chosen can be deleted as it is: see why below." : undefined,
+    blocked: n === 0 ? "Nothing chosen can be deleted as it is." : undefined,
   };
 }
 

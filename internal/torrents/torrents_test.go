@@ -1010,6 +1010,74 @@ func TestDeleteOverrides(t *testing.T) {
 	}
 }
 
+// A refused used copy names another complete copy of its hash on the same account, outside the selection, with the
+// same file selection (RD: the size of the selected files; TorBox: the listed files); a copy on another account, one
+// still downloading, one with another selection or one also chosen never counts.
+func TestDeleteSurvivingCopy(t *testing.T) {
+	t.Parallel()
+	e := deleteFixture(t)
+	ctx := context.Background()
+	old := e.now.Add(-72 * time.Hour)
+	e.rd.list = append(e.rd.list,
+		tor("21", hA, "Movie.A.2020.1080p.WEB-DL", 100, old, provider.StateDownloaded),
+		tor("22", hA, "Movie.A.2020.1080p.WEB-DL", 50, old, provider.StateDownloaded), // another RD selection
+		tor("23", hA, "Movie.A.2020.1080p.WEB-DL", 100, old, provider.StateDownloading))
+	files := func(paths ...string) []provider.File {
+		var out []provider.File
+		for _, p := range paths {
+			out = append(out, provider.File{Path: p, Bytes: 1, Selected: true})
+		}
+		return out
+	}
+	e.tb.list = []provider.Torrent{
+		tor("90", hA, "Movie.A.2020.1080p.WEB-DL", 100, old, provider.StateDownloaded),
+		tor("91", hA, "Movie.A.2020.1080p.WEB-DL", 100, old, provider.StateDownloaded),
+		tor("92", hA, "Movie.A.2020.1080p.WEB-DL", 100, old, provider.StateDownloaded),
+	}
+	e.tb.list[0].Files, e.tb.list[1].Files, e.tb.list[2].Files = files("A/a.mkv"), files("A/a.mkv", "A/b.mkv"), files("A/a.mkv")
+	survivor := func(sel ...DeleteSelection) []string {
+		t.Helper()
+		plan, err := e.m.PlanDelete(ctx, sel)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, it := range plan.Items {
+			out = append(out, it.SurvivingCopy)
+		}
+		return out
+	}
+	if got := survivor(DeleteSelection{Provider: "rd", ID: "1", Hash: hA}); got[0] != "21" {
+		t.Errorf("the complete copy with the same selection survives: %q", got)
+	}
+	if got := survivor(DeleteSelection{Provider: "rd", ID: "1", Hash: hA}, DeleteSelection{Provider: "rd", ID: "21",
+		Hash: hA}); got[0] != "" || got[1] != "" {
+		t.Errorf("a copy also chosen does not survive: %q", got)
+	}
+	if got := survivor(DeleteSelection{Provider: "tb", ID: "90", Hash: hA}); got[0] != "92" {
+		t.Errorf("TorBox: the copy with the same files survives, not the one with more: %q", got)
+	}
+	e.rd.list = slices.DeleteFunc(e.rd.list, func(x provider.Torrent) bool { return x.ID == "21" })
+	if got := survivor(DeleteSelection{Provider: "rd", ID: "1", Hash: hA}); got[0] != "" {
+		t.Errorf("another selection, a copy still downloading or one on another account does not count: %q", got)
+	}
+}
+
+// A used torrent added in the last day needs both the override and allow_recent, and says so at once.
+func TestDeleteUsedAndRecent(t *testing.T) {
+	t.Parallel()
+	e := deleteFixture(t)
+	e.rd.list = append(e.rd.list, tor("24", hA, "Movie.A.2020.1080p.WEB-DL", 100, e.now.Add(-time.Hour),
+		provider.StateDownloaded))
+	plan, err := e.m.PlanDelete(context.Background(), []DeleteSelection{{Provider: "rd", ID: "24", Hash: hA}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if it := plan.Items[0]; !it.NeedsOverride || !it.NeedsRecent || it.Action != ActRefuse {
+		t.Errorf("used and recent: %+v", it)
+	}
+}
+
 func TestDeleteBackupFailsClosed(t *testing.T) {
 	t.Parallel()
 	e := deleteFixture(t)
@@ -1036,6 +1104,37 @@ func TestDeleteBackupFailsClosed(t *testing.T) {
 	e.m.Dir = "" // no backup directory: fails closed too
 	if _, err := e.m.Delete(ctx, sel, plan.Token, "admin"); !errors.Is(err, ErrBackupFailed) || e.ard.deleted != 0 {
 		t.Fatalf("no backup dir: %v, %d deleted", err, e.ard.deleted)
+	}
+}
+
+// The backup must hold every torrent due for deletion with its file selection; another account that cannot be read
+// does not stop the delete (DeleteWarning says exactly this).
+func TestDeleteBackupNeedsOnlyTheChosen(t *testing.T) {
+	t.Parallel()
+	e := deleteFixture(t)
+	ctx := context.Background()
+	sel := []DeleteSelection{{Provider: "rd", ID: "6", Hash: hF}}
+	plan, err := e.m.PlanDelete(ctx, sel)
+	if err != nil || plan.Count != 1 {
+		t.Fatal(plan, err)
+	}
+	if plan.Warning != "A backup is taken first. If a torrent due for deletion can't be backed up, nothing is deleted." {
+		t.Errorf("warning: %q", plan.Warning)
+	}
+	e.tb.listErr = errors.New("tb is down")
+	done, err := e.m.Delete(ctx, sel, plan.Token, "admin")
+	if err != nil || done.Deleted != 1 {
+		t.Fatalf("an unreadable other account: %v %+v", err, done)
+	}
+}
+
+// The references are counted with their plural.
+func TestDescribeCounts(t *testing.T) {
+	if got := describe(map[string]int{RefLink: 1}, nil); got != "referenced by 1 link" {
+		t.Errorf("one: %q", got)
+	}
+	if got := describe(map[string]int{RefLink: 18, RefDownload: 2, RefScan: 1}, nil); got != "referenced by 18 links, 2 downloads, 1 scan" {
+		t.Errorf("many: %q", got)
 	}
 }
 

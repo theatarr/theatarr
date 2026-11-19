@@ -377,14 +377,23 @@ or an admin's API key, which confirms like a session, as with settings; the toke
    preview listed them: the second confirmation names what is being overridden, and a new reference since the
    preview invalidates it.
 4. **Recent or busy:** a torrent added less than 24 hours ago (or with no date), or still queued or downloading, is
-   refused unless `allow_recent`.
+   refused unless `allow_recent`. `needs_recent` is said whatever the usage, so a used and recent torrent shows both
+   choices at once.
+
+   **The copy that stays:** an item found on the fresh list carries `surviving_copy`, the id of another complete
+   entry of the same hash on the same account, outside the selection, with the same file selection as far as the list
+   shows (the same size, which on Real-Debrid is the selected files' size, and the same selected paths where the list
+   gives files, as TorBox's does). A copy on another account never counts. It is shown only ("Another complete copy
+   stays on RD."); the override is still needed, and the token and the confirm-time replan are unchanged.
 5. **The confirmation** is bound to the exact set and the caller. The plan digest (`d1-<count>-<bytes>-<digest>`)
    covers count, total size and a digest of each deleted torrent's provider, id, hash, size, usage and flags. Any
    change answers 422 with the new preview. The token a preview returns (`d2-…`, restore `r2-…`) is bound to the caller: an HMAC, under a random key made once per process and never stored, of the caller's confirmer (`user:<id>` for a session, `key:<id>` for an API key) and the plan digest. Restore and delete plan again and compare against the HMAC for the current caller: no preview, no token; another key, another user or a session gets 422 (`ErrConfirmation`) from the same token; a revoked key cannot authenticate. After a restart or a changed plan, preview again. The CLI (no confirmer, previewing and confirming in two processes as the local operator) gets the plain digest instead.
    Override tokens (step 3) are not bound to the caller.
-6. **A full backup** of every provider (reason `pre-delete`) is taken first and must hold every torrent being deleted
-   with its files (for a failed or queued torrent without files: the earlier selection, or that it is unknown). No
-   backup, no delete (503, nothing deleted).
+6. **A backup** (reason `pre-delete`) is taken first and must hold every torrent being deleted with its files (for a
+   failed or queued torrent without files: the earlier selection, or that it is unknown); another account that cannot
+   be read does not stop it. No backup, no delete (503, nothing deleted). The plan's `warning` says so: "A backup is
+   taken first. If a torrent due for deletion can't be backed up, nothing is deleted." References are counted with
+   their plural ("referenced by 1 link", "18 links").
 7. **A last usage check per torrent**, right before its own delete (after the 250 ms pacing wait), under the
    router's add lock (`Router.AddLock`), which each delete holds from that check until the provider answered: a torrent a route reused
    or re-added while the backup ran (on AllDebrid an add of a hash on the account hands back the same magnet), or
@@ -514,7 +523,17 @@ table at every width (below 640 px Added, Status and the Size column hide; the s
 multi-select and **Delete selected**: the preview opens a
 confirmation with the count, size and the backup it takes first; refused torrents are
 listed by name (the selected row's name when the refusal has none, as when the provider could not be listed) with
-why, and used or unknown ones with a checkbox naming their references to override. The filter
+why, and used or unknown ones with a checkbox naming their references to override, the first three references
+beside it and the rest folded ("and N more"), and "Another complete copy stays on RD." when the item carries
+`surviving_copy`. A row whose override is ticked stays listed with its checkbox, so it can be read and unticked.
+"Tick all that have another complete copy on the same account", above the rows, ticks the override of every item
+carrying `surviving_copy` and nothing else; unticking it unticks those. Each change previews again; previews are
+numbered and only the newest answer is taken, a held override whose token no longer matches is dropped (and the set
+previewed again), and Confirm waits while a preview is pending or the choices differ from the last successful one,
+then sends exactly the selection that preview was asked with. A line says how many chosen torrents the current
+filter hides. "Also delete chosen torrents added in the last 24 hours or still downloading" shows only while a
+chosen torrent needs it (`needs_recent`) or it is ticked, and not once the delete finished. The backup is one
+sentence (the plan's warning). The filter
 **Not used by Theatarr** (the unused group) has a line beside the filters: it checks Theatarr's libraries and the
 **Other libraries' folders** (`torrents.scan_roots`), which are edited in Settings › Download clients › Torrents
 (`#scan-roots`, linked there); other apps on the same accounts are not seen. The provider tab, filter, text and sort

@@ -5,7 +5,7 @@
 // (torrents.scan_roots, which the usage check reads) and the backup schedule are settings: Settings › Download clients ›
 // Torrents; a line beside the filters says what "Not used" checks and links there. The provider, filter, text and sort
 // live in the URL (?provider=, ?group=, ?q=, ?sort=), so Back and a reload keep them.
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { useTorrentActions, useTorrentJournal, useTorrentReport } from "@/api/torrents";
 import { Empty, ErrorState, Loading, PageHeader, Section } from "@/components/page";
@@ -36,7 +36,10 @@ import {
   servedByLine,
   sortTorrents,
   usageDetail,
+  REF_LABEL,
+  type DeleteItem,
   type DeletePlan,
+  type DeleteSelection,
   type GroupID,
   type SortKey,
   type Torrent,
@@ -72,7 +75,9 @@ export function TorrentsPage() {
   const sort: SortKey = SORTS.some((x) => x.id === sortAsked) ? (sortAsked as SortKey) : "size";
   const setSort = (v: SortKey) => setParam("sort", v === "size" ? "" : v);
   const [selected, setSelected] = useState<Record<string, Torrent>>({});
-  const [plan, setPlan] = useState<DeletePlan | null>(null);
+  // The last successful preview and the selection it was asked with: Confirm sends exactly that selection.
+  const [plan, setPlan] = useState<{ plan: DeletePlan; req: DeleteSelection[] } | null>(null);
+  const seq = useRef(0);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [allowRecent, setAllowRecent] = useState(false);
   const [done, setDone] = useState<DeletePlan | null>(null);
@@ -88,6 +93,7 @@ export function TorrentsPage() {
     [report.data, provider, group, text, sort],
   );
   const chosen = Object.values(selected);
+  const shown = useMemo(() => new Set(rows.map(keyOf)), [rows]);
   const toggle = (t: Torrent) =>
     setSelected((s) => {
       const n = { ...s };
@@ -106,8 +112,21 @@ export function TorrentsPage() {
       return n;
     });
 
-  const preview = (ov: Record<string, string>, recent: boolean) =>
-    actions.deletePreview.mutate(deleteSelection(chosen, ov, recent), { onSuccess: setPlan });
+  // Each preview is numbered: only the newest one's answer is taken, so a slow earlier answer never replaces it.
+  const preview = (ov: Record<string, string>, recent: boolean) => {
+    const n = ++seq.current;
+    const req = deleteSelection(chosen, ov, recent);
+    actions.deletePreview.mutateAsync(req).then((p) => {
+      if (n !== seq.current) return;
+      setPlan({ plan: p, req });
+      // A held override whose token no longer matches (the references changed) is dropped, and the set previewed again.
+      const kept = Object.fromEntries(Object.entries(ov).filter(([k, tok]) => p.items.some((it) => keyOf(it) === k && it.expected_override_token === tok)));
+      if (Object.keys(kept).length !== Object.keys(ov).length) {
+        setOverrides(kept);
+        preview(kept, recent);
+      }
+    }, () => {});
+  };
   const openDelete = () => {
     setOverrides({});
     setAllowRecent(false);
@@ -115,24 +134,26 @@ export function TorrentsPage() {
     actions.del.reset();
     preview({}, false);
   };
-  const setOverride = (key: string, token: string | undefined) => {
+  const setOverride = (tokens: Record<string, string | undefined>) => {
     const n = { ...overrides };
-    if (token) n[key] = token;
-    else delete n[key];
+    for (const [key, token] of Object.entries(tokens)) {
+      if (token) n[key] = token;
+      else delete n[key];
+    }
     setOverrides(n);
     preview(n, allowRecent);
   };
   const closeDelete = () => {
+    seq.current++;
     setPlan(null);
     if (done) setSelected({});
     setDone(null);
   };
+  // The dialog's choices differ from the last successful preview (one is pending, or failed): Confirm waits.
+  const stale = !!plan && JSON.stringify(plan.req) !== JSON.stringify(deleteSelection(chosen, overrides, allowRecent));
   const confirmDelete = () => {
-    if (!plan) return;
-    actions.del.mutate(
-      { items: deleteSelection(chosen, overrides, allowRecent), token: plan.confirmation_token },
-      { onSuccess: (p) => setDone(p) },
-    );
+    if (!plan || stale || actions.deletePreview.isPending) return;
+    actions.del.mutate({ items: plan.req, token: plan.plan.confirmation_token }, { onSuccess: (p) => setDone(p) });
   };
 
   const r = report.data;
@@ -218,36 +239,28 @@ export function TorrentsPage() {
       <JournalSection />
       {plan ? (
         <ConfirmDialog
-          scope={deleteScope(plan)}
+          scope={deleteScope(plan.plan)}
           subject="Delete selected torrents"
           onConfirm={confirmDelete}
           onClose={closeDelete}
           busy={actions.del.isPending || actions.deletePreview.isPending}
+          disabled={stale}
           error={actions.del.error ?? actions.deletePreview.error}
           done={done ? `Backup ${done.backup_id}; deleted ${done.deleted}, failed ${done.failed}.` : undefined}
           doneWarning={!!done && done.failed > 0}
           testid="torrent-delete"
         >
-          <Choice checked={allowRecent} onChange={(v) => { setAllowRecent(v); preview(overrides, v); }} testid="allow-recent">
-            Also delete chosen torrents added in the last 24 hours or still downloading
-          </Choice>
-          {plan.items.filter((it) => it.action === "refuse").map((it) => (
-            <div key={`${it.provider}:${it.id}`} className="rounded-md border border-[var(--line)] p-2 text-[13px]" data-testid="refused-item">
-              <div className="[overflow-wrap:anywhere]"><span className="font-medium" title={it.provider}>{providerLabel(codes[it.provider] ?? it.provider)}</span> {it.name || selected[keyOf(it)]?.name || it.id}: {it.refusal}</div>
-              {it.needs_override && it.expected_override_token ? (
-                <Choice
-                  checked={overrides[`${it.provider}:${it.id}`] === it.expected_override_token}
-                  onChange={(v) => setOverride(`${it.provider}:${it.id}`, v ? it.expected_override_token : undefined)}
-                  testid="override"
-                >
-                  Delete it anyway although it is {it.usage}: {it.usage === "used" ? refSummary(it.refs) : (it.reasons ?? []).join("; ")}
-                  {(it.ref_list ?? []).length > 0 ? (
-                    <ul className="mt-1 list-disc pl-5 text-xs text-muted-foreground">{(it.ref_list ?? []).map((x, i) => <li key={i} className="[overflow-wrap:anywhere]">{x.kind}: {x.detail}</li>)}</ul>
-                  ) : null}
-                </Choice>
-              ) : null}
-            </div>
-          ))}
+          <DeleteChoices
+            plan={plan.plan}
+            codes={codes}
+            names={selected}
+            overrides={overrides}
+            setOverride={setOverride}
+            allowRecent={allowRecent}
+            setAllowRecent={(v) => { setAllowRecent(v); preview(overrides, v); }}
+            outside={chosen.filter((t) => !shown.has(keyOf(t))).length}
+            done={!!done}
+          />
           {done ? (
             <ul className="list-disc pl-5 text-xs">
               {done.items.filter((it) => it.outcome && it.outcome !== "deleted").map((it) => (
@@ -258,6 +271,79 @@ export function TorrentsPage() {
         </ConfirmDialog>
       ) : null}
     </div>
+  );
+}
+
+/** The delete dialog's choices: "Also delete … recent" (only while a chosen torrent needs it, or it is ticked, and not
+ *  once done), how many chosen torrents the filter hides, "Tick all that have another complete copy on the same account",
+ *  then each refused torrent, and each one whose override is ticked, with its override checkbox, the copy that stays
+ *  and a short preview of its references. */
+function DeleteChoices({ plan, codes, names, overrides, setOverride, allowRecent, setAllowRecent, outside, done }: {
+  plan: DeletePlan;
+  codes: Record<string, string>;
+  names: Record<string, Torrent>;
+  overrides: Record<string, string>;
+  setOverride: (tokens: Record<string, string | undefined>) => void;
+  allowRecent: boolean;
+  setAllowRecent: (v: boolean) => void;
+  outside: number;
+  done: boolean;
+}) {
+  // A row with an override to tick: needed now, or ticked already (overridden items carry their token too).
+  const overridable = (it: DeleteItem) => !!it.expected_override_token && (!!it.needs_override || !!it.override);
+  const rows = plan.items.filter((it) => it.action === "refuse" || (it.override && overridable(it)));
+  const withCopy = rows.filter((it) => overridable(it) && it.surviving_copy);
+  const allCopies = withCopy.length > 0 && withCopy.every((it) => overrides[keyOf(it)] === it.expected_override_token);
+  return (
+    <>
+      {!done && (allowRecent || plan.items.some((it) => it.needs_recent)) ? (
+        <Choice checked={allowRecent} onChange={setAllowRecent} testid="allow-recent">
+          Also delete chosen torrents added in the last 24 hours or still downloading
+        </Choice>
+      ) : null}
+      {outside > 0 ? <p className="text-xs text-muted-foreground" data-testid="chosen-outside">{outside === 1 ? "1 chosen torrent is" : `${fmtNumber(outside)} chosen torrents are`} outside the current filter.</p> : null}
+      {!done && withCopy.length > 0 ? (
+        <Choice
+          checked={allCopies}
+          onChange={(v) => setOverride(Object.fromEntries(withCopy.map((it) => [keyOf(it), v ? it.expected_override_token : undefined])))}
+          testid="override-all-copies"
+        >
+          Tick all that have another complete copy on the same account
+        </Choice>
+      ) : null}
+      {rows.map((it) => {
+        const label = providerLabel(codes[it.provider] ?? it.provider);
+        const list = it.ref_list ?? [];
+        const total = Math.max(list.length, Object.values(it.refs ?? {}).reduce((n, x) => n + x, 0));
+        return (
+          <div key={keyOf(it)} className="rounded-md border border-[var(--line)] p-2 text-[13px]" data-testid="refused-item">
+            <div className="[overflow-wrap:anywhere]"><span className="font-medium" title={it.provider}>{label}</span> {it.name || names[keyOf(it)]?.name || it.id}{it.action === "refuse" ? `: ${it.refusal}` : ""}</div>
+            {it.surviving_copy ? <p className="text-xs text-muted-foreground" title={`${it.provider} ${it.surviving_copy}`} data-testid="surviving-copy">Another complete copy stays on {label}.</p> : null}
+            {overridable(it) && !done ? (
+              <Choice
+                checked={overrides[keyOf(it)] === it.expected_override_token}
+                onChange={(v) => setOverride({ [keyOf(it)]: v ? it.expected_override_token : undefined })}
+                testid="override"
+              >
+                Delete it anyway although it is {it.usage}: {it.usage === "used" ? refSummary(it.refs) : (it.reasons ?? []).join("; ")}
+              </Choice>
+            ) : null}
+            {/* The references beside the checkbox: three, then the rest folded. */}
+            {list.length > 0 ? (
+              <div className="mt-1 pl-6 text-xs text-muted-foreground" data-testid="override-refs">
+                <ul className="list-disc pl-5">{list.slice(0, 3).map((x, i) => <li key={i} className="[overflow-wrap:anywhere]">{REF_LABEL[x.kind] ?? x.kind}: {x.detail}</li>)}</ul>
+                {total > 3 ? (
+                  <details>
+                    <summary className="cursor-pointer" data-testid="override-refs-more">and {fmtNumber(total - 3)} more</summary>
+                    <ul className="list-disc pl-5">{list.slice(3).map((x, i) => <li key={i} className="[overflow-wrap:anywhere]">{REF_LABEL[x.kind] ?? x.kind}: {x.detail}</li>)}</ul>
+                  </details>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+    </>
   );
 }
 

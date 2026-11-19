@@ -129,11 +129,11 @@ describe("delete", () => {
     const plan: DeletePlan = { items: [], count: 2, bytes: 2048, refused: 1, digest: "d", confirmation_token: "d1", warning: "A full backup of every provider is taken first", deleted: 0, failed: 0 };
     const s = deleteScope(plan);
     expect(s.title).toContain("2 torrents");
-    expect(s.does.join(" ")).toMatch(/full backup/);
-    expect(s.does).toContain("A full backup of every provider is taken first");
+    // One backup sentence, saying what is guaranteed.
+    expect(s.does.filter((l) => /backup/i.test(l ?? ""))).toEqual(["A backup is taken first. If a torrent due for deletion can't be backed up, nothing is deleted."]);
     expect(s.keeps[0]).toMatch(/1 chosen torrent is refused/);
     expect(s.blocked).toBeUndefined();
-    expect(deleteScope({ ...plan, count: 0 }).blocked).toBeTruthy();
+    expect(deleteScope({ ...plan, count: 0 }).blocked).toBe("Nothing chosen can be deleted as it is.");
   });
   it("restore preview wording", () => {
     const s = restoreScope({ backup_id: "b", items: [], counts: { present: 2, readd: 1, skip_invalid: 1 }, readd: 1, resume: 0, bytes: 10, confirmation_token: "r1" });
