@@ -26,9 +26,10 @@ func TestWebTokens(t *testing.T) {
 	}
 }
 
-// TestJapaneseAndSubtitleLanguages: JPN, (JA) and upper-case JA are Japanese; a language right before SUBS or
-// after "Multiple Subtitle" is a subtitle, not audio (ours, as the series parser reads it); a dual-audio name keeps
-// both languages, and KA stays Georgian (Radarr's fixtures).
+// TestJapaneseAndSubtitleLanguages: JPN, (JA) and upper-case JA are Japanese; a language right before the word
+// SUBS/SUB or after "Multiple Subtitle", or SUB joined before a language name, is a subtitle, not audio (ours); a
+// joined SUBFRENCH does not make the language before it a subtitle; a dual-audio name keeps both languages, and KA
+// stays Georgian (Radarr's fixtures).
 func TestJapaneseAndSubtitleLanguages(t *testing.T) {
 	t.Parallel()
 	for title, want := range map[string]string{
@@ -40,6 +41,11 @@ func TestJapaneseAndSubtitleLanguages(t *testing.T) {
 		"Akira.1988.1080p.BluRay.JPN.ENG.x264-GRP":                            "Japanese,English",
 		"Akira (1988) [JA+EN] 1080p BluRay x264-GRP":                          "Japanese,English",
 		"Movie.Title.2019.1080p.KA.WEB-DL-GRP":                                "Georgian",
+		"Akira.1988.1080p.BluRay.JPN.English.Subs-GRP":                        "Japanese",
+		"Akira.1988.1080p.BluRay.JPN.[Multiple Subtitle].[EN][DE]-GRP":        "Japanese",
+		"Akira (1988) 1080p BluRay [English Subs] x264-GRP":                   "Unknown",
+		"Akira.1988.1080p.BluRay.ENG.SUBFRENCH-GRP":                           "English",
+		"Akira.1988.1080p.BluRay.ITA.ENG.SUBS-GRP":                            "Italian",
 	} {
 		p := ParseMovieTitle(title, false)
 		if p == nil {

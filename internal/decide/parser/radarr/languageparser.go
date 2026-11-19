@@ -48,11 +48,12 @@ var (
                                                                                                           (?<spanish>\b(?<!DTS[._ -])ES\b)|
                                                                                                           (?<japanese>\bJA\b))(?:(?i)(?![\W|_|^]SUB))`, optX)
 
-	// subsAfterRegex is what follows a subtitle language (Sonarr v5's [-_. ]subs? look-ahead); subtitleListRegex marks
-	// a list of subtitle languages after it (Erai-raws' `[Multiple Subtitle] [ENG][POR-BR]...`). Ours, as the series
-	// parser reads them (subtitleMatches).
-	subsAfterRegex    = re(`^[-_. ]subs?`, optI)
-	subtitleListRegex = re(`\bMultiple[-_. ]Subtitles?\b`, optI)
+	// Subtitle spans (ours), removed before the audio languages are read: a language word directly before the whole
+	// word SUB/SUBS/SUBTITLE(S) (`ENG.SUBS`, `[English Subs]`), SUB joined before a language word (`SUBFRENCH`, French
+	// subtitles), and everything from a "Multiple Subtitle" marker on (Erai-raws' `[Multiple Subtitle] [ENG][POR-BR]`).
+	subtitleBeforeRegex = re(`(?<=^|[-_. \[(+,])(?<lang>\p{L}+)[-_. ]sub(?:s|titles?)?(?![\p{L}\d])`, optI)
+	subtitleJoinedRegex = re(`(?<![\p{L}\d])sub(?<lang>\p{L}+)(?![\p{L}\d])`, optI)
+	subtitleListRegex   = re(`\[?\bMultiple[-_. ]Subtitles?\b`, optI)
 
 	germanDualLanguageRegex  = re(`(?<!WEB[-_. ]?)\bDL\b`, optI)
 	germanMultiLanguageRegex = re(`\bML\b`, optI)
@@ -160,8 +161,29 @@ var caseInsensitiveGroups = []groupLanguage{
 	{"original", LanguageOriginal},
 }
 
-// ParseLanguages is LanguageParser.ParseLanguages.
+// ParseLanguages is LanguageParser.ParseLanguages, read from the title without its subtitle spans (ours).
 func ParseLanguages(title string) []Language {
+	title = withoutSubtitles(title)
+	languages := audioLanguages(title)
+
+	if len(languages) == 0 {
+		languages = append(languages, LanguageUnknown)
+	}
+
+	if len(languages) == 1 && languages[0].ID == LanguageGerman.ID {
+		if isMatch(germanDualLanguageRegex, title) {
+			languages = append(languages, LanguageOriginal)
+		} else if isMatch(germanMultiLanguageRegex, title) {
+			languages = append(languages, LanguageOriginal, LanguageEnglish)
+		}
+	}
+
+	return distinctLanguages(languages)
+}
+
+// audioLanguages are LanguageParser.ParseLanguages' three readings: language words, case-sensitive and
+// case-insensitive codes.
+func audioLanguages(title string) []Language {
 	lowerTitle := strings.ToLower(title)
 	var languages []Language
 
@@ -184,56 +206,48 @@ func ParseLanguages(title string) []Language {
 	}
 
 	// Case-insensitive
-	ms := matches(languageRegex, title)
-	subs := subtitleMatches(title, ms)
-	for i, m := range ms {
-		if subs[i] {
-			continue // a subtitle language (ours)
-		}
+	for _, m := range matches(languageRegex, title) {
 		for _, g := range caseInsensitiveGroups {
 			if ok(m, g.group) {
 				languages = append(languages, g.lang)
 			}
 		}
 	}
-
-	if len(languages) == 0 {
-		languages = append(languages, LanguageUnknown)
-	}
-
-	if len(languages) == 1 && languages[0].ID == LanguageGerman.ID {
-		if isMatch(germanDualLanguageRegex, title) {
-			languages = append(languages, LanguageOriginal)
-		} else if isMatch(germanMultiLanguageRegex, title) {
-			languages = append(languages, LanguageOriginal, LanguageEnglish)
-		}
-	}
-
-	return distinctLanguages(languages)
+	return languages
 }
 
-// subtitleMatches marks the language matches that are subtitles, not audio (ours): a language directly followed by
-// "sub"/"subs" (`ENG.SUBS`, `[Eng-Subs]`), as Sonarr v5 reads it, and every language after a "Multiple Subtitle"
-// marker. Unlike the series parser, a language in a list before SUBS is a subtitle too when it is the last one
-// (`JPN.ENG.SUBS` is Japanese audio with English subtitles).
-func subtitleMatches(title string, ms []*regexp2.Match) []bool {
+// withoutSubtitles is the title with its subtitle spans (subtitleBeforeRegex, subtitleJoinedRegex,
+// subtitleListRegex) replaced by a space (ours). Only the last language before SUBS is a subtitle: `JPN.ENG.SUBS` is
+// Japanese audio with English subtitles, `ITA.ENG.SUBS` Italian. A joined marker is not a word: `ENG.SUBFRENCH`
+// keeps English.
+func withoutSubtitles(title string) string {
 	runes := []rune(title)
-	listFrom := len(runes) + 1
+	cut := make([]bool, len(runes))
+	mark := func(from, to int) {
+		for i := from; i < to; i++ {
+			cut[i] = true
+		}
+	}
+	for _, r := range []*regexp2.Regexp{subtitleBeforeRegex, subtitleJoinedRegex} {
+		for _, m := range matches(r, title) {
+			if len(audioLanguages(value(m, "lang"))) > 0 {
+				mark(m.Index, m.Index+m.Length)
+			}
+		}
+	}
 	if m := match(subtitleListRegex, title); m != nil {
-		listFrom = m.Index + m.Length
+		mark(m.Index, len(runes))
 	}
-	subs := make([]bool, len(ms))
-	for i, m := range ms {
-		s, e := m.Index, m.Index+m.Length
-		for s < e && strings.ContainsRune("-_. ", runes[s]) {
-			s++
+	var b strings.Builder
+	for i, r := range runes {
+		switch {
+		case !cut[i]:
+			b.WriteRune(r)
+		case i == 0 || !cut[i-1]:
+			b.WriteByte(' ')
 		}
-		for e > s && strings.ContainsRune("-_. ", runes[e-1]) {
-			e--
-		}
-		subs[i] = s >= listFrom || isMatch(subsAfterRegex, string(runes[e:]))
 	}
-	return subs
+	return b.String()
 }
 
 func distinctLanguages(in []Language) []Language {

@@ -35,10 +35,15 @@ and models three versions with two criteria each.
   follows Radarr's `DownloadDecisionMaker` with search criteria:
   1. **Parse** with the Radarr port. A title it cannot read is rejected `UnableToParse`.
      Changes of ours (`radarr.TestWebTokens`): a bare `WEB` with `EAC3` or a separated `DDP.5.1` after it, or
-     `ATVP` before it, is WEB-DL, as Sonarr v5 reads it (the series parser takes the same, `TestV4PlusWebTokens`).
-     `JPN`, `(JA)` and upper-case `JA` are Japanese; a language right before `SUBS` (`JPN.ENG.SUBS` is Japanese) or
-     after `Multiple Subtitle` is a subtitle, not audio (`radarr.TestJapaneseAndSubtitleLanguages`). Unlike the series
-     parser, the last language of a list before `SUBS` is a subtitle too. `KA` stays Georgian, as Radarr reads it.
+     `ATVP` before it, is WEB-DL, as Sonarr v5 reads it (the series parser takes the same, `TestV4PlusWebTokens`);
+     v5's pattern `DDP?[ .]?5[. ]1` also takes a separated `WEB.DD.5.1`, kept on purpose.
+     `JPN`, `(JA)` and upper-case `JA` are Japanese. Subtitle spans are removed once before any of the three language
+     readings (codes, upper-case codes, full names): a language word right before the whole word `SUB`/`SUBS`
+     (`JPN.ENG.SUBS` and `JPN.English.Subs` are Japanese, `[English Subs]` gives no English), `SUB` joined before a
+     language (`SUBFRENCH`: French subtitles; `ENG.SUBFRENCH` stays English), and everything from `Multiple Subtitle`
+     on (`radarr.TestJapaneseAndSubtitleLanguages`). Only the last language before `SUBS` is a subtitle, unlike the
+     series parser's list rule: `ITA.ENG.SUBS` reads Italian with English subtitles, on purpose (no codec-count
+     heuristics). `KA` stays Georgian, as Radarr reads it.
   2. **Map** the release to the title (port of `ParsingService.FindMovie`):
      - the indexer's IMDb id, then its TMDb id; through `Library`, these can name another title in the library;
      - then the searched title's clean title, original title and aliases, with arabic and roman numerals
