@@ -218,36 +218,38 @@ func (m *Manager) TakeBackup(ctx context.Context, o BackupOptions) (*Backup, Bac
 					}
 				}
 			}
+			// The selected files: Real-Debrid lists every file with its Selected flag, so files with none selected
+			// are no selection either.
+			var selected []BackupFile
+			for _, f := range files {
+				if f.Selected {
+					selected = append(selected, BackupFile{ID: f.ID, Path: f.Path, Bytes: f.Bytes})
+				}
+			}
 			switch {
 			case files == nil: // not read: its selection is not known
-			case len(files) == 0 && state == provider.StateDownloaded:
-				// A downloaded torrent that names no files has no usable selection: a delete's backup refuses it.
-				// Any other backup records the selection as unknown, so a restore never selects every file for it.
-				if need {
-					return nil, BackupInfo{}, &BackupProviderError{Provider: k, Err: fmt.Errorf("torrents: backup: %s %s "+
-						"is downloaded but names no files", k, t.ID)}
-				}
-				bt.SelectionUnknown = true
-			case len(files) == 0:
-				// A failed or queued torrent: no files to read. The selection an earlier backup recorded for it
-				// stands (not while the provider awaits one); without one the selection is unknown (a restore never
-				// selects every file for it).
-				if c, ok := prev[k+"\x00"+t.ID+"\x00"+bt.Hash]; ok && !awaitingSelection(status) {
-					bt.FilesKnown, bt.Files = true, c
-				} else {
-					bt.SelectionUnknown = true
-				}
 			case awaitingSelection(status):
 				// The provider awaits a selection: no file is selected yet, and the selection made later is not
 				// this one. Not cached by later backups (fileCache takes FilesKnown only).
 				bt.SelectionUnknown = true
-			default:
-				bt.FilesKnown = true
-				for _, f := range files {
-					if f.Selected {
-						bt.Files = append(bt.Files, BackupFile{ID: f.ID, Path: f.Path, Bytes: f.Bytes})
-					}
+			case len(selected) == 0 && state == provider.StateDownloaded:
+				// A downloaded torrent with no file selected has no usable selection: a delete's backup refuses it.
+				// Any other backup records the selection as unknown, so a restore never selects every file for it.
+				if need {
+					return nil, BackupInfo{}, &BackupProviderError{Provider: k, Err: fmt.Errorf("torrents: backup: %s %s "+
+						"is downloaded but names no selected files", k, t.ID)}
 				}
+				bt.SelectionUnknown = true
+			case len(selected) == 0:
+				// A failed or queued torrent: no selected files to read. The selection an earlier backup recorded for
+				// it stands; without one the selection is unknown (a restore never selects every file for it).
+				if c, ok := prev[k+"\x00"+t.ID+"\x00"+bt.Hash]; ok {
+					bt.FilesKnown, bt.Files = true, c
+				} else {
+					bt.SelectionUnknown = true
+				}
+			default:
+				bt.FilesKnown, bt.Files = true, selected
 			}
 			bp.Torrents = append(bp.Torrents, bt)
 		}

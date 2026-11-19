@@ -438,12 +438,19 @@ func TestDeleteFailedTorrentWithoutFiles(t *testing.T) {
 		state provider.State
 		prior bool // an earlier backup recorded its files
 		empty bool // the detail answers files: [] rather than none
-		ok    bool
+		// the detail lists a file that is not selected
+		unselected bool
+		ok         bool
 	}{
 		{name: "failed", state: provider.StateError, ok: true},
 		{name: "queued, earlier selection", state: provider.StateQueued, prior: true, ok: true},
 		{name: "downloaded", state: provider.StateDownloaded},
 		{name: "downloaded, empty list", state: provider.StateDownloaded, empty: true},
+		// Real-Debrid lists every file with its Selected flag: files with none selected are no selection either.
+		{name: "failed, none selected", state: provider.StateError, unselected: true, ok: true},
+		{name: "queued, earlier selection, none selected", state: provider.StateQueued, prior: true, unselected: true,
+			ok: true},
+		{name: "downloaded, none selected", state: provider.StateDownloaded, unselected: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := deleteFixture(t)
@@ -462,6 +469,9 @@ func TestDeleteFailedTorrentWithoutFiles(t *testing.T) {
 				Status: string(tc.state), OriginalName: "Movie.G.2010.1080p.WEB-DL"}}
 			if tc.empty {
 				e.rd.detail["9"].Files = []provider.File{}
+			}
+			if tc.unselected {
+				e.rd.detail["9"].Files = []provider.File{{ID: "1", Path: "/G/g.mkv", Bytes: 900}}
 			}
 			// A queued torrent needs allow_recent like any busy one.
 			sel := []DeleteSelection{{Provider: "rd", ID: "9", Hash: hG, AllowRecent: tc.state == provider.StateQueued}}

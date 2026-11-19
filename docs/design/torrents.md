@@ -180,9 +180,10 @@ few backups fill in every torrent (`TestBackupCacheSurvivesAProviderOutage`). A 
   torrents a delete removes are read again for its pre-delete backup whatever an earlier backup holds, and that
   backup must know each one's selection (the files, or that it awaits one)
   (`TestBackupRefreshesSelectionBeforeDelete`, `TestBackupV1EmptySelectionIsUnknown`). A torrent that is not
-  downloaded (by provider state: failed, queued, still downloading) whose detail read succeeds with no files keeps
-  the selection the newest earlier backup recorded for it, else is marked `selection_unknown`; a downloaded torrent
-  whose listing or read names no files (none, or `files: []`) has no usable selection: it and a read error fail a
+  downloaded (by provider state: failed, queued, still downloading) whose detail read succeeds with no selected file (no files,
+  or Real-Debrid's list with none selected) keeps the selection the newest earlier backup recorded for it, else is
+  marked `selection_unknown`; a downloaded torrent whose listing or read names no selected file has no usable
+  selection: it and a read error fail a
   delete's backup, and any other backup records it as `selection_unknown`. An empty selection is not reused by
   later backups (`TestDeleteFailedTorrentWithoutFiles`).
 - **Listing** reads a lightweight summary of each file (no file lists), cached per process by path, size and
