@@ -201,6 +201,28 @@ func TestPollReconcilesInterruptedAdds(t *testing.T) {
 	}
 }
 
+// An interrupted add whose hash the registry places on the account in an error state: the entry shows the add
+// landed (it is adopted, not called absent and added again).
+func TestReconcileErroredEntryShowsTheAddLanded(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state,
+		provider, created_at, updated_at) VALUES (1, 1, 10, 'movie', ?, 'R', 'pub', 'adding', 'rd', 0, ?)`,
+		h("a"), e.clock.Add(-addSettle-time.Minute).UnixMilli())
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('rd', 'T9', ?)`, h("a"))
+	e.pr["rd"].set("T9", provider.Torrent{Hash: h("a"), Status: "magnet_error", State: provider.StateError})
+	c, err := e.r.lookupAdding(e.ctx, 1, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.rec != recFound || c.tid != "T9" {
+		t.Fatalf("%+v", c)
+	}
+	if e.writes() != 0 {
+		t.Errorf("the check wrote to a provider (%d)", e.writes())
+	}
+}
+
 // A route job that lost its lease right before the add sends nothing; a second worker that takes over the expired
 // lease resumes the same download and adds it once.
 func TestLostLeaseBeforeAddThenTakeover(t *testing.T) {

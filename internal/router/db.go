@@ -558,26 +558,42 @@ func (r *Router) recordedEpoch() any {
 // to the read's error (after one retry, heldReadRetry later), and the caller does not reuse it (a route defers the provider, reconciliation asks the
 // account's list instead). Otherwise a route queued again after a provider outage
 // (endUnavailable) would go straight back to the provider that was down.
-func (r *Router) heldBy(ctx context.Context, hash, pk string, read bool) (id string, unread, err error) {
+//
+// A verified entry in the provider's error state is not reused either, but it is still on the account: its registry
+// row stays, and the next known id is tried. When no usable id is left, errored is the first such entry's id (id is
+// ""): a route does not add the hash there again (held_error), and reconciliation takes it as the add having landed.
+func (r *Router) heldBy(ctx context.Context, hash, pk string, read bool) (id, errored string, unread, err error) {
 	var skip []string
 	for range 8 {
 		id, registry, err := r.knownID(ctx, hash, pk, skip)
-		if err != nil || id == "" || !read {
-			return id, nil, err
+		if err != nil || !read {
+			return id, "", nil, err
 		}
-		why, rerr := r.stillHeld(ctx, pk, id, hash)
+		if id == "" {
+			return "", errored, nil, nil
+		}
+		why, failed, rerr := r.stillHeld(ctx, pk, id, hash)
 		if rerr != nil && ctx.Err() == nil {
 			// One more read after a short pause: a single glitch must not send the hash to another provider as a
 			// second add. The pause respects ctx (a pass's deadline).
 			if r.sleep(ctx, heldReadRetry) == nil {
-				why, rerr = r.stillHeld(ctx, pk, id, hash)
+				why, failed, rerr = r.stillHeld(ctx, pk, id, hash)
 			}
 		}
 		if rerr != nil {
-			return id, rerr, nil
+			return id, "", rerr, nil
+		}
+		if why == "" && failed {
+			r.log.Info("known torrent id not reused: the entry is in an error state", "provider", pk, "torrent", id,
+				"hash", hash)
+			if errored == "" {
+				errored = id
+			}
+			skip = append(skip, id)
+			continue
 		}
 		if why == "" {
-			return id, nil, nil
+			return id, "", nil, nil
 		}
 		r.log.Info("known torrent id not reused", "provider", pk, "torrent", id, "hash", hash, "why", why,
 			"registry", registry)
@@ -586,13 +602,13 @@ func (r *Router) heldBy(ctx context.Context, hash, pk string, read bool) (id str
 			if err := r.st.WriteTx(ctx, func(tx *sql.Tx) error {
 				return provider.DropRecordTorrent(ctx, tx, pk, id)
 			}); err != nil {
-				return "", nil, fmt.Errorf("router: registry: %w", err)
+				return "", "", nil, fmt.Errorf("router: registry: %w", err)
 			}
 			r.usageStale()
 		}
 		skip = append(skip, id)
 	}
-	return "", nil, nil
+	return "", errored, nil, nil
 }
 
 // SetRecordChanged sets what asks for the record's usage to be worked out again after the router dropped a torrent
@@ -651,25 +667,26 @@ func (r *Router) knownID(ctx context.Context, hash, pk string, skip []string) (s
 }
 
 // stillHeld reads a known torrent id back from the provider. It says why the id is not to be reused (not found, or
-// the entry holds another hash), "" when the read verified it; unread is the read's error when the provider did not
-// answer for it at all (a transport error, a 5xx, a gateway refusal): presence not verified either way. A provider
-// without a read-only client verifies nothing and refuses nothing: "" and nil, as before.
-func (r *Router) stillHeld(ctx context.Context, pk, id, hash string) (why string, unread error) {
+// the entry holds another hash), "" when the read verified it, and then failed when the entry is in the provider's
+// error state; unread is the read's error when the provider did not answer for it at all (a transport error, a 5xx,
+// a gateway refusal): presence not verified either way. A provider without a read-only client verifies nothing and
+// refuses nothing: "", false and nil, as before.
+func (r *Router) stillHeld(ctx context.Context, pk, id, hash string) (why string, failed bool, unread error) {
 	rp := r.provs[pk]
 	if rp == nil {
-		return "", nil
+		return "", false, nil
 	}
 	t, err := rp.Torrent(ctx, id)
 	switch {
 	case errors.Is(err, provider.ErrNotFound):
-		return "not on " + pk + " any more", nil
+		return "not on " + pk + " any more", false, nil
 	case err != nil:
 		r.log.Info("known torrent id not read back; not reused", "provider", pk, "torrent", id, "err", err)
-		return "", err
+		return "", false, err
 	case t != nil && t.Hash != "" && !strings.EqualFold(t.Hash, hash):
-		return "the entry holds another hash", nil
+		return "the entry holds another hash", false, nil
 	}
-	return "", nil
+	return "", t != nil && t.State == provider.StateError, nil
 }
 
 // storedRelease is a download's release_data: the release as the route had it, plus whether it came from a search and

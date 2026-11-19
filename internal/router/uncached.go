@@ -91,8 +91,9 @@ type ownGuard struct {
 	listed  bool
 	listErr string
 	ids     map[string]bool
-	// reuse is the id of the hash on the account per the fresh list (AllDebrid): reused, nothing added.
-	reuse string
+	// reuse is the id of the hash on the account per the fresh list (AllDebrid): reused, nothing added. errored is
+	// the id of an entry of the hash in an error state when no other is listed: not reused, nothing added (held_error).
+	reuse, errored string
 	// at is when the guard looked: a torrent manager restore of the hash since then (less addSettle) makes the
 	// entry not provably ours (RestoredSince).
 	at time.Time
@@ -141,7 +142,15 @@ func (r *Router) guardBefore(ctx context.Context, pv *policy.Provider, pk, hash 
 	g.listed, g.ids = true, make(map[string]bool, len(list))
 	for _, t := range list {
 		g.ids[t.ID] = true
-		if strings.EqualFold(t.Hash, hash) && t.ID != "" && g.reuse == "" {
+		if !strings.EqualFold(t.Hash, hash) || t.ID == "" {
+			continue
+		}
+		// An errored entry stays in ids (it was on the account before any add) but is reused only by nothing.
+		if t.State == provider.StateError {
+			if g.errored == "" {
+				g.errored = t.ID
+			}
+		} else if g.reuse == "" {
 			g.reuse = t.ID
 		}
 	}

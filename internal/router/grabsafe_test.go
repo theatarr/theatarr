@@ -183,6 +183,70 @@ func TestStaleRegistryIDNotReused(t *testing.T) {
 	}
 }
 
+// A known id whose entry is in the provider's error state is not reused, and the hash is not added there again:
+// another usable id of the hash on the account is reused when there is one; otherwise that provider ends for the
+// release (held_error) and the route goes on to the next. The errored entry stays on the account and in the record,
+// and no miss is cached for that provider.
+func TestErroredRegistryIDNotReused(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		other  bool // a download of ours holds another id of the hash, downloaded
+		only   bool // rd is the version's only provider
+		reused string
+	}{
+		{name: "next provider"},
+		{name: "another id", other: true, reused: "OK2"},
+		{name: "only provider", only: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newEnv(t, true)
+			e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('rd', 'HELD', ?)`, h("a"))
+			e.pr["rd"].set("HELD", provider.Torrent{Hash: h("a"), Status: "magnet_error", State: provider.StateError})
+			if tc.other {
+				e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer,
+					provider, provider_torrent_id, state, created_at, updated_at) VALUES (90, 2, 20, 'series', ?, 'x',
+					'pub', 'rd', 'OK2', 'imported', 0, 0)`, h("a"))
+				e.pr["rd"].set("OK2", provider.Torrent{Hash: h("a"), Status: "downloaded", State: provider.StateDownloaded})
+			}
+			if tc.only {
+				e.pol.Versions["movie"].Providers = []string{"rd"}
+			}
+			res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
+			if err != nil {
+				t.Fatal(err)
+			}
+			e.ad["rd"].mu.Lock()
+			rdAdds := len(e.ad["rd"].adds)
+			e.ad["rd"].mu.Unlock()
+			if rdAdds != 0 || e.ad["rd"].writes() != 0 {
+				t.Fatalf("rd: %d adds, %d writes: %s", rdAdds, e.ad["rd"].writes(), steps(res))
+			}
+			if n := e.count(`SELECT COUNT(*) FROM provider_torrent WHERE provider = 'rd' AND torrent_id = 'HELD'`); n != 1 {
+				t.Errorf("the errored entry left the record")
+			}
+			if n := e.count(`SELECT COUNT(*) FROM provider_cache WHERE provider = 'rd' AND info_hash = ?`, h("a")); n != 0 {
+				t.Errorf("a cache verdict was written for rd")
+			}
+			switch {
+			case tc.reused != "":
+				if !res.Reused || res.TorrentID != tc.reused || res.Provider != "rd" {
+					t.Fatalf("%+v: %s", res, steps(res))
+				}
+			case tc.only:
+				if res.Outcome == OutcomeAdded || !strings.Contains(steps(res), "rd/skipped/held_error") {
+					t.Fatalf("%+v: %s", res, steps(res))
+				}
+			default:
+				if res.Outcome != OutcomeAdded || res.Provider != "ad" ||
+					!strings.Contains(steps(res), "rd/skipped/held_error") {
+					t.Fatalf("%+v: %s", res, steps(res))
+				}
+			}
+		})
+	}
+}
+
 // A reused torrent that leaves the account after the reuse: the route is queued again (a fresh add), not failed
 // and blocklisted.
 func TestReusedTorrentGoneRequeues(t *testing.T) {

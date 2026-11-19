@@ -554,6 +554,41 @@ func TestCachedOnlyNeverDeletesExistingADMagnet(t *testing.T) {
 	}
 }
 
+// AllDebrid: a magnet of the hash on the account in an error state is not reused and the hash is not uploaded
+// there again: another usable magnet of the hash is reused; otherwise AllDebrid ends for the release (held_error)
+// and the next provider is tried. Nothing is deleted.
+func TestCachedOnlyErroredADMagnetNotReused(t *testing.T) {
+	t.Parallel()
+	title := "Movie.2024.2160p.WEB-DL.DDP5.1-GRP" // RD's name rule refuses it: AD is tried first
+	e, f, _ := newDebridEnv(t, true, true)
+	e.r.set.AllDebridDeleteUncached = true
+	f.ad[77] = &fakeAD{hash: h("a"), code: 7}
+	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), title)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Provider == "ad" || !strings.Contains(steps(res), "ad/skipped/held_error") {
+		t.Fatalf("%+v: %s", res, steps(res))
+	}
+	if f.count("ad.test POST") != 0 || f.ad[77] == nil {
+		t.Error("an add or a delete was sent to ad")
+	}
+	if n := e.count(`SELECT COUNT(*) FROM provider_cache WHERE provider = 'ad' AND info_hash = ?`, h("a")); n != 0 {
+		t.Errorf("a cache verdict was written for ad")
+	}
+
+	e, f, _ = newDebridEnv(t, true, true)
+	f.ad[77] = &fakeAD{hash: h("a"), code: 7}
+	f.ad[78] = &fakeAD{hash: h("a"), code: 4}
+	res, err = e.r.Route(e.ctx, movieReq(cand(h("a"), title)))
+	if err != nil || res.Provider != "ad" || !res.Reused || res.TorrentID != "78" {
+		t.Fatalf("%+v %v: %s", res, err, steps(res))
+	}
+	if f.count("ad.test POST") != 0 {
+		t.Error("an add or a delete was sent to ad")
+	}
+}
+
 // A hash the registry or our downloads place on the account is never deleted.
 func TestCachedOnlyNeverDeletesKnownHash(t *testing.T) {
 	t.Parallel()

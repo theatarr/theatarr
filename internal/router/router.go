@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
 	"slices"
 	"strings"
@@ -836,6 +837,10 @@ func (r *Router) candidate(ctx context.Context, s *routeState, c *Candidate) (ve
 	usable, content := 0, 0
 	var earliest time.Time
 	earliestPK := ""
+	noMiss := maps.Clone(s.skipProvider) // the providers a miss on every provider is not cached for
+	if noMiss == nil {
+		noMiss = map[string]string{}
+	}
 	for i := 0; i < len(order); i++ {
 		pk := order[i]
 		s.retry, s.waitRelease = "", false
@@ -848,6 +853,9 @@ func (r *Router) candidate(ctx context.Context, s *routeState, c *Candidate) (ve
 		}
 		st.Provider = pk
 		step(st)
+		if st.Code == codeHeldError {
+			noMiss[pk] = st.Message // the provider holds the hash, failed: that is no cache verdict
+		}
 		if !s.dry && s.dlID != 0 {
 			if err := r.recordAttempt(ctx, s.dlID, st); err != nil {
 				return 0, time.Time{}, err
@@ -928,7 +936,7 @@ func (r *Router) candidate(ctx context.Context, s *routeState, c *Candidate) (ve
 		msg := MissOnEveryProvider
 		step(Step{Outcome: "miss", Code: "miss", Message: msg})
 		if !s.dry {
-			if err := r.recordMiss(ctx, hash, provs, s.skipProvider, now, r.verdictTTL(ctx, s, now)); err != nil {
+			if err := r.recordMiss(ctx, hash, provs, noMiss, now, r.verdictTTL(ctx, s, now)); err != nil {
 				return 0, time.Time{}, err
 			}
 			return vContent, time.Time{}, r.failDownload(ctx, s.dlID, msg, StateQueued)
@@ -1017,6 +1025,17 @@ func movedOnIfTaken(err error) error {
 // codeHeldUnread: the provider holds the hash under a known torrent id but did not answer a read of it; the id is
 // not reused and the provider is deferred for the route.
 const codeHeldUnread = "held_unread"
+
+// codeHeldError: the provider holds the hash only as an entry in its error state. The entry is not reused, the hash
+// is not added there again (on Real-Debrid that would make a second entry, and the duplicate would never count as
+// ours), nothing is deleted and no miss is cached: the provider ends for this release, and the route goes on to the
+// next one. The entry stays until someone deletes it (Torrents › Failed).
+const codeHeldError = "held_error"
+
+func heldErrorStep(pk, id string) Step {
+	return Step{Outcome: "skipped", Code: codeHeldError, Message: pk + " holds this hash only as a failed entry " +
+		"(torrent " + id + "); not added there again while that entry is on the account"}
+}
 
 // heldReadPaced reports whether heldBy's failed read was paced rather than failed: the gateway refused to send it for
 // its request budget or the VPN check, or the provider answered 429. at is when to read again, when known. A
@@ -1117,8 +1136,10 @@ func (r *Router) provider(ctx context.Context, s *routeState, c *Candidate, m ad
 	// Already on the provider: point at that torrent; nothing is added. A known id the provider did not answer for
 	// is not reused (its presence is not verified, and the provider is likely down): this provider is deferred for
 	// the route, which tries the next one.
-	if tid, unread, err := r.heldBy(ctx, hash, pk, !s.dry); err != nil {
+	if tid, errored, unread, err := r.heldBy(ctx, hash, pk, !s.dry); err != nil {
 		return 0, time.Time{}, Step{}, err
+	} else if tid == "" && errored != "" {
+		return vContent, time.Time{}, heldErrorStep(pk, errored), nil
 	} else if unread != nil {
 		until := now.Add(BackoffBase)
 		msg := "the provider holds this hash (torrent " + tid + ") but did not answer a read of it: " +
@@ -1201,6 +1222,9 @@ func (r *Router) provider(ctx context.Context, s *routeState, c *Candidate, m ad
 	if settles(pv.Kind) && (r.set.CachedOnly || pv.Kind == provider.KindRealDebrid) {
 		if guard, err = r.guardBefore(ctx, pv, pk, hash, s.dlID, r.set.CachedOnly); err != nil {
 			return 0, time.Time{}, Step{}, err
+		}
+		if guard.reuse == "" && guard.errored != "" {
+			return vContent, time.Time{}, heldErrorStep(pk, guard.errored), nil
 		}
 		if guard.reuse != "" {
 			st := Step{Outcome: "accepted", Code: "reused", Message: "the account's magnet list shows this hash " +

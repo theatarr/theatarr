@@ -164,9 +164,12 @@ func (r *Router) lookupAdding(ctx context.Context, dl int64, lists *accountLists
 	for _, pk := range pks {
 		// A known id the provider did not answer for is not adopted: the account's list below decides,
 		// and when that cannot be read either the outcome stays unknown.
-		tid, unread, err := r.heldBy(ctx, hash, pk, true)
+		tid, errored, unread, err := r.heldBy(ctx, hash, pk, true)
 		if err != nil {
 			return c, err
+		}
+		if tid == "" && errored != "" {
+			tid = errored // an entry of the hash in an error state still shows the add landed
 		}
 		if tid != "" && unread == nil {
 			c.pk, c.tid, c.why = pk, tid, "the hash is held on "+pk+" already (torrent "+tid+")"
