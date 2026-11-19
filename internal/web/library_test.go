@@ -1921,8 +1921,23 @@ func TestRemovedEpisodesNotCurrent(t *testing.T) {
 	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (95, 52)`)
 	var page TitlePage
 	e.getKey(APIBase+"/titles?anime=true", key, &page)
-	if row := rowOf(t, page, 5); row.Availability != "missing" {
-		t.Errorf("Epsilon: %s", row.Availability)
+	row := rowOf(t, page, 5)
+	if c := copyOf(t, row, "anime-tv").Coverage; row.Availability != "missing" || c == nil || c.Have != 0 || c.Total != 1 {
+		t.Errorf("Epsilon: %s, coverage %+v", row.Availability, c)
+	}
+	// Its file is still a file: listed with files, and the title page offers file operations (Rename files).
+	var vs struct {
+		Items []Version `json:"items"`
+	}
+	e.getKey(APIBase+"/versions?has_file=true&limit=500", key, &vs)
+	listed := false
+	for _, v := range vs.Items {
+		listed = listed || v.ID == 50
+	}
+	var d TitleDetail
+	e.getKey(APIBase+"/titles/5", key, &d)
+	if !listed || len(d.Versions) != 1 || !d.Versions[0].HasFile {
+		t.Errorf("Epsilon's file: listed %v, title page %+v", listed, d.Versions)
 	}
 }
 

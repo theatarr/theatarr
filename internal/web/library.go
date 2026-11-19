@@ -189,7 +189,7 @@ func availStateSQL(c airClock) string {
 			WHERE s.version_id = v.id AND e.season > 0 AND e.removed_at IS NULL AND s.state = 'wanted' AND s.monitored = 1
 			AND ` + aired + `)
 			THEN 'wanted'
-		WHEN ` + hasFileSQL + ` THEN CASE WHEN EXISTS (SELECT 1 FROM episode_version_state s WHERE s.version_id = v.id
+		WHEN ` + currentFileSQL + ` THEN CASE WHEN EXISTS (SELECT 1 FROM episode_version_state s WHERE s.version_id = v.id
 			AND s.state = 'filled') THEN 'filled' ELSE 'cutoff_met' END
 		ELSE v.state END)`
 }
@@ -256,7 +256,7 @@ func titleAvailabilitySQL(c airClock) string {
 			CASE WHEN COALESCE(m.release_date, '') <> '' THEN substr(m.release_date, 1, 10) > '` + c.today + `'
 			ELSE COALESCE(m.status, '') NOT IN ('Returning Series', 'Ended', 'Canceled') END) END`
 	return `(CASE WHEN NOT EXISTS (SELECT 1 ` + live + `) THEN 'none'
-		WHEN EXISTS (SELECT 1 ` + live + ` AND ` + hasFileSQL + `) THEN CASE WHEN ` + gap + ` THEN 'partial' ELSE 'available' END
+		WHEN EXISTS (SELECT 1 ` + live + ` AND ` + currentFileSQL + `) THEN CASE WHEN ` + gap + ` THEN 'partial' ELSE 'available' END
 		WHEN NOT EXISTS (SELECT 1 ` + live + ` AND v.monitored = 1) THEN 'unmonitored'
 		WHEN ` + upcoming + ` THEN 'upcoming'
 		ELSE 'missing' END)`
@@ -269,7 +269,7 @@ func watchConds(c airClock) map[string]string {
 	live := `FROM version v WHERE v.title_id = t.id AND ` + liveVersion
 	nVersions := `(SELECT COUNT(*) ` + live + `)`
 	// anyFile: some version has a file; completeVersion: some version is complete (filled or at cutoff).
-	anyFile := `EXISTS (SELECT 1 ` + live + ` AND ` + hasFileSQL + `)`
+	anyFile := `EXISTS (SELECT 1 ` + live + ` AND ` + currentFileSQL + `)`
 	completeVersion := `EXISTS (SELECT 1 ` + live + ` AND ` + st + ` IN ('filled', 'cutoff_met'))`
 	return map[string]string{
 		"watch_available": nVersions + ` > 0 AND ((t.kind = 'movie' AND ` + anyFile + `) OR (t.kind <> 'movie' AND ` +

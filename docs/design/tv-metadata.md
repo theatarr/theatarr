@@ -27,8 +27,8 @@ absolute order) and store it in one transaction:
   explanations and a series copy's state leave them out (`TestRemovedEpisodesNotCurrent`,
   `TestSeriesStateLeavesRemovedEpisodes`). The native episode grid lists one only while it still holds a file (so the
   file stays reachable), marked `removed`, uncounted (the season header too) and without a monitor switch ("No longer
-  in the series' episode list"); a link holding only removed episodes is no file of the series (`hasFileSQL`), so the
-  availability does not read it as partly available; opening one by its id always answers it; History, the journal, reports, the queue, manual import and lookups by id keep
+  in the series' episode list"); a link holding only removed episodes still is a file (`has_file`, Rename files), but availability
+  and coverage do not count it (`currentFileSQL`), so the title does not read as partly available; opening one by its id always answers it; History, the journal, reports, the queue, manual import and lookups by id keep
   them, and the compatible episode API lists them as before.
 - **Series row:** status, air time, zone, episode count and errors in `series_meta`; name, sort name, year,
   runtime and IMDb id refresh on each successful fetch. User settings, including explicit standard/daily/anime

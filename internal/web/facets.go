@@ -108,16 +108,16 @@ func (w *Web) titleFacets(ctx context.Context, f TitleFilter, seeFiles bool) (Ti
 	if !seeFiles {
 		avail = availStateSQL(newAirClock(w.now()))
 	}
-	err := scanAll(ctx, db, `SELECT t.id, t.kind, v.policy_key, v.state, v.monitored, `+hasFileSQL+`, `+
+	err := scanAll(ctx, db, `SELECT t.id, t.kind, v.policy_key, v.state, v.monitored, `+hasFileSQL+`, `+currentFileSQL+`, `+
 		avail+titleFrom+` JOIN version v ON v.title_id = t.id`+andWhere(where, liveVersion),
 		args, func(r *sql.Rows) error {
 			var tid int64
 			var kind, key, state, avail string
-			var has, mon bool
-			if err := r.Scan(&tid, &kind, &key, &state, &mon, &has, &avail); err != nil {
+			var has, current, mon bool
+			if err := r.Scan(&tid, &kind, &key, &state, &mon, &has, &current, &avail); err != nil {
 				return err
 			}
-			states[tid] = append(states[tid], versionState{avail, has, mon})
+			states[tid] = append(states[tid], versionState{avail, current, mon})
 			kinds[tid] = kind
 			vf := keys[key]
 			if vf == nil {

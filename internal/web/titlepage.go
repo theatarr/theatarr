@@ -312,7 +312,7 @@ func liveStates(vs []Version) []versionState {
 	var out []versionState
 	for _, v := range vs {
 		if !v.Removed {
-			out = append(out, versionState{availOr(v.availState, v.State), v.HasFile, v.Monitored})
+			out = append(out, versionState{availOr(v.availState, v.State), v.currentFile, v.Monitored})
 		}
 	}
 	return out

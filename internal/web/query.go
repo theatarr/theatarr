@@ -77,8 +77,10 @@ type VersionBrief struct {
 	Profile             string `json:"profile,omitempty"`
 	MinimumAvailability string `json:"minimum_availability,omitempty"`
 	Folder              string `json:"folder,omitempty"`
-	// availState is the state availability reads (availStateSQL).
-	availState string
+	// availState is the state availability reads (availStateSQL); currentFile is HasFile as it reads it
+	// (currentFileSQL).
+	availState  string
+	currentFile bool
 }
 
 // TitleRow is a title on a list.
@@ -134,9 +136,13 @@ type TitlePage struct {
 	Items  []TitleRow `json:"items"`
 }
 
-// hasFileSQL is true when version v has a file: an active link (a series' link holding a current episode: one only
-// for episodes the metadata source removed is no file of the series now).
-const hasFileSQL = `EXISTS (SELECT 1 FROM link_version lv JOIN link l ON l.id = lv.link_id WHERE lv.version_id = v.id
+// hasFileSQL is true when version v has a file: an active link. File presence (has_file, the with/without filters,
+// file operations such as Rename files) reads it.
+const hasFileSQL = `EXISTS (SELECT 1 FROM link_version lv JOIN link l ON l.id = lv.link_id WHERE lv.version_id = v.id AND l.state = 'active')`
+
+// currentFileSQL is hasFileSQL as availability and coverage read it: a series' link counts only while it holds a
+// current episode (one holding only episodes the metadata source removed is kept for its file, not for watching).
+const currentFileSQL = `EXISTS (SELECT 1 FROM link_version lv JOIN link l ON l.id = lv.link_id WHERE lv.version_id = v.id
 	AND l.state = 'active' AND (NOT EXISTS (SELECT 1 FROM link_episode le_h WHERE le_h.link_id = l.id)
 		OR EXISTS (SELECT 1 FROM link_episode le_h JOIN episode e_h ON e_h.id = le_h.episode_id
 			WHERE le_h.link_id = l.id AND e_h.removed_at IS NULL)))`
@@ -297,12 +303,12 @@ func (w *Web) titleRows(ctx context.Context, db *sql.DB, q string, args []any) (
 	if err := w.fillArt(ctx, db, items); err != nil {
 		return items, err
 	}
-	err = scanAll(ctx, db, `SELECT v.title_id, v.id, v.policy_key, v.state, v.monitored, `+hasFileSQL+`, `+
+	err = scanAll(ctx, db, `SELECT v.title_id, v.id, v.policy_key, v.state, v.monitored, `+hasFileSQL+`, `+currentFileSQL+`, `+
 		availStateSQL(newAirClock(w.now()))+` FROM version v WHERE v.title_id IN (`+store.Placeholders(len(ids))+`) AND `+
 		liveVersion+` ORDER BY v.policy_key`, ids, func(vrows *sql.Rows) error {
 		var tid int64
 		var v VersionBrief
-		if err := vrows.Scan(&tid, &v.ID, &v.Key, &v.State, &v.Monitored, &v.HasFile, &v.availState); err != nil {
+		if err := vrows.Scan(&tid, &v.ID, &v.Key, &v.State, &v.Monitored, &v.HasFile, &v.currentFile, &v.availState); err != nil {
 			return err
 		}
 		it := &items[idx[tid]]
@@ -437,8 +443,10 @@ type Version struct {
 	// Removed (title page): the version was removed from the library (arrview_removed_version); its rows and links
 	// stay. It counts in none of the title's rollups (availability, size, added).
 	Removed bool `json:"removed,omitempty"`
-	// availState is the state availability reads (availStateSQL; enrichTitle).
-	availState string
+	// availState is the state availability reads (availStateSQL; enrichTitle); currentFile is HasFile as it reads it
+	// (currentFileSQL).
+	availState  string
+	currentFile bool
 }
 
 // ExternalID is a further id of a title.
@@ -587,7 +595,7 @@ func (w *Web) getTitle(ctx context.Context, id int64) (*TitleDetail, error) {
 // versions loads versions matching cond with their links. limit 0 means all.
 func (w *Web) versions(ctx context.Context, cond string, args []any, limit, offset int) ([]Version, error) {
 	db := w.st.Reader()
-	q := `SELECT v.id, v.title_id, t.name, v.policy_key, v.state, v.monitored, ` + hasFileSQL + `,
+	q := `SELECT v.id, v.title_id, t.name, v.policy_key, v.state, v.monitored, ` + hasFileSQL + `, ` + currentFileSQL + `,
 		v.created_at, v.updated_at FROM version v JOIN title t ON t.id = v.title_id WHERE ` + cond + ` ORDER BY v.title_id, v.policy_key`
 	if limit > 0 {
 		q += " LIMIT ? OFFSET ?"
@@ -599,7 +607,7 @@ func (w *Web) versions(ctx context.Context, cond string, args []any, limit, offs
 	err := scanAll(ctx, db, q, args, func(r *sql.Rows) error {
 		var v Version
 		var c, u int64
-		if err := r.Scan(&v.ID, &v.TitleID, &v.TitleName, &v.Key, &v.State, &v.Monitored, &v.HasFile, &c, &u); err != nil {
+		if err := r.Scan(&v.ID, &v.TitleID, &v.TitleName, &v.Key, &v.State, &v.Monitored, &v.HasFile, &v.currentFile, &c, &u); err != nil {
 			return err
 		}
 		v.CreatedAt, v.UpdatedAt = ts(c), ts(u)
