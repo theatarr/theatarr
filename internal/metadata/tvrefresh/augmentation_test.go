@@ -186,6 +186,11 @@ func TestPeriodicSceneRefresh(t *testing.T) {
 			VALUES(?,'sonarr_4k_debrid',?,'mixed','GroupA')`, id, name); err != nil {
 			t.Fatal(err)
 		}
+		// The TVDB fallback stored the same name first, with its own origin and no seasons.
+		if _, err := e.st.Writer().Exec(`INSERT INTO title_scene_mapping(title_id,source,name,scene_origin)
+			VALUES(?,'tvrefresh:tvdb',?,'tvdb')`, id, name); err != nil {
+			t.Fatal(err)
+		}
 	}
 	refresh()
 	comments := func(name string) string {
@@ -206,10 +211,10 @@ func TestPeriodicSceneRefresh(t *testing.T) {
 		}
 		return strings.Join(out, ", ")
 	}
-	if got := comments("Remake Alias"); got != "sonarr_4k_debrid=Limited matching, tvrefresh:sonarr=Limited matching" {
+	if got := comments("Remake Alias"); got != "sonarr_4k_debrid=Limited matching, tvrefresh:sonarr=Limited matching, tvrefresh:tvdb=Limited matching" {
 		t.Errorf("limited alias rows: %s", got)
 	}
-	if got := comments("Both Alias"); got != "sonarr_4k_debrid=GroupA, tvrefresh:sonarr=" {
+	if got := comments("Both Alias"); got != "sonarr_4k_debrid=GroupA, tvrefresh:sonarr=, tvrefresh:tvdb=" {
 		t.Errorf("alias listed with and without a limit: %s", got)
 	}
 	if got := comments("Imported Alias"); got != "sonarr_4k_debrid=" {

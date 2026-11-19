@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/decide/parser/sonarr"
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -189,9 +190,46 @@ func (s *Service) sceneNames(ctx context.Context, id int64, tvdb int, source str
 				limitedMatching, id, "tvrefresh:"+source, n.Title, n.Season, n.SceneSeason, n.Origin); err != nil {
 				return err
 			}
+			// Our TVDB fallback may hold the same name already (any origin and seasons): limited too, or the
+			// name would still match through it.
+			if err := s.limitTVDBAlias(ctx, tx, id, n.Title); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
+}
+
+// limitTVDBAlias marks the TVDB fallback's alias of the title with name's clean title "Limited matching".
+func (s *Service) limitTVDBAlias(ctx context.Context, tx *sql.Tx, titleID int64, name string) error {
+	rows, err := tx.QueryContext(ctx, `SELECT rowid, name FROM title_scene_mapping WHERE title_id = ? AND source = ?
+		AND comment != ?`, titleID, sceneSource, limitedMatching)
+	if err != nil {
+		return err
+	}
+	clean := sonarr.CleanSeriesTitle(name)
+	var ids []int64
+	for rows.Next() {
+		var rowid int64
+		var n string
+		if err := rows.Scan(&rowid, &n); err != nil {
+			rows.Close()
+			return err
+		}
+		if sonarr.CleanSeriesTitle(n) == clean {
+			ids = append(ids, rowid)
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, rowid := range ids {
+		if err := s.exec(ctx, tx, `UPDATE title_scene_mapping SET comment = ? WHERE rowid = ?`, limitedMatching, rowid); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // RefreshScene refreshes all catalog series independently of their TVDB refresh cadence.

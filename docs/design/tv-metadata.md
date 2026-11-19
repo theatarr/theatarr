@@ -94,7 +94,8 @@ The existing catalog/readers store the display alias and season limits; distinct
 `filterRegex` and `searchMode` remain unsupported. A Sonarr feed row with a `filterRegex` (an alias Sonarr matches only
 against releases its regex accepts, often a remake's name for its own releases) is stored with the comment
 "Limited matching", as Sonarr's API shows it, and the same alias of another source (an arr import carries it without
-its limit: same name, seasons and origin) is marked the same in that refresh, unless the feed also lists the alias
+its limit: same name, seasons and origin) is marked the same in that refresh, as is a TVDB-fallback alias
+(`tvrefresh:tvdb`) of the same clean name whatever its origin and seasons, unless the feed also lists the alias
 without a limit; nothing is deleted. The row stays so the name does not come back as a plain TVDB alias. "Limited
 matching" names are left out wherever names find or match a series: the decision engine's loader (and so search
 criteria and scene names), RSS's series index and the journal's name check. Sort names follow Theatarr's lowercase convention, since the arrs'
