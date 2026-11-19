@@ -340,21 +340,30 @@ func cardigannKeywords(q Query) string {
 
 // cardigannQueries expands the scene names of keyword criteria. Names that already include the anime season
 // need no Sxx suffix. Anime episodes also get the standard-number query Sonarr sends alongside absolute numbers.
+// A film is searched by its title, then by each other name it carries (the router's original title), one search each.
 func cardigannQueries(q Query) []string {
+	var out []string
+	seen := map[string]bool{}
+	add := func(s string) {
+		if s != "" && !seen[strings.ToLower(s)] {
+			seen[strings.ToLower(s)] = true
+			out = append(out, s)
+		}
+	}
+	if q.Type == QueryMovie {
+		for _, title := range append([]string{q.Title}, q.Aliases...) {
+			qq := q
+			qq.Title = title
+			add(cardigannKeywords(qq))
+		}
+		return out
+	}
 	if q.Type != QuerySeries || q.Criteria == "" {
 		return []string{cardigannKeywords(q)}
 	}
 	titles := q.SceneTitles
 	if len(titles) == 0 {
 		titles = []string{q.Title}
-	}
-	var out []string
-	seen := map[string]bool{}
-	add := func(s string) {
-		if s != "" && !seen[s] {
-			seen[s] = true
-			out = append(out, s)
-		}
 	}
 	for _, title := range titles {
 		qq := q

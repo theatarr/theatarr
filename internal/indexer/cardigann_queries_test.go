@@ -141,6 +141,23 @@ func TestCardigannMovieIDFirstThenTitle(t *testing.T) {
 	}
 }
 
+// A film found only under its original title (the router's alias): the keyword tier asks the title and then the
+// original title, one search each; a productive id search asks neither.
+func TestCardigannMovieOriginalTitle(t *testing.T) {
+	q := Query{Type: QueryMovie, Title: "Your Name.", Year: 2016, IMDb: "tt5311514", Aliases: []string{"Kimi no Na wa."}}
+	h, asked := idSite(t, func(v url.Values) bool { return v.Get("q") == "Kimi no Na wa. 2016" })
+	res := search(t, h, "site", q)
+	got := asked()
+	if len(got) != 3 || got[0].Get("q") != "tt5311514" || got[1].Get("q") != "Your Name. 2016" ||
+		got[2].Get("q") != "Kimi no Na wa. 2016" || len(res.Releases) != 1 {
+		t.Fatalf("requests %v, %d releases", got, len(res.Releases))
+	}
+	h, asked = idSite(t, func(v url.Values) bool { return v.Get("q") == "tt5311514" })
+	if res := search(t, h, "site", q); len(res.Releases) != 1 || len(asked()) != 1 {
+		t.Fatalf("id answered: %d releases, requests %v", len(res.Releases), asked())
+	}
+}
+
 // A series id search carries the season and episode; the keyword search follows with them but without the id. A
 // title-only mapping sends only the keyword search; an id-only mapping without a listed id is not searched by title
 // (as on a Torznab feed), and with one it is never followed by a keyword search.

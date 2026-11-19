@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -122,6 +123,10 @@ func SearchRequests(ctx context.Context, eng *decide.Engine, svc *indexer.Servic
 			return nil, fmt.Errorf("router: version %q has no policy", v.Key)
 		}
 		q := indexer.Query{Type: indexer.QueryMovie, Title: tt.Name, Year: tt.Year, IMDb: tt.IMDb, TMDb: tt.TMDb, Anime: tt.Anime}
+		if o := strings.TrimSpace(tt.OriginalTitle); o != "" && !strings.EqualFold(o, strings.TrimSpace(tt.Name)) {
+			// Where a film search falls to keywords, its original title is asked too (one more request).
+			q.Aliases = []string{o}
+		}
 		if tt.Kind == policy.KindSeries {
 			if target.Series == nil {
 				return nil, errors.New("router: a series search needs a season (and an episode for one episode)")

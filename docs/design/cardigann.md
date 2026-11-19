@@ -84,7 +84,8 @@ expected rows says so with its size only, since a body can hold a passkey.
 
 ## How a search runs
 
-1. The query becomes keywords: movie `title year`, series `title S01E02` or `title S01`, text as typed, RSS none
+1. The query becomes keywords: movie `title year` (then `original-title year` when the film's original title differs,
+   a separate search), series `title S01E02` or `title S01`, text as typed, RSS none
    (see [RSS](#rss)).
    Categories: 2000 for a movie, 5000 for a series, unless the query names them. A query by ids alone (no title) is
    not supported.

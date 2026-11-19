@@ -30,7 +30,8 @@ type Query struct {
 	// Title is the title to search for (or the text, for QueryText). Year helps movies.
 	Title string
 	Year  int
-	// Aliases are other titles (later: one query per alias and numbering scheme, docs/design/indexers.md).
+	// Aliases are other titles. A film's (the router sends its original title when it differs) are asked as keyword
+	// searches after the title, one request each, and are part of Key.
 	Aliases []string
 	// IMDb is "tt" plus digits.
 	IMDb    string
@@ -188,6 +189,9 @@ func (q Query) Key() string {
 	}
 	add("t", normTitle(q.Title))
 	add("y", strconv.Itoa(q.Year))
+	if q.Type == QueryMovie {
+		add("aka", joinTitles(q.Aliases))
+	}
 	add("imdb", q.IMDb)
 	add("tmdb", strconv.Itoa(q.TMDb))
 	add("tvdb", strconv.Itoa(q.TVDB))

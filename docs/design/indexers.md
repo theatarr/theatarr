@@ -209,6 +209,12 @@ the UI does not show them. RSS, Torrentio, Zilean, SeaDex and the command-line t
 filtered. A single-tier id search (a plain series query, an id-only scene mapping) only drops its padding; it gets no
 title tier.
 
+A film's keyword searches (the title tier after an empty id answer, or the only tier on a feed without film ids) ask
+its title and then its original title when that differs (the router sends it as `Query.Aliases`), one request each
+with one `q`, as Radarr asks each search term separately; a productive id search still asks no keywords. Cardigann's
+keyword searches do the same. The other names are part of `Query.Key` for films. Other alternative titles are not
+asked.
+
 ## Tests
 
 `go test ./internal/indexer/ ./cmd/theatarr/` never touches the network. Host names under `.test` go to local `httptest`

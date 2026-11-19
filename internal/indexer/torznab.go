@@ -327,13 +327,18 @@ func (t *torznab) requests(q Query, c *caps) ([][]url.Values, bool) {
 			if q.IMDb != "" && c.movie.available && c.movie.has("imdbid") || q.TMDb != 0 && c.movie.available && c.movie.has("tmdbid") {
 				tiers = append(tiers, []url.Values{p})
 				if q.Title != "" {
-					if fallback, ok := t.movieTitleParams(q, c); ok {
-						tiers = append(tiers, []url.Values{fallback})
+					if fallback := t.movieTitleParams(q, c); len(fallback) > 0 {
+						tiers = append(tiers, fallback)
 					}
 				}
 				return tiers, true
 			}
-			return [][]url.Values{{p}}, true
+			// A title-only request: one more per other name of the film (its original title), one q each.
+			tier := []url.Values{p}
+			if p.Has("q") {
+				tier = perName(q, p, func(title string) string { return titleYear(Query{Title: title, Year: q.Year}) })
+			}
+			return [][]url.Values{tier}, true
 		}
 	}
 	if q.Type == QuerySeries && q.Criteria != "" && !t.dmm {
@@ -352,29 +357,43 @@ func (t *torznab) requests(q Query, c *caps) ([][]url.Values, bool) {
 	return [][]url.Values{{p}}, true
 }
 
-func (t *torznab) movieTitleParams(q Query, c *caps) (url.Values, bool) {
+func (t *torznab) movieTitleParams(q Query, c *caps) []url.Values {
 	p := url.Values{}
 	if cats := q.categoryList(c); cats != "" {
 		p.Set("cat", cats)
 	}
 	if c.search.has("q") {
 		p.Set("t", "search")
-		titles := append([]string{q.Title}, q.Aliases...)
-		for _, title := range titles {
+		return perName(q, p, func(title string) string {
 			if c.search.raw {
-				p.Add("q", newsnabifyTitle(titleYear(Query{Title: title, Year: q.Year})))
-			} else {
-				p.Add("q", newsnabifyTitle(titleYear(Query{Title: cleanRadarrTitle(title), Year: q.Year})))
+				return newsnabifyTitle(titleYear(Query{Title: title, Year: q.Year}))
 			}
-		}
-		return p, true
+			return newsnabifyTitle(titleYear(Query{Title: cleanRadarrTitle(title), Year: q.Year}))
+		})
 	}
 	if c.movie.available && c.movie.has("q") {
 		p.Set("t", "movie")
-		p.Set("q", titleYear(q))
-		return p, true
+		return perName(q, p, func(title string) string { return titleYear(Query{Title: title, Year: q.Year}) })
 	}
-	return nil, false
+	return nil
+}
+
+// perName is one request per distinct name of a film (its title, then its other names), each p with its own q:
+// Radarr asks every search term separately, and a feed binds one q per request.
+func perName(q Query, p url.Values, term func(title string) string) []url.Values {
+	var out []url.Values
+	var seen []string
+	for _, title := range append([]string{q.Title}, q.Aliases...) {
+		v := term(title)
+		if strings.TrimSpace(v) == "" || slices.ContainsFunc(seen, func(s string) bool { return strings.EqualFold(s, v) }) {
+			continue
+		}
+		seen = append(seen, v)
+		pp := cloneValues(p)
+		pp.Set("q", v)
+		out = append(out, pp)
+	}
+	return out
 }
 
 // cleanRadarrTitle mirrors SearchCriteriaBase.GetCleanSceneTitle (Radarr src/NzbDrone.Core/IndexerSearch/Definitions/SearchCriteriaBase.cs:24-39).

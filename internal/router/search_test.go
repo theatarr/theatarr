@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -189,6 +190,82 @@ func TestSearchDropsIDPadding(t *testing.T) {
 				t.Logf("%s: %s accepted=%v %v", tc.name, d.Release, d.Accepted, d.Rejections)
 			}
 			t.Errorf("%s: ranked %d decisions, want only Arrival, accepted", tc.name, len(r))
+		}
+	}
+}
+
+// TestSearchByOriginalTitle: a film found only under its original title is found by one more keyword request with
+// that title (one q per request); a productive id search still asks no keywords.
+func TestSearchByOriginalTitle(t *testing.T) {
+	t.Parallel()
+	item := func(title, hash string) string {
+		return `<item><title>` + title + `</title><guid>` + hash + `</guid><size>20000000000</size><category>2000</category>` +
+			`<torznab:attr name="infohash" value="` + hash + `"/><torznab:attr name="seeders" value="10"/></item>`
+	}
+	original := item("Kimi.no.Na.wa.2016.2160p.WEB-DL-GRP", strings.Repeat("a", 40))
+	for _, tc := range []struct {
+		name     string
+		idAnswer string
+		want     []string
+	}{
+		{"id finds nothing", "", []string{"imdbid=2543164", "q=Your Name 2016", "q=Kimi no Na wa 2016"}},
+		{"id finds the film", original, []string{"imdbid=2543164"}},
+	} {
+		var mu sync.Mutex
+		var asked []string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/xml")
+			q := r.URL.Query()
+			if q.Get("t") == "caps" {
+				fmt.Fprint(w, `<caps><limits default="100" max="100"/><searching><search available="yes" supportedParams="q"/><movie-search available="yes" supportedParams="imdbid"/></searching><categories><category id="2000" name="Movies"/></categories></caps>`)
+				return
+			}
+			body := ""
+			mu.Lock()
+			switch {
+			case q.Has("imdbid"):
+				asked = append(asked, "imdbid="+q.Get("imdbid"))
+				body = tc.idAnswer
+			default:
+				for _, v := range q["q"] {
+					asked = append(asked, "q="+v)
+				}
+				if q.Get("q") == "Kimi no Na wa 2016" {
+					body = original
+				}
+			}
+			mu.Unlock()
+			fmt.Fprint(w, `<rss xmlns:torznab="http://torznab.com/schemas/2015/feed"><channel>`+body+`</channel></rss>`)
+		}))
+		profile := &policy.Profile{Qualities: []policy.QualityItem{{Name: "WEBDL-2160p"}}, Cutoff: "WEBDL-2160p"}
+		pol := &policy.Policy{Profiles: map[string]*policy.Profile{"web": profile},
+			Versions: map[string]*policy.VersionPolicy{"web": {Kind: policy.KindMovie, Profile: "web", Indexers: []string{"one"}}},
+			Indexers: map[string]*policy.Indexer{"one": {Kind: "torznab", URL: srv.URL + "/api", Privacy: policy.PrivacyPublic}}}
+		eng, err := decide.New(pol, decide.Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		idx, err := indexer.New(pol, &searchGateway{}, indexer.Options{CacheTTL: -1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		title := decide.Title{ID: 1, Kind: policy.KindMovie, Name: "Your Name.", OriginalTitle: "Kimi no Na wa.", Year: 2016,
+			IMDb: "tt2543164"}
+		got, err := SearchRequests(context.Background(), eng, idx, title, []SearchTarget{
+			{ID: "a", Version: decide.Version{ID: 1, Key: "web", Policy: pol.Versions["web"]}}})
+		srv.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if fmt.Sprint(asked) != fmt.Sprint(tc.want) {
+			t.Errorf("%s: requests %q, want %q", tc.name, asked, tc.want)
+		}
+		r := got["a"].Ranked
+		if len(r) != 1 || r[0].Release != "Kimi.no.Na.wa.2016.2160p.WEB-DL-GRP" || !r[0].Accepted {
+			for _, d := range r {
+				t.Logf("%s: %s accepted=%v %v", tc.name, d.Release, d.Accepted, d.Rejections)
+			}
+			t.Errorf("%s: ranked %d decisions, want the film by its original title, accepted", tc.name, len(r))
 		}
 	}
 }

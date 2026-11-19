@@ -53,6 +53,60 @@ func TestTorznabIDPaddingFallsBackToTitle(t *testing.T) {
 	}
 }
 
+// A film's other names (the router's original title) are asked one q per request, distinct, in the keyword tier
+// after an empty id answer and in a title-only feed; a productive id answer asks no keywords. The names are part of
+// the query key.
+func TestTorznabMovieNamesOneQEach(t *testing.T) {
+	loadFixtures(t, "prowlarr_caps.xml", "prowlarr_caps_textonly.xml")
+	q := Query{Type: QueryMovie, IMDb: "tt5311514", Title: "Your Name.", Year: 2016,
+		Aliases: []string{"Kimi no Na wa.", "your name."}}
+	for _, tc := range []struct {
+		caps     string
+		idRows   int
+		want     string
+		releases int
+	}{
+		{"prowlarr_caps.xml", 0, "[imdbid=5311514 q=Your Name 2016 q=Kimi no Na wa 2016]", 2},
+		{"prowlarr_caps.xml", 1, "[imdbid=5311514]", 1},
+		{"prowlarr_caps_textonly.xml", 0, "[q=Your Name. 2016 q=Kimi no Na wa. 2016]", 2},
+	} {
+		n := newNet(t)
+		rec := &recorder{}
+		serveProwlarr(n, rec, tc.caps, func(r *http.Request) string {
+			if r.URL.Query().Has("imdbid") {
+				return feedOf(0, tc.idRows, 0, "")
+			}
+			if strings.HasPrefix(r.URL.Query().Get("q"), "Kimi") {
+				return feedOf(7, 1, 0, "")
+			}
+			return feedOf(5, 1, 0, "")
+		})
+		h := newHarness(t, n, testPolicy(), false)
+		res := search(t, h, "prowlarr", q)
+		var got []string
+		for _, r := range rec.all()[1:] { // after the caps request
+			v := r.URL.Query()
+			if v.Has("imdbid") {
+				got = append(got, "imdbid="+v.Get("imdbid"))
+			}
+			for _, qv := range v["q"] {
+				got = append(got, "q="+qv)
+			}
+			if len(v["q"]) > 1 {
+				t.Errorf("%s: %d q values in one request", tc.caps, len(v["q"]))
+			}
+		}
+		if fmt.Sprint(got) != tc.want || len(res.Releases) != tc.releases {
+			t.Errorf("%s id rows %d: requests %v (want %s), %d releases", tc.caps, tc.idRows, got, tc.want, len(res.Releases))
+		}
+	}
+	plain := q
+	plain.Aliases = nil
+	if q.Key() == plain.Key() {
+		t.Errorf("a film's other names are not in its key: %s", q.Key())
+	}
+}
+
 func TestCardigannIDPaddingFallsBackToTitle(t *testing.T) {
 	q := Query{Type: QueryMovie, Title: "The Matrix", Year: 1999, IMDb: "tt0133093"}
 	for _, tc := range []struct {
