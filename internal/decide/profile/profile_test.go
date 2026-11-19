@@ -120,7 +120,7 @@ func TestSonarrRuntimeMessage(t *testing.T) {
 	}
 	s.Release.Size = 100 << 20
 	d = e.Run(sp, s)
-	if want := "100.0 MB is smaller than minimum allowed 360.0 MB (for 2x 120min)"; d.Message != want {
+	if want := "100.0 MB is smaller than minimum allowed 360.0 MB (for 2 episodes totalling 120min)"; d.Message != want {
 		t.Errorf("got %q, want %q", d.Message, want)
 	}
 	// No runtime and no pilot: the arr throws, which becomes a DecisionError.
@@ -135,8 +135,44 @@ func TestSonarrRuntimeMessage(t *testing.T) {
 	at := now.Add(24 * time.Hour)
 	s.Episodes[1].AirDateUtc = &at // Before is <=
 	d = e.Run(sp, s)
-	if want := "100.0 MB is smaller than minimum allowed 270.0 MB (for 2x 90min)"; d.Message != want {
+	if want := "100.0 MB is smaller than minimum allowed 270.0 MB (for 2 episodes totalling 90min)"; d.Message != want {
 		t.Errorf("got %q, want %q", d.Message, want)
+	}
+}
+
+// TestSonarrPackPreferredSize: two ten-episode packs that tie before size rank by the summed runtime of their
+// episodes (an episode with no runtime counts the series runtime), as Sonarr v5 does: at 95 MB/min the 450 minutes
+// prefer about 41.7 GB, so the 40 GB pack ranks before the 20 GB one (one episode's 45 minutes picked the 20 GB one).
+func TestSonarrPackPreferredSize(t *testing.T) {
+	fl := format.Sonarr
+	e := &Engine{Flavour: fl, Definitions: DefaultDefinitions(fl)}
+	q := MustQuality(fl, "WEBDL-2160p")
+	def := *e.Definitions.Get(q)
+	pref := 95.0
+	def.PreferredSize = &pref
+	e.Definitions.Set(def)
+	p := DefaultProfile(fl, "Any", nil, Qualities(fl), nil)
+	media := &Media{Title: "Show", Runtime: 45}
+	pack := func(size int64) *Subject {
+		var eps []*Episode
+		for i := 1; i <= 10; i++ {
+			rt := 45
+			if i == 10 {
+				rt = 0
+			}
+			eps = append(eps, &Episode{SeasonNumber: 1, EpisodeNumber: i, Runtime: rt})
+		}
+		return &Subject{Profile: p, Media: media, Episodes: eps, Release: &Release{Title: "Show.S01.2160p.WEB-DL-GRP",
+			Size: size, Quality: NewQualityModel(q), FullSeason: true}}
+	}
+	small, large := pack(20<<30), pack(40<<30)
+	if got := e.Prioritize([]*Subject{small, large}); got[0] != large {
+		t.Errorf("the 20 GB pack ranks first, want the 40 GB one")
+	}
+	// No episodes: the series runtime, as before.
+	small.Episodes, large.Episodes = nil, nil
+	if got := e.Prioritize([]*Subject{small, large}); got[0] != small {
+		t.Errorf("without episodes the 40 GB pack ranks first, want the 20 GB one")
 	}
 }
 

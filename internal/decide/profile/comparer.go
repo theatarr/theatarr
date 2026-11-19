@@ -164,6 +164,9 @@ func (e *Engine) compareSize(x, y *Subject) int {
 		runtime := 0
 		if s.Media != nil {
 			runtime = s.Media.Runtime
+			if e.Flavour == format.Sonarr && len(s.Episodes) > 0 {
+				runtime = episodesRuntime(s.Episodes, s.Media.Runtime) // Sonarr v5: the release's summed runtime
+			}
 		}
 		if pref != nil && runtime > 0 {
 			preferred := int64(runtime) * Megabytes(*pref)

@@ -38,7 +38,7 @@ scores) and adds the quality part.
   |---|:-:|:-:|---|
   | `QualityAllowedByProfile` | yes | yes | |
   | `CustomFormatAllowedbyProfile` | yes | yes | minimum format score |
-  | `AcceptableSize` | yes | yes | Radarr: movie runtime, 110 min when unknown (written back to the movie, as in the arr). Sonarr: sum of the episode runtimes, else the series runtime, 45 min within a day of the premiere; specials skipped; "2x 60min" messages |
+  | `AcceptableSize` | yes | yes | Radarr: movie runtime, 110 min when unknown (written back to the movie, as in the arr). Sonarr: sum of the episode runtimes, else the series runtime, 45 min within a day of the premiere; specials skipped; "2 episodes totalling 120min" messages, as Sonarr v5 words them |
   | `MaximumSize` | yes | yes | the global indexer setting |
   | `NotSample` | yes | yes | |
   | `RawDisk` | yes | yes | |
@@ -51,7 +51,9 @@ scores) and adds the quality part.
   - Radarr order: quality and revision, format score, preferred protocol, indexer priority, indexer flags (when
     preferred), seeders and peers, usenet age, size closest to preferred.
   - Sonarr order: quality, format score, protocol, then season pack and episode count (anime prefers more
-    episodes, other series fewer), lowest episode number, indexer priority, peers, age, size.
+    episodes, other series fewer), lowest episode number, indexer priority, peers, age, size. Size is closest to
+    the preferred size over the summed runtime of the release's episodes (an episode with none counts the series
+    runtime; no episodes: the series runtime), as Sonarr v5 does (v4 used one episode's; `TestSonarrPackPreferredSize`).
   - Theatarr adds one step, cache standing (`compareCached`, `Subject.Cached`): for Radarr right after the format
     score, for Sonarr after the lowest episode number (docs/design/router.md "Deviations", "Cache tie-break"). The
     arr fixtures carry no cache evidence, so the step ties there.

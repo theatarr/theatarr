@@ -55,9 +55,10 @@ and models three versions with two criteria each.
      - the format input carries the release's size and indexer flags. Flags come from torznab tags and volume
        factors, as in `TorznabRssParser.GetFlags`;
      - formats are calculated, and each matched format reports its score in the profile.
-     - Movies with a known release size and runtime-based size bounds temporarily reject with `UnknownRuntime`
-       until real runtime is loaded. They never judge size against a guessed 110 minutes. RSS leaves these items
-       eligible for reconsideration; the lower-level Radarr specification keeps its fallback for parity tests.
+     - On a `prefer_seadex` version, movies with a known release size and runtime-based size bounds temporarily
+       reject with `UnknownRuntime` until real runtime is loaded, instead of judging size against a guessed 110
+       minutes (`TestMovieRuntimeWaitsInsteadOfUsingMedian`). RSS leaves these items eligible for reconsideration.
+       Prefer-off versions keep Radarr's 110-minute fallback ([Prefer off](#seadex-standing)).
   5. **Specifications:** `profile.Engine.Evaluate` runs with the version's active link (per episode for series).
      - Its formats are computed as `ParseCustomFormat(MovieFile)` does: release title from the scene name, else
        the original file name, else the relative path.

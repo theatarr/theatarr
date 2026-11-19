@@ -106,7 +106,7 @@ func acceptableSize(e *Engine, s *Subject) Decision {
 			if len(s.Episodes) == 1 {
 				return fmt.Sprintf("%dmin", runtime)
 			}
-			return fmt.Sprintf("%dx %dmin", len(s.Episodes), runtime)
+			return fmt.Sprintf("%d episodes totalling %dmin", len(s.Episodes), runtime)
 		}
 		if def.MinSize != nil {
 			minSize := Megabytes(*def.MinSize) * int64(runtime)
@@ -180,18 +180,25 @@ func sonarrRuntime(s *Subject) (int, Decision, bool) {
 			}
 		}
 	}
+	runtime := episodesRuntime(s.Episodes, seriesRuntime)
+	if runtime == 0 {
+		return 0, Reject(ReasonUnknownRuntime, "Runtime of all episodes is 0, unable to validate size until it is available"), false
+	}
+	return runtime, Decision{}, true
+}
+
+// episodesRuntime sums the episodes' runtimes, an episode with none counting seriesRuntime (Sonarr's size check and,
+// in v5, its preferred-size ranking).
+func episodesRuntime(eps []*Episode, seriesRuntime int) int {
 	runtime := 0
-	for _, ep := range s.Episodes {
+	for _, ep := range eps {
 		if ep.Runtime > 0 {
 			runtime += ep.Runtime
 		} else {
 			runtime += seriesRuntime
 		}
 	}
-	if runtime == 0 {
-		return 0, Reject(ReasonUnknownRuntime, "Runtime of all episodes is 0, unable to validate size until it is available"), false
-	}
-	return runtime, Decision{}, true
+	return runtime
 }
 
 // MaximumSizeSpecification.
