@@ -203,6 +203,9 @@ func (h *hookPayloads) Emit(ctx context.Context, ev notify.Event) {
 func deleteHooks(e *devEnv) *hookPayloads {
 	h := &hookPayloads{recorder: &recorder{}, e: e}
 	e.svc.SetNotifier(h)
+	// A tag on the deleted copy: the payload names it, though the removal takes the copy's tags.
+	e.exec(`INSERT INTO arrview_tag (id, label, created_at) VALUES (77, 'keep', 0)`)
+	e.exec(`INSERT INTO arrview_title_tag (version, title_id, tag_id) VALUES ('movie-web', 1, 77)`)
 	return h
 }
 
@@ -214,6 +217,9 @@ func (h *hookPayloads) check(t *testing.T, name string, deleted bool) {
 	}
 	b := h.bodies[0]
 	m, _ := b["movie"].(obj)
+	if tags, _ := m["tags"].([]string); len(tags) != 1 || tags[0] != "keep" {
+		t.Errorf("%s: webhook tags %v", name, m["tags"])
+	}
 	if b["eventType"] != "MovieDelete" || m["title"] != "Alpha" || b["deletedFiles"] != deleted || !h.after[0] {
 		t.Errorf("%s: webhook %v (after the removal: %v)", name, b, h.after[0])
 	}

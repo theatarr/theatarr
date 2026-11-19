@@ -1075,8 +1075,9 @@ func (s *Service) deleteTitle(w http.ResponseWriter, r *request) {
 		hook = &notify.Event{Kind: notify.Delete, View: r.v.Key, TitleID: e.id, Version: e.versions[0].key,
 			Reason: "manual"}
 		if s.notifier != nil {
-			if hookPayload, err = s.titlePayload(ctx, r.v, *hook, e); err != nil {
-				s.log.Warn("delete webhook not built", "view", r.v.Key, "title", e.id, "err", err)
+			var perr error
+			if hookPayload, perr = s.titlePayload(ctx, r.v, *hook, e); perr != nil {
+				s.log.Warn("delete webhook not built", "view", r.v.Key, "title", e.id, "err", perr)
 			}
 		}
 	}
