@@ -83,6 +83,8 @@ type VersionBrief struct {
 
 // TitleRow is a title on a list.
 type TitleRow struct {
+	// onDisk is the row's size as the size sort reads it (sizeExpr): SizeBytes for callers who see files.
+	onDisk    int64
 	ID        int64          `json:"id"`
 	Kind      string         `json:"kind"`
 	Name      string         `json:"name"`
@@ -264,7 +266,7 @@ func (w *Web) libraryKind(key string) string {
 
 // titleCols and titleFrom are the list row's columns and tables; m is the title's title_meta row, if any.
 var titleCols = `t.id, t.kind, t.name, t.year, t.tmdb_id, t.tvdb_id, COALESCE(t.imdb_id, ''), t.anime, t.monitored,
-	t.created_at, ` + store.SeriesTypeSQL("t") + `, COALESCE(` + releasedSQL + `, '')`
+	t.created_at, ` + store.SeriesTypeSQL("t") + `, COALESCE(` + releasedSQL + `, ''), COALESCE(` + sizeExpr + `, 0)`
 
 const titleFrom = ` FROM title t LEFT JOIN title_meta m ON m.title_id = t.id`
 
@@ -275,7 +277,7 @@ func (w *Web) titleRows(ctx context.Context, db *sql.DB, q string, args []any) (
 		var r TitleRow
 		var year, tmdb, tvdb, created sql.NullInt64
 		if err := rows.Scan(&r.ID, &r.Kind, &r.Name, &year, &tmdb, &tvdb, &r.IMDbID, &r.Anime, &r.Monitored, &created,
-			&r.SeriesType, &r.Released); err != nil {
+			&r.SeriesType, &r.Released, &r.onDisk); err != nil {
 			return err
 		}
 		r.Year, r.TMDbID, r.TVDbID, r.TitleAddedAt = nullInt(year), nullInt(tmdb), nullInt(tvdb), nullTS(created)

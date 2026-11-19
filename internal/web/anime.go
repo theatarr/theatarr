@@ -203,7 +203,9 @@ type AnimeReviewRefresh struct {
 
 func (w *Web) animeStore() *animestore.Store { return &animestore.Store{DB: w.st, Now: w.now} }
 
-func (w *Web) listFranchises(ctx context.Context) ([]AnimeFranchise, error) {
+// listFranchises lists the franchises. The build and review notes (the build job with its error, the next automatic
+// refresh, a held refresh, the open review count) are for admins only: others get none.
+func (w *Web) listFranchises(ctx context.Context, admin bool) ([]AnimeFranchise, error) {
 	db := w.st.Reader()
 	var out []AnimeFranchise
 	err := scanAll(ctx, db, `SELECT f.slug, f.name, f.source, f.built_at, f.pending_result IS NOT NULL,
@@ -247,6 +249,12 @@ func (w *Web) listFranchises(ctx context.Context) ([]AnimeFranchise, error) {
 	}
 	if err != nil {
 		return nil, err
+	}
+	if !admin {
+		for i := range out {
+			out[i].Pending, out[i].OpenReview = false, 0
+		}
+		return out, nil
 	}
 	return out, w.annotateBuilds(ctx, out)
 }
@@ -310,8 +318,8 @@ func orderItems(rows []*anime.Row, kind string, maps map[string]AnimeMapping, al
 
 var errNoFranchise = errors.New("no such franchise")
 
-func (w *Web) getFranchise(ctx context.Context, slug string, onlyTVDB int, seeFiles bool) (*AnimeFranchiseDetail, error) {
-	all, err := w.listFranchises(ctx)
+func (w *Web) getFranchise(ctx context.Context, slug string, onlyTVDB int, seeFiles, admin bool) (*AnimeFranchiseDetail, error) {
+	all, err := w.listFranchises(ctx, admin)
 	if err != nil {
 		return nil, err
 	}
@@ -844,28 +852,18 @@ func reviewState(r *http.Request) (string, error) {
 	return "", errors.New("state must be open, accepted, rejected, superseded or all")
 }
 
-// withoutBuildNotes strips what only an admin acts on from a franchise: its build job (with the error), the next
-// automatic refresh, a held refresh and the open review count.
-func withoutBuildNotes(f *AnimeFranchise) {
-	f.Job, f.NextRefresh, f.Pending, f.OpenReview = nil, nil, false, 0
-}
-
 func (w *Web) apiAnimeFranchises(rw http.ResponseWriter, r *http.Request) {
-	fs, err := w.listFranchises(r.Context())
+	fs, err := w.listFranchises(r.Context(), w.permsOf(r).Admin)
 	if err != nil {
 		w.internal(rw, err)
 		return
-	}
-	if !w.permsOf(r).Admin {
-		for i := range fs {
-			withoutBuildNotes(&fs[i])
-		}
 	}
 	writeJSON(rw, http.StatusOK, map[string]any{"items": fs})
 }
 
 func (w *Web) apiAnimeFranchise(rw http.ResponseWriter, r *http.Request) {
-	d, err := w.getFranchise(r.Context(), r.PathValue("slug"), 0, w.permsOf(r).SeeFiles)
+	perms := w.permsOf(r)
+	d, err := w.getFranchise(r.Context(), r.PathValue("slug"), 0, perms.SeeFiles, perms.Admin)
 	if errors.Is(err, errNoFranchise) {
 		notFound(rw)
 		return
@@ -873,9 +871,6 @@ func (w *Web) apiAnimeFranchise(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.internal(rw, err)
 		return
-	}
-	if !w.permsOf(r).Admin {
-		withoutBuildNotes(&d.AnimeFranchise)
 	}
 	writeJSON(rw, http.StatusOK, d)
 }

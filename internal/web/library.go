@@ -769,25 +769,11 @@ func (w *Web) fillVersionFiles(ctx context.Context, db *sql.DB, items []TitleRow
 	if err != nil {
 		return err
 	}
-	// The row's size is the sort's (sizeExpr: each file once); each library's own row keeps its size.
-	sizes := map[int64]int64{}
-	if len(tids) > 0 {
-		if err := scanAll(ctx, db, `SELECT t.id, COALESCE(`+sizeExpr+`, 0) FROM title t WHERE t.id IN (`+
-			store.Placeholders(len(tids))+`)`, tids, func(r *sql.Rows) error {
-			var id, n int64
-			if err := r.Scan(&id, &n); err != nil {
-				return err
-			}
-			sizes[id] = n
-			return nil
-		}); err != nil {
-			return err
-		}
-	}
 	for i := range items {
 		it := &items[i]
 		var added int64
-		size := sizes[it.ID]
+		// The row's size is the sort's (sizeExpr: each file once); each library's own row keeps its size.
+		size := it.onDisk
 		for _, v := range it.Versions {
 			if v.AddedAt != nil {
 				added = max(added, v.AddedAt.UnixMilli())
