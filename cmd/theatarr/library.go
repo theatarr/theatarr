@@ -409,6 +409,9 @@ func printDangling(out io.Writer, rows []library.DanglingRow, sum *library.Dangl
 		switch {
 		case z.Error != "":
 			fmt.Fprintf(out, "  zurg API not read: %s\n", z.Error)
+			if z.NoVideo > 0 { // rows kept from earlier reports carry the cause found then
+				fmt.Fprintf(out, "  zurg: %d of them: torrent had no video upstream when last checked\n", z.NoVideo)
+			}
 		default:
 			fmt.Fprintf(out, "  zurg: %d of them: %s (%d torrents in zurg have no video)\n", z.NoVideo,
 				library.ReasonNoVideo, z.NoVideoTorrents)

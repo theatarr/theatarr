@@ -228,4 +228,15 @@ func TestPrintDanglingTotals(t *testing.T) {
 		!strings.Contains(out, "1 dangling; 0 links into the mount seen in this scan") {
 		t.Errorf("summary line %q", out)
 	}
+	// zurg did not answer, but kept rows carry the cause found when last checked.
+	b.Reset()
+	sum.Zurg = &library.DanglingZurg{Error: "zurg down", NoVideo: 1, NoVideoTorrents: 0}
+	if err := printDangling(&b, nil, sum, false, false); err != nil {
+		t.Fatal(err)
+	}
+	if out := b.String(); !strings.Contains(out, "zurg API not read: zurg down") ||
+		!strings.Contains(out, "1 of them: torrent had no video upstream when last checked") ||
+		strings.Contains(out, "torrents in zurg") {
+		t.Errorf("summary with zurg down %q", out)
+	}
 }

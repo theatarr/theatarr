@@ -290,6 +290,10 @@ func TestDanglingReportNoVideo(t *testing.T) {
 	if sum, err = e.lib.DanglingReport(e.ctx); err != nil || sum.Zurg.Error == "" || sum.Zurg.NoVideo != 1 {
 		t.Fatalf("report with the root unread and zurg down: %+v %+v %v", sum, sum.Zurg, err)
 	}
+	if res := health.Dangling(e.st)(e.ctx); !strings.Contains(res.Message,
+		"1 of them: torrent had no video upstream when last checked") {
+		t.Errorf("health with a kept no-video row and zurg down %+v", res)
+	}
 	srv.set(func(s *zurgServer) { s.fail = false })
 	if err := os.Rename(e.movies+".off", e.movies); err != nil {
 		t.Fatal(err)

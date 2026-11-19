@@ -458,8 +458,12 @@ func Dangling(st *store.Store) Func {
 		if dangling == 1 {
 			msg = "1 dangling link in the libraries"
 		}
-		if noVideo.Valid && zurgErr.String == "" && ownNoVideo > 0 {
-			msg += fmt.Sprintf("; %d of them: torrent has no video upstream", ownNoVideo)
+		if noVideo.Valid && ownNoVideo > 0 {
+			if zurgErr.String == "" {
+				msg += fmt.Sprintf("; %d of them: torrent has no video upstream", ownNoVideo)
+			} else { // zurg did not answer: kept rows carry the cause found when they were last seen
+				msg += fmt.Sprintf("; %d of them: torrent had no video upstream when last checked", ownNoVideo)
+			}
 		}
 		if repairing.Bool {
 			msg += "; zurg was repairing"

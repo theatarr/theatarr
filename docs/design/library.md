@@ -790,7 +790,8 @@ state and Cutoff unmet are its own. The journal records an `edit_file` action (m
   dangling report and `Verify`.
   The dangling report keeps what it could not check: the rows of a root it could not read, of a directory below it
   that could not be listed and of links into a release folder the mount would not list stay as they were (first and last sighting unchanged) and count in the report's totals (a kept
-  no-video row in the no-video count too; `theatarr library dangling` names the links seen in this scan apart); rows of healthy
+  no-video row in the no-video count too, shown as "had no video upstream when last checked" when zurg did not
+  answer; `theatarr library dangling` names the links seen in this scan apart); rows of healthy
   roots whose links are fixed, and of roots no longer configured, leave as before (`TestDanglingReport`,
   `TestDanglingReportUnreadableFolder`, `TestDanglingReportUnlistedDir`). A link any root saw in this scan is judged by
   what the scan found, whatever failed elsewhere (`TestDanglingReportSeenLinksJudged`).
