@@ -230,7 +230,7 @@ reference type that is null is left out; value types are always written; `id` 0 
 | `GET movie/lookup?term=`, `movie/lookup/tmdb?tmdbId=` | `MovieResource` | `tmdb:N`, `imdb:tt…` or text. Text: the catalog's titles by name, then TMDb's title search for movies the catalog lacks (below) |
 | `GET moviefile/{id}` | `MovieFileResource` | Files of the view's versions |
 | `POST movie`, `PUT movie[/{id}]`, `DELETE movie/{id}` | | See Writes. POST 201, PUT 202, DELETE 200 with no body |
-| `GET series[?tvdbId=]`, `series/{id}`, `series/lookup?term=` | `SeriesResource` with `seasons[].statistics` and `statistics` | Counts follow `SeriesStatisticsRepository`: `episodeCount` = monitored and aired, or with a file; `totalEpisodeCount` = all; `episodeFileCount` = with a file. `seasonCount` leaves out specials |
+| `GET series[?tvdbId=]`, `series/{id}`, `series/lookup?term=` | `SeriesResource` with `seasons[].statistics` and `statistics` | Counts follow `SeriesStatisticsRepository`: `episodeCount` = monitored (the episode's own flag, whatever the series') and aired, or with a file; `totalEpisodeCount` = all; `episodeFileCount` = with a file. `seasonCount` leaves out specials |
 | `POST series`, `PUT series[/{id}]`, `DELETE series/{id}` | | As for movies; `seasons[].monitored` sets the per-version episode monitoring |
 | `GET episode?seriesId=[&seasonNumber=]`, `?episodeIds=`, `episode/{id}` | `EpisodeResource` | `monitored` and `hasFile` are the view's (below) |
 | `PUT episode/monitor` | `EpisodeResource[]`, 202 | Sets `episode_version_state.monitored` for the view's versions |
@@ -529,9 +529,11 @@ stay the view's.
   come from each link's saved import metadata; incomplete metadata is skipped. Applying a rename relinks the same
   target through the library gate, then removes the old link.
 - **Per-version episode state.** Episode monitoring writes `episode_version_state` rows for the view's versions,
-  creating `wanted` rows where none exist. An episode reads as monitored when such a row says so (and the version is
-  monitored), else when the episode and the series are; it has a file when a view version's state is `filled` or
-  `cutoff_met`, or an active link of a view version holds it.
+  creating `wanted` rows where none exist. An episode reads as monitored by its own intent, as Sonarr keeps the
+  episode flag apart from the series': when such a row of a monitored view version says so (of any view version
+  when the series is unmonitored), else when the episode is. So an unmonitored series keeps its season flags and
+  `episodeCount`; Wanted, the calendar filter and the searches keep effective monitoring (series and episode). It
+  has a file when a view version's state is `filled` or `cutoff_met`, or an active link of a view version holds it.
 
 ## Tags per version
 

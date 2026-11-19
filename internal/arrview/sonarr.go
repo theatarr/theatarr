@@ -123,16 +123,17 @@ type ep struct {
 	airDate   string
 	airUTC    sql.NullInt64
 	runtime   int
-	monitored bool // the view's: see loadEpisodes
+	monitored bool // the episode's intent in the view: see loadEpisodes
 	hasFile   bool
 	fileID    int64
 	size      int64
 	absolute  sql.NullInt64
 }
 
-// loadEpisodes reads the episodes of the given series with the view's state. An episode is monitored when a
-// per-version state row of a view version says so; with no such row, when the episode and some view version of the
-// series are monitored. It has a file when a view version's state is filled or cutoff_met, or an active link of a
+// loadEpisodes reads the episodes of the given series with the view's state. An episode is monitored by its own
+// intent, as Sonarr keeps the episode flag apart from the series': when a per-version state row of a monitored view
+// version says so (of any view version when the series is unmonitored); with no such row, when the episode is.
+// Wanted and the searches keep effective monitoring (series and episode) themselves. It has a file when a view version's state is filled or cutoff_met, or an active link of a
 // view version holds it (the link id is its episodeFileId). Episodes the metadata source no longer lists (removed_at,
 // kept only for their files and history) are left out, as Sonarr deletes them on refresh.
 func (s *Service) loadEpisodes(ctx context.Context, v *View, es []*entry) (map[int64][]*ep, error) {
@@ -179,14 +180,13 @@ func (s *Service) loadEpisodesWith(ctx context.Context, v *View, es []*entry, re
 			rows.Close()
 			return nil, err
 		}
-		x.monitored = x.monitored && seriesMon[x.titleID]
 		byID[x.id] = x
 		out[x.titleID] = append(out[x.titleID], x)
 	}
 	if err := closeRows(rows); err != nil {
 		return nil, err
 	}
-	rows, err = db.QueryContext(ctx, `SELECT s.episode_id, MAX(s.monitored AND v.monitored),
+	rows, err = db.QueryContext(ctx, `SELECT s.episode_id, MAX(s.monitored AND v.monitored), MAX(s.monitored),
 		MAX(s.state IN ('filled', 'cutoff_met'))
 		FROM episode_version_state s JOIN version v ON v.id = s.version_id JOIN title t ON t.id = v.title_id
 		WHERE `+where+` `+selectedEpisodeSQL("s.episode_id", selected)+` GROUP BY s.episode_id`, selectedEpisodeArgs(args, selected)...)
@@ -195,12 +195,15 @@ func (s *Service) loadEpisodesWith(ctx context.Context, v *View, es []*entry, re
 	}
 	for rows.Next() {
 		var id int64
-		var mon, has bool
-		if err := rows.Scan(&id, &mon, &has); err != nil {
+		var mon, anyMon, has bool
+		if err := rows.Scan(&id, &mon, &anyMon, &has); err != nil {
 			rows.Close()
 			return nil, err
 		}
 		if x := byID[id]; x != nil {
+			if !seriesMon[x.titleID] {
+				mon = anyMon
+			}
 			x.monitored, x.hasFile = mon, has
 		}
 	}
