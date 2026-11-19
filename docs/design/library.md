@@ -791,7 +791,8 @@ state and Cutoff unmet are its own. The journal records an `edit_file` action (m
   that could not be listed and of links into a release folder the mount would not list stay as they were (first and last sighting unchanged) and count in the report's totals (a kept
   no-video row in the no-video count too; `theatarr library dangling` names the links seen in this scan apart); rows of healthy
   roots whose links are fixed, and of roots no longer configured, leave as before (`TestDanglingReport`,
-  `TestDanglingReportUnreadableFolder`, `TestDanglingReportUnlistedDir`).
+  `TestDanglingReportUnreadableFolder`, `TestDanglingReportUnlistedDir`). A link any root saw in this scan is judged by
+  what the scan found, whatever failed elsewhere (`TestDanglingReportSeenLinksJudged`).
 - **One link lease per path** (`linklock.go`). Every link mutation holds a lease on each path it touches
   (`library_lease` `link:<path>`, 00070) from before it reads what it replaces until its database commit: an import
   (every path it links or moves aside), an unlink, relink's repoint, revive and dead mark, reconcile, the leftover

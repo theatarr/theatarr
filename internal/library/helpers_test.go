@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -336,6 +337,66 @@ func TestDanglingReportUnlistedDir(t *testing.T) {
 		!rows[0].LastSeen.Equal(seen) {
 		t.Errorf("rows with an unlisted directory %+v", rows)
 	}
+}
+
+// A link any root saw in this scan is judged by what the scan found, whatever failed elsewhere: a fixed link stays
+// out of the report when an extra root could not list the version root below it, and when its own directory's
+// listing failed part way after returning it. Not parallel: it swaps rootOpen and rootReadDir.
+func TestDanglingReportSeenLinksJudged(t *testing.T) {
+	setup := func(t *testing.T) (*env, string) {
+		e := newEnv(t, false)
+		e.pol.Library.Dangling = policy.LibraryDangling{Roots: []string{filepath.Join(e.dir, "media")}}
+		e.lib = New(Options{Store: e.st, Policy: e.pol, Now: func() time.Time { return e.now }})
+		e.release("Here", map[string]float64{"a.mkv": 1})
+		link := filepath.Join(e.movies, "Fixed (2001)", "Fix.mkv")
+		os.MkdirAll(filepath.Dir(link), 0o755)
+		if err := os.Symlink(filepath.Join(e.mount, "__all__", "Later", "f.mkv"), link); err != nil {
+			t.Fatal(err)
+		}
+		if sum, err := e.lib.DanglingReport(e.ctx); err != nil || sum.Dangling != 1 {
+			t.Fatalf("first report %+v %v", sum, err)
+		}
+		e.release("Later", map[string]float64{"f.mkv": 1})
+		e.now = e.now.Add(6 * time.Hour)
+		return e, filepath.Dir(link)
+	}
+	check := func(t *testing.T, e *env) {
+		t.Helper()
+		if sum, err := e.lib.DanglingReport(e.ctx); err != nil || sum.Dangling != 0 {
+			t.Errorf("report %+v %v", sum, err)
+		}
+		if rows, _, _ := Dangling(e.ctx, e.st.Reader()); len(rows) != 0 {
+			t.Errorf("rows %+v", rows)
+		}
+	}
+	t.Run("overlapping roots", func(t *testing.T) {
+		e, _ := setup(t)
+		origOpen := rootOpen
+		opened := 0
+		rootOpen = func(p string) (*os.File, error) {
+			if p == e.movies {
+				if opened++; opened > 1 { // the version root's own walk reads it; the extra root's cannot
+					return nil, os.ErrPermission
+				}
+			}
+			return origOpen(p)
+		}
+		defer func() { rootOpen = origOpen }()
+		check(t, e)
+	})
+	t.Run("partial listing", func(t *testing.T) {
+		e, dir := setup(t)
+		origReadDir := rootReadDir
+		rootReadDir = func(f *os.File, n int) ([]os.DirEntry, error) {
+			ents, err := origReadDir(f, n)
+			if f.Name() == dir && err == nil {
+				return ents, errors.New("input/output error")
+			}
+			return ents, err
+		}
+		defer func() { rootReadDir = origReadDir }()
+		check(t, e)
+	})
 }
 
 // A release folder whose name starts with ".." is inside the mount: its links are listed and reported like any other.

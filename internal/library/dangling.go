@@ -192,9 +192,11 @@ func (l *Library) DanglingReport(ctx context.Context) (*DanglingSummary, error) 
 			if _, still := found[p]; still {
 				continue
 			}
-			if unchecked[p] || (failedRoot[root] && !seen[p]) || slices.ContainsFunc(unlisted, func(d string) bool {
+			// A link this scan saw is judged by what it found; one it did not see is kept only below a root or a
+			// directory it could not read.
+			if unchecked[p] || (!seen[p] && (failedRoot[root] || slices.ContainsFunc(unlisted, func(d string) bool {
 				return policy.Within(p, d)
-			}) {
+			}))) {
 				kept[root]++ // unchanged (first and last sighting), counted in this report
 				if cause == CauseNoVideo {
 					keptNoVideo++
