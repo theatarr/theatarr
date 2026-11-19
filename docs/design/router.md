@@ -1199,7 +1199,7 @@ A provider's own refusal (an error answer with a code, any 4xx) and a request th
 budget, VPN) are definite: the row returns to `queued` and the next provider is tried. AllDebrid and
 TorBox answer errors with HTTP 200: their error envelope with a code (`adder.Error.Refused`) is a refusal even for a
 code it does not know (it backs the provider off, as `unknown` does); only TorBox's own server errors
-(`DATABASE_ERROR`, `SERVER_ERROR`, `UNKNOWN_ERROR`) and envelopes without a code stay uncertain (`TestErrorEnvelopeIsRefusal`).
+(`DATABASE_ERROR`, `SERVER_ERROR`, `UNKNOWN_ERROR`) and envelopes without a code stay uncertain (`TestErrorEnvelopeIsRefusal`); TorBox's `"error": false` or `null` is no code (`TestTorBoxFalseErrorIsNoCode`).
 
 A row in `adding` is settled from the provider (`reconcileAdding`), by a route that reaches its hash and by the
 poller (rows older than a minute, every poll). The poller's recovery is bounded (`TestPollRecoveryIsBounded`):

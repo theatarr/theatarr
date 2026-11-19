@@ -70,7 +70,7 @@ func (t *torBox) AddMagnet(ctx context.Context, m Magnet, o AddOptions) (*Added,
 		return nil, t.err(status, "", "", ra)
 	}
 	ecode := strings.Trim(string(env.Error), `"`)
-	if ecode == "null" {
+	if ecode == "null" || ecode == "false" { // TorBox sends "error": false or null when there is no code
 		ecode = ""
 	}
 	if !env.Success || status < 200 || status >= 300 {

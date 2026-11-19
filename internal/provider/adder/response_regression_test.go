@@ -2,6 +2,7 @@ package adder
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -67,6 +68,25 @@ func TestRetryAfterFormats(t *testing.T) {
 		_, _, delay, err := p.readResponse(&http.Response{StatusCode: tc.status, Header: http.Header{"Retry-After": {tc.header}}, Body: io.NopCloser(strings.NewReader("{}"))})
 		if err != nil || delay < 118*time.Second || delay > 121*time.Second {
 			t.Errorf("%s: delay %v, %v", tc.header, delay, err)
+		}
+	}
+}
+
+// TorBox's "error": false or null is no error code: an HTTP 200 failure without a code is not a refusal, so the
+// router treats the add as uncertain and reconciles it instead of adding again.
+func TestTorBoxFalseErrorIsNoCode(t *testing.T) {
+	for _, raw := range []string{`false`, `null`} {
+		f := newFakeNet(t)
+		f.serve("tb.test", func(w http.ResponseWriter, r *http.Request) {
+			io.WriteString(w, `{"success":false,"error":`+raw+`,"detail":"Something went wrong."}`)
+		})
+		_, err := f.adder("tb").AddMagnet(context.Background(), magnet(t, h("c"), "x"), AddOptions{})
+		var e *Error
+		if !errors.As(err, &e) {
+			t.Fatalf("error %s: %v", raw, err)
+		}
+		if e.Refused || e.ProviderCode != "" || e.Code != CodeUnknown || e.Status != 200 {
+			t.Errorf("error %s: refused %v, code %q/%v, status %d", raw, e.Refused, e.ProviderCode, e.Code, e.Status)
 		}
 	}
 }

@@ -130,7 +130,7 @@ hashes.
 - **Plans and active slots:** free 1, essential 3, standard 5, pro 10.
 - **TorBox lists carry no download links.** Those come from `requestdl`, which this package never calls. So `links` is
   NULL for TorBox, as it is for AllDebrid's v4.1 list, which has no link count either.
-- **Answers** are `{"success", "error", "detail", "data"}`, and `success: false` can come with HTTP 200.
+- **Answers** are `{"success", "error", "detail", "data"}`, and `success: false` can come with HTTP 200. `error` is a code string, or `false`/`null` for none.
   - `AUTH_ERROR`, `BAD_TOKEN`, `NO_AUTH`, `PLAN_RESTRICTED_FEATURE` and HTTP 401/403 give `ErrAuth`.
   - `ITEM_NOT_FOUND` gives `ErrNotFound`; `DATABASE_ERROR`, `SERVER_ERROR` and `UNKNOWN_ERROR` give `ErrUnavailable`.
   - The single read (`mylist?id=`) of an unknown or deleted id answers HTTP 500, so a 5xx there is checked against
