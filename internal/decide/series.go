@@ -97,6 +97,9 @@ func (s *series) byImdb(id string) bool { return strings.TrimSpace(id) != "" && 
 // left out (deviation).
 func (s *series) mappingsFor(seriesTitle string) []*SceneMapping {
 	clean := sonarr.CleanSeriesTitle(seriesTitle)
+	if clean == "" {
+		return nil // an empty name matches nothing (ours)
+	}
 	var out []*SceneMapping
 	for i := range s.t.SceneMappings {
 		m := &s.t.SceneMappings[i]

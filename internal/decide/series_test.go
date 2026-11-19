@@ -474,6 +474,10 @@ func TestEmptyNamesMatchNothing(t *testing.T) {
 	if empty.findByTitle("???") {
 		t.Error("an empty series name equals another empty name")
 	}
+	empty.t.SceneMappings = []SceneMapping{{Title: "!!"}}
+	if m := empty.mappingsFor("??"); len(m) != 0 {
+		t.Errorf("a scene name that cleans to nothing matched another empty name: %v", m)
+	}
 	if e := empty.findByEpisodeTitle(0, "Other.Show.Some.Special.1080p.WEB-DL-GRP"); e != nil {
 		t.Errorf("an empty special title matched: episode %d", e.Number)
 	}
