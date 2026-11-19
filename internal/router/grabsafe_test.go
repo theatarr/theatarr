@@ -237,6 +237,15 @@ func TestErroredRegistryIDNotReused(t *testing.T) {
 				if res.Outcome == OutcomeAdded || !strings.Contains(steps(res), "rd/skipped/held_error") {
 					t.Fatalf("%+v: %s", res, steps(res))
 				}
+				// The route's end names the failed copy, not a miss on every provider: Activity shows it, and no
+				// re-search is queued for a miss that never happened.
+				if missedEverywhere(res.Steps) || strings.Contains(steps(res), "/miss/miss") {
+					t.Errorf("ended as a miss: %s", steps(res))
+				}
+				if n := e.count(`SELECT COUNT(*) FROM download WHERE id = ? AND state = 'failed' AND error GLOB ?`,
+					res.DownloadID, FailedCopyOnAccount+"*"); n != 1 {
+					t.Errorf("the download's end does not name the failed copy")
+				}
 			default:
 				if res.Outcome != OutcomeAdded || res.Provider != "ad" ||
 					!strings.Contains(steps(res), "rd/skipped/held_error") {

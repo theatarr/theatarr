@@ -931,9 +931,16 @@ func (r *Router) candidate(ctx context.Context, s *routeState, c *Candidate) (ve
 	case content == usable:
 		// A miss on every provider (docs/design/router.md): cached as a miss for miss_ttl; the next candidate is tried.
 		// No miss is cached for a provider this route no longer tries (the live skip map: an AllDebrid add kept
-		// meanwhile keeps its uncached verdict) or one that holds only a failed copy.
+		// meanwhile keeps its uncached verdict) or one that holds only a failed copy. When one does, that is the
+		// release's end here, not a miss on every provider.
 		msg := MissOnEveryProvider
-		step(Step{Outcome: "miss", Code: "miss", Message: msg})
+		st := Step{Outcome: "miss", Code: "miss", Message: msg}
+		if len(heldErr) > 0 {
+			msg = FailedCopyOnAccount + " (" + strings.Join(slices.Sorted(maps.Keys(heldErr)), ", ") +
+				"); delete it under Torrents to use this provider"
+			st = Step{Outcome: "skipped", Code: codeHeldError, Message: msg}
+		}
+		step(st)
 		if !s.dry {
 			noMiss := maps.Clone(heldErr)
 			maps.Copy(noMiss, s.skipProvider)
@@ -1003,6 +1010,10 @@ func (r *Router) knownMiss(ctx context.Context, s *routeState, c *Candidate, has
 // known miss for miss_ttl (knownMiss), and an automatic grab of it opens no download until that passes (a grab by
 // hand asks again: Request.ManualSince).
 const MissOnEveryProvider = "miss on every provider"
+
+// FailedCopyOnAccount starts a download's error when every usable provider declined its release and at least one
+// of them holds it only as a failed copy (held_error): not a miss, so no re-search follows and Activity shows it.
+const FailedCopyOnAccount = "a failed copy is on the account"
 
 // movedOn ends a candidate whose download was ended (removed from the queue, blocklisted) or taken by another route
 // while this route ran: nothing more is tried for it, and the route stops (vCancelled).
