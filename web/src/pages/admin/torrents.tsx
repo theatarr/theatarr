@@ -276,8 +276,8 @@ export function TorrentsPage() {
   );
 }
 
-/** The delete dialog's choices: "Also delete … recent" (only while a chosen torrent needs it, or it is ticked, and not
- *  once done), how many chosen torrents the filter hides, "Tick all that have another complete copy on the same account",
+/** The delete dialog's choices (none once done): "Also delete … recent" (only while a chosen torrent needs it, or it
+ *  is ticked), how many chosen torrents the filter hides, "Tick all that have another complete copy on the same account",
  *  then each refused torrent, and each one whose override is ticked, with its override checkbox, the copy that stays
  *  and a short preview of its references. */
 function DeleteChoices({ plan, codes, names, overrides, setOverride, allowRecent, setAllowRecent, outside, done }: {
@@ -296,15 +296,17 @@ function DeleteChoices({ plan, codes, names, overrides, setOverride, allowRecent
   const rows = plan.items.filter((it) => it.action === "refuse" || (it.override && overridable(it)));
   const withCopy = rows.filter((it) => overridable(it) && it.surviving_copy);
   const allCopies = withCopy.length > 0 && withCopy.every((it) => overrides[keyOf(it)] === it.expected_override_token);
+  // Once done, the outcome below says what happened: the choices go, so it is in view on a phone.
+  if (done) return null;
   return (
     <>
-      {!done && (allowRecent || plan.items.some((it) => it.needs_recent)) ? (
+      {allowRecent || plan.items.some((it) => it.needs_recent) ? (
         <Choice checked={allowRecent} onChange={setAllowRecent} testid="allow-recent">
           Also delete chosen torrents added in the last 24 hours or still downloading
         </Choice>
       ) : null}
       {outside > 0 ? <p className="text-xs text-muted-foreground" data-testid="chosen-outside">{outside === 1 ? "1 chosen torrent is" : `${fmtNumber(outside)} chosen torrents are`} outside the current filter.</p> : null}
-      {!done && withCopy.length > 0 ? (
+      {withCopy.length > 0 ? (
         <Choice
           checked={allCopies}
           onChange={(v) => setOverride(Object.fromEntries(withCopy.map((it) => [keyOf(it), v ? it.expected_override_token : undefined])))}
@@ -321,7 +323,7 @@ function DeleteChoices({ plan, codes, names, overrides, setOverride, allowRecent
           <div key={keyOf(it)} className="rounded-md border border-[var(--line)] p-2 text-[13px]" data-testid="refused-item">
             <div className="[overflow-wrap:anywhere]"><span className="font-medium" title={it.provider}>{label}</span> {it.name || names[keyOf(it)]?.name || it.id}{it.action === "refuse" ? `: ${it.refusal}` : ""}</div>
             {it.surviving_copy ? <p className="text-xs text-muted-foreground" title={`${it.provider} ${it.surviving_copy}`} data-testid="surviving-copy">Another complete copy stays on {label}.</p> : null}
-            {overridable(it) && !done ? (
+            {overridable(it) ? (
               <Choice
                 checked={overrides[keyOf(it)] === it.expected_override_token}
                 onChange={(v) => setOverride({ [keyOf(it)]: v ? it.expected_override_token : undefined })}

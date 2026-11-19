@@ -313,9 +313,10 @@ describe("torrents page", () => {
     await screen.findByTestId("confirm-done");
     const sent = api.calls("POST", "/torrents/delete")[0].body as { items: unknown[]; confirmation_token: string };
     expect(sent).toEqual({ items: [{ provider: "rd", id: "1", hash: h1 }, { provider: "rd", id: "2", hash: h2 }], confirmation_token: "d1-1" });
-    // Done: the recent and override choices are gone.
+    // Done: the recent and override choices and the rows are gone, so the outcome is in view.
     expect(screen.queryByTestId("allow-recent")).toBeNull();
     expect(screen.queryByTestId("override")).toBeNull();
+    expect(screen.queryByTestId("refused-item")).toBeNull();
   });
 
   it("takes only the newest preview: a slow earlier answer arriving late is ignored, and Confirm waits for a pending one", async () => {

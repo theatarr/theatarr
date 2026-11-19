@@ -534,7 +534,8 @@ numbered and only the newest answer is taken, a held override whose token no lon
 previewed again), and Confirm waits while a preview is pending or the choices differ from the last successful one,
 then sends exactly the selection that preview was asked with. A line says how many chosen torrents the current
 filter hides. "Also delete chosen torrents added in the last 24 hours or still downloading" shows only while a
-chosen torrent needs it (`needs_recent`) or it is ticked, and not once the delete finished. The backup is one
+chosen torrent needs it (`needs_recent`) or it is ticked; once the delete finished the choices and rows go and the
+outcome shows. The backup is one
 sentence (the plan's warning). The filter
 **Not used by Theatarr** (the unused group) has a line beside the filters: it checks Theatarr's libraries and the
 **Other libraries' folders** (`torrents.scan_roots`), which are edited in Settings › Download clients › Torrents
