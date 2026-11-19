@@ -205,3 +205,53 @@ func TestRenamePreviewLargeSeries(t *testing.T) {
 		t.Fatalf("preview differs from %s:\n%s", golden, b)
 	}
 }
+
+// A native import at the path of an adopted link (same name, no new probe) takes the row over: the adopted facts
+// and the folder hash go, and Rename preview does not name the new file with the old file's media info.
+func TestSamePathUpgradeClearsAdoptedFacts(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
+	delete(e.probes, filepath.Join(e.mount, "__all__", movieRelease, "movie.mkv")) // unreadable: no probe
+	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
+	plan, err := e.lib.Import(e.ctx, 1, true)
+	if err != nil || len(plan.Links) != 1 {
+		t.Fatalf("dry run %+v %v", plan, err)
+	}
+	path := plan.Links[0].Path
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("/arr/old.mkv", path); err != nil {
+		t.Fatal(err)
+	}
+	e.adoptedFile(900, 10, 1, path, "/arr/old.mkv", "WEBDL-1080p", "Amelie.2001.1080p.WEB-DL.DTS.x264-OLD")
+	e.exec(`UPDATE link SET adopted_media = '{"audioCodec":"DTS","audioChannels":5.1,"videoCodec":"x264"}',
+		adopted_source = 'sonarr_4k', folder_hash = 'abcdef' WHERE id = 900`)
+	if plan, err = e.lib.Import(e.ctx, 1, false); err != nil || len(plan.Links) != 1 || plan.Links[0].Path != path {
+		t.Fatalf("import %+v %v", plan, err)
+	}
+	if got := e.one(`SELECT COALESCE(adopted_media, 'none') || ' ' || COALESCE(adopted_source, 'none') || ' ' ||
+		COALESCE(folder_hash, 'none') || ' ' || download_id FROM link WHERE path = ?`, path); got != "none none none 1" {
+		t.Errorf("link after the takeover %s", got)
+	}
+	pr, err := e.lib.PreviewRename(e.ctx, 1, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range pr.Files {
+		if strings.Contains(f.NewPath, "DTS") || strings.Contains(f.NewPath, "x264") {
+			t.Errorf("preview names the new file with the old media: %s", f.NewPath)
+		}
+	}
+	// A native link that still carries adopted media (a row from before this fix) is not named with it either.
+	e.exec(`UPDATE link SET adopted_media = '{"audioCodec":"DTS","audioChannels":5.1,"videoCodec":"x264"}' WHERE path = ?`, path)
+	if pr, err = e.lib.PreviewRename(e.ctx, 1, nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range pr.Files {
+		if strings.Contains(f.NewPath, "DTS") || strings.Contains(f.NewPath, "x264") {
+			t.Errorf("preview of a native link with old adopted media: %s", f.NewPath)
+		}
+	}
+}

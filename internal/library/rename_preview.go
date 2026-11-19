@@ -53,7 +53,8 @@ func (l *Library) previewRename(ctx context.Context, titleID int64, season *int,
 	rows, err := l.st.Reader().QueryContext(ctx, `
 		SELECT l.id, l.path, v.id, v.policy_key, t.kind, t.name, COALESCE(t.year, 0), COALESCE(t.imdb_id, ''),
 			COALESCE(t.tmdb_id, 0), COALESCE(t.tvdb_id, 0), `+store.SeriesTypeSQL("t")+`, l.file_metadata,
-			COALESCE(l.adopted_media, ''), cf.probe, CASE WHEN l.download_id IS NULL THEN COALESCE(l.adopted_from, '') ELSE '' END
+			CASE WHEN l.download_id IS NULL THEN COALESCE(l.adopted_media, '') ELSE '' END, cf.probe,
+			CASE WHEN l.download_id IS NULL THEN COALESCE(l.adopted_from, '') ELSE '' END
 		FROM link l JOIN link_version lv ON lv.link_id = l.id JOIN version v ON v.id = lv.version_id
 		JOIN title t ON t.id = l.title_id LEFT JOIN content_file cf ON cf.id = l.content_file_id
 		WHERE l.title_id = ? AND l.state = 'active'
@@ -67,7 +68,7 @@ func (l *Library) previewRename(ctx context.Context, titleID int64, season *int,
 	type previewLink struct {
 		linkID       int64
 		oldPath, raw string
-		media        string // adopted_media: the arr's media info of an adopted link
+		media        string // adopted_media: the arr's media info of an adopted link (no download)
 		probe        sql.NullString
 		adoptedFrom  string // adopted_from of a link adopt made (no download)
 		v            importVersion
@@ -148,7 +149,7 @@ func (l *Library) previewRename(ctx context.Context, titleID int64, season *int,
 			}
 		}
 		var path string
-		// A link with no probe (an adopted one) is named with the media info adopt named it with.
+		// A link with no probe (an adopted one, with no download) is named with the media info adopt named it with.
 		var mi *naming.MediaInfo
 		if p == nil {
 			mi = mediaInfoFromAPI(pl.media, facts.SceneName, facts.OriginalFilePath, facts.RelativePath)

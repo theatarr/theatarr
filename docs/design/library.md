@@ -960,7 +960,10 @@ info and scene name (multi-episode, specials and anime absolute numbers as in a 
 the file as the existing file (upgrades compare against it), the episodes, and the version and episode states; every
 link is journaled in `library_action` ("adopted from ...") and Plex gets a partial scan per folder. `{Custom
 Formats}` are the ones the file name carries, else those decided from its scene name with the library's profile; the
-rename preview of an adopted link decides them the same way.
+rename preview of an adopted link decides them the same way. The preview names an unprobed link with the arr's media
+info (`adopted_media`) only while it has no download; a native import at the same path takes the row over and clears
+`adopted_from`, `adopted_source`, `adopted_media` and `folder_hash`, so neither the preview nor torrent usage reads the
+old file's facts (`TestSamePathUpgradeClearsAdoptedFacts`).
 
 Skipped, with the reason in the report: `arr_file_missing`, `not_a_symlink`, `target_off_mount`, `dangling`,
 `path_taken` (the path holds something else, including a link the library imported itself, whatever became of its

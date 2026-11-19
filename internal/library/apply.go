@@ -342,14 +342,15 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 			var linkID int64
 			lf := files[lk.Path]
 			// The row at the path is this title's (takePathTx): its title never changes, and a new file starts with
-			// no noted miss.
+			// no noted miss, none of an adopted file's facts, and no folder hash (usage finds the new one).
 			err = tx.QueryRowContext(ctx, `INSERT INTO link (path, target, kind, content_file_id, title_id, download_id,
 					release_title, quality, score, file_metadata, state, last_checked_at, created_at, updated_at)
 				VALUES (?, ?, 'symlink', ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)
 				ON CONFLICT (path) DO UPDATE SET target = excluded.target, content_file_id = excluded.content_file_id,
 					download_id = excluded.download_id, release_title = excluded.release_title,
 					quality = excluded.quality, score = excluded.score, state = 'active', adopted = 0,
-					adopted_from = NULL, file_metadata = excluded.file_metadata, missing_since = NULL,
+					adopted_from = NULL, adopted_source = NULL, adopted_media = NULL, folder_hash = NULL,
+					file_metadata = excluded.file_metadata, missing_since = NULL,
 					last_checked_at = excluded.last_checked_at, updated_at = excluded.updated_at
 				WHERE link.title_id = excluded.title_id
 				RETURNING id`, lk.Path, lk.Target, cfID, v.Title.ID, d.ID, d.ReleaseTitle, lf.quality, lf.score, lf.metadata, now, now, now).
