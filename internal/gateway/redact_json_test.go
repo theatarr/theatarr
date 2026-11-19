@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -15,5 +16,21 @@ func TestRedactorMasksJSONCredentialValues(t *testing.T) {
 	}
 	if !strings.Contains(got, "pin 12") {
 		t.Errorf("a value under 6 characters was masked: %q", got)
+	}
+}
+
+// A path segment holding an escaped '=' keeps only the part before it, whatever the escape's case: a config such as
+// "realdebrid%3d<key>" is masked like "realdebrid%3D<key>" and "realdebrid=<key>".
+func TestRedactorURLEscapedEquals(t *testing.T) {
+	r := newRedactor(testPolicy(), nil)
+	for _, raw := range []string{"https://addon.test/realdebrid=SECRETKEY1/stream", "https://addon.test/realdebrid%3DSECRETKEY1/stream",
+		"https://addon.test/realdebrid%3dSECRETKEY1/stream"} {
+		u, err := url.Parse(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := r.URL(u); strings.Contains(got, "SECRETKEY1") || got != "https://addon.test/realdebrid=***/stream" {
+			t.Errorf("%s: %q", raw, got)
+		}
 	}
 }

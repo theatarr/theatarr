@@ -62,7 +62,8 @@ func (r *redactor) String(s string) string {
 }
 
 // URL renders u for logs: scheme, host and path, no query, no fragment, no user info. Path segments holding '='
-// (torrentio-style "realdebrid=<key>" configs) keep only the part before it, and known secrets are masked.
+// (torrentio-style "realdebrid=<key>" configs), plain or escaped (%3D or %3d), keep only the part before it, and known
+// secrets are masked.
 func (r *redactor) URL(u *url.URL) string {
 	if u == nil {
 		return ""
@@ -72,7 +73,7 @@ func (r *redactor) URL(u *url.URL) string {
 		if k, _, ok := strings.Cut(s, "="); ok {
 			segs[i] = k + "=" + mask
 		}
-		if j := strings.Index(segs[i], "%3D"); j >= 0 {
+		if j := strings.Index(strings.ToUpper(segs[i]), "%3D"); j >= 0 {
 			segs[i] = segs[i][:j] + "=" + mask
 		}
 	}

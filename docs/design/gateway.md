@@ -297,6 +297,6 @@ A restart keeps caps and back-offs. The token bucket is in memory, so a restart 
 - 429 with Retry-After persisted across a restart, and without it (30 s wait);
 - failure back-off and caller back-off;
 - the size limit, with and without Content-Length;
-- redaction of logs and errors (query strings, `=` path segments, secret env values);
+- redaction of logs and errors (query strings, `=` path segments, also escaped as `%3D` or `%3d`, secret env values);
 - metrics and the `/readyz` summary;
 - `theatarr egress-check` end to end against a local echo.
