@@ -947,7 +947,7 @@ func (w *Web) apiEpisode(rw http.ResponseWriter, r *http.Request) {
 		w.internal(rw, err)
 		return
 	}
-	list, err := w.titleEpisodes(ctx, t.id, season, seeFiles)
+	list, err := w.titleEpisodes(ctx, t.id, season, seeFiles, eid)
 	if err != nil {
 		w.internal(rw, err)
 		return

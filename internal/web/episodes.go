@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"sort"
@@ -161,8 +162,15 @@ func (w *Web) apiTitleEpisodes(rw http.ResponseWriter, r *http.Request) {
 	writeJSON(rw, http.StatusOK, out)
 }
 
-// titleEpisodes lists the episodes of title id; season < 0 means every season.
-func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles bool) (*EpisodeList, error) {
+// episodeIDsJSON is ids as a JSON array for json_each ("[]" for none).
+func episodeIDsJSON(ids []int64) string {
+	b, _ := json.Marshal(append([]int64{}, ids...))
+	return string(b)
+}
+
+// titleEpisodes lists the episodes of title id; season < 0 means every season. An episode the metadata source
+// removed is listed while it holds a file, and always when it is one of keep (a lookup by its id).
+func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles bool, keep ...int64) (*EpisodeList, error) {
 	db := w.st.Reader()
 	var n int
 	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM title WHERE id = ?`, id).Scan(&n); err != nil {
@@ -197,9 +205,10 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 			(SELECT MIN(n.number) FROM episode_number n WHERE n.episode_id = e.id AND n.scheme = 'absolute_tvdb'),
 			(SELECT MIN(n.number) FROM episode_number n WHERE n.episode_id = e.id AND n.scheme = 'absolute')),
 		e.air_date_utc_at, e.removed_at IS NOT NULL
-		FROM episode e JOIN title t ON t.id = e.title_id WHERE e.title_id = ? AND (e.removed_at IS NULL OR EXISTS
-			(SELECT 1 FROM link_episode le JOIN link l ON l.id = le.link_id WHERE le.episode_id = e.id AND l.state = 'active'))
-		ORDER BY e.season, e.number`, []any{id}, func(r *sql.Rows) error {
+		FROM episode e JOIN title t ON t.id = e.title_id WHERE e.title_id = ? AND (e.removed_at IS NULL
+			OR e.id IN (SELECT value FROM json_each(?)) OR EXISTS (SELECT 1 FROM link_episode le JOIN link l
+				ON l.id = le.link_id WHERE le.episode_id = e.id AND l.state = 'active'))
+		ORDER BY e.season, e.number`, []any{id, episodeIDsJSON(keep)}, func(r *sql.Rows) error {
 		var e Episode
 		var rt, abs, airAt sql.NullInt64
 		if err := r.Scan(&e.ID, &e.Season, &e.Number, &e.Name, &e.AirDate, &rt, &e.Monitored, &abs, &airAt,

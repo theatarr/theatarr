@@ -1886,6 +1886,14 @@ func TestRemovedEpisodesNotCurrent(t *testing.T) {
 			t.Errorf("episode %d removed %v", ep.ID, ep.Removed)
 		}
 	}
+	// Opening a removed episode by its id answers it, file or not.
+	for _, id := range []int64{47, 48} {
+		var d EpisodeDetail
+		if code := e.getKey(fmt.Sprintf("%s/titles/4/episodes/%d", APIBase, id), key, &d); code != 200 ||
+			d.Episode.ID != id || d.Episode.Name == "" || !d.Episode.Removed {
+			t.Errorf("episode %d by id: %d %+v", id, code, d.Episode)
+		}
+	}
 	// A copy whose only file holds a removed episode has no current file: Epsilon is missing, not partly available.
 	e.exec(`INSERT INTO title (id, kind, name, year, tvdb_id, anime, created_at, updated_at) VALUES
 		(5, 'series', 'Epsilon', 2023, 505, 1, 0, 0)`)
