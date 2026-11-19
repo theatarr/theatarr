@@ -286,8 +286,16 @@ func TestSeasonRequestReenablingSeriesReachesEveryLibrary(t *testing.T) {
 		}
 	}
 
-	// A series toggle (Ruddarr): no episode choice changes.
+	// The series echoed as it was, still off: no library's episodes change.
 	e := setup()
+	var off map[string]any
+	e.call("GET", path, nil, 200, &off)
+	e.call("PUT", path, off, 202, nil)
+	if got10, got20 := states(e, 10), states(e, 20); got10 != was10 || got20 != was20 {
+		t.Errorf("echo changed episodes: tv-2160p %s, tv-copy %s", got10, got20)
+	}
+	// A series toggle (Ruddarr): no episode choice changes.
+	e = setup()
 	put(e, func(map[string]any) {})
 	if got10, got20 := states(e, 10), states(e, 20); got10 != was10 || got20 != was20 {
 		t.Errorf("toggle changed episodes: tv-2160p %s, tv-copy %s", got10, got20)
