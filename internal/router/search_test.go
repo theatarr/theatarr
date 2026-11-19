@@ -305,18 +305,15 @@ func TestSearchReleaseErrorIsItsRejection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bad := func(ctx context.Context, rel decide.Release, tt decide.Title, v decide.Version, x *decide.ExistingFile) (*decide.Decision, error) {
-		if strings.HasSuffix(rel.Title, "-BAD") {
-			return nil, errors.New("adapt: aggregate languages: Remove(9, 4) on 10 characters")
-		}
-		return eng.Decide(ctx, rel, tt, v, x)
-	}
+	bad := &failingEngine{Engine: eng, fail: func(rel decide.Release, _ *decide.SeriesSearch) bool {
+		return strings.HasSuffix(rel.Title, "-BAD")
+	}}
 	title := decide.Title{ID: 1, Kind: policy.KindMovie, Name: "Arrival", Year: 2016, IMDb: "tt2543164"}
 	targets := []SearchTarget{
 		{ID: "a", Version: decide.Version{ID: 1, Key: "web-a", Policy: version}},
 		{ID: "b", Version: decide.Version{ID: 2, Key: "web-b", Policy: version}},
 	}
-	got, err := searchRequests(context.Background(), eng, bad, eng.DecideSearch, idx, title, targets)
+	got, err := searchRequests(context.Background(), bad, idx, title, targets)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,30 +332,91 @@ func TestSearchReleaseErrorIsItsRejection(t *testing.T) {
 		}
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	cancelling := func(c context.Context, rel decide.Release, tt decide.Title, v decide.Version, x *decide.ExistingFile) (*decide.Decision, error) {
-		cancel()
-		return nil, c.Err()
-	}
-	if _, err := searchRequests(ctx, eng, cancelling, eng.DecideSearch, idx, title, targets); !errors.Is(err, context.Canceled) {
+	cancelling := &failingEngine{Engine: eng, cancel: cancel}
+	if _, err := searchRequests(ctx, cancelling, idx, title, targets); !errors.Is(err, context.Canceled) {
 		t.Errorf("cancelled search: %v", err)
 	}
 
-	// Series criteria: the first criterion errors, the second decides; with every criterion erroring the release is
-	// rejected with the error.
+	// A series release: an error under its first criterion leaves the second criterion's decision.
 	c1, c2 := &decide.SeriesSearch{Season: 1}, &decide.SeriesSearch{Season: 1, Episode: 1}
 	ok := &decide.Decision{Release: "Show.S01E01", Accepted: true}
-	fn := func(_ context.Context, _ decide.Release, _ decide.Title, _ decide.Version, s *decide.SeriesSearch) (*decide.Decision, error) {
-		if s == c1 {
-			return nil, errors.New("boom")
-		}
-		return ok, nil
+	fe := &failingEngine{Engine: eng, fail: func(_ decide.Release, s *decide.SeriesSearch) bool { return s == c1 },
+		series: ok}
+	perRelease := func(ctx context.Context, r decide.Release, tt decide.Title, v decide.Version,
+		c *decide.SeriesSearch) (*decide.Decision, error) {
+		d, err := fe.DecideSearch(ctx, r, tt, v, c)
+		return releaseError(ctx, d, err, r.Release, tt, v)
 	}
 	rel := indexer.Release{Title: "Show.S01E01", Indexer: "one"}
-	if d, err := decideBest(context.Background(), fn, rel, title, targets[0].Version, []*decide.SeriesSearch{c1, c2}, nil); err != nil || d != ok {
+	if d, err := decideBest(context.Background(), perRelease, rel, title, targets[0].Version, []*decide.SeriesSearch{c1, c2}, nil); err != nil || d != ok {
 		t.Errorf("criteria: %+v %v", d, err)
 	}
-	d, err := decideBest(context.Background(), fn, rel, title, targets[0].Version, []*decide.SeriesSearch{c1}, nil)
+	d, err := decideBest(context.Background(), perRelease, rel, title, targets[0].Version, []*decide.SeriesSearch{c1}, nil)
 	if err != nil || d.Accepted || len(d.Rejections) != 1 || d.Release != "Show.S01E01" || d.Version != "web-a" {
 		t.Errorf("only an erroring criterion: %+v %v", d, err)
+	}
+}
+
+// failingEngine is the engine, with an error for the releases fail picks (and a cancel before deciding when set);
+// series, when set, is the decision of every other series release.
+type failingEngine struct {
+	*decide.Engine
+	fail   func(decide.Release, *decide.SeriesSearch) bool
+	cancel func()
+	series *decide.Decision
+}
+
+func (f *failingEngine) Decide(ctx context.Context, rel decide.Release, t decide.Title, v decide.Version,
+	x *decide.ExistingFile) (*decide.Decision, error) {
+	if f.cancel != nil {
+		f.cancel()
+		return nil, ctx.Err()
+	}
+	if f.fail(rel, nil) {
+		return nil, errors.New("adapt: aggregate languages: Remove(9, 4) on 10 characters")
+	}
+	return f.Engine.Decide(ctx, rel, t, v, x)
+}
+
+func (f *failingEngine) DecideSearch(ctx context.Context, rel decide.Release, t decide.Title, v decide.Version,
+	s *decide.SeriesSearch) (*decide.Decision, error) {
+	if f.fail(rel, s) {
+		return nil, errors.New("boom")
+	}
+	if f.series != nil {
+		return f.series, nil
+	}
+	return f.Engine.DecideSearch(ctx, rel, t, v, s)
+}
+
+// TestFreshRecheckKeepsEngineError: the recheck of a queued series search release keeps returning an engine error
+// (only a batch search makes it the release's rejection).
+func TestFreshRecheckKeepsEngineError(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.pol.Profiles = map[string]*policy.Profile{"tv": {Qualities: []policy.QualityItem{{Name: "WEBDL-2160p"}}, Cutoff: "WEBDL-2160p"}}
+	e.pol.Versions["series"].Profile = "tv"
+	e.exec(`UPDATE title SET year=2024,runtime_minutes=45 WHERE id=2`)
+	e.exec(`INSERT INTO episode(id,title_id,season,number,name,air_date,air_date_utc_at,created_at,updated_at)
+		VALUES(101,2,1,1,'Pilot','2024-01-01',1000,0,0)`)
+	eng, err := decide.New(e.pol, decide.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.r.SetProfiles(eng.Profile)
+	failing := func(context.Context, decide.Release, decide.Title, decide.Version, *decide.SeriesSearch) (*decide.Decision, error) {
+		return nil, errors.New("adapt: aggregate languages: Remove(9, 4) on 10 characters")
+	}
+	e.r.SetDecider(eng.Decide, failing)
+	c := cand(h("a"), "Show.S01E01.2160p.WEB-DL-GRP")
+	c.Release.Seeders = 10
+	c.Episodes = []int64{101}
+	c.Search, c.Identity, c.Origin = true, RouteIdentityVersion, OriginSearch
+	c.Criteria = []*decide.SeriesSearch{{Season: 1, Episode: 1}}
+	// Decided under an older policy revision: the route decides it again before adding.
+	_, err = e.r.Route(e.ctx, Request{TitleID: 2, VersionID: 20, Version: "series", Source: "wanted",
+		DecisionRev: "older", Candidates: []Candidate{c}})
+	if err == nil || !strings.Contains(err.Error(), "aggregate languages") {
+		t.Fatalf("recheck error: %v", err)
 	}
 }

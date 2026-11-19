@@ -1430,7 +1430,8 @@ serving the version wins over its imported arr setting; without one, the default
   against the queries in its own indexer list (`router.SearchRequests`). A release the decision engine returns an
   error for is rejected (`DecisionError`, with a note) and the others are still decided, as Sonarr's
   DownloadDecisionMaker does; under one series criterion it leaves the release's decision under another. A cancelled
-  search still fails.
+  search still fails. Only the batch search does this: the recheck of a queued route and the import checks still
+  fail on an engine error.
 - Each accepted version gets its own `router.route` job with `Source` `acquire:<run id>`, committed with that target
   row's `routed` state. The router reuses a provider torrent already added for another version of the same title.
 - The job claims the run for its lease (`acquire_run.claim`, migration 00027) and has three attempts. A run left

@@ -107,12 +107,20 @@ type queryResult struct {
 // several of a target's queries keeps its best decision (Sonarr's DeDupeDecisions: fewest rejections).
 func SearchRequests(ctx context.Context, eng *decide.Engine, svc *indexer.Service, t decide.Title,
 	targets []SearchTarget) (map[string]*Searched, error) {
-	return searchRequests(ctx, eng, eng.Decide, eng.DecideSearch, svc, t, targets)
+	return searchRequests(ctx, eng, svc, t, targets)
 }
 
-// searchRequests is SearchRequests with the engine's two decide functions (a test's can fail one release).
-func searchRequests(ctx context.Context, eng *decide.Engine, decideMovie DecideFunc, decideSeries DecideSeriesFunc,
-	svc *indexer.Service, t decide.Title, targets []SearchTarget) (map[string]*Searched, error) {
+// searchEngine is the decision engine a batch search uses (decide.Engine; a test's can fail one release).
+type searchEngine interface {
+	Decide(ctx context.Context, rel decide.Release, t decide.Title, v decide.Version,
+		existing *decide.ExistingFile) (*decide.Decision, error)
+	DecideSearch(ctx context.Context, rel decide.Release, t decide.Title, v decide.Version,
+		search *decide.SeriesSearch) (*decide.Decision, error)
+	Recache(d *decide.Decision, v decide.Version, rel indexer.Release)
+}
+
+func searchRequests(ctx context.Context, eng searchEngine, svc *indexer.Service, t decide.Title,
+	targets []SearchTarget) (map[string]*Searched, error) {
 	ctx = decide.WithParseMemo(ctx)
 	related := relatedRows(ctx, t, targets)
 	out := make(map[string]*Searched, len(targets))
@@ -298,9 +306,16 @@ func searchRequests(ctx context.Context, eng *decide.Engine, decideMovie DecideF
 			var d *decide.Decision
 			var err error
 			if tt.Kind == policy.KindSeries {
-				d, err = decideBest(ctx, decideSeries, rel, tt, target.Version, crits[i], target.Series)
+				// Under each criterion an engine error is the release's rejection, so another criterion can
+				// still decide it.
+				perRelease := func(ctx context.Context, r decide.Release, tt decide.Title, v decide.Version,
+					c *decide.SeriesSearch) (*decide.Decision, error) {
+					d, err := eng.DecideSearch(ctx, r, tt, v, c)
+					return releaseError(ctx, d, err, r.Release, tt, v)
+				}
+				d, err = decideBest(ctx, perRelease, rel, tt, target.Version, crits[i], target.Series)
 			} else {
-				d, err = decideMovie(decide.WithSearch(ctx), decide.Release{Release: rel}, tt, target.Version, target.Existing)
+				d, err = eng.Decide(decide.WithSearch(ctx), decide.Release{Release: rel}, tt, target.Version, target.Existing)
 				d, err = releaseError(ctx, d, err, rel, tt, target.Version)
 			}
 			if err != nil {
@@ -408,16 +423,11 @@ func decideBest(ctx context.Context, decideFn DecideSeriesFunc, rel indexer.Rele
 	if len(criteria) == 0 {
 		criteria = []*decide.SeriesSearch{fallback}
 	}
-	var best, failed *decide.Decision
+	var best *decide.Decision
 	for _, c := range criteria {
 		d, err := decideFn(ctx, decide.Release{Release: rel}, t, v, c)
-		if d, err = releaseError(ctx, d, err, rel, t, v); err != nil {
+		if err != nil {
 			return nil, err
-		}
-		if undecided(d) {
-			// Another criterion may still decide the release; the error is its decision only when none does.
-			failed = d
-			continue
 		}
 		if best == nil || len(d.Rejections) < len(best.Rejections) {
 			best = d
@@ -425,9 +435,6 @@ func decideBest(ctx context.Context, decideFn DecideSeriesFunc, rel indexer.Rele
 		if len(best.Rejections) == 0 {
 			break
 		}
-	}
-	if best == nil {
-		return failed, nil
 	}
 	return best, nil
 }
@@ -441,8 +448,8 @@ func undecided(d *decide.Decision) bool {
 }
 
 // releaseError makes an error the engine returned for one release that release's rejection (Sonarr's
-// DownloadDecisionMaker does the same), so one release the engine cannot judge does not end the search. A cancelled
-// search stays an error.
+// DownloadDecisionMaker does the same), so one release the engine cannot judge does not end a batch search. A
+// cancelled search stays an error. Only the batch search uses it: rechecks and import checks keep the error.
 func releaseError(ctx context.Context, d *decide.Decision, err error, rel indexer.Release, t decide.Title,
 	v decide.Version) (*decide.Decision, error) {
 	if err == nil {
