@@ -211,8 +211,8 @@ func (l *Library) DanglingReport(ctx context.Context) (*DanglingSummary, error) 
 		}
 		rows.Close()
 		sum.Dangling = len(found)
-		if z := sum.Zurg; z != nil && z.Error == "" {
-			z.NoVideo = freshNoVideo + keptNoVideo
+		if z := sum.Zurg; z != nil {
+			z.NoVideo = freshNoVideo + keptNoVideo // a kept row keeps the cause found when it was seen
 		}
 		for _, n := range kept {
 			sum.Dangling += n

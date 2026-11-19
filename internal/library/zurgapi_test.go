@@ -284,6 +284,13 @@ func TestDanglingReportNoVideo(t *testing.T) {
 	if _, last, _ = Dangling(e.ctx, e.st.Reader()); last.Zurg == nil || last.Zurg.NoVideo != 1 {
 		t.Errorf("stored no-video count with the root unread: %+v", last.Zurg)
 	}
+	// The same with zurg not answering: the kept row's stored cause still counts.
+	srv.set(func(s *zurgServer) { s.fail = true })
+	e.now = e.now.Add(6 * time.Hour)
+	if sum, err = e.lib.DanglingReport(e.ctx); err != nil || sum.Zurg.Error == "" || sum.Zurg.NoVideo != 1 {
+		t.Fatalf("report with the root unread and zurg down: %+v %+v %v", sum, sum.Zurg, err)
+	}
+	srv.set(func(s *zurgServer) { s.fail = false })
 	if err := os.Rename(e.movies+".off", e.movies); err != nil {
 		t.Fatal(err)
 	}
