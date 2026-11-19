@@ -316,7 +316,8 @@ export function WantedPage() {
         <Button variant="outline" size="sm" disabled={clear.isPending} onClick={() => clear.mutate()}>Cancel queued searches</Button>
       </p> : null}
       <div className="flex flex-wrap items-center gap-2" aria-label="Search now">
-        <Button variant="outline" size="sm" disabled={!chosen.length || search.isPending} onClick={() => request({ body: { only, items: chosen.map(rowItem) }, count: chosen.length, title: `Search ${fmtNumber(chosen.length)} selected` }, chosen.length > left)}>Search selected ({fmtNumber(chosen.length)})</Button>
+        {/* While paused the checkboxes are gone, and Search selected with them. */}
+        {d.downloads_enabled ? <Button variant="outline" size="sm" disabled={!chosen.length || search.isPending} onClick={() => request({ body: { only, items: chosen.map(rowItem) }, count: chosen.length, title: `Search ${fmtNumber(chosen.length)} selected` }, chosen.length > left)}>Search selected ({fmtNumber(chosen.length)})</Button> : null}
         <Button variant="outline" size="sm" disabled={!d.searchable || !d.downloads_enabled || search.isPending} title={!d.downloads_enabled ? "Paused" : !d.searchable ? "Nothing in this list can be searched now" : undefined} onClick={() => request({ body: { only, all: { ...(version ? { version } : {}), ...(waiting ? { waiting: waiting as NonNullable<WantedSearchBody["all"]>["waiting"] } : {}), ...(title ? { title_id: title } : {}) } }, count: d.searchable, title: `Search all ${fmtNumber(d.searchable)} ${what}${title ? ` of ${titleName}` : ""}${version ? ` in ${label(version)}` : ""}` }, true)}>Search all {d.searchable > 0 ? `${fmtNumber(d.searchable)} ` : ""}{what}{title ? ` of ${titleName}` : ""}{version ? ` in ${label(version)}` : ""}</Button>
         <Button variant="outline" size="sm" className="ml-auto" aria-label="Columns" onClick={() => setPicker(true)}><Columns3 /><span className="hidden sm:inline">Columns</span></Button>
         {search.data && !ask ? <span role="status" className="basis-full text-[13px] text-[var(--ink-2)]" data-testid="search-now-result">{searchNowWords(search.data)}</span> : null}
@@ -343,7 +344,8 @@ export function WantedPage() {
         onSort={sortBy}
         actions={actions}
         cardHead={titleLink}
-        rowProps={() => ({ "data-testid": "wanted-row" })}
+        // Top-aligned: an opened season (What) grows the row; the title, library and actions stay at its top.
+        rowProps={() => ({ "data-testid": "wanted-row", className: "[&>td]:align-top" })}
       />}
       <Pager offset={offset} limit={PAGE} total={d.total} onPage={page} />
     </div> : null}

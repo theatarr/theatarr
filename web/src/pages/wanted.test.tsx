@@ -531,3 +531,33 @@ it("finishes an episode's Unmonitor when the row is closed before it answers", a
   await waitFor(() => expect(fetch.calls("GET", "/wanted").length).toBeGreaterThan(reads));
   expect(await screen.findByText("S01, 1 episode")).toBeTruthy();
 });
+
+it("keeps an opened season's title, library and actions at the top of its row, on both tabs", async () => {
+  const user = userEvent.setup();
+  const season: Row = { title_id: 2, version: "tv-2160p", targets: ["s01"], reason: "missing", waiting: "due", next_at: "2026-11-01T00:00:00Z",
+    last_run: null, decision_id: null, season: 1, episodes: 2,
+    episode_list: [{ episode_id: 11, season: 1, number: 1, name: "Pilot" }, { episode_id: 12, season: 1, number: 2 }] };
+  for (const [path, reason] of [["/wanted", "missing"], ["/wanted/cutoff", "cutoff"]] as const) {
+    mockFetch([admin, { method: "GET", path: "/wanted", reply: { ...page, items: [{ ...season, reason }], titles: { "2": "Beta" }, libraries: { "tv-2160p": "4K TV" } } }, status]);
+    const view = renderPage(<WantedPage />, path);
+    const cell = await screen.findByTestId("wanted-episodes");
+    await user.click(within(cell).getByText("S01, 2 episodes"));
+    // Every cell of the row (selection, title, library, actions) sits at the top, beside the opened list.
+    const tr = screen.getByTestId("wanted-row");
+    expect(tr.className).toContain("[&>td]:align-top");
+    view.unmount();
+  }
+});
+
+it("hides Search selected with the checkboxes while paused", async () => {
+  mockFetch([admin, { method: "GET", path: "/wanted", reply: { ...page, downloads_enabled: false } }, status]);
+  const view = renderPage(<WantedPage />, "/wanted");
+  await screen.findByTestId("wanted-row");
+  expect(screen.queryByRole("button", { name: /^Search selected/ })).toBeNull();
+  expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+  view.unmount();
+  mockFetch([admin, { method: "GET", path: "/wanted", reply: page }, status]);
+  renderPage(<WantedPage />, "/wanted");
+  await screen.findByTestId("wanted-row");
+  expect(screen.getByRole("button", { name: "Search selected (0)" })).toBeTruthy();
+});
