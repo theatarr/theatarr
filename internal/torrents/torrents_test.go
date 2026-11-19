@@ -1057,9 +1057,24 @@ func TestDeleteSurvivingCopy(t *testing.T) {
 	if got := survivor(DeleteSelection{Provider: "tb", ID: "90", Hash: hA}); got[0] != "92" {
 		t.Errorf("TorBox: the copy with the same files survives, not the one with more: %q", got)
 	}
+	// Real-Debrid lists no files: the selection is read (the torrent's detail); a read that fails says nothing, and
+	// the preview still answers.
+	e.rd.detailErr = errors.New("rd is down")
+	if got := survivor(DeleteSelection{Provider: "rd", ID: "1", Hash: hA}); got[0] != "" {
+		t.Errorf("a selection that cannot be read is not the same: %q", got)
+	}
+	e.rd.detailErr = nil
 	e.rd.list = slices.DeleteFunc(e.rd.list, func(x provider.Torrent) bool { return x.ID == "21" })
 	if got := survivor(DeleteSelection{Provider: "rd", ID: "1", Hash: hA}); got[0] != "" {
 		t.Errorf("another selection, a copy still downloading or one on another account does not count: %q", got)
+	}
+	// The same size with other files selected (two parts of one pack) is not the same selection.
+	other := tor("25", hA, "Movie.A.2020.1080p.WEB-DL", 100, old, provider.StateDownloaded)
+	e.rd.list = append(e.rd.list, other)
+	other.Files = []provider.File{{ID: "2", Path: "/Movie.A.2020.1080p.WEB-DL/other.mkv", Bytes: 100, Selected: true}}
+	e.rd.detail = map[string]*provider.Torrent{"25": &other}
+	if got := survivor(DeleteSelection{Provider: "rd", ID: "1", Hash: hA}); got[0] != "" {
+		t.Errorf("equal size, other files: %q", got)
 	}
 }
 

@@ -382,10 +382,13 @@ or an admin's API key, which confirms like a session, as with settings; the toke
    refused unless `allow_recent`. `needs_recent` is said whatever the usage, so a used and recent torrent shows both
    choices at once.
 
-   **The copy that stays:** an item found on the fresh list carries `surviving_copy`, the id of another complete
-   entry of the same hash on the same account, outside the selection, with the same file selection as far as the list
-   shows (the same size, which on Real-Debrid is the selected files' size, and the same selected paths where the list
-   gives files, as TorBox's does). A copy on another account never counts. It is shown only ("Another complete copy
+   **The copy that stays:** a used or unknown item carries `surviving_copy`, the id of another complete entry of the
+   same hash on the same account, outside the selection, of the same size and with the same selected files, both
+   selections known. Only an entry that matches on account, hash, completeness and size has its selection read: from
+   the list when it gives files (TorBox), else from the files the backups recorded, else from the torrent's detail
+   (once per id per preview, paced like every provider call; Real-Debrid lists no files, and two entries of one pack
+   can select different files of the same total). A selection that cannot be read, one the provider still awaits or
+   an empty one gives no field: never a guess. A copy on another account never counts. It is shown only ("Another complete copy
    stays on RD."); the override is still needed, and the token and the confirm-time replan are unchanged.
 5. **The confirmation** is bound to the exact set and the caller. The plan digest (`d1-<count>-<bytes>-<digest>`)
    covers count, total size and a digest of each deleted torrent's provider, id, hash, size, usage and flags. Any

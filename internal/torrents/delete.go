@@ -65,9 +65,9 @@ type DeleteItem struct {
 	NeedsRecent   bool   `json:"needs_recent,omitempty"`
 	// ExpectedOverride is the override token this item needs (set when it is used or unknown).
 	ExpectedOverride string `json:"expected_override_token,omitempty"`
-	// SurvivingCopy is the id of another complete entry of the same hash on the same account, outside the selection,
-	// with the same file selection where the list shows one (sameSelection): the copy that stays. Shown only; the
-	// override is still needed.
+	// SurvivingCopy (a used or unknown item) is the id of another complete entry of the same hash on the same
+	// account, outside the selection, with the same selected files, both selections known (survivors): the copy that
+	// stays. The override is still needed.
 	SurvivingCopy string `json:"surviving_copy,omitempty"`
 	Outcome       string `json:"outcome,omitempty"`
 	Error         string `json:"error,omitempty"`
@@ -123,7 +123,7 @@ func (m *Manager) planDelete(ctx context.Context, sel []DeleteSelection, lists m
 	listErr := map[string]error{}
 	now := m.now()
 	seen := map[string]bool{}
-	fresh := map[int]bool{} // the items found on a fresh list with the hash selected
+	surv := m.newSurvivors(sel)
 	for _, s := range sel {
 		it := DeleteItem{DeleteSelection: s, Action: ActRefuse}
 		it.Hash = strings.ToLower(strings.TrimSpace(s.Hash))
@@ -143,6 +143,7 @@ func (m *Manager) planDelete(ctx context.Context, sel []DeleteSelection, lists m
 				listErr[s.Provider] = lerr
 			} else {
 				plan.lists[s.Provider] = list
+				surv.add(s.Provider, list)
 				byID[s.Provider] = map[string]provider.Torrent{}
 				for _, t := range list {
 					byID[s.Provider][t.ID] = t
@@ -162,7 +163,6 @@ func (m *Manager) planDelete(ctx context.Context, sel []DeleteSelection, lists m
 		}
 		seen[key] = true
 		if found && it.Refusal == "" {
-			fresh[len(plan.Items)] = true
 			it.Hash = indexer.NormalizeHash(t.Hash)
 			it.Name, it.Bytes, it.Added, it.State = t.Name, t.Bytes, t.Added, t.State
 			it.Usage, it.Refs, it.RefList, it.Reasons, err = m.deleteUsage(ctx, s.Provider, t, ix,
@@ -171,6 +171,7 @@ func (m *Manager) planDelete(ctx context.Context, sel []DeleteSelection, lists m
 				return nil, err
 			}
 			if it.Usage != Unused {
+				it.SurvivingCopy = surv.of(ctx, s.Provider, t)
 				it.ExpectedOverride = overrideToken(s.Provider, t, it.Usage, it.Refs, it.RefList, it.Reasons)
 			}
 			recent := t.Added.IsZero() || now.Sub(t.Added) < YoungAfter
@@ -202,60 +203,92 @@ func (m *Manager) planDelete(ctx context.Context, sel []DeleteSelection, lists m
 		}
 		plan.Items = append(plan.Items, it)
 	}
-	chosen := map[string]bool{}
-	for _, s := range sel {
-		chosen[s.Provider+"\x00"+s.ID] = true
-	}
-	for i := range plan.Items {
-		it := &plan.Items[i]
-		if fresh[i] {
-			it.SurvivingCopy = survivingCopy(plan.lists[it.Provider], it.Provider, it.ID, chosen)
-		}
-	}
 	digest, token := deleteToken(plan)
 	plan.Digest, plan.Token = digest, callerToken(ctx, "d2-", token)
 	return plan, nil
 }
 
-// survivingCopy is the id of another complete entry of id's hash in its account's list, outside the selection
-// (chosen), with the same file selection; "" without one.
-func survivingCopy(list []provider.Torrent, prov, id string, chosen map[string]bool) string {
-	var t *provider.Torrent
-	for i := range list {
-		if list[i].ID == id {
-			t = &list[i]
-			break
+// survivors finds a plan's surviving copies (DeleteItem.SurvivingCopy): per account and hash, the complete entries
+// outside the selection, and each entry's selected files, read once per plan.
+type survivors struct {
+	m      *Manager
+	chosen map[string]bool                          // provider \x00 id
+	cands  map[string]map[string][]provider.Torrent // provider -> hash -> complete entries outside the selection
+	sels   map[string][]string                      // provider \x00 id -> selected paths, sorted; nil: not known
+	cache  map[string][]BackupFile                  // fileCache, read on first need
+}
+
+func (m *Manager) newSurvivors(sel []DeleteSelection) *survivors {
+	s := &survivors{m: m, chosen: map[string]bool{}, cands: map[string]map[string][]provider.Torrent{},
+		sels: map[string][]string{}}
+	for _, x := range sel {
+		s.chosen[x.Provider+"\x00"+x.ID] = true
+	}
+	return s
+}
+
+// add takes an account's fresh list.
+func (s *survivors) add(prov string, list []provider.Torrent) {
+	by := map[string][]provider.Torrent{}
+	for _, t := range list {
+		if h := indexer.NormalizeHash(t.Hash); h != "" && t.State == provider.StateDownloaded && !s.chosen[prov+"\x00"+t.ID] {
+			by[h] = append(by[h], t)
 		}
 	}
-	if t == nil || indexer.NormalizeHash(t.Hash) == "" {
-		return ""
-	}
-	for _, o := range list {
-		if o.ID != id && !chosen[prov+"\x00"+o.ID] && o.State == provider.StateDownloaded &&
-			indexer.NormalizeHash(o.Hash) == indexer.NormalizeHash(t.Hash) && sameSelection(*t, o) {
+	s.cands[prov] = by
+}
+
+// of is the id of another complete entry of t's hash on its account, outside the selection, of the same size and with
+// the same selected files, both selections known; "" without one. Only entries that match on everything else have
+// their selection read.
+func (s *survivors) of(ctx context.Context, prov string, t provider.Torrent) string {
+	for _, o := range s.cands[prov][indexer.NormalizeHash(t.Hash)] {
+		if o.ID == t.ID || o.Bytes != t.Bytes {
+			continue
+		}
+		a := s.selection(ctx, prov, t)
+		if a == nil {
+			return ""
+		}
+		if b := s.selection(ctx, prov, o); b != nil && slices.Equal(a, b) {
 			return o.ID
 		}
 	}
 	return ""
 }
 
-// sameSelection: two entries of one hash select the same files, as far as the list shows: the same size (Real-Debrid
-// reports the size of the selected files) and, when the list gives files (TorBox), the same selected paths.
-func sameSelection(a, b provider.Torrent) bool {
-	if a.Bytes != b.Bytes || (a.Files == nil) != (b.Files == nil) {
-		return false
+// selection is t's selected file paths, sorted: from the list when it gives files (TorBox), else from the files the
+// backups recorded (fileCache), else from the torrent's detail (Real-Debrid lists no files). nil when it cannot be
+// established: the read failed, the provider awaits a selection, or nothing is selected.
+func (s *survivors) selection(ctx context.Context, prov string, t provider.Torrent) []string {
+	key := prov + "\x00" + t.ID
+	if got, ok := s.sels[key]; ok {
+		return got
 	}
-	sel := func(t provider.Torrent) []string {
-		var out []string
-		for _, f := range t.Files {
-			if f.Selected {
-				out = append(out, f.Path)
+	var paths []string
+	files := t.Files
+	if files == nil {
+		if s.cache == nil {
+			s.cache = s.m.fileCache()
+		}
+		if c, ok := s.cache[key+"\x00"+strings.ToLower(t.Hash)]; ok {
+			for _, f := range c {
+				paths = append(paths, f.Path)
+			}
+		} else if p := s.m.Providers[prov]; p != nil {
+			if d, err := p.Torrent(ctx, t.ID); err == nil && !awaitingSelection(d.Status) {
+				files = d.Files
 			}
 		}
-		sort.Strings(out)
-		return out
 	}
-	return slices.Equal(sel(a), sel(b))
+	for _, f := range files {
+		if f.Selected {
+			paths = append(paths, f.Path)
+		}
+	}
+	sort.Strings(paths)
+	s.sels[key] = paths
+	return paths
 }
 
 func describe(refs map[string]int, reasons []string) string {
