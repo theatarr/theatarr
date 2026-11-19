@@ -4,6 +4,7 @@ import { useState } from "react";
 import { describe, expect, it } from "vitest";
 import { mockFetch, renderPage } from "@/test/page";
 import { addToTooltip, copyLine, copyPart, copyResults, type CopyResult } from "@/lib/add-to-providers";
+import { useTorrentJournal } from "@/api/torrents";
 import { AddToProviders } from "./add-to-providers";
 
 const H = "a".repeat(40);
@@ -64,6 +65,23 @@ describe("the button", () => {
     fireEvent.click(screen.getByTestId("add-to-providers"));
     expect((await screen.findByTestId("add-to-providers-result")).textContent).toBe("Added to TB · Not cached on RD");
     expect(api.calls("POST", "/torrents/copy")[0].body).toEqual({ hash: H });
+  });
+
+  it("asks for the torrent journal again once the copy ends", async () => {
+    const api = mockFetch([
+      { method: "POST", path: "/torrents/copy", reply: { job: 3, since: "2026-11-16T12:00:00Z" } },
+      { method: "GET", path: `/torrents/copy/${H}`, reply: { running: false, results: [r({})] } },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+    ]);
+    function Journal() {
+      useTorrentJournal(50);
+      return null;
+    }
+    renderPage(<><Journal /><AddToProviders hash={H} addTo={["tb"]} /></>);
+    await waitFor(() => expect(api.calls("GET", "/torrents/journal")).toHaveLength(1));
+    fireEvent.click(screen.getByTestId("add-to-providers"));
+    await screen.findByTestId("add-to-providers-result");
+    await waitFor(() => expect(api.calls("GET", "/torrents/journal")).toHaveLength(2));
   });
 
   it("goes once every provider holds the torrent, and keeps this click's line", async () => {

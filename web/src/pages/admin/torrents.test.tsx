@@ -211,6 +211,19 @@ describe("torrents page", () => {
     expect(screen.getByText("Dup.ad.13")).toBeTruthy();
   });
 
+  it("links the journal beside the filters", async () => {
+    mockFetch([
+      { method: "GET", path: "/torrents/report", reply: report },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+    ]);
+    renderPage(<TorrentsPage />);
+    await screen.findByText("Used.Movie");
+    const link = screen.getByRole("link", { name: "Journal" });
+    expect(link.getAttribute("href")).toBe("#journal");
+    expect(document.getElementById("journal")?.querySelector("h2")?.textContent).toBe("Journal");
+    fireEvent.click(link);
+  });
+
   it("keeps the provider, filter, text and sort in the URL", async () => {
     mockFetch([
       { method: "GET", path: "/torrents/report", reply: report },

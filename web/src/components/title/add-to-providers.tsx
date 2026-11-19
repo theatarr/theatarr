@@ -2,7 +2,7 @@
 // torrent is not on every provider with a key (addTo, from the server), on the title page's movie file, in the episode
 // window and on an Admin › Torrents row. No confirmation: nothing is lost by it. While the copy runs the button spins;
 // then one line under it says how each provider ended, until the page is left. The file's provider tags follow once it
-// ends (the title, episode and torrents queries are asked again).
+// ends (the title, episode, torrents and torrent journal queries are asked again).
 import { CopyPlus, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -23,6 +23,8 @@ export function AddToProviders({ hash, addTo, pack, testid = "add-to-providers" 
     if (!done) return;
     void qc.invalidateQueries({ queryKey: ["title"] });
     void qc.invalidateQueries({ queryKey: qk.torrents.report });
+    // The copy's adds are journaled: Admin › Torrents' journal shows them.
+    void qc.invalidateQueries({ queryKey: ["torrents", "journal"] });
   }, [done, qc]);
   if (!hash || (!addTo?.length && !since)) return null;
   const line = done ? copyLine(copyResults(state.data, since)) : "";

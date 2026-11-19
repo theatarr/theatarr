@@ -332,7 +332,7 @@ Each provider's outcome is a row of the torrent journal (action `copy`, migratio
 under the button until it is left, one part per provider in the tags it already uses: "Added to TB · Not cached on
 RD"; "Already on AD" (", still downloading (12%)"; ", but failed there"); "RD refuses this release name"; "TB is busy
 until 14:32, try again then" (also for an add the provider refused with a retry time); "Could not add to X just now"
-(an add that failed without one); "Could not add to X: …" (our own reason, such as a delete that failed). After "Added to X" the file's tags include X. Pause does not
+(an add that failed without one); "Could not add to X: …" (our own reason, such as a delete that failed). After "Added to X" the file's tags include X, and the torrent journal is asked for again once the copy ends (Admin › Torrents shows its rows without a reload). Pause does not
 stop it: it is the person's own action, as a restore is. A route's guard treats an entry the copy sent as not its own
 (`router.RestoredSince` reads `restore` and `copy` rows).
 
@@ -537,7 +537,7 @@ sentence (the plan's warning). The filter
 **Not used by Theatarr** (the unused group) has a line beside the filters: it checks Theatarr's libraries and the
 **Other libraries' folders** (`torrents.scan_roots`), which are edited in Settings › Download clients › Torrents
 (`#scan-roots`, linked there); other apps on the same accounts are not seen. The provider tab, filter, text and sort
-are in the URL. The torrent journal is below the list.
+are in the URL. The torrent journal is below the list; a **Journal** link beside the filters jumps there.
 
 The old Saved inventory addresses (`/admin/torrents/inventory`, an entry `/admin/torrents/inventory/<hash>`, and
 the older `/admin/registry…`, `/registry…`) open Torrents, an entry filtered to its hash (`?q=<hash>`); a file's hash

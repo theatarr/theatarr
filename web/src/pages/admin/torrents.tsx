@@ -200,6 +200,8 @@ export function TorrentsPage() {
             <select className="h-8 rounded-md border border-border bg-transparent px-2 text-sm" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label="Sort">
               {SORTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
             </select>
+            {/* The journal sits below every row: a jump there. */}
+            <a href="#journal" className="px-1 text-sm text-primary hover:underline" onClick={(e) => { e.preventDefault(); document.getElementById("journal")?.scrollIntoView?.(); }}>Journal</a>
           </div>
           <UnusedSummary />
           <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
@@ -484,23 +486,25 @@ function RefreshResult({ r, codes }: { r: TorrentReport; codes: Record<string, s
 function JournalSection() {
   const q = useTorrentJournal(50);
   return (
-    <Section title="Journal">
-      {q.isPending ? <Loading /> : q.error ? <ErrorState error={q.error} /> : (q.data?.entries ?? []).length === 0 ? <Card><Empty>Nothing deleted, restored or backed up yet.</Empty></Card> : (
-        <Card className="p-0">
-          <Table>
-            <TableBody>
-              {(q.data?.entries ?? []).map((e) => (
-                <TableRow key={e.id}>
-                  <TableCell className="whitespace-nowrap">{fmtTime(e.at)}</TableCell>
-                  <TableCell><Badge tone={e.outcome === "failed" ? "negative" : "neutral"} title={`${e.action} ${e.outcome}`}>{torrentJournalWords(e.action, e.outcome)}</Badge></TableCell>
-                  <TableCell className="text-[13px] [overflow-wrap:anywhere]">{e.provider ? <ProviderTag account={e.provider} className="mr-1 font-medium" /> : null}{e.name || e.hash || (e.backup_id ? <span title={e.backup_id}>Backup</span> : null)}{e.detail ? <div className="text-xs text-muted-foreground">{e.detail}</div> : null}</TableCell>
-                  <TableCell className="hidden whitespace-nowrap md:table-cell">{torrentJournalBy(e.by)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
-      )}
-    </Section>
+    <div id="journal" className="scroll-mt-16">
+      <Section title="Journal">
+        {q.isPending ? <Loading /> : q.error ? <ErrorState error={q.error} /> : (q.data?.entries ?? []).length === 0 ? <Card><Empty>Nothing deleted, restored or backed up yet.</Empty></Card> : (
+          <Card className="p-0">
+            <Table>
+              <TableBody>
+                {(q.data?.entries ?? []).map((e) => (
+                  <TableRow key={e.id}>
+                    <TableCell className="whitespace-nowrap">{fmtTime(e.at)}</TableCell>
+                    <TableCell><Badge tone={e.outcome === "failed" ? "negative" : "neutral"} title={`${e.action} ${e.outcome}`}>{torrentJournalWords(e.action, e.outcome)}</Badge></TableCell>
+                    <TableCell className="text-[13px] [overflow-wrap:anywhere]">{e.provider ? <ProviderTag account={e.provider} className="mr-1 font-medium" /> : null}{e.name || e.hash || (e.backup_id ? <span title={e.backup_id}>Backup</span> : null)}{e.detail ? <div className="text-xs text-muted-foreground">{e.detail}</div> : null}</TableCell>
+                    <TableCell className="hidden whitespace-nowrap md:table-cell">{torrentJournalBy(e.by)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        )}
+      </Section>
+    </div>
   );
 }
