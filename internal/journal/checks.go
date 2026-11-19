@@ -496,11 +496,11 @@ func (b *builder) checkFile(e *Entry, ti *titleInfo) {
 	}
 }
 
-// audioCode normalises a stream's language tag to ISO 639-2/B as the arrs' languages map: a BCP-47 tag counts as
-// its base language (ja-JP is Japanese), Norwegian Bokmål and Nynorsk (nb, nn, nob, nno) count as Norwegian,
-// two-letter tags become three.
+// audioCode normalises a stream's language tag to ISO 639-2/B as the arrs' languages map: Norwegian Bokmål and
+// Nynorsk (nb, nn, nob, nno; the two-letter ones from a Matroska LanguageIETF tag) count as Norwegian, two-letter
+// tags become three.
 func audioCode(a string) string {
-	a, _, _ = strings.Cut(strings.ToLower(strings.TrimSpace(a)), "-")
+	a = strings.ToLower(strings.TrimSpace(a))
 	switch a {
 	case "nb", "nn", "nob", "nno":
 		return "nor"

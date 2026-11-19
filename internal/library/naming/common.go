@@ -419,8 +419,7 @@ func languagesToken(langs []string, filter string, skipEnglishOnly, quoted, sona
 		}
 	}
 	for i, t := range tokens {
-		// A BCP-47 tag (ja-JP) counts as its base language, as .NET's TwoLetterISOLanguageName reads it.
-		token, _, _ := strings.Cut(strings.ToLower(t), "-")
+		token := strings.ToLower(t)
 		if mapped, ok := iso639BT[token]; ok && !(sonarr && sonarrNoBT[token]) {
 			token = mapped
 		}

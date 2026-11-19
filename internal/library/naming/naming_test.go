@@ -120,8 +120,6 @@ func TestLanguagesToken(t *testing.T) {
 		{[]string{"jpn", "eng", "ger"}, "JA+EN+", "[JA+EN+--]"},
 		{[]string{"jpn", "eng"}, "-EN", "[JA]"},
 		{[]string{"und", "jpn"}, "", "[JA]"},
-		{[]string{"ja-JP", "en-US"}, "JA+EN", "[JA+EN]"},
-		{[]string{"en-US"}, "", ""},
 	}
 	for _, c := range cases {
 		if got := languagesToken(c.in, c.filter, true, true, true); got != c.want {

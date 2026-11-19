@@ -141,20 +141,34 @@ func TestMatroska(t *testing.T) {
 	}
 }
 
-// A track's BCP-47 tag (LanguageIETF) wins over the legacy language element, whichever comes first.
+// The legacy language element wins unless it is absent or und; then the LanguageIETF tag's primary subtag is used.
+// Element order does not matter.
 func TestMatroskaLanguageIETF(t *testing.T) {
-	for _, body := range [][]byte{
-		bytes.Join([][]byte{u(idTrackNumber, 2), str(idLanguage, "eng"), str(idLanguageIETF, "ja-JP")}, nil),
-		bytes.Join([][]byte{u(idTrackNumber, 2), str(idLanguageIETF, "ja-JP"), str(idLanguage, "eng")}, nil),
-		bytes.Join([][]byte{u(idTrackNumber, 2), str(idLanguageIETF, "ja-JP")}, nil),
-	} {
-		tr, err := parseTrack(body)
-		if err != nil || tr.language != "ja-JP" {
-			t.Errorf("language %q %v", tr.language, err)
-		}
+	cases := []struct {
+		legacy, ietf, want string
+	}{
+		{"", "ja-JP", "ja"},
+		{"chi", "cmn-Hans", "chi"},
+		{"nob", "nb-NO", "nob"},
+		{"und", "ja", "ja"},
+		{"", " ", "eng"},
+		{"", "", "eng"},
 	}
-	if tr, _ := parseTrack(u(idTrackNumber, 2)); tr.language != "eng" {
-		t.Errorf("default language %q", tr.language)
+	for _, c := range cases {
+		var l, i []byte
+		if c.legacy != "" {
+			l = str(idLanguage, c.legacy)
+		}
+		if c.ietf != "" {
+			i = str(idLanguageIETF, c.ietf)
+		}
+		for _, body := range [][]byte{bytes.Join([][]byte{u(idTrackNumber, 2), l, i}, nil),
+			bytes.Join([][]byte{u(idTrackNumber, 2), i, l}, nil)} {
+			tr, err := parseTrack(body)
+			if err != nil || tr.language != c.want {
+				t.Errorf("legacy %q ietf %q: language %q %v, want %q", c.legacy, c.ietf, tr.language, err, c.want)
+			}
+		}
 	}
 }
 

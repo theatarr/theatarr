@@ -171,10 +171,11 @@ probes a sparse 50 GB file and a 20 GB MP4 with `moov` at the end reading under 
   (core, ES, 96/24, HD HRA, HD MA, DTS:X), and HDR10+ and mastering SEI for every HDR base layer: PQ (container or
   SPS) or Dolby Vision with compatibility id 1 or 6 (Matroska; MP4 samples are not read). Tests:
   `TestHEVCSPSColour` (built SPS records and two real x265 ones), `TestMatroskaColourFromSPS`, `TestMP4ColourFromSPS`.
-- Track languages: a Matroska track's BCP-47 tag (`LanguageIETF`) wins over the legacy language element, in either
-  order, and is kept whole for display (`ja-JP`); naming's language tokens and filters and the journal's file audio
-  check read its base language, so `ja-JP` still matches `JA`. Stored probes are not re-read. Tests:
-  `TestMatroskaLanguageIETF`, `TestLanguagesToken`, `TestAudioCode`.
+- Track languages: a Matroska track's legacy Language element wins when present and not `und`; otherwise its
+  BCP-47 tag (`LanguageIETF`) gives the language as its primary subtag in lower case (`ja-JP` is `ja`), in either
+  element order (mkvmerge writes both, and the legacy `chi` or `nob` is the code every reader knows). The journal's
+  file audio check reads `nb` and `nn` as Norwegian. Stored probes are not re-read. Tests:
+  `TestMatroskaLanguageIETF`, `TestAudioCode`.
 - Version mark and one re-read: every probe carries `"v": 2` (`probe.Version`). After start-up one `library.reprobe`
   job reads the content files of active links whose stored probe is HEVC without the mark again, one file about
   every two seconds through the mount as an import's probe reads (`Mount.ProbeFile`), and replaces only

@@ -195,7 +195,11 @@ var mkvPrimaries = map[uint64]string{1: "bt709", 9: "bt2020", 5: "bt470bg", 6: "
 
 func parseTrack(data []byte) (*mkvTrack, error) {
 	t := &mkvTrack{language: "eng", enabled: true}
-	var ietf string // the BCP-47 tag wins over the legacy element, in either order
+	// The legacy Language element wins when present and not und; else the LanguageIETF tag's primary subtag
+	// (ja-JP is ja). mkvmerge writes both, and the legacy code (chi beside cmn-Hans, nob beside nb-NO) is the one
+	// every reader knows.
+	var legacy bool
+	var ietf string
 	err := children(data, func(id int64, d []byte) error {
 		switch id {
 		case idTrackNumber:
@@ -207,9 +211,9 @@ func parseTrack(data []byte) (*mkvTrack, error) {
 		case idCodecPrivate:
 			t.private = d
 		case idLanguage:
-			t.language = strings.TrimRight(string(d), "\x00")
+			t.language, legacy = strings.TrimRight(string(d), "\x00"), true
 		case idLanguageIETF:
-			ietf = strings.TrimRight(string(d), "\x00")
+			ietf, _, _ = strings.Cut(strings.ToLower(strings.TrimSpace(strings.TrimRight(string(d), "\x00"))), "-")
 		case idFlagEnabled:
 			t.enabled = uintOf(d) != 0
 		case idVideo:
@@ -289,7 +293,7 @@ func parseTrack(data []byte) (*mkvTrack, error) {
 		}
 		return nil
 	})
-	if ietf != "" {
+	if ietf != "" && (!legacy || t.language == "und") {
 		t.language = ietf
 	}
 	return t, err
