@@ -277,7 +277,7 @@ existing redaction applies). Household accounts get none of it.
   every column stays reachable, and the page itself never scrolls sideways.
 - **Upcoming**: a missing movie that is not out at home yet reads **Upcoming · <date>** instead of Missing, on
   library lists, posters, Home and Discover › Upcoming, all through the one rule (`upcomingRelease`): the row's
-  `home_release` (the earlier of the digital and disc dates, else the cinema date plus 90 days; the date Theatarr's
+  `home_release` (the earlier of the digital and disc dates, else 90 days after the first cinema run anywhere; the date Theatarr's
   released minimum waits for, `availability.HomeRelease`) strictly after today, else, for a row without one, its TMDb
   release date strictly after today (the UTC day, as the server's Missing row and fetching count it). A film in cinemas with its digital release to come reads Upcoming until that
   day. It is still wanted; only the word changes, and Wanted's counts do not. `home_release` is per title.
@@ -305,13 +305,13 @@ existing redaction applies). Household accounts get none of it.
   refreshed), the country named once under the table; a refreshed title's cinema date taken from the first release
   anywhere is marked "first release, not US".
   Display only: what may be fetched reads `availability.Dates` (the `tmdb-art` schedule, `tmdb.ReleaseSchedule`, plus
-  availability's first cinema date anywhere when earlier: router.md "Triggers"). Every shown date, estimate and date
-  order keeps the canonical cinema date (`availability.ShownHomeRelease`: `home_release`, Wanted's date and estimate,
-  Home's Missing order), while availability decides the class: a movie out at home by its first cinema run whose shown
-  home release is still to come lists `home_release` as that past day (`availability.ListedHomeRelease`), so it reads
-  Missing, not Upcoming, as it is searched; Home's Missing row takes it by availability and dates it by the shown home
-  release. The arr-compatible API's dates are the canonical ones, its `isAvailable` and status follow availability.
-  The general release day leaves availability's first cinema date out.
+  availability's first cinema date anywhere when earlier: router.md "Triggers"). The estimated home release is 90 days
+  after the first cinema run anywhere (`availability.HomeRelease`): `home_release`, Wanted's date and its sort, Home's
+  Missing row and the compatible `releaseDate` read it, still marked "(estimate)" wherever they were, and the lists'
+  Status, About › Status and the compatible status are one calculation (`availability.Status`) from the same run,
+  worked out from the dates the page reads, so they agree before the next metadata refresh. The canonical cinema, digital and physical dates, the
+  calendar, the Released column, In cinemas and Details › Release dates stay as they were (the general release day
+  leaves availability's first cinema date out).
 - **Added and Latest file**: **Added** is the day the title was added to Theatarr (lists' Added column and sort,
   poster detail); **Latest file** is when the newest current file came (lists' Latest file column and sort, Home's
   **Latest files** row with "File added …", About's Latest file). The **Quality** sort orders by the quality each

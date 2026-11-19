@@ -1182,8 +1182,8 @@ func TestMissingRowHomeRelease(t *testing.T) {
 		(40, 'tmdb', 'US', 'digital', '2026-09-01'),
 		(41, 'radarr_4k_debrid', '', 'digital', '2026-09-01'), (41, 'tmdb-art', '', 'digital', '2026-12-01'),
 		(42, 'tmdb', '', 'digital', '2026-09-15')`)
-	// Rerun (Z4.2): first in cinemas abroad in 1988, back in US cinemas on Oct 1: out at home for availability, so
-	// in the row, dated and ordered by its canonical home release as before.
+	// Rerun (Z4.2): first in cinemas abroad in 1988, back in US cinemas on Oct 1: out at home 90 days after the 1988
+	// run, so in the row on that day.
 	e.exec(`INSERT INTO title (id, kind, name, year, tmdb_id, monitored, created_at, updated_at) VALUES
 		(44, 'movie', 'Rerun', 1988, 544, 1, ?, ?)`, now, now)
 	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
@@ -1208,8 +1208,8 @@ func TestMissingRowHomeRelease(t *testing.T) {
 	if got["Out"] != "2026-09-15" || got["Undated"] != "2026-08-30" || got["US only"] != "2026-09-01" {
 		t.Errorf("missing row %v: Out on its digital date, Undated on TMDb's date plus 90 days, US only on its US date", got)
 	}
-	if got["Rerun"] != "2026-12-30" {
-		t.Errorf("Rerun in the missing row on %q, want its canonical home release 2026-12-30", got["Rerun"])
+	if got["Rerun"] != "1988-08-09" {
+		t.Errorf("Rerun in the missing row on %q, want 1988-08-09", got["Rerun"])
 	}
 	if _, ok := got["Refreshed"]; ok {
 		t.Errorf("Refreshed is not out at home yet but in the missing row %v", got)

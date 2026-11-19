@@ -254,7 +254,8 @@ Movie status and `isAvailable` use canonical release dates from `meta.art`, shar
 a successful refresh supersedes imported dates, including corrections/removals. Both count from acquisition's cinema
 date (`availability.Cinema`: the first real cinema date anywhere when earlier than the canonical one, router.md
 "Triggers"), so a film first in cinemas abroad in 1988 and back in US cinemas this year is available and released;
-`inCinemas`, `releaseDate`, the dates and the calendar keep the canonical cinema date. Migration 00041 adds the date-refresh
+`releaseDate`'s estimate is 90 days after that first run; `inCinemas`, the dates and the calendar keep the canonical
+cinema date. Migration 00041 adds the date-refresh
 marker, makes existing movies due for refresh and clears the RSS seen cache.
 
 ### Minimum availability

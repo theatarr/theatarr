@@ -505,14 +505,14 @@ func TestWantedListLastRunBySeason(t *testing.T) {
 }
 
 // A film known only by its cinema date has the home release worked out as 90 days later: its row says the date is an
-// estimate, as the title pages do; a film with a digital date does not.
+// estimate, as the title pages do; a film with a digital date does not. Z4.2: the 90 days count from the first cinema
+// run anywhere, so a 1979 film back in US cinemas this year reads its 1979 run's estimate.
 func TestWantedEstimatedHomeRelease(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, &policy.Wanted{PerHour: 100, Missing: new(false), CutoffUnmet: policy.CutoffOff})
-	e.exec(`UPDATE title_release_date SET type = 'theatrical', date = '1986-12-25' WHERE title_id = 2`)
-	// Z4.2: a first cinema run abroad moves availability, never the date Wanted shows.
+	e.exec(`UPDATE title_release_date SET type = 'theatrical', date = '2026-09-01' WHERE title_id = 2`)
 	e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES
-		(2, 'tmdb-art', '', 'theatrical_limited', '1980-01-01'), (2, 'tmdb', 'FR', 'theatrical', '1979-06-01')`)
+		(2, 'tmdb-art', '', 'theatrical_limited', '1979-06-01'), (2, 'tmdb', 'FR', 'theatrical', '1979-06-01')`)
 	l, err := e.a.WantedList(e.ctx, WantedQuery{Only: OnlyMissing})
 	if err != nil {
 		t.Fatal(err)
@@ -527,7 +527,7 @@ func TestWantedEstimatedHomeRelease(t *testing.T) {
 			}
 		case 2:
 			seen++
-			if r.Date != "1987-03-25" || !r.DateEstimate {
+			if r.Date != "1979-08-30" || !r.DateEstimate {
 				t.Errorf("estimated home release: %s estimate %v", r.Date, r.DateEstimate)
 			}
 		}

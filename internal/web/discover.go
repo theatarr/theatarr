@@ -286,7 +286,7 @@ func (w *Web) upcomingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 // episode by its libraries' state, activity.EpisodeMonitoredSQL: a library that was not removed monitors the copy and
 // the episode and lacks it; the episode's cached flag plays no part); an
 // episode's day is its air date, else the UTC day of its air instant. A movie is released
-// on its home release (availability.HomeRelease, as list rows' home_release; dated by availability.ShownHomeRelease); without one,
+// on its home release (availability.HomeRelease, as list rows' home_release); without one,
 // on its earliest stored digital or disc date (worldwide or the primary country's), else TMDb's release date plus 90 days, else at the end of its
 // year.
 func (w *Web) missingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
@@ -325,16 +325,10 @@ func (w *Web) missingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 		return nil, err
 	}
 	for _, p := range movies {
-		// In the row by availability's home release; dated and ordered by the shown one (Z4.2).
-		out := p.date != "" && p.date <= today
 		if d := availability.HomeRelease(dates[p.id]); !d.IsZero() {
-			out = d.Format(time.DateOnly) <= today
 			p.date = d.Format(time.DateOnly)
 		}
-		if d := availability.ShownHomeRelease(dates[p.id]); !d.IsZero() {
-			p.date = d.Format(time.DateOnly)
-		}
-		if out {
+		if p.date != "" && p.date <= today {
 			missing = append(missing, p)
 		}
 	}

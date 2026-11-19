@@ -230,6 +230,12 @@ func TestFirstCinemaAvailability(t *testing.T) {
 			if got := dates["theatrical"].Format(time.DateOnly); got != tc.shownCinema {
 				t.Errorf("canonical cinema date %s, want %s", got, tc.shownCinema)
 			}
+			// The stored status (About > Status) counts from the same cinema date.
+			var status string
+			if err := e.st.Reader().QueryRow(`SELECT status FROM title_meta WHERE title_id = 1`).Scan(&status); err != nil ||
+				(status == "released") != (tc.released || tc.home <= testNow.Format(time.DateOnly)) {
+				t.Errorf("stored status %q %v", status, err)
+			}
 			shown, err := activity.ReadMovieDates(ctx, e.st.Reader(), []any{int64(1)})
 			if err != nil || shown[1].First["theatrical"] != tc.shownCinema {
 				t.Errorf("shown cinema date %v %v, want %s", shown[1].First, err, tc.shownCinema)

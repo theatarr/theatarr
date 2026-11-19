@@ -1072,7 +1072,7 @@
           "anime": { "type": "boolean" }, "monitored": { "type": "boolean" },
           "versions": { "type": "array", "items": { "$ref": "#/components/schemas/VersionBrief" } },
           "next_up": { "$ref": "#/components/schemas/NextUp" },
-          "home_release": { "type": "string", "description": "Movies: the day it is out at home, YYYY-MM-DD: the earlier of the digital and physical release dates, else the cinema date plus 90 days (what the released minimum availability waits for); absent without dates" },
+          "home_release": { "type": "string", "description": "Movies: the day it is out at home, YYYY-MM-DD: the earlier of the digital and physical release dates, else an estimate 90 days after the first cinema run anywhere (what the released minimum availability waits for); absent without dates" },
           "acquiring": { "type": "boolean", "description": "Some copy has a download in hand that is not blocked and is not an upgrade. Sent to every caller, without the download's detail, on rows and on the title page (TitleDetail)" },
           "network": { "type": "string", "description": "The series' network (a movie's first production company)" },
           "poster": { "type": "string", "description": "Poster URL on this origin (/img/t/{id}/poster/w342?v=<art_hash>); generated art until the real art is fetched" },

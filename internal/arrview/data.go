@@ -3,7 +3,6 @@ package arrview
 import (
 	"context"
 	"database/sql"
-	"maps"
 	"sort"
 	"strings"
 	"time"
@@ -302,7 +301,7 @@ func (s *Service) load(ctx context.Context, v *View, titleIDs []int64) ([]*entry
 			return nil, err
 		}
 		for tid, ds := range dates {
-			maps.Copy(byID[tid].dates, ds)
+			byID[tid].dates = ds
 		}
 	}
 	return order, nil

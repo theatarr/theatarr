@@ -69,29 +69,12 @@ type movieStatistics struct {
 	MovieFileQualities []quality `json:"movieFileQualities,omitempty"`
 }
 
-// movieStatus ports SkyHookProxy.MapMovie's status (src/NzbDrone.Core/MetadataSource/SkyHook/SkyHookProxy.cs
-// L292-314 @ a96bf7c) from the stored release dates, counting from availability's cinema date (availability.Cinema)
-// as isAvailable does.
-func movieStatus(d map[string]time.Time, now time.Time) string {
-	status := "announced"
-	if c := availability.Cinema(d); !c.IsZero() && now.After(c) {
-		status = "inCinemas"
-		_, ph := d["physical"]
-		_, dg := d["digital"]
-		if !ph && !dg && now.After(c.AddDate(0, 0, 90)) {
-			status = "released"
-		}
-	}
-	if p, ok := d["physical"]; ok && !now.Before(p) {
-		status = "released"
-	}
-	if g, ok := d["digital"]; ok && !now.Before(g) {
-		status = "released"
-	}
-	return status
-}
+// movieStatus is the movie's release status: availability.Status (SkyHookProxy.MapMovie's, counting from
+// availability's cinema date), the one calculation the title pages and lists show too.
+func movieStatus(d map[string]time.Time, now time.Time) string { return availability.Status(d, now) }
 
-// releaseDate ports Movie.GetReleaseDate.
+// releaseDate ports Movie.GetReleaseDate; the estimated home release counts from availability's cinema date
+// (availability.Cinema), as availability.HomeRelease does.
 func releaseDate(minAvail string, d map[string]time.Time) *arrTime {
 	pick := func(types ...string) *arrTime {
 		var best time.Time
@@ -111,7 +94,7 @@ func releaseDate(minAvail string, d map[string]time.Time) *arrTime {
 	if r := pick("digital", "physical"); r != nil {
 		return r
 	}
-	if c, ok := d["theatrical"]; ok {
+	if c := availability.Cinema(d); !c.IsZero() {
 		return atPtr(c.AddDate(0, 0, 90))
 	}
 	return nil

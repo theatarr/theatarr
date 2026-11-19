@@ -620,7 +620,7 @@ type TitleFacts struct {
 	// Network is the series' network (a movie's first production company).
 	Network string `json:"network,omitempty"`
 	// Status is the stored title_meta status: a movie's release status (availability.Status: announced, inCinemas,
-	// released) or a series' TMDb status (Returning Series, Ended, Canceled, In Production, Planned, Pilot).
+	// released; the loaders work it out again from the dates they read, movieStatus) or a series' TMDb status (Returning Series, Ended, Canceled, In Production, Planned, Pilot).
 	Status string `json:"status,omitempty"`
 	// OriginalLanguage is TMDb's original language (ISO 639-1).
 	OriginalLanguage string `json:"original_language,omitempty"`

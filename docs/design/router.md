@@ -1416,7 +1416,7 @@ availability before acquisition. `announced`/`tba` is immediate, `inCinemas` use
 are absent. The cinema date here (`availability.Cinema`) is the canonical one, or the first real cinema date anywhere
 (wide or limited, any country; `tmdb.ReleaseSchedule` captures it before the US dates replace the worldwide ones) when that is earlier, so a later US re-release never makes a
 1988 film "not in cinemas yet"; TMDb's general release date (often a festival premiere) counts only when no cinema
-date is known at all. Every writer of the schedule (the metadata refresh, list and collection adds) stores that first
+date is known at all. The estimated home release is 90 days after the first cinema run anywhere. Every writer of the schedule (the metadata refresh, list and collection adds) stores that first
 date as a canonical `theatrical_limited` row (country empty) only when it is earlier than the canonical cinema date, so
 a list add is searched at add when it is out; availability also reads the cinema dates already stored in the TMDb
 country rows (the primary release's), so a limited run there counts before the wide one without a refresh. The

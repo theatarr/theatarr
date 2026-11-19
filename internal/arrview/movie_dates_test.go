@@ -94,7 +94,8 @@ func TestMovieAvailableFromFirstCinema(t *testing.T) {
 		(3,'tmdb-art','theatrical','2026-09-01'),(3,'tmdb-art','theatrical_limited','1988-05-11')`)
 	var movie map[string]any
 	e.call("GET", fmt.Sprintf("/radarr/api/v3/movie/%d", IDBase+3), nil, 200, &movie)
-	if movie["isAvailable"] != true || movie["status"] != "released" || movie["inCinemas"] != "2026-09-01T00:00:00Z" {
+	if movie["isAvailable"] != true || movie["status"] != "released" || movie["inCinemas"] != "2026-09-01T00:00:00Z" ||
+		movie["releaseDate"] != "1988-08-09T00:00:00Z" {
 		t.Fatalf("first cinema run abroad: %v", movie)
 	}
 	// The same run stored only in the TMDb country rows (a film not refreshed since the update).
@@ -103,5 +104,13 @@ func TestMovieAvailableFromFirstCinema(t *testing.T) {
 	e.call("GET", fmt.Sprintf("/radarr/api/v3/movie/%d", IDBase+3), nil, 200, &movie)
 	if movie["isAvailable"] != true || movie["status"] != "released" || movie["inCinemas"] != "2026-09-01T00:00:00Z" {
 		t.Fatalf("first cinema run in the country rows: %v", movie)
+	}
+	// A limited US run on Jul 1, the wide one on Oct 1, no home date: Released on Oct 26, as in the lists and About.
+	e.exec(`DELETE FROM title_release_date WHERE title_id = 3`)
+	e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES
+		(3,'tmdb-art','','theatrical','2026-10-01'),(3,'tmdb','US','theatrical_limited','2026-07-01'),(3,'tmdb','US','theatrical','2026-10-01')`)
+	e.call("GET", fmt.Sprintf("/radarr/api/v3/movie/%d", IDBase+3), nil, 200, &movie)
+	if movie["status"] != "released" || movie["inCinemas"] != "2026-10-01T00:00:00Z" {
+		t.Fatalf("limited run first: %v", movie)
 	}
 }

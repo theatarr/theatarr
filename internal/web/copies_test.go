@@ -416,8 +416,8 @@ func TestListRowFacts(t *testing.T) {
 	e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES
 		(35, 'tmdb-art', '', 'theatrical', '2026-10-01'), (35, 'tmdb-art', '', 'theatrical_limited', '1988-05-11'),
 		(35, 'tmdb', 'US', 'theatrical', '2026-10-01')`)
-	// Soon: a limited run abroad on Oct 1 (stored only in the country rows), US cinemas on Nov 1, no home date: still
-	// to come for availability (Dec 30); its home release shows the canonical estimate, Jan 30, as before.
+	// Soon: a limited run abroad on Oct 1 (stored only in the country rows), US cinemas on Nov 1, no home date: its
+	// home release is Dec 30, 90 days after the first run.
 	e.exec(`INSERT INTO title (id, kind, name, year, tmdb_id, created_at, updated_at) VALUES
 		(36, 'movie', 'Soon', 2026, 536, ?, ?)`, now, now)
 	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
@@ -458,6 +458,26 @@ func TestListRowFacts(t *testing.T) {
 	if rr := rowOf(t, page, 35); rr.InCinemas != "2026-10-01" || rr.Released != "2026-10-01" {
 		t.Errorf("Rerun's shown dates: in cinemas %s, released %s", rr.InCinemas, rr.Released)
 	}
+	// Limited (Z4.2): limited US run Jul 1, wide Oct 1, no home date, its stored status from before ("inCinemas"):
+	// Released in the list and About, as on the compatible view.
+	e.exec(`INSERT INTO title (id, kind, name, year, tmdb_id, created_at, updated_at) VALUES
+		(38, 'movie', 'Limited', 2026, 538, ?, ?)`, now, now)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
+		(38, 38, 'movie-web', 1, 'wanted', ?, ?)`, now, now)
+	e.exec(`INSERT INTO title_meta (title_id, status, movie_dates_at, attempted_at, refresh_after) VALUES (38, 'inCinemas', 1, 1, 1)`)
+	e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES
+		(38, 'tmdb-art', '', 'theatrical', '2026-10-01'), (38, 'tmdb', 'US', 'theatrical_limited', '2026-07-01'),
+		(38, 'tmdb', 'US', 'theatrical', '2026-10-01')`)
+	var limitedPage TitlePage
+	e.call("GET", APIBase+"/titles?limit=100", nil, 200, &limitedPage)
+	var limited TitleDetail
+	e.call("GET", fmt.Sprintf("%s/titles/%d", APIBase, 38), nil, 200, &limited)
+	if lr := rowOf(t, limitedPage, 38); lr.Status != "released" || limited.Status != "released" || limited.InCinemas != "2026-10-01" {
+		t.Errorf("Limited's status: list %q, About %q, in cinemas %s", lr.Status, limited.Status, limited.InCinemas)
+	}
+	if c := rowOf(t, limitedPage, 30); c.Status != "inCinemas" {
+		t.Errorf("Cinema's status %q", c.Status)
+	}
 	var rerun TitleDetail
 	e.call("GET", fmt.Sprintf("%s/titles/%d", APIBase, 35), nil, 200, &rerun)
 	if rerun.HomeRelease != "1988-08-09" || rerun.InCinemas != "2026-10-01" || rerun.Released != "2026-10-01" {
@@ -479,7 +499,7 @@ func TestListRowFacts(t *testing.T) {
 	if !slices.ContainsFunc(missing.Items, func(r TitleRow) bool { return r.ID == 35 }) {
 		t.Errorf("Rerun is not missing: %+v", missing.Items)
 	}
-	for id, want := range map[int64]string{30: "2026-11-20", 31: "2026-10-01", 32: "2026-12-25", 33: "2026-10-16", 34: "", 10: "", 35: "1988-08-09", 36: "2027-01-30"} {
+	for id, want := range map[int64]string{30: "2026-11-20", 31: "2026-10-01", 32: "2026-12-25", 33: "2026-10-16", 34: "", 10: "", 35: "1988-08-09", 36: "2026-12-30"} {
 		r := rowOf(t, page, id)
 		if r.HomeRelease != want {
 			t.Errorf("%s home_release %q, want %q", r.Name, r.HomeRelease, want)

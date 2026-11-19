@@ -229,10 +229,11 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail, seeFiles bool) er
 		if err != nil {
 			return err
 		}
-		// The home release listed (availability.ListedHomeRelease): shown as before, Missing once out by availability.
-		if h := availability.ListedHomeRelease(dates[d.ID].Canonical, w.now()); !h.IsZero() {
+		// The home release (availability.HomeRelease: from the first cinema run anywhere without a home date).
+		if h := availability.HomeRelease(dates[d.ID].Canonical); !h.IsZero() {
 			d.HomeRelease = h.Format(time.DateOnly)
 		}
+		d.Status = movieStatus(d.Status, dates[d.ID].Canonical, w.now())
 		// The dates the About facts show: the release-date choice Home, the calendar and the lists use.
 		fr := dates[d.ID].First
 		d.InCinemas, d.DigitalRelease, d.PhysicalRelease = fr["theatrical"], fr["digital"], fr["physical"]

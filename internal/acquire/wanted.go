@@ -324,7 +324,7 @@ func (a *Acquirer) wantedEpisodes(ctx context.Context, list []WantedRow) error {
 	return nil
 }
 
-// movieDates sets the Date of the film rows that have none: the home release shown (availability.ShownHomeRelease).
+// movieDates sets the Date of the film rows that have none: the home release (availability.HomeRelease).
 func (a *Acquirer) movieDates(ctx context.Context, list []WantedRow) error {
 	var ids []any
 	for _, r := range list {
@@ -341,7 +341,7 @@ func (a *Acquirer) movieDates(ctx context.Context, list []WantedRow) error {
 	}
 	for i := range list {
 		ds := dates[list[i].TitleID]
-		if d := availability.ShownHomeRelease(ds); list[i].Season == nil && !d.IsZero() {
+		if d := availability.HomeRelease(ds); list[i].Season == nil && !d.IsZero() {
 			list[i].Date = d.Format(time.DateOnly)
 			list[i].DateEstimate = ds["digital"].IsZero() && ds["physical"].IsZero()
 		}
