@@ -24,6 +24,7 @@ type entry struct {
 	secondaryYear  int
 	tmdb, tvdb     int
 	imdb           string
+	runtime        int // title.runtime_minutes, 0 when not stored
 	anime          bool
 	seriesType     string // the title's effective type (store.SeriesTypeSQL); '' for a movie
 	created        int64
@@ -164,8 +165,8 @@ func (s *Service) load(ctx context.Context, v *View, titleIDs []int64) ([]*entry
 	var order []*entry
 
 	rows, err := db.QueryContext(ctx, `SELECT DISTINCT t.id, t.kind, t.name, t.sort_name, COALESCE(t.year, 0),
-		COALESCE(t.secondary_year, 0), COALESCE(t.tmdb_id, 0), COALESCE(t.tvdb_id, 0), COALESCE(t.imdb_id, ''), t.anime,
-		t.created_at, EXISTS (SELECT 1 FROM title_meta m WHERE m.title_id = t.id AND m.movie_dates_at IS NOT NULL),
+		COALESCE(t.secondary_year, 0), COALESCE(t.tmdb_id, 0), COALESCE(t.tvdb_id, 0), COALESCE(t.imdb_id, ''),
+		COALESCE(t.runtime_minutes, 0), t.anime, t.created_at, EXISTS (SELECT 1 FROM title_meta m WHERE m.title_id = t.id AND m.movie_dates_at IS NOT NULL),
 		`+store.SeriesTypeSQL("t")+`, COALESCE((SELECT lower(m.status) FROM series_meta m WHERE m.title_id = t.id), '')
 		FROM title t JOIN version v ON v.title_id = t.id WHERE `+where+` ORDER BY t.id`, args...)
 	if err != nil {
@@ -174,7 +175,7 @@ func (s *Service) load(ctx context.Context, v *View, titleIDs []int64) ([]*entry
 	for rows.Next() {
 		e := &entry{dates: map[string]time.Time{}}
 		if err := rows.Scan(&e.id, &e.kind, &e.name, &e.sortName, &e.year, &e.secondaryYear, &e.tmdb, &e.tvdb, &e.imdb,
-			&e.anime, &e.created, &e.datesRefreshed, &e.seriesType, &e.seriesStatus); err != nil {
+			&e.runtime, &e.anime, &e.created, &e.datesRefreshed, &e.seriesType, &e.seriesStatus); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -372,20 +373,22 @@ type titleBrief struct {
 	year, secondaryYear int
 	tmdb, tvdb          int
 	imdb                string
+	runtime             int // title.runtime_minutes
 	// overview and poster: a TVDB search hit's, for a series the catalog lacks.
 	overview, poster string
 }
 
 func (s *Service) briefs(ctx context.Context, where string, args ...any) ([]titleBrief, error) {
 	rows, err := s.st.Reader().QueryContext(ctx, `SELECT id, name, COALESCE(year, 0), COALESCE(secondary_year, 0),
-		COALESCE(tmdb_id, 0), COALESCE(tvdb_id, 0), COALESCE(imdb_id, '') FROM title WHERE `+where, args...)
+		COALESCE(tmdb_id, 0), COALESCE(tvdb_id, 0), COALESCE(imdb_id, ''), COALESCE(runtime_minutes, 0) FROM title
+		WHERE `+where, args...)
 	if err != nil {
 		return nil, err
 	}
 	var out []titleBrief
 	for rows.Next() {
 		var b titleBrief
-		if err := rows.Scan(&b.id, &b.name, &b.year, &b.secondaryYear, &b.tmdb, &b.tvdb, &b.imdb); err != nil {
+		if err := rows.Scan(&b.id, &b.name, &b.year, &b.secondaryYear, &b.tmdb, &b.tvdb, &b.imdb, &b.runtime); err != nil {
 			rows.Close()
 			return nil, err
 		}

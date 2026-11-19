@@ -253,7 +253,7 @@ func (s *Service) movieResource(v *View, e *entry) movieResource {
 		Monitored: e.monitored(), MinimumAvailability: minAvail, IsAvailable: isAvailable(e, now),
 		FolderName: p, ImdbID: e.imdb, TmdbID: e.tmdb, TitleSlug: strconv.Itoa(e.tmdb), RootFolderPath: root,
 		Genres: []string{}, Keywords: []string{}, Tags: tagsOrEmpty(e.tags), Added: at(s.added(e)),
-		Ratings: map[string]any{}, ReleaseDate: releaseDate(minAvail, e.dates),
+		Ratings: map[string]any{}, ReleaseDate: releaseDate(minAvail, e.dates), Runtime: e.runtime,
 	}
 	if e.secondaryYear > 0 {
 		y := e.secondaryYear
@@ -425,7 +425,8 @@ func (s *Service) lookupMovie(ctx context.Context, v *View, b titleBrief) (movie
 	}
 	m := movieResource{Title: b.name, OriginalTitle: b.name, AlternateTitles: []any{}, Status: "announced",
 		Images: []any{}, Year: b.year, Monitored: true, MinimumAvailability: "released", ImdbID: b.imdb, TmdbID: b.tmdb,
-		Genres: []string{}, Keywords: []string{}, Tags: []int64{}, Added: at(minTime), Ratings: map[string]any{}}
+		Genres: []string{}, Keywords: []string{}, Tags: []int64{}, Added: at(minTime), Ratings: map[string]any{},
+		Runtime: b.runtime}
 	if b.tmdb > 0 {
 		m.TitleSlug = strconv.Itoa(b.tmdb)
 	}

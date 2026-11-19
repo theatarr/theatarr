@@ -245,9 +245,9 @@ func (s *Service) seriesResource(v *View, e *entry, eps []*ep) seriesResource {
 	sr := seriesResource{ID: e.viewID(), Title: e.name, AlternateTitles: []any{}, SortTitle: sortTitle(e),
 		Status: status, Ended: status == "ended", Images: []any{}, Seasons: []seasonResource{}, Year: e.year, Path: p,
 		QualityProfileID: qualityProfileID(v, e), SeasonFolder: true, Monitored: e.monitored(), MonitorNewItems: "all",
-		TvdbID: e.tvdb, TmdbID: 0, SeriesType: e.seriesType, ImdbID: e.imdb, TitleSlug: slug(e.name),
+		TvdbID: e.tvdb, TmdbID: e.tmdb, SeriesType: e.seriesType, ImdbID: e.imdb, TitleSlug: slug(e.name),
 		RootFolderPath: root, Genres: []string{}, Tags: tagsOrEmpty(e.tags), Added: at(s.added(e)),
-		Ratings: map[string]any{}, LanguageProfileID: 1}
+		Ratings: map[string]any{}, LanguageProfileID: 1, Runtime: e.runtime}
 	if r := e.rec; r != nil {
 		sr.SeasonFolder = r.seasonFolder
 		if r.monitorNew != "" {
@@ -498,8 +498,8 @@ func (s *Service) seriesLookup(w http.ResponseWriter, r *request) {
 		}
 		sr := seriesResource{Title: b.name, AlternateTitles: []any{}, Status: "continuing", Images: []any{},
 			Seasons: []seasonResource{}, Year: b.year, SeasonFolder: true, Monitored: true, MonitorNewItems: "all",
-			TvdbID: b.tvdb, SeriesType: "standard", ImdbID: b.imdb, Genres: []string{}, Tags: []int64{},
-			Added: at(minTime), Ratings: map[string]any{}, LanguageProfileID: 1}
+			TvdbID: b.tvdb, TmdbID: b.tmdb, Runtime: b.runtime, SeriesType: "standard", ImdbID: b.imdb,
+			Genres: []string{}, Tags: []int64{}, Added: at(minTime), Ratings: map[string]any{}, LanguageProfileID: 1}
 		if b.poster != "" {
 			sr.RemotePoster = b.poster
 			sr.Images = append(sr.Images, map[string]any{"coverType": "poster", "url": b.poster, "remoteUrl": b.poster})

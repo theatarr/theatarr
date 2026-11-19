@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/notify"
 	"github.com/theatarr/theatarr/internal/rootprobe"
 	"github.com/theatarr/theatarr/internal/rootprobe/probetest"
 )
@@ -679,5 +680,43 @@ func TestLibraryNameKeepsArrProfileNames(t *testing.T) {
 	e.call("GET", "/v/movie-web/radarr/api/v3/qualityprofile", nil, 200, &single)
 	if len(single) != 1 || single[0].Name != "movie-web" {
 		t.Errorf("per-version profiles %+v", single)
+	}
+}
+
+// Stored series and movie resources, a lookup of a catalogued title through a view that does not hold it, and the
+// series webhook carry the stored TMDb id and runtime.
+func TestStoredTMDbIDAndRuntime(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	e.exec(`UPDATE title SET tmdb_id = 301, runtime_minutes = 45 WHERE id = 10`)
+	e.exec(`UPDATE title SET runtime_minutes = 120 WHERE id IN (1, 4)`)
+	var sr map[string]any
+	e.call("GET", "/sonarr/api/v3/series/"+strconv.Itoa(IDBase+10), nil, 200, &sr)
+	if sr["tmdbId"] != float64(301) || sr["runtime"] != float64(45) {
+		t.Errorf("series tmdbId %v, runtime %v", sr["tmdbId"], sr["runtime"])
+	}
+	var lk []map[string]any
+	e.call("GET", "/v/anime-tv/sonarr/api/v3/series/lookup?term=tvdb:201", nil, 200, &lk)
+	if len(lk) != 1 || lk[0]["id"] != nil || lk[0]["tmdbId"] != float64(301) || lk[0]["runtime"] != float64(45) {
+		t.Errorf("series lookup outside the view %v", lk)
+	}
+	var m map[string]any
+	e.call("GET", "/radarr/api/v3/movie/"+strconv.Itoa(IDBase+1), nil, 200, &m)
+	if m["runtime"] != float64(120) {
+		t.Errorf("movie runtime %v", m["runtime"])
+	}
+	var ml []map[string]any
+	e.call("GET", "/radarr/api/v3/movie/lookup?term=tmdb:104", nil, 200, &ml)
+	if len(ml) != 1 || ml[0]["id"] != nil || ml[0]["runtime"] != float64(120) {
+		t.Errorf("movie lookup outside the view %v", ml)
+	}
+	ps, err := e.svc.Payloads(context.Background(), notify.Event{Kind: notify.Rename, TitleID: 10, Version: "tv-2160p"})
+	if err != nil || len(ps) == 0 {
+		t.Fatalf("payloads %v %v", ps, err)
+	}
+	for _, p := range ps {
+		if s := p.Body.(obj)["series"].(obj); s["tmdbId"] != 301 {
+			t.Errorf("%s webhook series %v", p.View, s)
+		}
 	}
 }

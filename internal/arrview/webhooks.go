@@ -273,7 +273,7 @@ func (s *Service) webhookMedia(ctx context.Context, v *View, e *entry) (obj, str
 		return m, "movie"
 	}
 	m := obj{"id": e.viewID(), "title": e.name, "titleSlug": slug(e.name), "tvdbId": e.tvdb, "tvMazeId": 0,
-		"tmdbId": 0, "type": e.seriesType, "year": e.year, "genres": []string{}, "images": []any{}, "tags": tags}
+		"tmdbId": e.tmdb, "type": e.seriesType, "year": e.year, "genres": []string{}, "images": []any{}, "tags": tags}
 	m.set("path", p).set("imdbId", e.imdb)
 	return m, "series"
 }

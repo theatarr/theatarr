@@ -608,8 +608,10 @@ way (`TestEditTitleTags`, `TestTagEditReachesWebhooks`). Rows from before 00105 
   `estimatedCompletionTime` use up to six provider progress samples from the last five minutes (migration 00036);
   flat, stale or reset progress leaves both omitted. Ready/importing downloads report zero time left and now.
 - **Quality profiles are version sets**: every quality allowed, no formats, cutoff the best quality.
-- **Metadata Theatarr does not hold** (overview, images, genres, ratings, runtime, certification) is written empty, not
-  null, where the arr's type is a value or list.
+- **Metadata Theatarr does not hold** (overview, images, genres, ratings, certification) is written empty, not
+  null, where the arr's type is a value or list. The stored runtime (`title.runtime_minutes`) and TMDb id go on
+  movie and series resources, also a lookup of a catalogued title the view does not hold, and the TMDb id on series
+  webhooks; 0 when not stored.
 - **History ids** are `1,000,000,000 + download id × 10 + event code` (Theatarr's downloads; the arrs' own history is
   not shown, and an id below that base is answered 404); event types are the arr's names. In the Sonarr view a local event has one record per episode of the download, as Sonarr writes them: the episode at position i of the download's episodes adds `i × 2^40` (the first keeps the plain id), so `episodeId` filters, paging and `history/failed/{id}` work for every episode of a pack.
 - **Path, added date and status** come from the view's own record (`arrview_title`: root folder, added date), else
