@@ -472,7 +472,7 @@ func (s *Service) seriesLookup(w http.ResponseWriter, r *request) {
 		bs, err = s.briefs(ctx, `t.kind = 'series' AND t.imdb_id = ?`, val)
 	case "tmdb":
 		n, _ := strconv.Atoi(val)
-		bs, err = s.briefs(ctx, `t.kind = 'series' AND t.tmdb_id = ?`, n)
+		bs, err = s.briefs(ctx, `t.kind = 'series' AND ? > 0 AND `+tmdbSQL+` = ?`, n, n)
 	default:
 		if val == "" {
 			writeJSON(w, http.StatusOK, []any{})
@@ -639,7 +639,8 @@ func (s *Service) outsideSeries(ctx context.Context, v *View, term string, seen 
 				tmdb, _ = strconv.Atoi(rid.ID)
 			}
 		}
-		held, err := s.briefs(ctx, `t.kind = 'series' AND (t.tvdb_id = ? OR (? > 0 AND t.tmdb_id = ?)) ORDER BY t.tvdb_id = ? DESC, t.id LIMIT 1`,
+		held, err := s.briefs(ctx, `t.kind = 'series' AND (t.tvdb_id = ? OR (? > 0 AND `+tmdbSQL+` = ?))
+			ORDER BY t.tvdb_id = ? DESC, t.id LIMIT 1`,
 			id, tmdb, tmdb, id)
 		if err != nil {
 			s.log.Warn("series search failed", "view", v.Key, "err", err)

@@ -734,6 +734,11 @@ func TestStoredTMDbIDAndRuntime(t *testing.T) {
 	if len(lk) != 1 || lk[0]["tmdbId"] != float64(302) || lk[0]["runtime"] != float64(50) {
 		t.Errorf("series lookup from title_meta %v", lk)
 	}
+	lk = nil
+	e.call("GET", "/v/anime-tv/sonarr/api/v3/series/lookup?term=tmdb:302", nil, 200, &lk)
+	if len(lk) != 1 || lk[0]["id"] != nil || lk[0]["tvdbId"] != float64(201) {
+		t.Errorf("tmdb: lookup by title_meta's id %v", lk)
+	}
 	if ps, err = e.svc.Payloads(context.Background(), notify.Event{Kind: notify.Rename, TitleID: 10,
 		Version: "tv-2160p"}); err != nil || len(ps) == 0 {
 		t.Fatalf("payloads %v %v", ps, err)

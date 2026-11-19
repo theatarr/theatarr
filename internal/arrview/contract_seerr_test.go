@@ -304,6 +304,9 @@ func TestSeriesLookupNameOutsideHeld(t *testing.T) {
 	}{
 		{"tmdb only, matched by name", `UPDATE title SET tvdb_id = NULL, tmdb_id = 5000 WHERE id = 10`, "The%20Show", true},
 		{"tvdb id, other name", `UPDATE title SET tvdb_id = 900001 WHERE id = 10`, "New%20Show", false},
+		{"tmdb only in title_meta, matched by name", `UPDATE title SET tvdb_id = NULL WHERE id = 10;
+			INSERT INTO title_meta (title_id, tmdb_id, attempted_at, refresh_after) VALUES (10, 5000, 1, 1)`,
+			"The%20Show", true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			e := newEnv(t)
