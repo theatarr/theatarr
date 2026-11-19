@@ -172,7 +172,11 @@ func TestNotificationsRuddarr(t *testing.T) {
 	if _, has := n["message"]; has {
 		t.Errorf("message while sendable: %v", n["message"])
 	}
-	e.call("POST", "/radarr/api/v3/notification/test", n, 200, nil)
+	// An empty JSON object, as the arrs answer (a strict object decoder reads it).
+	if rec := e.call("POST", "/radarr/api/v3/notification/test", n, 200, nil); strings.TrimSpace(rec.Body.String()) != "{}" ||
+		!strings.HasPrefix(rec.Header().Get("Content-Type"), "application/json") {
+		t.Errorf("notification/test: %q, %s", rec.Body.String(), rec.Header().Get("Content-Type"))
+	}
 	// Another view does not see it; only Webhook is served.
 	e.call("GET", "/sonarr/api/v3/notification", nil, 200, &list)
 	if len(list) != 0 {

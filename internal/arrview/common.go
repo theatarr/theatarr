@@ -308,6 +308,8 @@ func (s *Service) updateTag(w http.ResponseWriter, r *request) {
 		badRequest(w, "Label", catalog.TagLabelWords, in.Label)
 		return
 	}
+	// Stored lower-case, as a new tag is (TagService.Update).
+	in.Label = strings.ToLower(in.Label)
 	res, err := s.st.Writer().ExecContext(r.Context(), `UPDATE arrview_tag SET label = ? WHERE id = ?`, in.Label, in.ID)
 	if store.IsUniqueViolation(err) {
 		badRequest(w, "Label", "A tag with this label already exists", in.Label)

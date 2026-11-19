@@ -81,6 +81,21 @@ func (s *Service) Payloads(ctx context.Context, ev notify.Event) ([]notify.Paylo
 	return out, nil
 }
 
+// deletePayloadKey carries a delete webhook's payload, built before the removal, to the Payloads call of its Emit.
+type deletePayloadKey struct{}
+
+func withDeletePayload(ctx context.Context, p *notify.Payload) context.Context {
+	return context.WithValue(ctx, deletePayloadKey{}, p)
+}
+
+func hookPayloadBody(p *notify.Payload) (obj, bool) {
+	if p == nil {
+		return nil, false
+	}
+	b, ok := p.Body.(obj)
+	return b, ok
+}
+
 func (s *Service) payload(ctx context.Context, v *View, ev notify.Event) (p *notify.Payload, err error) {
 	base := func(eventType string) obj {
 		return obj{"eventType": eventType, "instanceName": "theatarr " + v.Key}
@@ -101,6 +116,14 @@ func (s *Service) payload(ctx context.Context, v *View, ev notify.Event) (p *not
 		b := base(eventType).set("level", h.Type).set("message", h.Message).set("type", h.Source)
 		b["wikiUrl"] = h.WikiURL
 		return &notify.Payload{View: v.Key, EventType: eventType, Flag: flag, Body: b}, nil
+	case notify.Delete:
+		// A delete through a view: its payload was built before the removal (deleteTitle).
+		if p, ok := ctx.Value(deletePayloadKey{}).(*notify.Payload); ok {
+			if p == nil || p.View != v.Key {
+				return nil, nil
+			}
+			return p, nil
+		}
 	}
 	e, err := s.loadOne(ctx, v, ev.TitleID)
 	if err != nil || e == nil {
@@ -141,7 +164,7 @@ func (s *Service) payload(ctx context.Context, v *View, ev notify.Event) (p *not
 	case notify.Delete:
 		if movie {
 			b["eventType"] = "MovieDelete"
-			b["deletedFiles"], b["movieFolderSize"] = false, 0
+			b["deletedFiles"], b["movieFolderSize"] = false, 0 // deleteTitle sets deletedFiles
 			return &notify.Payload{View: v.Key, EventType: "MovieDelete", Flag: "onMovieDelete", Body: b}, nil
 		}
 		delete(b, "episodes")

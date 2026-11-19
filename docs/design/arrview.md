@@ -225,7 +225,7 @@ reference type that is null is left out; value types are always written; `id` 0 
 | `GET qualityprofile`, `qualityprofile/{id}` | `QualityProfileResource` | The view's stable selection IDs; the first selected version supplies the captured runtime's ladder, cutoff and scores |
 | `GET customformat`, `customformat/{id}` | `CustomFormatResource` | The captured runtime's full specifications; format IDs are scoped to the view and agree with its profile scores. No format/profile writes |
 | `GET rootfolder` | `RootFolderResource` | The libraries of the view's versions; `freeSpace` from statfs when the folder exists. Stat and statfs give up after 3 s per root (`internal/rootprobe`): a root on a share that stops answering is `accessible: false`, and is skipped without another call while a stat on its filesystem (mount) is stuck |
-| `GET tag`, `tag/{id}`, `POST tag`, `PUT tag[/{id}]` | `TagResource` | `TagService.Add`: an existing label (any case) returns the existing tag, new labels are stored lower-case; label must match `^[a-z0-9-]+$`. POST 201, PUT 202 |
+| `GET tag`, `tag/{id}`, `POST tag`, `PUT tag[/{id}]` | `TagResource` | `TagService.Add`: an existing label (any case) returns the existing tag, new labels and renames (`PUT`) are stored lower-case; label must match `^[a-z0-9-]+$`. POST 201, PUT 202 |
 | `GET movie[?tmdbId=]`, `movie/{id}` | `MovieResource` with `movieFile` (`MovieFileResource`) and `statistics` | Only the view's versions count. `hasFile` = any of them has a file; `movieFile` = the file of the first version in the view's order that has one; `statistics.movieFileCount` counts distinct files. `status` uses the canonical dates (SkyHookProxy); `minimumAvailability`, `isAvailable` and `releaseDate` follow "Minimum availability" below. 404 when the view does not have the title |
 | `GET movie/lookup?term=`, `movie/lookup/tmdb?tmdbId=` | `MovieResource` | `tmdb:N`, `imdb:tt…` or text. Text: the catalog's titles by name, then TMDb's title search for movies the catalog lacks (below) |
 | `GET moviefile/{id}` | `MovieFileResource` | Files of the view's versions |
@@ -244,7 +244,7 @@ reference type that is null is left out; value types are always written; `id` 0 
 | `GET config/downloadclient` | `DownloadClientConfigResource`, `id` 1 | Completed download handling on, auto-redownload on |
 | `POST command`, `GET command`, `GET command/{id}` | `CommandResource` | See Commands |
 
-History, wanted missing/cutoff, blocklist and queue select pages in SQL before loading resources; counts include every matching record. Defaults remain page 1 and size 10; nonpositive pages clamp to 1, size 0 returns an empty page, and malformed or non-Int32 values and negative sizes return 400. Offset multiplication uses checked 64-bit arithmetic; queue follows the arr's fallback to its last page when the requested page is empty. Unlike the reference repository's unsafe negative LIMIT and overflowing Int32 arithmetic, invalid sizes cannot become unlimited reads.
+History, wanted missing/cutoff, blocklist and queue select pages in SQL before loading resources (the blocklist's `protocols` filter reads its key in any case, values repeated or comma-separated); counts include every matching record. Defaults remain page 1 and size 10; nonpositive pages clamp to 1, size 0 returns an empty page, and malformed or non-Int32 values and negative sizes return 400. Offset multiplication uses checked 64-bit arithmetic; queue follows the arr's fallback to its last page when the requested page is empty. Unlike the reference repository's unsafe negative LIMIT and overflowing Int32 arithmetic, invalid sizes cannot become unlimited reads.
 
 Title sorting uses the same Unicode fallback as the resources through a SQLite scalar function. Quality cutoff judgements and ETA sorting process compact candidates in batches of 128 and retain matching ids or one numeric key per download; only the selected page loads resources. The arr's plain-array history and queue/details routes intentionally remain complete lists.
 
@@ -448,6 +448,9 @@ stay the view's.
   empty go, strictly below the library root; then, after the answer, the torrents no other title or library in
   Theatarr uses are deleted from the providers (torrents.md "Removal clean-up"). Every link is checked before anything changes, and a closed gate
   or refused path answers 409 with the title and links intact.
+  The `MovieDelete`/`SeriesDelete` webhook (devices.md "Webhooks") is built before the removal, while the view still
+  holds the title and its tags, and recorded only after the removal committed (nothing on a refusal or rollback);
+  its `deletedFiles` is true only when `deleteFiles=true` and no file was kept or failed to move.
   Each version is unmonitored and listed in `arrview_removed_version`, which every view hides; the version row, its
   history and arr records stay (the view's own `arrview_title` row goes, the libraries' rows keep everything but the
   minimum availability choice), and nothing on the mount is touched. In the transaction of the hide the versions'

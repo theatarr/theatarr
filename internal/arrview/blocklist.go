@@ -178,9 +178,14 @@ func (s *Service) blocklist(w http.ResponseWriter, r *request) {
 	}
 	if protos, ok := r.query("protocols"); ok {
 		torrent := false
-		for _, vs := range r.URL.Query()["protocols"] {
-			for _, v := range strings.Split(vs, ",") {
-				torrent = torrent || v == "2" || strings.EqualFold(v, "torrent")
+		for k, vs := range r.URL.Query() {
+			if !strings.EqualFold(k, "protocols") {
+				continue
+			}
+			for _, x := range vs {
+				for _, v := range strings.Split(x, ",") {
+					torrent = torrent || v == "2" || strings.EqualFold(v, "torrent")
+				}
 			}
 		}
 		if protos != "" && !torrent {

@@ -405,5 +405,5 @@ func (s *Service) testNotification(w http.ResponseWriter, r *request) {
 		badRequest(w, "Url", "Unable to send test message: "+err.Error(), nil)
 		return
 	}
-	writeJSON(w, http.StatusOK, "{}")
+	writeJSON(w, http.StatusOK, struct{}{})
 }

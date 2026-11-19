@@ -1067,10 +1067,18 @@ func (s *Service) deleteTitle(w http.ResponseWriter, r *request) {
 		}
 	}
 	reason := "deleted through " + r.v.Key + " by " + clientName(r)
-	// The webhook payload is built now, while the view still holds the title.
+	// The webhook payload is built now, while the view still holds the title (afterwards its title and tags are
+	// gone), and sent once the removal committed; nothing is sent when it rolls back.
+	var hook *notify.Event
+	var hookPayload *notify.Payload
 	if len(e.versions) > 0 {
-		s.emit(ctx, notify.Event{Kind: notify.Delete, View: r.v.Key, TitleID: e.id, Version: e.versions[0].key,
-			Reason: "manual"})
+		hook = &notify.Event{Kind: notify.Delete, View: r.v.Key, TitleID: e.id, Version: e.versions[0].key,
+			Reason: "manual"}
+		if s.notifier != nil {
+			if hookPayload, err = s.payload(ctx, r.v, *hook); err != nil {
+				s.log.Warn("delete webhook not built", "view", r.v.Key, "title", e.id, "err", err)
+			}
+		}
 	}
 	// Radarr's addImportExclusion=true: the movie also goes on the exclusion list, with the remove.
 	exclude := r.v.Flavour == Radarr && e.kind == "movie" && e.tmdb > 0 && r.queryBool("addImportExclusion", false)
@@ -1133,6 +1141,13 @@ func (s *Service) deleteTitle(w http.ResponseWriter, r *request) {
 	if res == nil {
 		s.internal(w, r, err)
 		return
+	}
+	if hook != nil {
+		// Files deleted: asked for, and none kept or failed (Radarr's and Sonarr's deletedFiles).
+		if b, ok := hookPayloadBody(hookPayload); ok {
+			b["deletedFiles"] = deleteFiles && err == nil && len(res.Kept) == 0 && len(res.Failed) == 0
+		}
+		s.emit(withDeletePayload(ctx, hookPayload), *hook)
 	}
 	if err != nil {
 		s.log.Warn("versions removed; reading their links failed", "view", r.v.Key, "title", e.id, "err", err)

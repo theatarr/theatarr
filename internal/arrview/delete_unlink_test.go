@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/journal"
+	"github.com/theatarr/theatarr/internal/notify"
 	"github.com/theatarr/theatarr/internal/removal"
 
 	"github.com/theatarr/theatarr/internal/library"
@@ -115,6 +116,7 @@ func TestDeleteKeepsTheClientsFlag(t *testing.T) {
 	const h = "abababababababababababababababababababab"
 	for _, deleteFiles := range []bool{false, true} {
 		e := removeEnv(t)
+		hooks := deleteHooks(e)
 		e.exec(`UPDATE link SET file_metadata = ? WHERE id = 8`, `{"InfoHash":"`+h+`"}`)
 		var started []removal.Cleanup
 		e.svc.SetCleanup(func(c removal.Cleanup) { started = append(started, c) })
@@ -140,6 +142,68 @@ func TestDeleteKeepsTheClientsFlag(t *testing.T) {
 		if deleteFiles && (len(e.lib.rmdirs) == 0 || !strings.HasPrefix(e.lib.rmdirs[0], "movie-web /media/movies-web/")) {
 			t.Errorf("empty folders not cleared: %v", e.lib.rmdirs)
 		}
+		hooks.check(t, "deleteFiles="+strconv.FormatBool(deleteFiles), deleteFiles)
+	}
+	// Files asked for but one kept (not a symlink): the removal commits, the webhook says no files were deleted.
+	e := removeEnv(t)
+	hooks := deleteHooks(e)
+	e.exec(`UPDATE link SET kind = 'hardlink' WHERE id = 8`)
+	if rec := e.do("DELETE", "/v/movie-web/radarr/api/v3/movie/"+strconv.Itoa(IDBase+1)+"?deleteFiles=true", e.key,
+		nil); rec.Code != 409 {
+		t.Fatalf("kept file: %d %s", rec.Code, rec.Body.String())
+	}
+	hooks.check(t, "kept file", false)
+	// A refused pre-check removes nothing and sends nothing.
+	e = removeEnv(t)
+	hooks = deleteHooks(e)
+	e.pol.Library.Versions["movie-web"].Roots = []string{"/elsewhere"}
+	e.lib.gate = library.NewGate(e.pol)
+	if rec := e.do("DELETE", "/v/movie-web/radarr/api/v3/movie/"+strconv.Itoa(IDBase+1)+"?deleteFiles=true", e.key,
+		nil); rec.Code != 409 {
+		t.Fatalf("refused: %d %s", rec.Code, rec.Body.String())
+	}
+	if len(hooks.bodies) != 0 || len(hooks.events) != 0 {
+		t.Errorf("refused DELETE sent %v", hooks.bodies)
+	}
+}
+
+// hookPayloads builds the arr-shaped payloads of each event as the notifier does when it records them, and notes
+// whether the removal had committed by then.
+type hookPayloads struct {
+	*recorder
+	e      *devEnv
+	bodies []obj
+	after  []bool
+}
+
+func (h *hookPayloads) Emit(ctx context.Context, ev notify.Event) {
+	h.recorder.Emit(ctx, ev)
+	ps, err := h.e.svc.Payloads(ctx, ev)
+	if err != nil {
+		panic(err)
+	}
+	for _, p := range ps {
+		h.bodies = append(h.bodies, p.Body.(obj))
+		h.after = append(h.after, h.e.one(`SELECT COUNT(*) FROM arrview_removed_version`) > 0)
+	}
+}
+
+func deleteHooks(e *devEnv) *hookPayloads {
+	h := &hookPayloads{recorder: &recorder{}, e: e}
+	e.svc.SetNotifier(h)
+	return h
+}
+
+// check: one MovieDelete for Alpha, sent after the removal committed, with the given deletedFiles.
+func (h *hookPayloads) check(t *testing.T, name string, deleted bool) {
+	t.Helper()
+	if len(h.bodies) != 1 {
+		t.Fatalf("%s: %d delete webhooks", name, len(h.bodies))
+	}
+	b := h.bodies[0]
+	m, _ := b["movie"].(obj)
+	if b["eventType"] != "MovieDelete" || m["title"] != "Alpha" || b["deletedFiles"] != deleted || !h.after[0] {
+		t.Errorf("%s: webhook %v (after the removal: %v)", name, b, h.after[0])
 	}
 }
 

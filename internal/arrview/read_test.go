@@ -277,6 +277,17 @@ func TestTags(t *testing.T) {
 	if again.Label != "1-bob" {
 		t.Errorf("tag ids are global: %+v", again)
 	}
+	// A rename is stored lower-case, as new tags are (TagService.Update), so it meets an existing label in any case.
+	e.call("PUT", "/radarr/api/v3/tag/"+strconv.FormatInt(tg.ID, 10), map[string]any{"id": tg.ID, "label": "1-Bob"},
+		202, &renamed)
+	if renamed.Label != "1-bob" {
+		t.Errorf("renamed mixed case %+v", renamed)
+	}
+	var other tagResource
+	e.call("POST", "/radarr/api/v3/tag", map[string]any{"label": "1-carol"}, 201, &other)
+	e.call("PUT", "/radarr/api/v3/tag/"+strconv.FormatInt(other.ID, 10), map[string]any{"id": other.ID,
+		"label": "1-BOB"}, 400, nil)
+	e.call("DELETE", "/radarr/api/v3/tag/"+strconv.FormatInt(other.ID, 10), nil, 200, nil)
 	e.call("PUT", "/radarr/api/v3/tag/99", map[string]any{"id": 99, "label": "x"}, 404, nil)
 	rec := e.call("GET", "/radarr/api/v3/tag", nil, 200, nil)
 	e.golden("tag-list", rec.Body.Bytes())

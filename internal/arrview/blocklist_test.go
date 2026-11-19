@@ -96,6 +96,14 @@ func TestBlocklistList(t *testing.T) {
 	if p.TotalRecords != 0 {
 		t.Errorf("usenet filter %+v", p)
 	}
+	// The query key in any case, values repeated or comma-separated.
+	for _, q := range []string{"Protocols=torrent", "PROTOCOLS=1&protocols=2", "Protocols=1,2"} {
+		p.Records = nil
+		e.call("GET", "/radarr/api/v3/blocklist?"+q, nil, 200, &p)
+		if p.TotalRecords != 2 {
+			t.Errorf("%s: %+v", q, p)
+		}
+	}
 	// Radarr's per-movie list.
 	var list []map[string]any
 	e.call("GET", "/radarr/api/v3/blocklist/movie?movieId="+strconv.Itoa(IDBase+1), nil, 200, &list)
