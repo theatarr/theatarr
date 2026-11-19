@@ -81,13 +81,6 @@ func (s *Service) Payloads(ctx context.Context, ev notify.Event) ([]notify.Paylo
 	return out, nil
 }
 
-// deletePayloadKey carries a delete webhook's payload, built before the removal, to the Payloads call of its Emit.
-type deletePayloadKey struct{}
-
-func withDeletePayload(ctx context.Context, p *notify.Payload) context.Context {
-	return context.WithValue(ctx, deletePayloadKey{}, p)
-}
-
 func hookPayloadBody(p *notify.Payload) (obj, bool) {
 	if p == nil {
 		return nil, false
@@ -96,11 +89,10 @@ func hookPayloadBody(p *notify.Payload) (obj, bool) {
 	return b, ok
 }
 
-func (s *Service) payload(ctx context.Context, v *View, ev notify.Event) (p *notify.Payload, err error) {
+func (s *Service) payload(ctx context.Context, v *View, ev notify.Event) (*notify.Payload, error) {
 	base := func(eventType string) obj {
 		return obj{"eventType": eventType, "instanceName": "theatarr " + v.Key}
 	}
-	movie := v.Flavour == Radarr
 	switch ev.Kind {
 	case notify.Test:
 		return &notify.Payload{View: v.Key, EventType: "Test", Body: testPayload(v)}, nil
@@ -118,17 +110,26 @@ func (s *Service) payload(ctx context.Context, v *View, ev notify.Event) (p *not
 		return &notify.Payload{View: v.Key, EventType: eventType, Flag: flag, Body: b}, nil
 	case notify.Delete:
 		// A delete through a view: its payload was built before the removal (deleteTitle).
-		if p, ok := ctx.Value(deletePayloadKey{}).(*notify.Payload); ok {
-			if p == nil || p.View != v.Key {
+		if ev.Prepared != nil {
+			if ev.Prepared.View != v.Key {
 				return nil, nil
 			}
-			return p, nil
+			return ev.Prepared, nil
 		}
 	}
 	e, err := s.loadOne(ctx, v, ev.TitleID)
 	if err != nil || e == nil {
 		return nil, err
 	}
+	return s.titlePayload(ctx, v, ev, e)
+}
+
+// titlePayload is the payload of a title event for the view's entry of the title.
+func (s *Service) titlePayload(ctx context.Context, v *View, ev notify.Event, e *entry) (p *notify.Payload, err error) {
+	base := func(eventType string) obj {
+		return obj{"eventType": eventType, "instanceName": "theatarr " + v.Key}
+	}
+	movie := v.Flavour == Radarr
 	// The tags the title carries in this view (as its movie/series resource reports them), for a webhook restricted
 	// to tags.
 	defer func() {

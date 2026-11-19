@@ -79,6 +79,9 @@ type Event struct {
 	Digest *DigestSummary
 	// Problem is a new problem report (ProblemReported).
 	Problem *Problem
+	// Prepared is an arr payload built before the event was emitted (a view's delete, built while the view still
+	// held the title); the view's Payloads returns it instead of building one.
+	Prepared *Payload
 }
 
 // Problem is a problem report as its notification names it: the title (with the episode code), what is wrong, the

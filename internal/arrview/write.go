@@ -1083,7 +1083,7 @@ func (s *Service) deleteTitle(w http.ResponseWriter, r *request) {
 		hook = &notify.Event{Kind: notify.Delete, View: r.v.Key, TitleID: e.id, Version: e.versions[0].key,
 			Reason: "manual"}
 		if s.notifier != nil {
-			if hookPayload, err = s.payload(ctx, r.v, *hook); err != nil {
+			if hookPayload, err = s.titlePayload(ctx, r.v, *hook, e); err != nil {
 				s.log.Warn("delete webhook not built", "view", r.v.Key, "title", e.id, "err", err)
 			}
 		}
@@ -1155,7 +1155,8 @@ func (s *Service) deleteTitle(w http.ResponseWriter, r *request) {
 		if b, ok := hookPayloadBody(hookPayload); ok {
 			b["deletedFiles"] = deleteFiles && err == nil && len(res.Kept) == 0 && len(res.Shared) == 0 && len(res.Failed) == 0
 		}
-		s.emit(withDeletePayload(ctx, hookPayload), *hook)
+		hook.Prepared = hookPayload
+		s.emit(ctx, *hook)
 	}
 	if err != nil {
 		s.log.Warn("versions removed; reading their links failed", "view", r.v.Key, "title", e.id, "err", err)
