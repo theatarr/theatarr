@@ -1078,6 +1078,34 @@ func TestDeleteSurvivingCopy(t *testing.T) {
 	}
 }
 
+// An override ticked while another complete copy stays holds only while that copy does: once it is gone, the
+// confirm-time replan refuses the override and nothing is deleted.
+func TestDeleteOverrideNeedsItsSurvivor(t *testing.T) {
+	t.Parallel()
+	e := deleteFixture(t)
+	ctx := context.Background()
+	e.rd.list = append(e.rd.list, tor("21", hA, "Movie.A.2020.1080p.WEB-DL", 100, e.now.Add(-72*time.Hour),
+		provider.StateDownloaded))
+	first, err := e.m.PlanDelete(ctx, []DeleteSelection{{Provider: "rd", ID: "1", Hash: hA}})
+	if err != nil || first.Items[0].SurvivingCopy != "21" {
+		t.Fatalf("survivor: %+v %v", first.Items, err)
+	}
+	sel := []DeleteSelection{{Provider: "rd", ID: "1", Hash: hA, Override: true,
+		OverrideToken: first.Items[0].ExpectedOverride}}
+	plan, err := e.m.PlanDelete(ctx, sel)
+	if err != nil || plan.Count != 1 {
+		t.Fatalf("override: %+v %v", plan.Items, err)
+	}
+	e.rd.list = slices.DeleteFunc(e.rd.list, func(x provider.Torrent) bool { return x.ID == "21" })
+	again, _ := e.m.PlanDelete(ctx, sel)
+	if again.Count != 0 || !again.Items[0].NeedsOverride {
+		t.Errorf("the survivor went: the override no longer holds: %+v", again.Items[0])
+	}
+	if _, err := e.m.Delete(ctx, sel, plan.Token, "admin"); !errors.Is(err, ErrConfirmation) || e.ard.deleted != 0 {
+		t.Fatalf("deleted without its survivor: %v, %d deleted", err, e.ard.deleted)
+	}
+}
+
 // A used torrent added in the last day needs both the override and allow_recent, and says so at once.
 func TestDeleteUsedAndRecent(t *testing.T) {
 	t.Parallel()

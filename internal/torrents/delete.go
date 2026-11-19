@@ -172,7 +172,8 @@ func (m *Manager) planDelete(ctx context.Context, sel []DeleteSelection, lists m
 			}
 			if it.Usage != Unused {
 				it.SurvivingCopy = surv.of(ctx, s.Provider, t)
-				it.ExpectedOverride = overrideToken(s.Provider, t, it.Usage, it.Refs, it.RefList, it.Reasons)
+				it.ExpectedOverride = overrideToken(s.Provider, t, it.Usage, it.Refs, it.RefList, it.Reasons,
+					it.SurvivingCopy)
 			}
 			recent := t.Added.IsZero() || now.Sub(t.Added) < YoungAfter
 			busy := t.State == provider.StateQueued || t.State == provider.StateDownloading
@@ -316,9 +317,10 @@ func plural(n int, what string) string {
 	return s + " " + what
 }
 
-// overrideToken names a used or unknown torrent's references: an override is valid only for them.
+// overrideToken names a used or unknown torrent's references, and the copy that stays when there is one: an override
+// is valid only for them.
 func overrideToken(prov string, t provider.Torrent, u Usage, refs map[string]int, list []Ref,
-	reasons []string) string {
+	reasons []string, survivor string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s|%s|%s|%s", prov, t.ID, indexer.NormalizeHash(t.Hash), u)
 	keys := make([]string, 0, len(refs))
@@ -334,6 +336,11 @@ func overrideToken(prov string, t provider.Torrent, u Usage, refs map[string]int
 	}
 	for _, r := range reasons {
 		fmt.Fprintf(&b, "|%s", r)
+	}
+	// An override given while another complete copy stays holds only while that same copy does (the replan at
+	// confirm refuses it once the copy is gone, and the dialog drops the tick).
+	if survivor != "" {
+		fmt.Fprintf(&b, "|survivor=%s", survivor)
 	}
 	sum := sha256.Sum256([]byte(b.String()))
 	return "o1-" + hex.EncodeToString(sum[:8])
@@ -564,7 +571,7 @@ func (m *Manager) usageChanged(ctx context.Context, plan *DeletePlan, it *Delete
 	}
 	token := ""
 	if u != Unused {
-		token = overrideToken(it.Provider, t, u, refs, list, reasons)
+		token = overrideToken(it.Provider, t, u, refs, list, reasons, it.SurvivingCopy)
 	}
 	if u == it.Usage && token == it.ExpectedOverride {
 		return "", nil

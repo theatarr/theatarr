@@ -388,8 +388,10 @@ or an admin's API key, which confirms like a session, as with settings; the toke
    the list when it gives files (TorBox), else from the files the backups recorded, else from the torrent's detail
    (once per id per preview, paced like every provider call; Real-Debrid lists no files, and two entries of one pack
    can select different files of the same total). A selection that cannot be read, one the provider still awaits or
-   an empty one gives no field: never a guess. A copy on another account never counts. It is shown only ("Another complete copy
-   stays on RD."); the override is still needed, and the token and the confirm-time replan are unchanged.
+   an empty one gives no field: never a guess. A copy on another account never counts. It is shown ("Another complete copy
+   stays on RD."); the override is still needed, and its token also names that copy: an override ticked while the
+   copy stayed is refused by the confirm-time replan once the copy is gone (or another stands in for it), and the
+   dialog drops the tick when its next preview gives another token.
 5. **The confirmation** is bound to the exact set and the caller. The plan digest (`d1-<count>-<bytes>-<digest>`)
    covers count, total size and a digest of each deleted torrent's provider, id, hash, size, usage and flags. Any
    change answers 422 with the new preview. The token a preview returns (`d2-…`, restore `r2-…`) is bound to the caller: an HMAC, under a random key made once per process and never stored, of the caller's confirmer (`user:<id>` for a session, `key:<id>` for an API key) and the plan digest. Restore and delete plan again and compare against the HMAC for the current caller: no preview, no token; another key, another user or a session gets 422 (`ErrConfirmation`) from the same token; a revoked key cannot authenticate. After a restart or a changed plan, preview again. The CLI (no confirmer, previewing and confirming in two processes as the local operator) gets the plain digest instead.

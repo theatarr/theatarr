@@ -398,6 +398,32 @@ describe("torrents page", () => {
     expect(screen.getByTestId("confirm-blocked").textContent).toBe("Nothing chosen can be deleted as it is.");
   });
 
+  it("drops a tick whose copy that stays is gone by the next preview, and previews again without it", async () => {
+    let n = 0;
+    const api = mockFetch([
+      { method: "GET", path: "/torrents/report", reply: report },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+      { method: "POST", path: "/torrents/delete/preview", reply: (r: { body?: { items: { override?: boolean }[] } }) => {
+        n++;
+        const p = plan(false);
+        // The first preview names the copy that stays; after the tick the copy is gone: a new token, no survivor.
+        p.items[1] = n === 1 ? { ...p.items[1], surviving_copy: "12" } : { ...p.items[1], expected_override_token: "o1-gone" };
+        if (r.body?.items.some((i) => i.override)) p.items[1] = { ...p.items[1], refusal: "the override does not name this torrent's references as they are now: referenced by 1 link" };
+        return p;
+      } },
+    ]);
+    renderPage(<TorrentsPage />);
+    await screen.findByText("Used.Movie");
+    fireEvent.click(screen.getByLabelText("Select all shown"));
+    fireEvent.click(screen.getByTestId("delete-selected"));
+    expect((await screen.findByTestId("surviving-copy")).textContent).toBe("Another complete copy stays on RD.");
+    fireEvent.click(screen.getByTestId("override"));
+    await waitFor(() => expect(api.calls("POST", "/torrents/delete/preview")).toHaveLength(3));
+    await waitFor(() => expect((screen.getByTestId("override") as HTMLInputElement).checked).toBe(false));
+    expect(screen.queryByTestId("surviving-copy")).toBeNull();
+    expect((api.calls("POST", "/torrents/delete/preview")[2].body as { items: { override?: boolean }[] }).items.some((i) => i.override)).toBe(false);
+  });
+
   it("says how many chosen torrents the filter hides", async () => {
     mockFetch([
       { method: "GET", path: "/torrents/report", reply: report },
