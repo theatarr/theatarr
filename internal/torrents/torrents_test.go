@@ -86,6 +86,9 @@ func (f *fakeProvider) Torrent(_ context.Context, id string) (*provider.Torrent,
 		if t.ID == id {
 			c := t
 			c.Files = []provider.File{}
+			if c.State == provider.StateDownloaded { // a downloaded torrent names its files
+				c.Files = []provider.File{{ID: "1", Path: "/" + c.Name + "/f.mkv", Bytes: c.Bytes, Selected: true}}
+			}
 			if c.OriginalName == "" {
 				c.OriginalName = c.Name // a detail read names it (Real-Debrid's original_filename)
 			}

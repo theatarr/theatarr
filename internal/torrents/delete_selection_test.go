@@ -414,11 +414,13 @@ func TestDeleteFailedTorrentWithoutFiles(t *testing.T) {
 		name  string
 		state provider.State
 		prior bool // an earlier backup recorded its files
+		empty bool // the detail answers files: [] rather than none
 		ok    bool
 	}{
 		{name: "failed", state: provider.StateError, ok: true},
 		{name: "queued, earlier selection", state: provider.StateQueued, prior: true, ok: true},
 		{name: "downloaded", state: provider.StateDownloaded},
+		{name: "downloaded, empty list", state: provider.StateDownloaded, empty: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := deleteFixture(t)
@@ -435,6 +437,9 @@ func TestDeleteFailedTorrentWithoutFiles(t *testing.T) {
 			}
 			e.rd.detail = map[string]*provider.Torrent{"9": {ID: "9", Hash: hG, State: tc.state,
 				Status: string(tc.state), OriginalName: "Movie.G.2010.1080p.WEB-DL"}}
+			if tc.empty {
+				e.rd.detail["9"].Files = []provider.File{}
+			}
 			// A queued torrent needs allow_recent like any busy one.
 			sel := []DeleteSelection{{Provider: "rd", ID: "9", Hash: hG, AllowRecent: tc.state == provider.StateQueued}}
 			plan, err := e.m.PlanDelete(ctx, sel)

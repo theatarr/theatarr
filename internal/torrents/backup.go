@@ -196,10 +196,9 @@ func (m *Manager) TakeBackup(ctx context.Context, o BackupOptions) (*Backup, Bac
 		for _, t := range list {
 			bt := BackupTorrent{ID: t.ID, Hash: strings.ToLower(t.Hash), Name: t.Name, Bytes: t.Bytes, Added: t.Added,
 				Status: t.Status}
-			files, status := t.Files, t.Status
-			noFiles := false // a torrent not yet (or never) downloaded whose detail read named no files
+			files, status, state := t.Files, t.Status, t.State
+			need := o.Need[k][t.ID]
 			if files == nil {
-				need := o.Need[k][t.ID]
 				if c, ok := prev[k+"\x00"+t.ID+"\x00"+bt.Hash]; ok && !need && !awaitingSelection(t.Status) {
 					bt.FilesKnown, bt.Files = true, c
 				} else if need || budget > 0 {
@@ -208,29 +207,39 @@ func (m *Manager) TakeBackup(ctx context.Context, o BackupOptions) (*Backup, Bac
 					}
 					full, err := m.Providers[k].Torrent(ctx, t.ID)
 					switch {
-					case err == nil && len(full.Files) == 0 && full.State != provider.StateDownloaded:
-						noFiles, status = true, full.Status
-					case err == nil && full.Files != nil:
-						files, status = full.Files, full.Status
+					case err == nil:
+						files, status, state = full.Files, full.Status, full.State
+						if files == nil {
+							files = []provider.File{} // the read answered: no files
+						}
 					case need:
 						return nil, BackupInfo{}, &BackupProviderError{Provider: k, Err: fmt.Errorf("torrents: backup: reading the files of %s %s: %v", k,
 							t.ID, err)}
 					}
 				}
 			}
-			if noFiles {
+			switch {
+			case files == nil: // not read: its selection is not known
+			case len(files) == 0 && state == provider.StateDownloaded:
+				// A downloaded torrent that names no files has no usable selection: a delete's backup refuses it.
+				if need {
+					return nil, BackupInfo{}, &BackupProviderError{Provider: k, Err: fmt.Errorf("torrents: backup: %s %s "+
+						"is downloaded but names no files", k, t.ID)}
+				}
+			case len(files) == 0:
 				// A failed or queued torrent: no files to read. The selection an earlier backup recorded for it
-				// stands; without one the selection is unknown (a restore never selects every file for it).
-				if c, ok := prev[k+"\x00"+t.ID+"\x00"+bt.Hash]; ok {
+				// stands (not while the provider awaits one); without one the selection is unknown (a restore never
+				// selects every file for it).
+				if c, ok := prev[k+"\x00"+t.ID+"\x00"+bt.Hash]; ok && !awaitingSelection(status) {
 					bt.FilesKnown, bt.Files = true, c
 				} else {
 					bt.SelectionUnknown = true
 				}
-			} else if files != nil && awaitingSelection(status) {
+			case awaitingSelection(status):
 				// The provider awaits a selection: no file is selected yet, and the selection made later is not
 				// this one. Not cached by later backups (fileCache takes FilesKnown only).
 				bt.SelectionUnknown = true
-			} else if files != nil {
+			default:
 				bt.FilesKnown = true
 				for _, f := range files {
 					if f.Selected {
