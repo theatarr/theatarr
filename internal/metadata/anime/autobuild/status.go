@@ -74,7 +74,7 @@ func ListUncovered(ctx context.Context, st *store.Store, jobs *Jobs) ([]Uncovere
 	rows, err := st.Reader().QueryContext(ctx, `SELECT t.id, COALESCE(t.name, ''), t.tvdb_id, COALESCE(d.outcome, ''),
 		COALESCE(d.franchise, ''), COALESCE(d.detail, ''), d.tried_at FROM title t
 		LEFT JOIN anime_discovery d ON d.title_id = t.id
-		WHERE `+uncoveredWhere+` AND `+store.TitleInLibrarySQL+` ORDER BY t.name COLLATE NOCASE, t.id`)
+		WHERE `+uncoveredWhere+` ORDER BY t.name COLLATE NOCASE, t.id`)
 	if err != nil {
 		return nil, err
 	}

@@ -97,18 +97,19 @@ func (s *Service) busy(ctx context.Context) (bool, error) {
 	return n > 0, err
 }
 
-// uncoveredWhere selects anime series with a TVDB id that no franchise maps into.
+// uncoveredWhere selects anime series with a TVDB id that no franchise maps into and that are in the library (a
+// series every copy of which was removed is left out).
 const uncoveredWhere = `t.kind = 'series' AND t.anime = 1 AND t.tvdb_id IS NOT NULL AND t.tvdb_id > 0
-	AND NOT EXISTS (SELECT 1 FROM anime_mapping m WHERE m.tvdb_series = t.tvdb_id)`
+	AND NOT EXISTS (SELECT 1 FROM anime_mapping m WHERE m.tvdb_series = t.tvdb_id) AND ` + store.TitleInLibrarySQL
 
 // nextUncovered is the next anime series to discover: never tried, or tried longer ago than the refresh interval
-// (an hour for one left queued without a job). A series every copy of which was removed is left out.
+// (an hour for one left queued without a job).
 func (s *Service) nextUncovered(ctx context.Context, now time.Time) (int64, int, error) {
 	var id int64
 	var tvdb int
 	err := s.cfg.Store.Reader().QueryRowContext(ctx, `SELECT t.id, t.tvdb_id FROM title t
 		LEFT JOIN anime_discovery d ON d.title_id = t.id
-		WHERE `+uncoveredWhere+` AND `+store.TitleInLibrarySQL+` AND (d.title_id IS NULL
+		WHERE `+uncoveredWhere+` AND (d.title_id IS NULL
 			OR (d.outcome = 'queued' AND d.tried_at < ?) OR (d.outcome <> 'queued' AND d.tried_at < ?))
 		ORDER BY d.tried_at IS NOT NULL, d.tried_at, t.id LIMIT 1`,
 		store.Millis(now.Add(-queuedRetry)), store.Millis(now.Add(-s.set.RefreshInterval))).Scan(&id, &tvdb)
