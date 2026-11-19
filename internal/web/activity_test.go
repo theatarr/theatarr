@@ -190,13 +190,17 @@ func TestCalendar(t *testing.T) {
 	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (5, 'sonarr_web', ?)`, now)
 	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, updated_at) VALUES
 		(5, 1, 1, 'filled', ?), (4, 1, 0, 'wanted', ?)`, now, now)
+	// (With unmonitored: the monitored-only calendar no longer lists an episode its libraries do not monitor.)
 	gamma := func() CalendarEntry {
 		cal = CalendarPage{}
-		e.getKey(APIBase+"/calendar?from=2026-11-01&to=2026-11-30&kind=series", key, &cal)
-		if len(cal.Items) != 1 {
-			t.Fatalf("series: %+v", cal.Items)
+		e.getKey(APIBase+"/calendar?from=2026-11-01&to=2026-11-30&kind=series&unmonitored=true", key, &cal)
+		for _, it := range cal.Items {
+			if it.EpisodeID == 1 {
+				return it
+			}
 		}
-		return cal.Items[0]
+		t.Fatalf("series: %+v", cal.Items)
+		return CalendarEntry{}
 	}
 	if g := gamma(); g.Monitored || g.Available {
 		t.Errorf("removed copy's monitoring counted: %+v", g)
@@ -205,6 +209,29 @@ func TestCalendar(t *testing.T) {
 	if g := gamma(); !g.Monitored || g.Available {
 		t.Errorf("remaining copy's monitoring: %+v", g)
 	}
+	// Monitoring comes from the libraries, not the episode's cached flag (a compatible edit writes the library's
+	// flag only): monitored in the library with the cached flag off is listed and monitored; unmonitored in the
+	// library with the cached flag on is not listed. An episode with no library row keeps its cached flag.
+	monitoredOnly := func() map[int64]bool {
+		cal = CalendarPage{}
+		e.getKey(APIBase+"/calendar?from=2026-11-01&to=2026-11-30&kind=series", key, &cal)
+		got := map[int64]bool{}
+		for _, it := range cal.Items {
+			got[it.EpisodeID] = it.Monitored
+		}
+		return got
+	}
+	e.exec(`UPDATE episode SET monitored = 0 WHERE id = 1`)
+	if got := monitoredOnly(); !maps.Equal(got, map[int64]bool{1: true}) {
+		t.Errorf("library monitors, cached flag off: %v", got)
+	}
+	e.exec(`UPDATE episode SET monitored = 1 WHERE id IN (1, 2)`)
+	e.exec(`UPDATE episode_version_state SET monitored = 0 WHERE version_id = 4`)
+	if got := monitoredOnly(); !maps.Equal(got, map[int64]bool{2: true}) {
+		t.Errorf("library does not monitor, cached flag on: %v", got)
+	}
+	e.exec(`UPDATE episode_version_state SET monitored = 1 WHERE version_id = 4`)
+	e.exec(`UPDATE episode SET monitored = 0 WHERE id = 2`)
 	for _, bad := range []string{"from=2026-13-01", "from=2026-11-01&to=2026-10-01", "from=2026-01-01&to=2026-12-31",
 		"kind=music"} {
 		if code := e.getKey(APIBase+"/calendar?"+bad, key, nil); code != 400 {

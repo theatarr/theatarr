@@ -281,7 +281,9 @@ func (w *Web) upcomingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 	return upcoming, nil
 }
 
-// missingPicks: released movies and aired episodes (airClock) that are monitored and wanted, newest first; an
+// missingPicks: released movies and aired episodes (airClock) that are monitored and wanted, newest first (an
+// episode by its libraries' state, activity.EpisodeMonitoredSQL: a library that was not removed monitors the copy and
+// the episode and lacks it; the episode's cached flag plays no part); an
 // episode's day is its air date, else the UTC day of its air instant. A movie is released
 // on its home release (availability.HomeRelease over the canonical dates, as list rows' home_release); without one,
 // on its earliest stored digital or disc date (worldwide or the primary country's), else TMDb's release date plus 90 days, else at the end of its
@@ -333,7 +335,7 @@ func (w *Web) missingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 	err = scanAll(ctx, db, `SELECT e.title_id, COUNT(DISTINCT e.id), MAX(e.air_date), MAX(e.air_date_utc_at)
 		FROM episode_version_state s
 		JOIN episode e ON e.id = s.episode_id JOIN version v ON v.id = s.version_id JOIN title t ON t.id = e.title_id
-		WHERE s.state = 'wanted' AND s.monitored = 1 AND v.monitored = 1 AND t.monitored = 1 AND e.monitored = 1
+		WHERE s.state = 'wanted' AND s.monitored = 1 AND v.monitored = 1 AND t.monitored = 1 AND `+liveVersion+`
 			AND e.season > 0 AND `+aired+`
 		GROUP BY e.title_id`, airedArgs, func(r *sql.Rows) error {
 		var p pick

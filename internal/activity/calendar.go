@@ -127,6 +127,18 @@ func ReadMovieDates(ctx context.Context, db *sql.DB, ids []any) (map[int64]Movie
 	return out, nil
 }
 
+// EpisodeMonitoredSQL is the condition that episode e of title t is monitored, as the calendar, Home and the
+// episode grid read it: the title is monitored and a library of it that was not removed monitors both the copy and
+// the episode (episode_version_state). Only an episode with no library row at all keeps its cached flag
+// (e.monitored, with a monitored library left). The per-library readers (acquisition, Wanted, reports) keep theirs.
+const EpisodeMonitoredSQL = `(t.monitored = 1 AND CASE
+	WHEN EXISTS (SELECT 1 FROM episode_version_state ms0 WHERE ms0.episode_id = e.id)
+	THEN EXISTS (SELECT 1 FROM episode_version_state ms JOIN version mv ON mv.id = ms.version_id
+		WHERE ms.episode_id = e.id AND ms.monitored = 1 AND mv.monitored = 1
+			AND NOT EXISTS (SELECT 1 FROM arrview_removed_version mr WHERE mr.version_id = mv.id))
+	ELSE e.monitored = 1 AND EXISTS (SELECT 1 FROM version mv WHERE mv.title_id = t.id AND mv.monitored = 1
+		AND NOT EXISTS (SELECT 1 FROM arrview_removed_version mr WHERE mr.version_id = mv.id)) END)`
+
 // Calendar lists the movie release dates and episode air dates from from to to (dates, both included), oldest
 // first. Movie dates are the release-date choice (FirstReleasesSQL). Episodes come from the episode table (TVDB and
 // the arrs). Only monitored titles (and monitored episodes) unless unmonitored; never a title with no library copy
@@ -164,15 +176,12 @@ func Calendar(ctx context.Context, db *sql.DB, from, to string, unmonitored bool
 		return nil, err
 	}
 
-	epMon := mon + ` AND e.monitored = 1`
+	epLive := live
+	epMon := epLive + ` AND ` + EpisodeMonitoredSQL
 	if unmonitored {
-		epMon = live
+		epMon = epLive
 	}
-	// An episode is monitored when a library that was not removed monitors it (its version and its episode row).
-	rows, err = db.QueryContext(ctx, `SELECT t.id, t.name, COALESCE(t.year, 0), t.anime, t.monitored AND e.monitored
-		AND EXISTS (SELECT 1 FROM episode_version_state s JOIN version v ON v.id = s.version_id WHERE s.episode_id = e.id
-			AND s.monitored = 1 AND v.monitored = 1
-			AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id)),
+	rows, err = db.QueryContext(ctx, `SELECT t.id, t.name, COALESCE(t.year, 0), t.anime, `+EpisodeMonitoredSQL+`,
 		e.id, e.season, e.number, e.name, e.air_date, COALESCE(e.air_date_utc_at, 0), COALESCE(sm.time_zone, ''),
 		COALESCE((SELECT MIN(x.air_date_utc_at) FROM episode x WHERE x.title_id = e.title_id AND x.season = e.season
 			AND x.air_date = e.air_date), 0),

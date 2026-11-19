@@ -715,6 +715,26 @@ func TestDiscover(t *testing.T) {
 	if code := e.getKey(APIBase+"/discover/nope", key, nil); code != 404 {
 		t.Errorf("discover/nope: %d", code)
 	}
+	// Missing reads monitoring from the libraries: the episode's cached flag off (a compatible edit leaves it) does
+	// not hide Delta's missing episode; a removed library's gap is not missing.
+	missing := func() string {
+		t.Helper()
+		var m DiscoverRow
+		if code := e.getKey(APIBase+"/discover/missing", key, &m); code != 200 {
+			t.Fatalf("discover/missing: %d", code)
+		}
+		return row(m)
+	}
+	e.exec(`UPDATE episode SET monitored = 0 WHERE title_id = 4`)
+	if got := missing(); got != "Delta|1 episode missing|2026-01-15; Alpha|4K WEB|2020-08-01" {
+		t.Errorf("missing with the cached flag off: %q", got)
+	}
+	e.exec(`UPDATE episode SET monitored = 1 WHERE title_id = 4`)
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (4, 'sonarr', 0)`)
+	if got := missing(); got != "Alpha|4K WEB|2020-08-01" {
+		t.Errorf("missing after removing the copy: %q", got)
+	}
+	e.exec(`DELETE FROM arrview_removed_version`)
 	// The upgrades row lists a title once a better release was found for its file.
 	upgrades := func() string {
 		t.Helper()
@@ -1714,5 +1734,29 @@ func TestEditTitleTags(t *testing.T) {
 	rec := httptest.NewRecorder()
 	if mux.ServeHTTP(rec, r); rec.Code != http.StatusForbidden || labels("x") != 0 {
 		t.Errorf("manage without see files: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+// The episode grid reads an episode's monitoring from its libraries, as the calendar and Home do: the cached flag
+// (which a compatible edit leaves as it was) counts only for an episode with no library row.
+func TestEpisodeGridMonitoredFromLibraries(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	e.seedLibrary()
+	key := e.apiKey()
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, air_date, monitored, created_at, updated_at) VALUES
+		(46, 4, 2, 2, 'Stateless', '2026-11-07', 0, 0, 0)`)
+	e.exec(`UPDATE episode SET monitored = 0 WHERE id = 41`)
+	e.exec(`UPDATE episode_version_state SET monitored = 0 WHERE episode_id = 42`)
+	var l EpisodeList
+	if code := e.getKey(APIBase+"/titles/4/episodes", key, &l); code != 200 {
+		t.Fatalf("episodes: %d", code)
+	}
+	got := map[int64]bool{}
+	for _, ep := range l.Episodes {
+		got[ep.ID] = ep.Monitored
+	}
+	if want := map[int64]bool{40: true, 41: true, 42: false, 43: true, 44: true, 46: false}; !maps.Equal(got, want) {
+		t.Errorf("monitored: got %v, want %v", got, want)
 	}
 }

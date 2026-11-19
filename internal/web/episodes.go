@@ -8,6 +8,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/decide"
 )
 
@@ -187,12 +188,13 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 	var all []Episode
 	idx := map[int64]int{}
 	clock := newAirClock(w.now())
+	// Monitored as the calendar and Home read it: from the libraries' rows (activity.EpisodeMonitoredSQL).
 	if err := scanAll(ctx, db, `SELECT e.id, e.season, e.number, e.name, COALESCE(e.air_date, ''), e.runtime_minutes,
-		e.monitored, COALESCE(
+		`+activity.EpisodeMonitoredSQL+`, COALESCE(
 			(SELECT MIN(n.number) FROM episode_number n WHERE n.episode_id = e.id AND n.scheme = 'absolute_tvdb'),
 			(SELECT MIN(n.number) FROM episode_number n WHERE n.episode_id = e.id AND n.scheme = 'absolute')),
 		e.air_date_utc_at
-		FROM episode e WHERE e.title_id = ? ORDER BY e.season, e.number`, []any{id}, func(r *sql.Rows) error {
+		FROM episode e JOIN title t ON t.id = e.title_id WHERE e.title_id = ? ORDER BY e.season, e.number`, []any{id}, func(r *sql.Rows) error {
 		var e Episode
 		var rt, abs, airAt sql.NullInt64
 		if err := r.Scan(&e.ID, &e.Season, &e.Number, &e.Name, &e.AirDate, &rt, &e.Monitored, &abs, &airAt); err != nil {
