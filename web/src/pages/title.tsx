@@ -99,10 +99,10 @@ function usePrimaryAction({ target, has, held, monitoring }: { target: Target; h
   if (perms.add) {
     if (has && (!opts.data || inEveryLibrary(opts.data))) return null;
     const again = has && monitorOnly(opts.data, held);
-    // Every fitting library already has the title: "Monitor again" only while none is monitored; with one monitored the
+    // Every fitting library already has the title: "Monitor" only while none is monitored; with one monitored the
     // Libraries table's switch turns the others on.
     if (again && monitoring) return null;
-    const label = !has ? "Add" : again ? "Monitor again" : "Add to another library";
+    const label = !has ? "Add" : again ? "Monitor" : "Add to another library";
     return (className) => (
       <Button onClick={() => openAdd(target)} className={className} data-testid="hero-add">
         <Plus /> {label}
@@ -236,7 +236,9 @@ export function TitlePage() {
   // status, not Missing; beside a held library's Available it follows the status.
   const acquiring = perms.seeFiles && !gone ? acquiringStatus(versions) : undefined;
   const anyHeld = versions.some((v) => v.has_file);
-  const ready = gone ? { label: "Not in the library", tone: "neutral" as const } : acquiring && !anyHeld ? { label: acquiring, tone: "partial" as const } : perms.seeFiles ? titleStatus(d, versions) : watch;
+  // A new series whose first metadata refresh is still to come: its episodes are on their way, not missing.
+  const loadingEpisodes = series && !gone && !!d.metadata_pending && !anyHeld && !versions.some((v) => (v.episodes?.total ?? 0) > 0);
+  const ready = gone ? { label: "Not in the library", tone: "neutral" as const } : acquiring && !anyHeld ? { label: acquiring, tone: "partial" as const } : loadingEpisodes ? { label: "Loading episodes…", tone: "neutral" as const } : perms.seeFiles ? titleStatus(d, versions) : watch;
   const stageBeside = acquiring && anyHeld ? acquiring : undefined;
   // Each library's latest relevant event, under the status (see files).
   const events = perms.seeFiles && !gone ? versions.flatMap((v) => {
@@ -363,7 +365,7 @@ export function TitlePage() {
               <RequestMoreSeasons target={target} />
             </div>
           ) : null}
-          <Seasons id={id} anime={!!d.anime} franchises={franchises} history={Object.fromEntries(all.map((v) => [v.key ?? "", v.history]))} />
+          <Seasons id={id} anime={!!d.anime} franchises={franchises} history={Object.fromEntries(all.map((v) => [v.key ?? "", v.history]))} pending={!!d.metadata_pending} />
         </>
       ) : null}
       {tab === "order" ? <AnimeOrder franchises={franchises} admin={perms.admin} /> : null}

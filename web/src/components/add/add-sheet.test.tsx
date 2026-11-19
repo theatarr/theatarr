@@ -488,3 +488,29 @@ it("names the library the person chose when the add brings back its removed copy
   await user.click(screen.getByTestId("add-submit"));
   await waitFor(() => expect(screen.getAllByTestId("toast").at(-1)?.textContent).toContain("Turned on: movie-a. movie-b too (in sync)."));
 });
+
+it("says a movie added with Monitored off was added, not monitored (no library names are served here: default names)", async () => {
+  const two = versions.slice(0, 2).map((v) => ({ ...v, label: v.key === "movie-web" ? "4K WEB" : "4K Remux" }));
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin", "add"] } },
+    { method: "GET", path: "/add/options", reply: { ...options, versions: two } },
+    { method: "POST", path: "/titles", reply: json({ created: true, versions: ["movie-remux", "movie-web"], new: ["movie-remux", "movie-web"], title: { id: 9, name: "Alpha", monitored: false, versions: [] } }) },
+  ]);
+  const user = userEvent.setup();
+  renderPage(<><AddSheet target={{ kind: "movie", name: "Alpha", year: 2024, tmdb_id: 7 }} onClose={() => {}} /><Toaster /></>);
+  await user.click(await screen.findByRole("switch", { name: "Monitored" }));
+  await user.click(screen.getByTestId("add-submit"));
+  await waitFor(() => expect(screen.getAllByTestId("toast").at(-1)?.textContent).toContain("Added, not monitored: WEB, Remux."));
+  expect(screen.getAllByTestId("toast").at(-1)?.textContent).not.toContain("Turned on");
+});
+
+it("names beside Add libraries and search every library it searches, the ones the title is already in too", async () => {
+  const lib = (key: string, label: string, on: boolean) => ({ key, label, kind: "movie", enable: "", fits: true, default: true, on, searchable: true, grab_state: { ...gates, will_grab: true } });
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin", "add"] } },
+    { method: "GET", path: "/add/options", reply: { ...options, title_id: 5, versions: [lib("movie-web", "4K WEB", true), lib("movie-remux", "4K Remux", false)] } },
+  ]);
+  renderPage(<AddSheet target={{ kind: "movie", name: "Alpha", title_id: 5 }} onClose={() => {}} />);
+  expect((await screen.findByTestId("add-submit-search")).textContent).toBe("Add libraries and search");
+  expect(screen.getByTestId("add-searches").textContent).toBe("Searches: 4K WEB, 4K Remux");
+});

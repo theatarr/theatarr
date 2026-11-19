@@ -5,6 +5,7 @@ import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockFetch } from "@/test/page";
 import { useLogFiles, useLogLevel, useLogs, useSetLogLevel, type Logs } from "./hooks";
+import { useEpisodes, useTitle } from "./library";
 import { useRequest } from "./requests";
 
 function provider() {
@@ -145,5 +146,53 @@ describe("log polling", () => {
     expect(fetch.calls("GET", "/logs").length).toBeGreaterThan(1);
     expect(fetch.calls("GET", "/logs/files").length).toBeGreaterThan(1);
     expect(fetch.calls("GET", "/requests/1").length).toBeGreaterThan(1);
+  });
+});
+
+describe("a title's first metadata refresh", () => {
+  it("reads the title every 3 s while it is pending, then the episodes once it landed", async () => {
+    let pending = true;
+    const fetch = mockFetch([
+      { method: "GET", path: "/titles/7", reply: () => ({ id: 7, kind: "series", name: "New", versions: [], metadata_pending: pending }) },
+      { method: "GET", path: "/titles/7/episodes", reply: { versions: [], seasons: [], episodes: [] } },
+    ]);
+    const wrapper = provider();
+    renderHook(() => { useTitle("7"); useEpisodes("7"); }, { wrapper });
+    await tick();
+    expect(fetch.calls("GET", "/titles/7")).toHaveLength(1);
+    expect(fetch.calls("GET", "/titles/7/episodes")).toHaveLength(1);
+    await tick(3_000);
+    expect(fetch.calls("GET", "/titles/7")).toHaveLength(2);
+    pending = false;
+    await tick(3_000);
+    expect(fetch.calls("GET", "/titles/7")).toHaveLength(3);
+    // Settled: the episodes are read again, and the title is no longer polled.
+    expect(fetch.calls("GET", "/titles/7/episodes")).toHaveLength(2);
+    await tick(10_000);
+    expect(fetch.calls("GET", "/titles/7")).toHaveLength(3);
+  });
+
+  it("stops after 2 minutes when the server still says pending", async () => {
+    const fetch = mockFetch([
+      { method: "GET", path: "/titles/8", reply: { id: 8, kind: "movie", name: "Stuck", versions: [], metadata_pending: true } },
+    ]);
+    renderHook(() => useTitle("8"), { wrapper: provider() });
+    await tick();
+    await tick(2 * 60_000);
+    const n = fetch.calls("GET", "/titles/8").length;
+    expect(n).toBeGreaterThan(30);
+    expect(n).toBeLessThanOrEqual(42);
+    await tick(60_000);
+    expect(fetch.calls("GET", "/titles/8")).toHaveLength(n);
+  });
+
+  it("never polls a settled title", async () => {
+    const fetch = mockFetch([
+      { method: "GET", path: "/titles/9", reply: { id: 9, kind: "movie", name: "Old", versions: [], metadata_pending: false } },
+    ]);
+    renderHook(() => useTitle("9"), { wrapper: provider() });
+    await tick();
+    await tick(30_000);
+    expect(fetch.calls("GET", "/titles/9")).toHaveLength(1);
   });
 });

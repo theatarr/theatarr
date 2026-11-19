@@ -127,7 +127,8 @@ const STAGE_ORDER: Acquisition["stage"][] = ["queued", "starting", "downloading"
  * What the libraries without a file are getting, for the hero: the most advanced download in hand (not blocked)
  * among them, "Searching" / "Search queued" when the server says a search of such a library is under way, else
  * undefined. A held library stays Available during an upgrade (its download is not counted); with several libraries
- * the words name the library ("4K WEB: Downloading · 40%").
+ * the words name the library ("4K WEB: Downloading · 40%"), and several searching at once are counted ("Searching 2
+ * libraries").
  */
 export function acquiringStatus(versions: readonly Pick<Version, "has_file" | "acquisition" | "searching" | "monitored" | "label" | "key">[]): string | undefined {
   const empty = versions.filter((v) => !v.has_file);
@@ -139,7 +140,10 @@ export function acquiringStatus(versions: readonly Pick<Version, "has_file" | "a
     if (!best || STAGE_ORDER.indexOf(a.stage) > STAGE_ORDER.indexOf(best.acquisition!.stage)) best = v;
   }
   if (best) return named(best, heroStageWords(best.acquisition!));
-  const searching = empty.find((v) => v.monitored && v.searching === "searching") ?? empty.find((v) => v.monitored && v.searching === "queued");
+  // Libraries really searching are counted ("Searching 2 libraries"); one is named as before.
+  const now = empty.filter((v) => v.monitored && v.searching === "searching");
+  if (now.length > 1) return `Searching ${now.length} libraries`;
+  const searching = now[0] ?? empty.find((v) => v.monitored && v.searching === "queued");
   return searching ? named(searching, searching.searching === "searching" ? "Searching" : "Search queued") : undefined;
 }
 

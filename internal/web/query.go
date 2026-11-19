@@ -483,6 +483,9 @@ type TitleDetail struct {
 	// Collection is the stored TMDb collection the movie is part of (its page is /collections/{tmdb_id}); for
 	// managers, absent when it is not stored.
 	Collection *CollectionRef `json:"collection,omitempty"`
+	// MetadataPending: the title's first metadata refresh is still to come (titlepage.go metadataPending), so the
+	// page reads it again shortly: a series' episodes, a film's poster and overview.
+	MetadataPending bool `json:"metadata_pending"`
 }
 
 // CollectionRef names a collection on the title page.
@@ -589,6 +592,9 @@ func (w *Web) getTitle(ctx context.Context, id int64) (*TitleDetail, error) {
 			d.Versions[i].MinimumAvailabilityDefault = r.Source == availability.SourceDefault
 			d.Versions[i].LibraryMinimumAvailability = availability.LibraryDefault(w.pol, d.Versions[i].Key)
 		}
+	}
+	if d.MetadataPending, err = w.metadataPending(ctx, db, d); err != nil {
+		return nil, err
 	}
 	return d, nil
 }

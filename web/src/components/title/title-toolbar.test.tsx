@@ -158,7 +158,7 @@ it("offers no Add to another library when every library that fits is on the titl
   document.body.innerHTML = "";
   mockFetch([{ method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["admin", "manage", "add"] } }, options([lib("movie-web", gates), { ...lib("movie-2160", gates), on: false }])]);
   renderPage(<SearchProvider><TitleToolbar titleId={7} name="Alpha" kind="movie" versions={[{ id: 1, key: "movie-web" }, { id: 2, key: "movie-2160" }] as never} page="releases" /></SearchProvider>);
-  expect((await screen.findByTestId("title-add-versions")).textContent?.trim()).toBe("Monitor again");
+  expect((await screen.findByTestId("title-add-versions")).textContent?.trim()).toBe("Monitor");
 });
 
 it("shows Search now disabled while the add options load, and no Interactive search on the Last search page", async () => {

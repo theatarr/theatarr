@@ -1187,7 +1187,8 @@
               "franchises": { "type": "array", "description": "Anime franchises that map into the title (GET /anime/franchises/{slug} has the orders)", "items": { "type": "object", "required": ["slug", "name"], "properties": { "slug": { "type": "string" }, "name": { "type": "string" } } } },
               "series_type": { "type": "string", "enum": ["standard", "daily", "anime"], "description": "Series: the type in force (the stored one, else anime for an anime title, else standard)" },
               "auto_search": { "$ref": "#/components/schemas/AutoSearch" },
-              "collection": { "type": "object", "description": "Managers only: the stored TMDb collection the movie is part of (its page: GET /collections/{tmdb_id}); absent when none is stored", "required": ["tmdb_id", "name"], "properties": { "tmdb_id": { "type": "integer" }, "name": { "type": "string" } } }
+              "collection": { "type": "object", "description": "Managers only: the stored TMDb collection the movie is part of (its page: GET /collections/{tmdb_id}); absent when none is stored", "required": ["tmdb_id", "name"], "properties": { "tmdb_id": { "type": "integer" }, "name": { "type": "string" } } },
+              "metadata_pending": { "type": "boolean", "description": "The title's first metadata refresh is still to come (a series added since its series refresh last tried it, a film the artwork job has not tried); false when that refresh is not configured. The page reads the title again every 3 s while true, for at most 2 minutes" }
             }
           }
         ]

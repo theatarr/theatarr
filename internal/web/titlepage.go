@@ -719,3 +719,20 @@ func (w *Web) titleFranchises(ctx context.Context, db *sql.DB, d *TitleDetail) e
 		return nil
 	})
 }
+
+// metadataPending reports whether the title's first metadata refresh is still to come: a series added since its
+// series refresh last tried it (series_meta, the rule tvrefresh's enqueueAdded queues by), a film the artwork job has
+// not tried yet (no title_meta row). False when that refresh is not configured (no series refresh; no artwork service
+// or no TMDb key), and once tried, whatever came of it.
+func (w *Web) metadataPending(ctx context.Context, db *sql.DB, d *TitleDetail) (bool, error) {
+	if d.Kind != string(policy.KindSeries) {
+		return d.Meta == nil && w.art != nil && w.add.TMDb != nil, nil
+	}
+	if w.seriesLookup == nil || !w.seriesLookup.Enabled() {
+		return false, nil
+	}
+	var pending bool
+	err := db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM series_meta WHERE title_id = ? AND added_at IS NOT NULL
+		AND (attempted_at IS NULL OR attempted_at < added_at))`, d.ID).Scan(&pending)
+	return pending, err
+}

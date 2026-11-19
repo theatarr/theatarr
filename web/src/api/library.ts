@@ -1,6 +1,7 @@
 // Library reads (docs/design/ui.md): the grids (GET /titles, paged), their facet counts, the title page,
 // a series' episodes and the Home rows. Types come from the generated schema.
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 import { useAuth } from "./auth";
 import { api, qs, type Schemas } from "./client";
 import type { Get } from "./hooks";
@@ -78,10 +79,34 @@ export const useFacets = (kind?: string, anime?: boolean, enabled = true) =>
 export const titleLabels = (d: TitleDetail): TitleDetail => (d.versions ? { ...d, versions: withDistinctLabels(d.versions) as TitleDetail["versions"] } : d);
 const episodeLabels = (l: EpisodeList): EpisodeList => (l.versions ? { ...l, versions: withDistinctLabels(l.versions) } : l);
 
+/** While a title's first metadata refresh is still to come (metadata_pending, right after an add), the page reads it
+ *  again this often, for at most PENDING_FOR. */
+export const PENDING_EVERY = 3_000;
+export const PENDING_FOR = 2 * 60_000;
+
 export function useTitle(id: string, enabled = true) {
-  return useQuery({
+  const qc = useQueryClient();
+  // When this page first saw the title pending: the polling stops PENDING_FOR later, whatever the server says.
+  const since = useRef<{ id: string; at: number } | null>(null);
+  const q = useQuery({
     queryKey: qk.title(id), queryFn: () => api<TitleDetail>(`/titles/${encodeURIComponent(id)}`), enabled, select: titleLabels,
+    refetchInterval: (query) => {
+      if (!query.state.data?.metadata_pending) return false;
+      const now = Date.now();
+      if (since.current?.id !== id) since.current = { id, at: now };
+      return now - since.current.at < PENDING_FOR ? PENDING_EVERY : false;
+    },
   });
+  // The refresh landed: the series' episodes (and seasons) arrived with it.
+  const pending = q.data?.metadata_pending === true;
+  const was = useRef({ id, pending });
+  useEffect(() => {
+    if (was.current.id === id && was.current.pending && !pending) {
+      void qc.invalidateQueries({ queryKey: [...qk.title(id), "episodes"] });
+    }
+    was.current = { id, pending };
+  }, [id, pending, qc]);
+  return q;
 }
 
 export function useEpisodes(id: string, season?: number, enabled = true) {

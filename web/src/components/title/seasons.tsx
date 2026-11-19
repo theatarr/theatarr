@@ -979,7 +979,9 @@ export function newestFirst<T extends { season: number }>(seasons: readonly T[])
   return [...seasons].sort((a, b) => (a.season === 0 ? 1 : b.season === 0 ? -1 : b.season - a.season));
 }
 
-export function Seasons({ id, anime, franchises = [], history }: { id: string; anime: boolean; franchises?: { slug: string; name: string }[]; history?: Histories }) {
+/** The series' episodes by season. pending: its first metadata refresh is still to come (the title's
+ *  metadata_pending), so an empty list says the episodes are on their way rather than that none are known. */
+export function Seasons({ id, anime, franchises = [], history, pending = false }: { id: string; anime: boolean; franchises?: { slug: string; name: string }[]; history?: Histories; pending?: boolean }) {
   const list = useEpisodes(id);
   const perms = usePerms();
   const wide = useWide();
@@ -1002,7 +1004,17 @@ export function Seasons({ id, anime, franchises = [], history }: { id: string; a
   if (list.isPending) return <Loading />;
   if (list.error) return <ErrorState error={list.error} />;
   const l = list.data;
-  if (l.seasons.length === 0) return <Card><p className="text-sm text-muted-foreground">No episodes are known for this series yet.</p></Card>;
+  if (l.seasons.length === 0) {
+    return (
+      <Card>
+        {pending ? (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="episodes-loading"><Loader2 className="size-4 animate-spin" /> Loading episodes…</p>
+        ) : (
+          <p className="text-sm text-muted-foreground">No episodes are known for this series yet.</p>
+        )}
+      </Card>
+    );
+  }
   // Open the latest season that has aired episodes, until the user picks.
   const latest = [...l.seasons].filter((s) => s.season > 0 && s.aired > 0).pop()?.season ?? l.seasons[0].season;
   const opened = open ?? [latest];

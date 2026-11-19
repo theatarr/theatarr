@@ -2328,3 +2328,68 @@ func TestAddFilmKnowsItsLanguage(t *testing.T) {
 		t.Errorf("add with TMDb failing: created %v, language %q", res.Created, stored(res.Title.ID))
 	}
 }
+
+// stubArt is an art service that records refreshes and serves nothing.
+type stubArt struct{ refreshed []int64 }
+
+func (s *stubArt) ServeTitle(http.ResponseWriter, *http.Request, int64, string, string) {}
+func (s *stubArt) ServeTMDb(http.ResponseWriter, *http.Request, string, string)          {}
+func (s *stubArt) Refresh(_ context.Context, id int64) (int64, error) {
+	s.refreshed = append(s.refreshed, id)
+	return 1, nil
+}
+
+// TestTitleMetadataPending: right after an add the title detail says its first metadata refresh is still to come
+// (metadata_pending), so the page can wait for it: a new series until its series refresh tried it, a new film until
+// the artwork job tried it. It is false once tried (whatever came of it), and false when the refresh is not
+// configured, so the page never waits for nothing. A household account sees it too.
+func TestTitleMetadataPending(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, nil)
+	e.web.art = &stubArt{}
+	e.web.seriesLookup = &fakeSeriesLookup{seasons: []int{1}}
+	pending := func(id int64) bool {
+		t.Helper()
+		var d struct {
+			Pending *bool `json:"metadata_pending"`
+		}
+		e.call("GET", fmt.Sprintf("%s/titles/%d", APIBase, id), nil, 200, &d)
+		if d.Pending == nil {
+			t.Fatalf("title %d: no metadata_pending", id)
+		}
+		return *d.Pending
+	}
+	var film, show AddResult
+	e.call("POST", APIBase+"/titles", map[string]any{"kind": "movie", "tmdb_id": 555}, 201, &film)
+	e.call("POST", APIBase+"/titles", map[string]any{"kind": "series", "tmdb_id": 777}, 201, &show)
+	if !pending(film.Title.ID) || !pending(show.Title.ID) {
+		t.Errorf("new film %v, new series %v: want both pending", pending(film.Title.ID), pending(show.Title.ID))
+	}
+	// A household account sees it too.
+	_, ann := e.user("ann", auth.RoleUser)
+	var d struct {
+		Pending *bool `json:"metadata_pending"`
+	}
+	e.callAs(ann, "GET", fmt.Sprintf("%s/titles/%d", APIBase, film.Title.ID), nil, 200, &d)
+	if d.Pending == nil || !*d.Pending {
+		t.Errorf("household: %v", d.Pending)
+	}
+	// Not configured: nothing to wait for.
+	e.web.art, e.web.seriesLookup = nil, nil
+	if pending(film.Title.ID) || pending(show.Title.ID) {
+		t.Error("pending without a refresh configured")
+	}
+	e.web.art = &stubArt{}
+	e.web.seriesLookup = &fakeSeriesLookup{seasons: []int{1}}
+	// Tried, even when it failed: settled.
+	e.exec(`INSERT INTO title_meta (title_id, tmdb_id, attempted_at, refresh_after, error) VALUES (?, 555, ?, 0, 'TMDb: 503')`,
+		film.Title.ID, store.Millis(addNow))
+	e.exec(`UPDATE series_meta SET attempted_at = added_at, error = 'TVDB: 503' WHERE title_id = ?`, show.Title.ID)
+	if pending(film.Title.ID) || pending(show.Title.ID) {
+		t.Error("pending after the first try")
+	}
+	// A title added long ago (no series_meta added_at) is settled.
+	if pending(10) {
+		t.Error("an old series is pending")
+	}
+}

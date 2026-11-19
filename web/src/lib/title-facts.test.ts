@@ -60,6 +60,9 @@ describe("acquiringStatus", () => {
     expect(acquiringStatus([{ key: "r", label: "4K Remux", has_file: true, monitored: true, acquisition: a("downloading", 10) }])).toBeUndefined();
     expect(acquiringStatus([{ key: "r", label: "4K Remux", has_file: true, monitored: true }, { key: "w", label: "4K WEB", has_file: false, monitored: true, acquisition: a("downloading", 40) }])).toBe("4K WEB: Downloading · 40%");
     expect(acquiringStatus([{ key: "r", has_file: false, monitored: true, searching: "searching" }])).toBe("Searching");
+    // Two libraries searching are counted; one searching and one queued names the one searching.
+    expect(acquiringStatus([{ key: "r", label: "4K Remux", has_file: false, monitored: true, searching: "searching" }, { key: "w", label: "4K WEB", has_file: false, monitored: true, searching: "searching" }])).toBe("Searching 2 libraries");
+    expect(acquiringStatus([{ key: "r", label: "4K Remux", has_file: false, monitored: true, searching: "queued" }, { key: "w", label: "4K WEB", has_file: false, monitored: true, searching: "searching" }])).toBe("4K WEB: Searching");
     expect(acquiringStatus([{ key: "r", has_file: false, monitored: true, acquisition: a("blocked") }])).toBeUndefined();
   });
 });

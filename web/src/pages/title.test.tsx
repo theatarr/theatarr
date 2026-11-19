@@ -91,6 +91,34 @@ describe("Title page", () => {
     expect((await screen.findAllByTestId("hero-add"))[0].textContent).toContain("Add");
   });
 
+  it("says Loading episodes… for a new series until its first refresh landed, and the settled words after", async () => {
+    const page = (pending: boolean) => {
+      mockFetch([
+        { method: "GET", path: "/auth/me", reply: me },
+        { method: "GET", path: "/titles/70", reply: { ...title, kind: "series", metadata_pending: pending,
+          versions: [{ id: 5, key: "tv-2160p", label: "4K", state: "wanted", monitored: true, episodes: { total: 0, have: 0, missing: 0 } }] } },
+        { method: "GET", path: "/titles/70/episodes", reply: { versions: [], seasons: [], episodes: [] } },
+        { method: "GET", path: "/add/options", reply: { kind: "series", anime: false, title_id: 70, router_enabled: true, episodes_known: false, can_search: false, seasons: [], versions: [] } },
+      ]);
+      return renderPage(
+        <SearchProvider>
+          <Routes>
+            <Route path="/title/:id" element={<TitlePage />} />
+          </Routes>
+        </SearchProvider>,
+        "/title/70",
+      );
+    };
+    const first = page(true);
+    expect((await screen.findByTestId("title-readiness")).textContent).toBe("Loading episodes…");
+    expect((await screen.findByTestId("episodes-loading")).textContent).toContain("Loading episodes…");
+    expect(screen.queryByText("No episodes are known for this series yet.")).toBeNull();
+    first.unmount();
+    page(false);
+    expect(await screen.findByText("No episodes are known for this series yet.")).toBeTruthy();
+    expect(screen.getByTestId("title-readiness").textContent).not.toBe("Loading episodes…");
+  });
+
   it("says Pause once above the Libraries table", async () => {
     const grab_state = { paused: true, pause_forced: false, will_grab: false };
     const fetch = mockFetch([
@@ -126,7 +154,7 @@ describe("Title page", () => {
   it("offers no hero action when every library that fits is on the title, other libraries aside", async () => {
     const adder = { ...me, permissions: ["see_files", "manage", "add"] };
     const lib = { kind: "movie", enable: "", fits: true, default: true, on: true, searchable: true, label: "WEB" };
-    for (const [versions, want] of [[[{ ...lib, key: "movie-web" }, { ...lib, key: "movie-remux" }, { ...lib, key: "anime-movie", fits: false, default: false, on: false }], null], [[{ ...lib, key: "movie-web" }, { ...lib, key: "movie-2160", on: false }], "Add to another library"], [[{ ...lib, key: "movie-web", on: false }], "Monitor again"],
+    for (const [versions, want] of [[[{ ...lib, key: "movie-web" }, { ...lib, key: "movie-remux" }, { ...lib, key: "anime-movie", fits: false, default: false, on: false }], null], [[{ ...lib, key: "movie-web" }, { ...lib, key: "movie-2160", on: false }], "Add to another library"], [[{ ...lib, key: "movie-web", on: false }], "Monitor"],
       // Both libraries held, one monitored: its switch in the Libraries table does it, no hero action.
       [[{ ...lib, key: "movie-web" }, { ...lib, key: "movie-remux", on: false }], null]] as const) {
       document.body.innerHTML = "";

@@ -37,7 +37,7 @@ export const inEveryLibrary = (o?: AddOptions) => {
 };
 
 /** Every library that fits the title already has it, some not monitored: the add sheet can only monitor them again,
- *  so the hero and the Last search toolbar say "Monitor again" rather than "Add to another library" (held: the
+ *  so the hero and the Last search toolbar say "Monitor" rather than "Add to another library" (held: the
  *  libraries the title is in). */
 export function monitorOnly(o: AddOptions | undefined, held: readonly string[]): boolean {
   const fitting = (o?.versions ?? []).filter((v) => v.fits || v.on);
@@ -179,7 +179,7 @@ export function TitleToolbar({ titleId, name, year, kind, poster, anime, version
         ) : null}
         {!titlePage && perms.add && o && !inEveryLibrary(o) ? (
           <Button size="sm" variant="outline" onClick={() => openAdd(target)} data-testid="title-add-versions">
-            <Plus /> {monitorOnly(o, versions.map((v) => v.key ?? "")) ? "Monitor again" : "Add to another library"}
+            <Plus /> {monitorOnly(o, versions.map((v) => v.key ?? "")) ? "Monitor" : "Add to another library"}
           </Button>
         ) : null}
         {more.length && wide
