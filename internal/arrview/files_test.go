@@ -168,6 +168,19 @@ func TestManualImportAndImportAPI(t *testing.T) {
 		e.lib.imports[0] != "1 dry" {
 		t.Fatalf("download candidates %v %v", items, e.lib.imports)
 	}
+	// A film file the automatic import left unread (the feature passed first) says so in film words.
+	e.lib.plan = func(id int64) *library.Plan {
+		return &library.Plan{DownloadID: id, Folder: "/mnt/debrid/__all__/Alpha.WEB",
+			Files: []library.PlannedFile{{Path: "/mnt/debrid/__all__/Alpha.WEB/a.mkv", Rel: "a.mkv", Size: 9000},
+				{Path: "/mnt/debrid/__all__/Alpha.WEB/sample.mkv", Rel: "sample.mkv", Size: 90, Unread: true}},
+			Links: []library.PlannedLink{{File: "a.mkv", Path: "/x/Alpha (2020).mkv"}}}
+	}
+	var unread []manualImportResource
+	e.call("GET", "/radarr/api/v3/manualimport?downloadId="+strings.Repeat("A", 40), nil, 200, &unread)
+	if len(unread) != 2 || len(unread[1].Rejections) != 1 ||
+		unread[1].Rejections[0].Reason != "Not checked: the import took a larger file" {
+		t.Errorf("unread film file %+v", unread)
+	}
 	// The ManualImport command imports the chosen file of our download (through the library) at its path, and
 	// says what it refused: a file off the mount.
 	e.exec(`UPDATE download SET state = 'ready' WHERE id = 1`)

@@ -64,7 +64,7 @@ func nonSamples(plan *Plan, t titleInfo) int {
 	}
 	n := 0
 	for _, f := range plan.Files {
-		if f.unread && (isExtraFile(f.Rel) || sampleNameRE.MatchString(filepath.Base(f.Rel))) {
+		if f.Unread && (isExtraFile(f.Rel) || sampleNameRE.MatchString(filepath.Base(f.Rel))) {
 			continue
 		}
 		if f.Probe == nil || f.Probe.RunTimeSeconds >= float64(arrMinimumRuntime(expected)) {

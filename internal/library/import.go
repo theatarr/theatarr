@@ -72,8 +72,8 @@ type PlannedFile struct {
 	// Episodes are the episodes (S01E02) of a series file the guard refused: in a pack whose other files link, they
 	// stay wanted and the journal names them.
 	Episodes []string `json:"episodes,omitempty"`
-	// unread marks a film's file the automatic import left unread: an extra, or one smaller than the feature found.
-	unread bool
+	// Unread marks a film's file the automatic import left unread: an extra, or one smaller than the feature found.
+	Unread bool `json:"unread,omitempty"`
 }
 
 // ZurgFileCheck is what zurg's API said about a release file. Confirmed: the download's hash, and the size the
@@ -563,7 +563,7 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 		}
 		pf := PlannedFile{Path: f.Path, Rel: f.Rel, Size: f.Size}
 		if movieAuto && own(f) && (featured || (plain && i != largest && isExtraFile(f.Rel))) {
-			pf.unread = true // listed (manual import shows it), neither read nor a candidate
+			pf.Unread = true // listed (manual import shows it), neither read nor a candidate
 			plan.Files = append(plan.Files, pf)
 			continue
 		}
@@ -1180,7 +1180,7 @@ func (l *Library) planMovie(ctx context.Context, d *importDownload, vn *VersionN
 	var pick *PlannedFile
 	for i := range plan.Files {
 		f := &plan.Files[i]
-		if f.unread {
+		if f.Unread {
 			continue
 		}
 		reason := sampleCheck(l.set.MinRuntimeRatio, l.set.Resolution, "movie", v.Title.Runtime, false, f, resolution)

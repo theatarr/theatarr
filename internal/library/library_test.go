@@ -201,7 +201,7 @@ func TestImportMovie(t *testing.T) {
 		t.Fatalf("link: %q %v", target, err)
 	}
 	// The feature passed the guards first (largest first): the smaller sample is listed, not read, not rejected.
-	if len(plan.Rejected) != 0 || len(plan.Files) != 2 || plan.Files[1].Rel != "sample.mkv" || plan.Files[1].Probe != nil {
+	if len(plan.Rejected) != 0 || len(plan.Files) != 2 || plan.Files[1].Rel != "sample.mkv" || plan.Files[1].Probe != nil || !plan.Files[1].Unread {
 		t.Errorf("sample read or rejected: files %+v rejected %+v", plan.Files, plan.Rejected)
 	}
 	if got := e.one(`SELECT state FROM download WHERE id = 1`); got != "imported" {
