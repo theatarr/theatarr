@@ -141,6 +141,23 @@ func TestMatroska(t *testing.T) {
 	}
 }
 
+// A track's BCP-47 tag (LanguageIETF) wins over the legacy language element, whichever comes first.
+func TestMatroskaLanguageIETF(t *testing.T) {
+	for _, body := range [][]byte{
+		bytes.Join([][]byte{u(idTrackNumber, 2), str(idLanguage, "eng"), str(idLanguageIETF, "ja-JP")}, nil),
+		bytes.Join([][]byte{u(idTrackNumber, 2), str(idLanguageIETF, "ja-JP"), str(idLanguage, "eng")}, nil),
+		bytes.Join([][]byte{u(idTrackNumber, 2), str(idLanguageIETF, "ja-JP")}, nil),
+	} {
+		tr, err := parseTrack(body)
+		if err != nil || tr.language != "ja-JP" {
+			t.Errorf("language %q %v", tr.language, err)
+		}
+	}
+	if tr, _ := parseTrack(u(idTrackNumber, 2)); tr.language != "eng" {
+		t.Errorf("default language %q", tr.language)
+	}
+}
+
 func TestMatroskaNoFrames(t *testing.T) {
 	data := testMKV(false)
 	r, err := Reader(bytes.NewReader(data), int64(len(data)), 0)

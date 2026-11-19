@@ -28,6 +28,7 @@ const (
 	idCodecID         = 0x86
 	idCodecPrivate    = 0x63A2
 	idLanguage        = 0x22B59C
+	idLanguageIETF    = 0x22B59D
 	idFlagEnabled     = 0xB9
 	idVideo           = 0xE0
 	idPixelWidth      = 0xB0
@@ -194,6 +195,7 @@ var mkvPrimaries = map[uint64]string{1: "bt709", 9: "bt2020", 5: "bt470bg", 6: "
 
 func parseTrack(data []byte) (*mkvTrack, error) {
 	t := &mkvTrack{language: "eng", enabled: true}
+	var ietf string // the BCP-47 tag wins over the legacy element, in either order
 	err := children(data, func(id int64, d []byte) error {
 		switch id {
 		case idTrackNumber:
@@ -206,6 +208,8 @@ func parseTrack(data []byte) (*mkvTrack, error) {
 			t.private = d
 		case idLanguage:
 			t.language = strings.TrimRight(string(d), "\x00")
+		case idLanguageIETF:
+			ietf = strings.TrimRight(string(d), "\x00")
 		case idFlagEnabled:
 			t.enabled = uintOf(d) != 0
 		case idVideo:
@@ -285,6 +289,9 @@ func parseTrack(data []byte) (*mkvTrack, error) {
 		}
 		return nil
 	})
+	if ietf != "" {
+		t.language = ietf
+	}
 	return t, err
 }
 
