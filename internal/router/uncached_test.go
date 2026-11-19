@@ -589,6 +589,31 @@ func TestCachedOnlyErroredADMagnetNotReused(t *testing.T) {
 	}
 }
 
+// An uncached AllDebrid add kept earlier in the route takes AllDebrid out of the rest of the route; when every
+// provider then declines, the miss on every provider is not cached for AllDebrid over its uncached verdict, so with
+// cached_only off a later grab still goes to AllDebrid.
+func TestKeptADAddKeepsItsVerdictWhenEveryProviderMisses(t *testing.T) {
+	t.Parallel()
+	e, _, _ := newDebridEnv(t, true, true)
+	e.r.set.AllDebridDeleteUncached = false
+	e.ad["tb"].add = refuse(adder.CodeNotCached)
+	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
+	if err != nil || !strings.Contains(steps(res), "aaaa/ad/refused/uncached_kept") || res.Outcome == OutcomeAdded {
+		t.Fatalf("%+v %v: %s", res, err, steps(res))
+	}
+	if st, _ := e.r.cacheState(e.ctx, h("a"), "ad", e.clock, time.Time{}); st != "uncached" {
+		t.Fatalf("ad state %q, want uncached", st)
+	}
+	off := false
+	e.pol.Router.CachedOnly = &off
+	e.r.set.CachedOnly = false
+	e.clock = e.clock.Add(time.Minute)
+	res, err = e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
+	if err != nil || res.Outcome != OutcomeAdded || res.Provider != "ad" {
+		t.Fatalf("later grab: %+v %v: %s", res, err, steps(res))
+	}
+}
+
 // A hash the registry or our downloads place on the account is never deleted.
 func TestCachedOnlyNeverDeletesKnownHash(t *testing.T) {
 	t.Parallel()

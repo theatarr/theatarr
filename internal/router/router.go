@@ -837,10 +837,7 @@ func (r *Router) candidate(ctx context.Context, s *routeState, c *Candidate) (ve
 	usable, content := 0, 0
 	var earliest time.Time
 	earliestPK := ""
-	noMiss := maps.Clone(s.skipProvider) // the providers a miss on every provider is not cached for
-	if noMiss == nil {
-		noMiss = map[string]string{}
-	}
+	heldErr := map[string]string{} // providers that hold this release only as a failed copy (held_error)
 	for i := 0; i < len(order); i++ {
 		pk := order[i]
 		s.retry, s.waitRelease = "", false
@@ -854,7 +851,7 @@ func (r *Router) candidate(ctx context.Context, s *routeState, c *Candidate) (ve
 		st.Provider = pk
 		step(st)
 		if st.Code == codeHeldError {
-			noMiss[pk] = st.Message // the provider holds the hash, failed: that is no cache verdict
+			heldErr[pk] = st.Message // the provider holds the hash, failed: that is no cache verdict
 		}
 		if !s.dry && s.dlID != 0 {
 			if err := r.recordAttempt(ctx, s.dlID, st); err != nil {
@@ -933,9 +930,13 @@ func (r *Router) candidate(ctx context.Context, s *routeState, c *Candidate) (ve
 		return vContent, time.Time{}, nil
 	case content == usable:
 		// A miss on every provider (docs/design/router.md): cached as a miss for miss_ttl; the next candidate is tried.
+		// No miss is cached for a provider this route no longer tries (the live skip map: an AllDebrid add kept
+		// meanwhile keeps its uncached verdict) or one that holds only a failed copy.
 		msg := MissOnEveryProvider
 		step(Step{Outcome: "miss", Code: "miss", Message: msg})
 		if !s.dry {
+			noMiss := maps.Clone(heldErr)
+			maps.Copy(noMiss, s.skipProvider)
 			if err := r.recordMiss(ctx, hash, provs, noMiss, now, r.verdictTTL(ctx, s, now)); err != nil {
 				return 0, time.Time{}, err
 			}
