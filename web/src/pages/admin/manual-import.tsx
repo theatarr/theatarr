@@ -128,7 +128,8 @@ export function ManualImportPage() {
   return <div>
     <PageHeader title="Wanted" description="Manual import: review files from a download or mount folder, then link the chosen files into a library." />
     <WantedTabs active="manual-import" />
-    <div ref={errorRef} tabIndex={-1} role={problem ? "alert" : undefined}>{problem}</div>
+    <div ref={errorRef} tabIndex={-1} role={problem ? "alert" : undefined}
+      className={problem ? "mb-3 rounded-[5px] border border-l-[3px] border-[var(--line)] border-l-[var(--bad)] bg-[var(--bad-soft)] px-3 py-2.5 text-sm text-[var(--bad-ink)] [overflow-wrap:anywhere]" : undefined}>{problem}</div>
     <div role="status" aria-live="polite">{busy ? "Working…" : result}</div>
     <form onSubmit={list} className="my-4 flex flex-wrap items-end gap-3">
       <label>Library<Select required disabled={busy} className="block w-auto" value={version} onChange={(e) => { setVersion(e.target.value); clear(); }}><option value="">Choose a library</option>{(policy.data?.versions ?? []).map((v) => <option key={v.key} value={v.key}>{nameOf(v.key)}</option>)}</Select></label>

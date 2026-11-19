@@ -94,9 +94,15 @@ describe("manual import page", () => {
     await pick();
     fireEvent.change(screen.getByRole("textbox", { name: "Folder under the mount" }), { target: { value: "/mount/Alpha" } });
     await listFiles();
-    expect((await screen.findByRole("alert")).textContent).toBe("The folder cannot be read: permission denied");
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toBe("The folder cannot be read: permission denied");
+    // It looks like an error, not like instructions.
+    expect(alert.className).toContain("bg-[var(--bad-soft)]");
+    expect(alert.className).toContain("text-[var(--bad-ink)]");
     fireEvent.change(screen.getByRole("combobox", { name: "Library" }), { target: { value: "" } });
     expect(screen.queryByRole("alert")).toBeNull();
+    // Without an error nothing is drawn where it was.
+    expect(alert.className).toBe("");
   });
 
   it("leaves no candidates of an earlier listing when a later one fails", async () => {

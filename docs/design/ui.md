@@ -1537,7 +1537,7 @@ from them carries a header comment naming the source repo, path, commit and lice
 
 Wanted › Manual import (`/wanted/manual-import`, admins) lists files for a download hash or mount folder
 in a chosen version, shows decisions and rejections, and edits each file's title, episodes, quality/revision,
-languages and release group (the themed selects). A
+languages and release group (the themed selects). A failed listing or import shows its error in a red alert box above the form. A
 hash Theatarr has not seen is pointed at the title's Last search, where Add by magnet or hash is. An empty listing
 says why, told apart by the native GET (the arr API keeps its empty list): "No download with this hash in this
 library" (404, with that pointer), "Its files cannot be listed now: <the planner's wait, or its error without
