@@ -165,12 +165,14 @@ const liveLink = `EXISTS (SELECT 1 FROM link_version lv_l JOIN version v ON v.id
 // Per-title expressions over t (the title row).
 const (
 	nameExpr = `CASE WHEN t.sort_name = '' THEN lower(t.name) ELSE t.sort_name END`
-	// addedExpr and sizeExpr read the copies in the library (liveVersion, liveLink), as the rows show them.
+	// addedExpr and sizeExpr read the copies in the library (liveVersion, liveLink), as the rows show them. sizeExpr
+	// counts each file once, by its target, as the title page does (onDisk): a link filed into two libraries, or two
+	// links to one file, are one file. It is the row's size and its sort.
 	addedExpr = `NULLIF((SELECT MAX(l.created_at) FROM link l WHERE l.title_id = t.id AND l.state = 'active' AND ` +
 		liveLink + `), 0)`
-	sizeExpr = `NULLIF((SELECT SUM(COALESCE(` + linkSizeSQL + `, 0)) FROM link l
+	sizeExpr = `NULLIF((SELECT SUM(n) FROM (SELECT MAX(COALESCE(` + linkSizeSQL + `, 0)) AS n FROM link l
 		LEFT JOIN content_file cf ON cf.id = l.content_file_id WHERE l.title_id = t.id AND l.state = 'active' AND ` +
-		liveLink + `), 0)`
+		liveLink + ` GROUP BY l.target)), 0)`
 )
 
 // availStateSQL is version v's state as availability reads it (versionState.state). A series copy is decided by its
@@ -767,13 +769,26 @@ func (w *Web) fillVersionFiles(ctx context.Context, db *sql.DB, items []TitleRow
 	if err != nil {
 		return err
 	}
+	// The row's size is the sort's (sizeExpr: each file once); each library's own row keeps its size.
+	sizes := map[int64]int64{}
+	if len(tids) > 0 {
+		if err := scanAll(ctx, db, `SELECT t.id, COALESCE(`+sizeExpr+`, 0) FROM title t WHERE t.id IN (`+
+			store.Placeholders(len(tids))+`)`, tids, func(r *sql.Rows) error {
+			var id, n int64
+			if err := r.Scan(&id, &n); err != nil {
+				return err
+			}
+			sizes[id] = n
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
 	for i := range items {
 		it := &items[i]
-		var size, added int64
+		var added int64
+		size := sizes[it.ID]
 		for _, v := range it.Versions {
-			if v.SizeBytes != nil {
-				size += *v.SizeBytes
-			}
 			if v.AddedAt != nil {
 				added = max(added, v.AddedAt.UnixMilli())
 			}

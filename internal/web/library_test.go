@@ -166,6 +166,41 @@ func TestTitlesSortAndFilters(t *testing.T) {
 		t.Errorf("Delta version: %+v", v)
 	}
 
+	// A file shared by two libraries counts once in the row's size and its sort, as the title page counts it; each
+	// library's own row keeps its size. Beta is 2.5 GB, between Delta's 2 GB and 3 GB.
+	e.exec(`UPDATE link SET file_metadata = '{"Score":1500,"Size":2500000000}' WHERE id = 902`)
+	sizes := func(layout, order string, want map[string]int64) {
+		t.Helper()
+		var p TitlePage
+		if code := e.getKey(APIBase+"/titles?kind=&sort=size&q=a", key, &p); code != 200 {
+			t.Fatalf("%s: %d", layout, code)
+		}
+		if got := names(p); got != order {
+			t.Errorf("%s: size order %q, want %q", layout, got, order)
+		}
+		for _, it := range p.Items {
+			if n, ok := want[it.Name]; ok && (it.SizeBytes == nil || *it.SizeBytes != n) {
+				t.Errorf("%s: %s size %v, want %d", layout, it.Name, it.SizeBytes, n)
+			}
+		}
+	}
+	// One link filed into both of Alpha's libraries: 50 GB, not 100; each library's row says 50 GB.
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (901, 2)`)
+	sizes("one link, two libraries", "Alpha,Beta,Delta,Gamma", map[string]int64{"Alpha": 50000000000, "Delta": 2000000000})
+	e.getKey(APIBase+"/titles?q=Alpha", key, &p)
+	for _, v := range p.Items[0].Versions {
+		if v.SizeBytes == nil || *v.SizeBytes != 50000000000 {
+			t.Errorf("Alpha's %s row size %v", v.Key, v.SizeBytes)
+		}
+	}
+	// Two links of Delta to the same file: 2 GB, below Beta (the sort counts it once too).
+	e.exec(`INSERT INTO link (id, path, target, title_id, quality, file_metadata, adopted, created_at, updated_at) VALUES
+		(93, '/anime/Delta/S01E01 copy.mkv', '/zurg/Delta/S01E01.mkv', 4, 'Bluray-1080p', '{"Size":1000000000}', 1, 0, 0)`)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (93, 4)`)
+	sizes("two links, one file", "Alpha,Beta,Delta,Gamma", map[string]int64{"Delta": 2000000000})
+	// A distinct file counts: Delta is 3 GB, above Beta.
+	e.exec(`UPDATE link SET target = '/zurg/Delta/S01E01.extra.mkv' WHERE id = 93`)
+	sizes("distinct file", "Alpha,Delta,Beta,Gamma", map[string]int64{"Delta": 3000000000})
 }
 
 // Series status: the title metadata's (TMDb) status, else the series metadata's (TVDB); series only.

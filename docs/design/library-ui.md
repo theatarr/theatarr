@@ -12,7 +12,9 @@ catalog,title}.tsx`, `web/src/components/{library,title}/`.
   certification, runtime, release date, `released` (the general release day: a movie's earliest cinema date or TMDb's
   date, whichever is earlier; a series' first air date; what `sort=release` orders by), `availability` (the poster badge), `added_at` (newest current file),
   `title_added_at`, `status`, `original_language`, a movie's `in_cinemas`, `digital_release` and `physical_release`,
-  a series' `series_type`, `season_count` and `previous_airing`, and `size_bytes`; each version carries `label` ("4K
+  a series' `series_type`, `season_count` and `previous_airing`, and `size_bytes` (each file once, by its target, as
+  the title page counts it: a link filed into two libraries, or two links to one file, count once; `sort=size` reads
+  the same value, `TestTitlesSortAndFilters`); each version carries `label` ("4K
   WEB"), `quality`, `files`, `added_at`, `size_bytes`, `providers` (cache codes of the providers that hold a current
   file complete now), and, see files only, `profile`, `minimum_availability` (movies) and `folder`. A copy removed
   from the library is in no row, filter, sort or facet. A current file is the owning instance's, or any file when no instance
