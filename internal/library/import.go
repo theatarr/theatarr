@@ -553,9 +553,15 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 	// Only the download's own files count (decypharr's file list): another torrent's file in a shared folder goes
 	// the usual way below and never enters the plan.
 	movieAuto := v.Title.Kind == "movie" && len(d.Manual) == 0
-	own := func(f MountFile) bool { return listed == nil || listed.has(filepath.Base(f.Rel), f.Size) }
-	largest := slices.IndexFunc(files, own)
-	plain := movieAuto && slices.ContainsFunc(files, func(f MountFile) bool { return own(f) && !isExtraFile(f.Rel) })
+	own := make([]bool, len(files)) // the download's own files, checked once
+	largest, plain := -1, false
+	for i, f := range files {
+		own[i] = listed == nil || listed.has(filepath.Base(f.Rel), f.Size)
+		if own[i] && largest < 0 {
+			largest = i
+		}
+		plain = plain || movieAuto && own[i] && !isExtraFile(f.Rel)
+	}
 	featured := false
 	for i, f := range files {
 		// Probing a large pack can outlast the claim: it is renewed as the files are read.
@@ -565,7 +571,7 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 			}
 		}
 		pf := PlannedFile{Path: f.Path, Rel: f.Rel, Size: f.Size}
-		if movieAuto && own(f) && (featured || (plain && i != largest && isExtraFile(f.Rel))) {
+		if movieAuto && own[i] && (featured || (plain && i != largest && isExtraFile(f.Rel))) {
 			pf.Unread = true // listed (manual import shows it), neither read nor a candidate
 			plan.Files = append(plan.Files, pf)
 			continue
@@ -585,7 +591,7 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 				}
 			}
 		}
-		if listed != nil && !listed.has(filepath.Base(f.Rel), f.Size) {
+		if !own[i] {
 			// Another torrent's file in the shared folder: skipped and not read. It is no verdict on the release,
 			// so it is not among the rejected files the guard's outcome is read from.
 			unlisted = append(unlisted, f.Rel)
