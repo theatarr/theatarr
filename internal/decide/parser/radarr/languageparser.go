@@ -5,6 +5,8 @@ package radarr
 import (
 	"strconv"
 	"strings"
+
+	"github.com/dlclark/regexp2"
 )
 
 var (
@@ -28,7 +30,7 @@ var (
                                                                             (?<latvian>\b(?:lat|lav|lv)\b)|
                                                                             (?<telugu>\btel\b)|
                                                                             (?<vietnamese>\bVIE\b)|
-                                                                            (?<japanese>\bJAP\b)|
+                                                                            (?<japanese>\(JA\)|\b(?:JAP|JPN)\b)|
                                                                             (?<korean>\bKOR\b)|
                                                                             (?<urdu>\burdu\b)|
                                                                             (?<romansh>\b(?:romansh|rumantsch|romansch)\b)|
@@ -43,7 +45,14 @@ var (
                                                                                                           (?<bulgarian>\bBG\b)|
                                                                                                           (?<slovak>\bSK\b)|
                                                                                                           (?<german>\bDE\b)|
-                                                                                                          (?<spanish>\b(?<!DTS[._ -])ES\b))(?:(?i)(?![\W|_|^]SUB))`, optX)
+                                                                                                          (?<spanish>\b(?<!DTS[._ -])ES\b)|
+                                                                                                          (?<japanese>\bJA\b))(?:(?i)(?![\W|_|^]SUB))`, optX)
+
+	// subsAfterRegex is what follows a subtitle language (Sonarr v5's [-_. ]subs? look-ahead); subtitleListRegex marks
+	// a list of subtitle languages after it (Erai-raws' `[Multiple Subtitle] [ENG][POR-BR]...`). Ours, as the series
+	// parser reads them (subtitleMatches).
+	subsAfterRegex    = re(`^[-_. ]subs?`, optI)
+	subtitleListRegex = re(`\bMultiple[-_. ]Subtitles?\b`, optI)
 
 	germanDualLanguageRegex  = re(`(?<!WEB[-_. ]?)\bDL\b`, optI)
 	germanMultiLanguageRegex = re(`\bML\b`, optI)
@@ -115,6 +124,7 @@ var caseSensitiveGroups = []groupLanguage{
 	{"slovak", LanguageSlovak},
 	{"spanish", LanguageSpanish},
 	{"german", LanguageGerman},
+	{"japanese", LanguageJapanese},
 }
 
 // Group checks per case-insensitive match, in Radarr's order. "dutch" has no group in the
@@ -174,7 +184,12 @@ func ParseLanguages(title string) []Language {
 	}
 
 	// Case-insensitive
-	for _, m := range matches(languageRegex, title) {
+	ms := matches(languageRegex, title)
+	subs := subtitleMatches(title, ms)
+	for i, m := range ms {
+		if subs[i] {
+			continue // a subtitle language (ours)
+		}
 		for _, g := range caseInsensitiveGroups {
 			if ok(m, g.group) {
 				languages = append(languages, g.lang)
@@ -195,6 +210,30 @@ func ParseLanguages(title string) []Language {
 	}
 
 	return distinctLanguages(languages)
+}
+
+// subtitleMatches marks the language matches that are subtitles, not audio (ours): a language directly followed by
+// "sub"/"subs" (`ENG.SUBS`, `[Eng-Subs]`), as Sonarr v5 reads it, and every language after a "Multiple Subtitle"
+// marker. Unlike the series parser, a language in a list before SUBS is a subtitle too when it is the last one
+// (`JPN.ENG.SUBS` is Japanese audio with English subtitles).
+func subtitleMatches(title string, ms []*regexp2.Match) []bool {
+	runes := []rune(title)
+	listFrom := len(runes) + 1
+	if m := match(subtitleListRegex, title); m != nil {
+		listFrom = m.Index + m.Length
+	}
+	subs := make([]bool, len(ms))
+	for i, m := range ms {
+		s, e := m.Index, m.Index+m.Length
+		for s < e && strings.ContainsRune("-_. ", runes[s]) {
+			s++
+		}
+		for e > s && strings.ContainsRune("-_. ", runes[e-1]) {
+			e--
+		}
+		subs[i] = s >= listFrom || isMatch(subsAfterRegex, string(runes[e:]))
+	}
+	return subs
 }
 
 func distinctLanguages(in []Language) []Language {
