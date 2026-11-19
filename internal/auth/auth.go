@@ -407,6 +407,42 @@ const maxVerifying = 2
 // busyRetry is the Retry-After of a login refused because maxVerifying checks are running.
 const busyRetry = time.Second
 
+// loginUser finds the account a sign-in names: the exact user name first, else the one account whose name matches
+// it ignoring case (Unicode folding, done here: SQLite's lower() is ASCII only). sql.ErrNoRows when none, or when
+// several match only that way.
+func (s *Service) loginUser(ctx context.Context, username string) (id int64, hash, status string, err error) {
+	db := s.st.Reader()
+	err = db.QueryRowContext(ctx, `SELECT id, password_hash, status FROM web_user WHERE username = ?`, username).
+		Scan(&id, &hash, &status)
+	if !errors.Is(err, sql.ErrNoRows) {
+		return id, hash, status, err
+	}
+	rows, err := db.QueryContext(ctx, `SELECT id, username, password_hash, status FROM web_user`)
+	if err != nil {
+		return 0, "", "", err
+	}
+	defer rows.Close()
+	n := 0
+	for rows.Next() {
+		var i int64
+		var name, h, st string
+		if err := rows.Scan(&i, &name, &h, &st); err != nil {
+			return 0, "", "", err
+		}
+		if strings.EqualFold(name, username) {
+			n++
+			id, hash, status = i, h, st
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, "", "", err
+	}
+	if n != 1 {
+		return 0, "", "", sql.ErrNoRows
+	}
+	return id, hash, status, nil
+}
+
 // Login checks a username and password from addr and, on success, creates a session and returns its token (the
 // cookie value). Failures return ErrInvalid, or *Throttled while locked or while maxVerifying checks are running.
 // Known and unknown names take the same steps: a slot, the attempt counted (Throttle.Reserve), one hash.
@@ -423,10 +459,7 @@ func (s *Service) Login(ctx context.Context, username, password, addr, userAgent
 	if until, ok := s.thr.Reserve(now, keys...); !ok {
 		return "", &Throttled{Until: until}
 	}
-	var userID int64
-	var hash, status string
-	err := s.st.Reader().QueryRowContext(ctx, `SELECT id, password_hash, status FROM web_user WHERE username = ?`,
-		username).Scan(&userID, &hash, &status)
+	userID, hash, status, err := s.loginUser(ctx, username)
 	known := err == nil
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return "", err

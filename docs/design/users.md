@@ -11,6 +11,8 @@ grants nothing), `status` (`active`, `pending`, `disabled`; `invited` for an inv
 (`PATCH users/{id}` with `discord_id`, Admin › Users); request-ready Discord messages mention it.
 
 - **Local accounts** have a password. The `admin` account stays the break-glass login (`/login`, "Local account").
+  The user name is matched exactly first, else ignoring case when exactly one account matches that way (Unicode
+  folding); a name two accounts share that way signs in neither (`TestLoginAndSessionExpiry`).
 - **Plex accounts** have no password; `auth.Login` refuses them. Only active accounts sign in; disabling or setting an
   account to pending ends its sessions, and its API keys stop working at once (the key check joins `web_user`).
 - The last active admin cannot be demoted or disabled.

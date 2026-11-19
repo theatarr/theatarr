@@ -276,6 +276,31 @@ func TestLoginAndSessionExpiry(t *testing.T) {
 	if id, _ := s.Authenticate(req(tok3)); id != nil {
 		t.Error("session valid after logout")
 	}
+
+	// The user name's case does not matter when one account matches; an exact match wins over a folded one, and a
+	// folded match shared by two accounts signs in neither.
+	tok4, err := s.Login(ctx, "ADMIN", pw, "10.1.2.4", "")
+	if err != nil {
+		t.Fatalf("mixed-case login: %v", err)
+	}
+	if id, _ := s.Authenticate(req(tok4)); id == nil || id.Username != "admin" {
+		t.Errorf("mixed-case login signed in as %+v", id)
+	}
+	if _, err := st.Writer().Exec(`INSERT INTO web_user (username, password_hash, created_at, updated_at,
+		password_changed_at, role) SELECT n, password_hash, 0, 0, 0, 'user' FROM web_user, (SELECT 'Bob' AS n UNION ALL
+		SELECT 'BOB') WHERE username = 'admin'`); err != nil {
+		t.Fatal(err)
+	}
+	tok5, err := s.Login(ctx, "Bob", pw, "10.1.2.5", "")
+	if err != nil {
+		t.Fatalf("exact match among folded ones: %v", err)
+	}
+	if id, _ := s.Authenticate(req(tok5)); id == nil || id.Username != "Bob" {
+		t.Errorf("exact match signed in as %+v", id)
+	}
+	if _, err := s.Login(ctx, "bob", pw, "10.1.2.6", ""); !errors.Is(err, ErrInvalid) {
+		t.Errorf("ambiguous folded name: %v", err)
+	}
 }
 
 func TestLoginThrottle(t *testing.T) {
