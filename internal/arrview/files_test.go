@@ -178,7 +178,7 @@ func TestManualImportAndImportAPI(t *testing.T) {
 	var unread []manualImportResource
 	e.call("GET", "/radarr/api/v3/manualimport?downloadId="+strings.Repeat("A", 40), nil, 200, &unread)
 	if len(unread) != 2 || len(unread[1].Rejections) != 1 ||
-		unread[1].Rejections[0].Reason != "Not checked: the import took a larger file" {
+		unread[1].Rejections[0].Reason != "Not checked by automatic import" {
 		t.Errorf("unread film file %+v", unread)
 	}
 	// The ManualImport command imports the chosen file of our download (through the library) at its path, and

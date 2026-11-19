@@ -289,8 +289,8 @@ mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
    (`TestImportMovieOtherCutUnreadKeepsSceneName`). A
    series extra is a candidate only when every episode it maps to is a special (`TestImportMixedPackSpecialsDailyScene`
    keeps its Extras special); mapped to a regular episode it stays unmatched, in `rescope` too. Discovery lists every
-   file, so a client's explicit files, Manual import's list (an unread film file says "Not checked: the import took a
-   larger file"; the plan file's `unread`) and relink still see them all (`TestImportMovieSkipsExtras`,
+   file, so a client's explicit files, Manual import's list (an unread film file says "Not checked by automatic import";
+   the plan file's `unread`) and relink still see them all (`TestImportMovieSkipsExtras`,
    `TestImportSeriesExtraTakesOnlySpecials`).
 
    **Mislabel guard** (`internal/library/mislabel.go`, `sample.mislabel`, default true). Remux ranks over Bluray, so a

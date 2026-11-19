@@ -529,8 +529,9 @@ func (s *Service) manualFromDownload(ctx context.Context, r *request, hash strin
 		if why, ok := rejected[f.Path]; ok {
 			m.Rejections = append(m.Rejections, importRejection{Reason: why, Type: "permanent"})
 		} else if _, ok := linked[f.Rel]; !ok && f.Unread {
-			// A film's file the automatic import did not read: an extra, or smaller than the feature it took.
-			m.Rejections = append(m.Rejections, importRejection{Reason: "Not checked: the import took a larger file",
+			// A film's file the automatic import did not read: an extra, or smaller than the first file that passed
+			// the guards (which may still not have linked: not an upgrade).
+			m.Rejections = append(m.Rejections, importRejection{Reason: "Not checked by automatic import",
 				Type: "permanent"})
 		} else if !ok {
 			m.Rejections = append(m.Rejections, importRejection{Reason: "Not matched to an episode of the download",
