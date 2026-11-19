@@ -1182,6 +1182,17 @@ func TestMissingRowHomeRelease(t *testing.T) {
 		(40, 'tmdb', 'US', 'digital', '2026-09-01'),
 		(41, 'radarr_4k_debrid', '', 'digital', '2026-09-01'), (41, 'tmdb-art', '', 'digital', '2026-12-01'),
 		(42, 'tmdb', '', 'digital', '2026-09-15')`)
+	// Rerun (Z4.2): first in cinemas abroad in 1988, back in US cinemas on Oct 1: out at home for availability, so
+	// in the row, dated and ordered by its canonical home release as before.
+	e.exec(`INSERT INTO title (id, kind, name, year, tmdb_id, monitored, created_at, updated_at) VALUES
+		(44, 'movie', 'Rerun', 1988, 544, 1, ?, ?)`, now, now)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
+		(44, 44, 'movie-web', 1, 'wanted', ?, ?)`, now, now)
+	e.exec(`INSERT INTO title_meta (title_id, release_date, movie_dates_at, attempted_at, refresh_after) VALUES
+		(44, '2026-10-01', 1, 1, 1)`)
+	e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES
+		(44, 'tmdb-art', '', 'theatrical', '2026-10-01'), (44, 'tmdb', 'US', 'theatrical', '2026-10-01'),
+		(44, 'tmdb', 'FR', 'theatrical', '1988-05-11')`)
 	var r DiscoverRow
 	if code := e.getKey(APIBase+"/discover/missing", e.apiKey(), &r); code != 200 {
 		t.Fatalf("discover/missing: %d", code)
@@ -1196,6 +1207,9 @@ func TestMissingRowHomeRelease(t *testing.T) {
 	}
 	if got["Out"] != "2026-09-15" || got["Undated"] != "2026-08-30" || got["US only"] != "2026-09-01" {
 		t.Errorf("missing row %v: Out on its digital date, Undated on TMDb's date plus 90 days, US only on its US date", got)
+	}
+	if got["Rerun"] != "2026-12-30" {
+		t.Errorf("Rerun in the missing row on %q, want its canonical home release 2026-12-30", got["Rerun"])
 	}
 	if _, ok := got["Refreshed"]; ok {
 		t.Errorf("Refreshed is not out at home yet but in the missing row %v", got)

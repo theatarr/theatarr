@@ -192,3 +192,32 @@ func TestStoredCountryCinema(t *testing.T) {
 		t.Fatalf("DatesFor %v %v, Dates %v", many, err, dates)
 	}
 }
+
+// TestListedHomeRelease (Z4.2): shown and ordered dates keep the canonical cinema date; a movie out by its first cinema
+// run while its shown home release is to come lists a past day, so it reads Missing.
+func TestListedHomeRelease(t *testing.T) {
+	now := time.Date(2026, 10, 27, 0, 0, 0, 0, time.UTC)
+	day := func(n int) time.Time { return now.AddDate(0, 0, n) }
+	for _, tc := range []struct {
+		name        string
+		dates       map[string]time.Time
+		shown, list time.Time
+	}{
+		{"canonical only", map[string]time.Time{"theatrical": day(-10)}, day(80), day(80)},
+		{"out by the first run", map[string]time.Time{"theatrical": day(-10), FirstCinema: day(-100)}, day(80), day(-10)},
+		{"both to come", map[string]time.Time{"theatrical": day(10), FirstCinema: day(-20)}, day(100), day(100)},
+		{"both out", map[string]time.Time{"theatrical": day(-200), FirstCinema: day(-300)}, day(-110), day(-110)},
+		{"home date known", map[string]time.Time{"theatrical": day(-10), FirstCinema: day(-100), "digital": day(5)}, day(5), day(5)},
+	} {
+		if got := ShownHomeRelease(tc.dates); !got.Equal(tc.shown) {
+			t.Errorf("%s: shown %v, want %v", tc.name, got, tc.shown)
+		}
+		got := ListedHomeRelease(tc.dates, now)
+		if !got.Equal(tc.list) {
+			t.Errorf("%s: listed %v, want %v", tc.name, got, tc.list)
+		}
+		if Available("released", tc.dates, now, 0) != !now.Before(got) {
+			t.Errorf("%s: listed %v disagrees with Available", tc.name, got)
+		}
+	}
+}

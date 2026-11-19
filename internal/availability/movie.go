@@ -50,12 +50,34 @@ func Cinema(dates map[string]time.Time) time.Time {
 // HomeRelease is the day a movie is out at home, the date Available's "released" minimum compares against: the
 // earlier of the digital and physical dates, else the cinema date (Cinema) plus 90 days; zero without any of them.
 func HomeRelease(dates map[string]time.Time) time.Time {
+	return homeFrom(dates, Cinema(dates))
+}
+
+// ShownHomeRelease is the home release a date is shown, estimated or ordered by: HomeRelease from the canonical cinema
+// date, as before the first cinema date counted, so no shown date or order moves.
+func ShownHomeRelease(dates map[string]time.Time) time.Time {
+	return homeFrom(dates, dates["theatrical"])
+}
+
+// ListedHomeRelease is a list row's and the title page's home_release, which both shows a date to come and decides
+// Upcoming against Missing (web/src/lib/library.ts upcomingRelease): ShownHomeRelease, except that a movie already out
+// at home by HomeRelease while its shown home release is still to come gets HomeRelease, a day already past, so it
+// reads Missing as it is searched, and no date is shown.
+func ListedHomeRelease(dates map[string]time.Time, now time.Time) time.Time {
+	out, shown := HomeRelease(dates), ShownHomeRelease(dates)
+	if !out.IsZero() && !now.Before(out) && (shown.IsZero() || now.Before(shown)) {
+		return out
+	}
+	return shown
+}
+
+func homeFrom(dates map[string]time.Time, cinema time.Time) time.Time {
 	date := dates["digital"]
 	if p := dates["physical"]; !p.IsZero() && (date.IsZero() || p.Before(date)) {
 		date = p
 	}
-	if c := Cinema(dates); date.IsZero() && !c.IsZero() {
-		date = c.AddDate(0, 0, 90)
+	if date.IsZero() && !cinema.IsZero() {
+		date = cinema.AddDate(0, 0, 90)
 	}
 	return date
 }

@@ -356,7 +356,7 @@ func (w *Web) fillNext(ctx context.Context, db *sql.DB, items []TitleRow, tids, 
 			if len(fr) == 0 && it.ReleaseDate >= today {
 				it.Next = &NextUp{Date: it.ReleaseDate}
 			}
-			it.HomeRelease = day(availability.HomeRelease(avail[it.ID]))
+			it.HomeRelease = day(availability.ListedHomeRelease(avail[it.ID], w.now()))
 			it.InCinemas, it.DigitalRelease, it.PhysicalRelease = fr["theatrical"], fr["digital"], fr["physical"]
 			for j := range it.Versions {
 				it.Versions[j].MinimumAvailability = rules[it.Versions[j].ID].Minimum

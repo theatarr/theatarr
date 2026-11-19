@@ -510,6 +510,9 @@ func TestWantedEstimatedHomeRelease(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, &policy.Wanted{PerHour: 100, Missing: new(false), CutoffUnmet: policy.CutoffOff})
 	e.exec(`UPDATE title_release_date SET type = 'theatrical', date = '1986-12-25' WHERE title_id = 2`)
+	// Z4.2: a first cinema run abroad moves availability, never the date Wanted shows.
+	e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES
+		(2, 'tmdb-art', '', 'theatrical_limited', '1980-01-01'), (2, 'tmdb', 'FR', 'theatrical', '1979-06-01')`)
 	l, err := e.a.WantedList(e.ctx, WantedQuery{Only: OnlyMissing})
 	if err != nil {
 		t.Fatal(err)

@@ -305,10 +305,13 @@ existing redaction applies). Household accounts get none of it.
   refreshed), the country named once under the table; a refreshed title's cinema date taken from the first release
   anywhere is marked "first release, not US".
   Display only: what may be fetched reads `availability.Dates` (the `tmdb-art` schedule, `tmdb.ReleaseSchedule`, plus
-  availability's first cinema date anywhere when earlier: router.md "Triggers") and `home_release` (above, from the
-  same dates: a 1988 film back in US cinemas this year is out at home, not Upcoming); the arr-compatible API's dates
-  are the canonical ones, its `isAvailable` and status follow availability. The general release day leaves
-  availability's first cinema date out, so no shown date changes.
+  availability's first cinema date anywhere when earlier: router.md "Triggers"). Every shown date, estimate and date
+  order keeps the canonical cinema date (`availability.ShownHomeRelease`: `home_release`, Wanted's date and estimate,
+  Home's Missing order), while availability decides the class: a movie out at home by its first cinema run whose shown
+  home release is still to come lists `home_release` as that past day (`availability.ListedHomeRelease`), so it reads
+  Missing, not Upcoming, as it is searched; Home's Missing row takes it by availability and dates it by the shown home
+  release. The arr-compatible API's dates are the canonical ones, its `isAvailable` and status follow availability.
+  The general release day leaves availability's first cinema date out.
 - **Added and Latest file**: **Added** is the day the title was added to Theatarr (lists' Added column and sort,
   poster detail); **Latest file** is when the newest current file came (lists' Latest file column and sort, Home's
   **Latest files** row with "File added …", About's Latest file). The **Quality** sort orders by the quality each

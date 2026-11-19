@@ -99,7 +99,7 @@ type TitleRow struct {
 	Versions  []VersionBrief `json:"versions"`
 	// Next is the next episode to air (series) or the coming release (movies), when there is one (copies.go).
 	Next *NextUp `json:"next_up,omitempty"`
-	// HomeRelease is a movie's home release day (availability.HomeRelease over its canonical dates), YYYY-MM-DD.
+	// HomeRelease is a movie's home release day (availability.ListedHomeRelease over its dates), YYYY-MM-DD.
 	HomeRelease string `json:"home_release,omitempty"`
 	// Acquiring: some copy has a download in hand that is not blocked and is not an upgrade (copies.go). Every caller
 	// gets it; it carries no provider, file or stage detail.
