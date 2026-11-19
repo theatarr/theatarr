@@ -110,6 +110,8 @@ func TestFailureWords(t *testing.T) {
 			"Not cached on RD, AD and TB", ""},
 		{"miss, one known", failureFacts{Err: "miss on every provider", MissedOn: []string{"rd"}}, "Not cached on RD", ""},
 		{"miss, none known", failureFacts{Err: "miss on every provider"}, noProviderWords, ""},
+		{"failed copy", failureFacts{Err: "a failed copy is on the account (ad, rd); an admin can delete it under Torrents"},
+			"A failed copy is on AD and RD", "An admin can delete it under Torrents."},
 		{"stalled, deleted", failureFacts{Err: "stalled: not ready 10m0s after the add (provider status magnet_conversion); " +
 			"our add was deleted on rd", Provider: "rd"}, stalledWords, "Deleted from RD."},
 		{"stalled, kept", failureFacts{Err: "stalled: no progress for 2h0m0s while downloading (provider status downloading, " +

@@ -258,6 +258,7 @@ file refusals the import's plan saved, the providers the download's own attempts
 | no file matched | Not imported: none of its files matched the wanted episodes | |
 | the old wrapper with no rejection recorded | Not imported: no file passed the library's checks | |
 | miss on every provider | Not cached on RD, AD and TB (only the providers the attempts establish), else No provider accepted this release | |
+| a failed copy is on the account (rd, ad); … | A failed copy is on RD and AD | An admin can delete it under Torrents. |
 | stalled | Download stalled | Deleted from RD. / Kept on RD. |
 | ready timeout | Finished at the provider, but its files could not be imported within 6 hours | |
 | provider status | RD reported an error | Its status: magnet_error. |

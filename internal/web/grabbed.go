@@ -252,6 +252,21 @@ func failureSentences(f failureFacts, tag func(string) string) (headline, detail
 			return "Not cached on " + providerList(f.MissedOn), ""
 		}
 		return noProviderWords, ""
+	case strings.HasPrefix(s, router.FailedCopyOnAccount):
+		// "a failed copy is on the account (rd, ad); …": the providers by their tags.
+		_, keys, _ := strings.Cut(s, "(")
+		keys, _, _ = strings.Cut(keys, ")")
+		var tags []string
+		for _, k := range strings.Split(keys, ",") {
+			if k = strings.TrimSpace(k); k != "" {
+				tags = append(tags, tag(k))
+			}
+		}
+		where := "the account"
+		if len(tags) > 0 {
+			where = providerList(tags)
+		}
+		return "A failed copy is on " + where, "An admin can delete it under Torrents."
 	case strings.HasPrefix(s, "stalled"):
 		if _, pk, ok := strings.Cut(s, "; our add was deleted on "); ok {
 			return stalledWords, "Deleted from " + tag(strings.TrimSpace(pk)) + "."
