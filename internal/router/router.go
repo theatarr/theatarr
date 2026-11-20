@@ -791,14 +791,22 @@ func (r *Router) candidate(ctx context.Context, s *routeState, c *Candidate) (ve
 			}
 		} else if s.req.DownloadID == 0 && s.req.ManualSince.IsZero() {
 			// A grab by hand always opens its download: each provider's own guards answer, as attempts.
-			if known, why, err := r.knownMiss(ctx, s, c, hash); err != nil {
+			if known, why, failed, err := r.knownMiss(ctx, s, c, hash); err != nil {
 				return 0, time.Time{}, err
 			} else if known {
 				msg := "every provider missed it within miss_ttl, or has it uncached with cached_only on"
+				code := "known_miss"
+				if len(failed) > 0 {
+					// The library's last download of it ended on a failed copy within miss_ttl: RSS would open a new
+					// failed download at every sync while the entry stays on the account.
+					msg = FailedCopyOnAccount + " (" + strings.Join(failed, ", ") + ") within miss_ttl, and no other " +
+						"provider can take it; an admin can delete it under Torrents"
+					code = codeHeldError
+				}
 				if why != "" {
 					msg += "; " + why
 				}
-				step(Step{Outcome: "skipped", Code: "known_miss", Message: msg})
+				step(Step{Outcome: "skipped", Code: code, Message: msg})
 				return vContent, time.Time{}, nil
 			}
 		}
@@ -976,11 +984,16 @@ func (r *Router) candidate(ctx context.Context, s *routeState, c *Candidate) (ve
 }
 
 // knownMiss reports whether provider() would skip the release on every provider the route could use as content
-// (a live miss, known uncached with cached_only, Real-Debrid's name rule), with at least one such provider. It reads
-// the cache only; nothing is written.
-func (r *Router) knownMiss(ctx context.Context, s *routeState, c *Candidate, hash string) (bool, string, error) {
+// (a live miss, known uncached with cached_only, Real-Debrid's name rule, or a failed copy on the account that ended
+// this library's last download of the hash within miss_ttl: failedCopy), with at least one such provider. failed
+// lists the providers skipped for that failed copy. It reads the cache and the downloads only; nothing is written.
+func (r *Router) knownMiss(ctx context.Context, s *routeState, c *Candidate, hash string) (bool, string, []string, error) {
 	now, usable := r.now(), 0
-	var whys []string
+	var whys, failed []string
+	held, err := r.failedCopy(ctx, s.req, hash, now)
+	if err != nil {
+		return false, "", nil, err
+	}
 	for _, pk := range r.pol.ReleaseProviders(s.vp, c.Release.Indexer) {
 		pv := r.pol.Providers[pk]
 		if pv == nil || r.adders[pk] == nil || s.skipProvider[pk] != "" {
@@ -990,19 +1003,52 @@ func (r *Router) knownMiss(ctx context.Context, s *routeState, c *Candidate, has
 		if pv.Kind == provider.KindRealDebrid && indexer.RealDebridRefusesRelease(&c.Release) {
 			continue
 		}
+		if held[pk] {
+			failed = append(failed, pk)
+			continue
+		}
 		if why, err := r.titleRefused(ctx, pk, s.req.TitleID, now); err != nil {
-			return false, "", err
+			return false, "", nil, err
 		} else if why != "" {
 			whys = append(whys, why)
 			continue
 		}
 		if state, err := r.cacheState(ctx, hash, pk, now, s.req.ManualSince); err != nil {
-			return false, "", err
+			return false, "", nil, err
 		} else if state != "miss" && (state != "uncached" || !r.set.CachedOnly) {
-			return false, "", nil
+			return false, "", nil, nil
 		}
 	}
-	return usable > 0, strings.Join(whys, "; "), nil
+	return usable > 0, strings.Join(whys, "; "), failed, nil
+}
+
+// failedCopy gives the providers that held hash only as a failed copy (held_error attempts) on this library's newest
+// download of it, when that download ended on the failed copy (FailedCopyOnAccount) less than miss_ttl ago; nil
+// otherwise. That end caches no miss and blocklists nothing, so without this an automatic route would open a new
+// failed download at every try while the entry stays on the account.
+func (r *Router) failedCopy(ctx context.Context, req Request, hash string, now time.Time) (map[string]bool, error) {
+	var out map[string]bool
+	rows, err := r.st.Writer().QueryContext(ctx, `SELECT a.provider FROM download_attempt a
+		WHERE a.code = ? AND a.download_id = (SELECT d.id FROM download d WHERE d.title_id = ? AND d.version_key = ?
+			AND d.info_hash = ? AND d.state = 'failed' AND d.error GLOB ? AND d.updated_at > ?
+			AND d.id = (SELECT MAX(x.id) FROM download x WHERE x.title_id = d.title_id AND x.version_key = d.version_key
+				AND x.info_hash = d.info_hash))`, codeHeldError, req.TitleID, req.Version, hash,
+		FailedCopyOnAccount+"*", store.Millis(now.Add(-r.set.MissTTL)))
+	if err != nil {
+		return nil, fmt.Errorf("router: failed copy: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var pk string
+		if err := rows.Scan(&pk); err != nil {
+			return nil, fmt.Errorf("router: failed copy: %w", err)
+		}
+		if out == nil {
+			out = map[string]bool{}
+		}
+		out[pk] = true
+	}
+	return out, rows.Err()
 }
 
 // MissOnEveryProvider is a download's error when every usable provider missed its release: the hash is then a

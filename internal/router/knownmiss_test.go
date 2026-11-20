@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/provider/adder"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -221,5 +222,72 @@ func TestScreenManualResumesStranded(t *testing.T) {
 		JobRoute, routeJobKey(5))
 	if u := screen(); u == nil || u.Code != "in_flight" || u.Release != "Movie.HELD" {
 		t.Errorf("queued row with its route job: %+v", u)
+	}
+}
+
+// A release whose only usable provider holds it as a failed copy (held_error) opens one failed download; automatic
+// routes of it within miss_ttl (RSS routes it every sync) open no new one, step held_error, and nothing is blocklisted
+// or cached as a miss. A grab by hand still opens its own download and asks the provider. After miss_ttl an automatic
+// route tries again.
+func TestFailedCopyOpensNoDownloadAutomatically(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.pol.Versions["movie"].Providers = []string{"rd"}
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('rd', 'HELD', ?)`, h("a"))
+	e.pr["rd"].set("HELD", provider.Torrent{Hash: h("a"), Status: "magnet_error", State: provider.StateError})
+	c := cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")
+	rows := func() int { return e.count(`SELECT COUNT(*) FROM download WHERE info_hash = ?`, h("a")) }
+	res, err := e.r.Route(e.ctx, movieReq(c))
+	if err != nil || res.DownloadID == 0 || !hasStep(res, "held_error") || rows() != 1 {
+		t.Fatalf("first route: %+v %v: %s", res, err, steps(res))
+	}
+	e.clock = e.clock.Add(15 * time.Minute)
+	if res, err = e.r.Route(e.ctx, movieReq(c)); err != nil || res.DownloadID != 0 || !hasStep(res, "held_error") ||
+		rows() != 1 {
+		t.Fatalf("second automatic route: %+v %v: %s; %d rows", res, err, steps(res), rows())
+	}
+	manual := movieReq(c)
+	manual.ManualSince = e.clock
+	if res, err = e.r.Route(e.ctx, manual); err != nil || res.DownloadID == 0 || rows() != 2 {
+		t.Fatalf("grab by hand: %+v %v: %s; %d rows", res, err, steps(res), rows())
+	}
+	e.clock = e.clock.Add(15 * time.Minute)
+	if res, err = e.r.Route(e.ctx, movieReq(c)); err != nil || res.DownloadID != 0 || rows() != 2 {
+		t.Fatalf("automatic route after the grab by hand: %+v %v: %s; %d rows", res, err, steps(res), rows())
+	}
+	if n := e.count(`SELECT COUNT(*) FROM router_blocklist`); n != 0 {
+		t.Errorf("%d blocklist rows", n)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM provider_cache WHERE provider = 'rd' AND info_hash = ?`, h("a")); n != 0 {
+		t.Errorf("a cache verdict was written for rd")
+	}
+	e.clock = e.clock.Add(e.r.set.MissTTL + time.Minute)
+	if res, err = e.r.Route(e.ctx, movieReq(c)); err != nil || res.DownloadID == 0 || rows() != 3 {
+		t.Fatalf("after miss_ttl: %+v %v: %s; %d rows", res, err, steps(res), rows())
+	}
+}
+
+// The failed-copy shortcut skips only when no other provider of the library can take the release: RD holds the
+// failed copy and AD missed it, so the first route fails; once AD has it cached the next automatic route grabs on AD
+// as before.
+func TestFailedCopyShortcutLeavesOtherProviders(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.pol.Versions["movie"].Providers = []string{"rd", "ad"}
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('rd', 'HELD', ?)`, h("a"))
+	e.pr["rd"].set("HELD", provider.Torrent{Hash: h("a"), Status: "magnet_error", State: provider.StateError})
+	e.ad["ad"].add = refuse(adder.CodeNotCached)
+	c := cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")
+	res, err := e.r.Route(e.ctx, movieReq(c))
+	if err != nil || res.DownloadID == 0 || !hasStep(res, "held_error") ||
+		e.count(`SELECT COUNT(*) FROM download WHERE id = ? AND state = 'failed' AND error GLOB ?`, res.DownloadID,
+			FailedCopyOnAccount+"*") != 1 {
+		t.Fatalf("first route: %+v %v: %s", res, err, steps(res))
+	}
+	e.ad["ad"].add = nil
+	e.clock = e.clock.Add(15 * time.Minute)
+	e.putEvidence(h("a"), "ad", "cached", "dmm", e.clock)
+	if res, err = e.r.Route(e.ctx, movieReq(c)); err != nil || res.Outcome != OutcomeAdded || res.Provider != "ad" {
+		t.Fatalf("automatic route with AD cached: %+v %v: %s", res, err, steps(res))
 	}
 }
