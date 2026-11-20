@@ -2333,7 +2333,7 @@ func TestAddFilmKnowsItsLanguage(t *testing.T) {
 type stubArt struct{ refreshed []int64 }
 
 func (s *stubArt) ServeTitle(http.ResponseWriter, *http.Request, int64, string, string) {}
-func (s *stubArt) ServeTMDb(http.ResponseWriter, *http.Request, string, string)          {}
+func (s *stubArt) ServeTMDb(http.ResponseWriter, *http.Request, string, string)         {}
 func (s *stubArt) Refresh(_ context.Context, id int64) (int64, error) {
 	s.refreshed = append(s.refreshed, id)
 	return 1, nil

@@ -622,6 +622,14 @@ func runOrigins(ctx context.Context, db *sql.DB, titleID int64) (map[int64]runOr
 // that evidence an imported download of a pack has no badge for the episode. A newest download still in flight is
 // grabbed, with its words, whatever older evidence of the hash says.
 func (w *Web) releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, version string, episode int64) (map[string]ReleaseOutcome, error) {
+	out, _, err := w.releaseOutcomesCurrent(ctx, db, titleID, version, episode)
+	return out, err
+}
+
+// releaseOutcomesCurrent is releaseOutcomes with the downloads whose links are the version's current file (for the
+// episode, when given), by download id: what a search summary calls "the current file" (searchSummary).
+func (w *Web) releaseOutcomesCurrent(ctx context.Context, db *sql.DB, titleID int64, version string,
+	episode int64) (map[string]ReleaseOutcome, map[int64]bool, error) {
 	type dl struct {
 		id                                     int64
 		state, provider, err, release, indexer string
@@ -646,12 +654,12 @@ func (w *Web) releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, ve
 			return nil
 		})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var files map[int64]episodeFile
 	if episode > 0 {
 		if files, err = episodeFiles(ctx, db, titleID, version, episode); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		// Only the newest download's own evidence counts for the episode.
 		imported = map[string]bool{}
@@ -662,8 +670,10 @@ func (w *Web) releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, ve
 		}
 	}
 	current := map[string]bool{}
+	currentIDs := map[int64]bool{}
 	titles := map[string]bool{}
-	err = scanAll(ctx, db, `SELECT DISTINCT LOWER(COALESCE(c.info_hash, d.info_hash, '')), COALESCE(l.release_title, '')
+	err = scanAll(ctx, db, `SELECT DISTINCT LOWER(COALESCE(c.info_hash, d.info_hash, '')), COALESCE(l.release_title, ''),
+		COALESCE(l.download_id, 0)
 		FROM version v JOIN link_version lv ON lv.version_id = v.id JOIN link l ON l.id = lv.link_id
 		LEFT JOIN content_file cf ON cf.id = l.content_file_id LEFT JOIN content c ON c.id = cf.content_id
 		LEFT JOIN download d ON d.id = l.download_id
@@ -672,17 +682,21 @@ func (w *Web) releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, ve
 		[]any{titleID, version, episode, episode},
 		func(r *sql.Rows) error {
 			var h, title string
-			if err := r.Scan(&h, &title); err != nil {
+			var dl int64
+			if err := r.Scan(&h, &title, &dl); err != nil {
 				return err
 			}
 			if h != "" {
 				current[h] = true
 			}
+			if dl > 0 {
+				currentIDs[dl] = true
+			}
 			titles[title] = true
 			return nil
 		})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	replacedBy := ""
 	if len(titles) == 1 {
@@ -701,7 +715,7 @@ func (w *Web) releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, ve
 	if len(flying) > 0 {
 		ds, err := activity.Downloads(ctx, db, activity.Filter{IDs: flying})
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for i := range ds {
 			inFlight[ds[i].ID] = &ds[i]
@@ -716,7 +730,7 @@ func (w *Web) releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, ve
 	}
 	answers, err := lastAttempts(ctx, db, failed)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var blocked router.BlockedSet // read once, at the first failure
 	out := map[string]ReleaseOutcome{}
@@ -741,7 +755,7 @@ func (w *Web) releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, ve
 			}
 			if blocked == nil {
 				if blocked, err = router.VersionBlocklist(ctx, db, version); err != nil {
-					return nil, err
+					return nil, nil, err
 				}
 			}
 			if b := blocked.Row(h, d.release); b != nil {
@@ -759,7 +773,7 @@ func (w *Web) releaseOutcomes(ctx context.Context, db *sql.DB, titleID int64, ve
 		}
 		out[h] = o
 	}
-	return out, nil
+	return out, currentIDs, nil
 }
 
 // episodeFile is what one download is known to have imported for an episode.
@@ -827,27 +841,8 @@ type runDownload struct {
 	hash, release, provider, state, err string
 }
 
-// currentDownloads reads the downloads whose links are the version's current file (for the episode, when given).
-func currentDownloads(ctx context.Context, db *sql.DB, titleID int64, version string, episode int64) (map[int64]bool,
-	error) {
-	out := map[int64]bool{}
-	err := scanAll(ctx, db, `SELECT DISTINCT l.download_id FROM version v JOIN link_version lv ON lv.version_id = v.id
-		JOIN link l ON l.id = lv.link_id WHERE v.title_id = ? AND v.policy_key = ? AND l.state = 'active'
-		AND l.download_id IS NOT NULL
-		AND (? = 0 OR EXISTS (SELECT 1 FROM link_episode le WHERE le.link_id = l.id AND le.episode_id = ?))`,
-		[]any{titleID, version, episode, episode}, func(r *sql.Rows) error {
-			var id int64
-			if err := r.Scan(&id); err != nil {
-				return err
-			}
-			out[id] = true
-			return nil
-		})
-	return out, err
-}
-
 // pickDownload is the download of a search that counted, by download id: the one supplying the current file
-// (current: currentDownloads); else the newest imported; else the newest imported for a pack whose episode files are
+// (current: releaseOutcomesCurrent); else the newest imported; else the newest imported for a pack whose episode files are
 // not known; else the newest still in flight; else the newest imported without a file for the episode; else the
 // first. -1 for none.
 func pickDownload(dls []runDownload, current map[int64]bool) int {
@@ -875,10 +870,11 @@ func pickDownload(dls []runDownload, current map[int64]bool) int {
 }
 
 // searchSummary says in one line what a search grabbed: "Grabbed #2 via AD → imported (the current file); 1 other
-// failed" (the rank in the stored candidates, else the release's short title). It describes the download that counted
-// (pickDownload; current as there) and counts the search's others by state. With no download: "Nothing grabbed: why".
-// state and message are the acquire run's; a search without a run (an RSS read) passes routed.
-func searchSummary(dls []runDownload, current map[int64]bool, cands []snapshot.Candidate,
+// failed" (the rank in the stored candidates, else the release's short title). It describes dls[pick], the download
+// that counted (pickDownload; current as there: whether that download's own link is the current file), and counts the
+// search's others by state. With no download: "Nothing grabbed: why". state and message are the acquire run's; a
+// search without a run (an RSS read) passes routed.
+func searchSummary(dls []runDownload, pick int, current map[int64]bool, cands []snapshot.Candidate,
 	outcomes map[string]ReleaseOutcome, state, message string, provider func(string) string) string {
 	if len(dls) == 0 {
 		switch state {
@@ -892,7 +888,6 @@ func searchSummary(dls []runDownload, current map[int64]bool, cands []snapshot.C
 		}
 		return "Nothing grabbed: " + message
 	}
-	pick := pickDownload(dls, current)
 	d := dls[pick]
 	what := shortRelease(d.release)
 	for _, c := range cands {
@@ -915,7 +910,7 @@ func searchSummary(dls []runDownload, current map[int64]bool, cands []snapshot.C
 		s += " → imported"
 	case "imported":
 		switch {
-		case current[d.id] || o.Outcome == "current" || o.current:
+		case current[d.id]:
 			s += " → imported (the current file)"
 		case o.replaced:
 			s += " → imported, later replaced"

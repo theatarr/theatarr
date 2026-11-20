@@ -457,7 +457,7 @@ func (w *Web) storedReleases(ctx context.Context, out *Releases) error {
 func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt64, source string, at, episode int64,
 	scope string) error {
 	db := w.st.Reader()
-	oc, err := w.releaseOutcomes(ctx, db, out.TitleID, out.Version, episode)
+	oc, current, err := w.releaseOutcomesCurrent(ctx, db, out.TitleID, out.Version, episode)
 	if err != nil {
 		return err
 	}
@@ -544,11 +544,8 @@ func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt6
 			}
 		}
 	}
-	current, err := currentDownloads(ctx, db, out.TitleID, out.Version, episode)
-	if err != nil {
-		return err
-	}
-	out.Grabbed = searchSummary(dls, current, candidatesOf(out.Candidates), oc, state, message, w.providerTag)
+	out.Grabbed = searchSummary(dls, pickDownload(dls, current), current, candidatesOf(out.Candidates), oc, state, message,
+		w.providerTag)
 	return nil
 }
 

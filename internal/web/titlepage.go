@@ -484,22 +484,22 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 		oc, ok := outcomes[vid]
 		if !ok {
 			var err error
-			if oc, err = w.releaseOutcomes(ctx, db, titleID, key, 0); err != nil {
+			if oc, currents[vid], err = w.releaseOutcomesCurrent(ctx, db, titleID, key, 0); err != nil {
 				return err
 			}
 			outcomes[vid] = oc
-			if currents[vid], err = currentDownloads(ctx, db, titleID, key, 0); err != nil {
-				return err
-			}
 		}
 		var cands []snapshot.Candidate
 		_ = json.Unmarshal([]byte(cj), &cands)
 		h := HistoryEvent{Event: "searched", Date: ts(at), Episode: target, RunID: &id, DecisionID: nullInt(decision),
 			Results: &results, Accepted: &accepted, Trigger: origins[id].words(),
-			Summary: searchSummary(runDLs[id], currents[vid], cands, oc, state, message, w.providerTag),
-			Latest:  decision.Valid && newest[key] == decision.Int64}
-		if i := pickDownload(runDLs[id], currents[vid]); i >= 0 {
-			h.InfoHash, h.Provider = runDLs[id][i].hash, runDLs[id][i].provider
+			Latest: decision.Valid && newest[key] == decision.Int64}
+		// One pick for the line and the row's release and provider.
+		dls := runDLs[id]
+		pick := pickDownload(dls, currents[vid])
+		h.Summary = searchSummary(dls, pick, currents[vid], cands, oc, state, message, w.providerTag)
+		if pick >= 0 {
+			h.InfoHash, h.Provider = dls[pick].hash, dls[pick].provider
 		}
 		v.History = append(v.History, h)
 		return nil

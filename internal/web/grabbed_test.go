@@ -1,6 +1,7 @@
 package web
 
 import (
+	"fmt"
 	"reflect"
 	"slices"
 	"strings"
@@ -425,6 +426,46 @@ func TestSearchSummaryDescribesTheImport(t *testing.T) {
 		(4, 1, 2, 'movie-web', ?, 'Alpha.2020.2160p.WEB-THREE', 'idx', 'ad', 'downloading', NULL, 'acquire:42', ?, ?)`,
 		h1, now-2900, now-2800, h3, now-2700, now-2600)
 	check(42, "Grabbed #3 via AD; 1 other failed", h3, "ad")
+}
+
+// A release grabbed twice: the second download supplies the current file, so only its search says "the current
+// file"; the first run's line says imported, later replaced (the link's download decides, never the hash).
+func TestSearchSummaryCurrentFileByDownload(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	key := e.apiKey()
+	now := store.Millis(testNow)
+	const h = "1111111111111111111111111111111111111111"
+	cands := `[{"rank":1,"release":"Alpha.2020.2160p.WEB-ONE","info_hash":"` + h + `","accepted":true}]`
+	for i, at := range []int64{now - 9000, now - 4000} {
+		run := 41 + i
+		e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, state, results, accepted,
+			message, created_at, updated_at) VALUES (?, 'wanted', 1, 2, 'movie-web', 'movie', 'routed', 1, 1, '', ?, ?)`, run, at, at)
+		e.exec(`INSERT INTO journal_decision (id, source, run_id, title_id, version_key, target, results, accepted,
+			candidates, created_at) VALUES (?, ?, ?, 1, 'movie-web', 'movie', 1, 1, ?, ?)`, 91+i, fmt.Sprintf("acquire:%d", run), run, cands, at)
+		e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
+			state, source, created_at, updated_at, imported_at) VALUES (?, 1, 2, 'movie-web', ?, 'Alpha.2020.2160p.WEB-ONE', 'idx', 'rd',
+			'imported', ?, ?, ?, ?)`, i+1, h, fmt.Sprintf("acquire:%d", run), at+100, at+500, at+500)
+	}
+	e.exec(`INSERT INTO link (id, path, target, title_id, download_id, release_title, state, created_at, updated_at)
+		VALUES (1, '/lib/Alpha (2020)/Alpha.mkv', '/mnt/__all__/Alpha/Alpha.mkv', 1, 2, 'Alpha.2020.2160p.WEB-ONE', 'active', ?, ?)`,
+		now-3500, now-3500)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (1, 2)`)
+	var d TitleDetail
+	if code := e.getKey(APIBase+"/titles/1", key, &d); code != 200 {
+		t.Fatalf("title %d", code)
+	}
+	got := map[int64]string{}
+	for _, v := range d.Versions {
+		for _, ev := range v.History {
+			if ev.Event == "searched" && ev.RunID != nil {
+				got[*ev.RunID] = ev.Summary
+			}
+		}
+	}
+	if got[42] != "Grabbed #1 via RD → imported (the current file)" || strings.Contains(got[41], "current file") {
+		t.Errorf("summaries %v", got)
+	}
 }
 
 // An episode's releases badge a season pack by the files of that episode, and its stored decision says what its
