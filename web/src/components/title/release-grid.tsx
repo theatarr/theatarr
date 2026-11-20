@@ -61,12 +61,12 @@ import { providerAnswersWords } from "@/lib/router-words";
 import { cn } from "@/lib/utils";
 
 /** Each provider's answer to a failed release, opened by a tap (the phone card: no tooltip without a pointer). */
-function ProviderAnswers({ full, testid = "release-answers-open" }: { full: string; testid?: string }) {
+function ProviderAnswers({ full }: { full: string }) {
   const [open, setOpen] = useState(false);
   if (!full) return null;
   return (
     <span className="flex flex-col items-start gap-0.5">
-      <button type="button" className="py-1 text-[11px] text-[var(--ink-2)] underline decoration-dotted underline-offset-2" aria-expanded={open} onClick={() => setOpen(!open)} data-testid={testid}>
+      <button type="button" className="py-1 text-[11px] text-[var(--ink-2)] underline decoration-dotted underline-offset-2" aria-expanded={open} onClick={() => setOpen(!open)} data-testid="release-answers-open">
         Provider answers
       </button>
       {open ? (
@@ -300,7 +300,8 @@ export function GrabCell({ c, target, o, sentFrom, onSent, card }: { c: Candidat
   const failed = grab.isError && !lateRejections(grab.error) && !blockedRelease(grab.error);
   const fresh = o && (sentFrom === undefined || (o.download ?? 0) !== sentFrom) ? o : undefined;
   const note = fresh?.outcome === "failed" ? retryNote(fresh) : undefined;
-  const answers = fresh?.outcome === "failed" ? providerAnswersWords(fresh.attempts) : undefined;
+  // The table's answers line; on a card the Outcome shows them.
+  const answers = !card && fresh?.outcome === "failed" ? providerAnswersWords(fresh.attempts) : undefined;
   let state: React.ReactNode = null;
   if (fresh?.outcome === "grabbed") {
     state = (

@@ -4,7 +4,7 @@
 import { CheckCircle2, Info, TriangleAlert, X, XCircle } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Link } from "react-router";
-import { modalOpen, subscribeModals, topModal } from "@/lib/modal-stack";
+import { subscribeModals, topModal } from "@/lib/modal-stack";
 import { cn } from "@/lib/utils";
 
 export type ToastTone = "ok" | "info" | "warn" | "bad";
@@ -115,7 +115,9 @@ function ToastCard({ t }: { t: Toast }) {
  *  row is under it. */
 export function Toaster() {
   const list = useSyncExternalStore(subscribe, () => toasts, () => toasts);
-  const top = useSyncExternalStore(subscribeModals, modalOpen, () => false);
+  // Which modal is on top: the stack is placed again whenever it changes (a confirmation over a sheet closes).
+  const modal = useSyncExternalStore(subscribeModals, topModal, () => undefined);
+  const top = modal !== undefined;
   const stack = useRef<HTMLDivElement>(null);
   const shown = list.length > 0;
   useLayoutEffect(() => {
@@ -134,7 +136,7 @@ export function Toaster() {
       clearTimeout(t);
       window.removeEventListener("resize", place);
     };
-  }, [top, list.length]);
+  }, [modal, top, list.length]);
   if (!shown) return null;
   return (
     <div

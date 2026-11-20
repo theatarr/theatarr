@@ -179,3 +179,45 @@ it("puts the toasts just below a full-height sheet's header row on a phone, clea
   expect(toastTop(40, 180, 80)).toBe(188);
   m.view.unmount();
 });
+
+it("places the toasts again when a confirmation over a sheet closes, clear of the sheet's Close", () => {
+  vi.useFakeTimers();
+  vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (this: HTMLElement) {
+    return this.dataset.testid === "toasts" ? 68 : 0;
+  });
+  fresh();
+  // A full-height sheet (Close 13-45), and over it a short confirmation ("Close without saving?").
+  const sheet = render(
+    <Modal label="Edit" onClose={() => {}} panelTestid="sheet">
+      <div data-testid="sheet-head"><h2>Edit</h2><button type="button" aria-label="Close">x</button></div>
+      <div><button type="button">Save</button></div>
+    </Modal>,
+  );
+  vi.spyOn(screen.getByTestId("sheet"), "getBoundingClientRect").mockReturnValue(rect(0, 860));
+  vi.spyOn(screen.getByTestId("sheet-head"), "getBoundingClientRect").mockReturnValue(rect(0, 58));
+  const confirm = render(
+    <Modal label="Close without saving?" onClose={() => {}} panelTestid="confirm">
+      <div data-testid="confirm-head"><h2>Close without saving?</h2><button type="button" aria-label="Close">x</button></div>
+      <div><button type="button">Cancel</button><button type="button">Close</button></div>
+    </Modal>,
+  );
+  vi.spyOn(screen.getByTestId("confirm"), "getBoundingClientRect").mockReturnValue(rect(600, 860));
+  vi.spyOn(screen.getByTestId("confirm-head"), "getBoundingClientRect").mockReturnValue(rect(600, 660));
+  act(() => {
+    toast({ tone: "ok", title: "saved elsewhere" });
+  });
+  act(() => {
+    vi.advanceTimersByTime(400);
+  });
+  // Above the confirmation, over the sheet's header: fine while the confirmation is the top modal.
+  expect(stackBox(68).top).toBe(16);
+  confirm.unmount();
+  act(() => {
+    vi.advanceTimersByTime(400);
+  });
+  // The sheet is on top again: the toast moves below its header row, off its Close.
+  const box = stackBox(68);
+  expect(overlaps(box, rect(13, 45))).toBe(false);
+  expect(box.top).toBe(66);
+  sheet.unmount();
+});

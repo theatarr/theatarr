@@ -7,8 +7,8 @@
 // - pushModal: the stack of open modals. Everything beside the top modal's root, among <body>'s children, gets the
 //   inert attribute (no focus, no clicks, hidden from assistive tech); a modal below the top is inert too. Closing
 //   the top hands the page back to the next one, or to nobody. Attributes set by others are left alone.
-// - subscribeModals / modalOpen: whether any modal is open, for the toasts (they move to the top of the screen meanwhile,
-//   off a dialog's buttons).
+// - subscribeModals / topModal: which modal is on top, for the toasts (they move off its buttons and Close, and are
+//   placed again when another modal comes on top or the top one closes).
 
 type ClassHolder = { classList: { add(c: string): void; remove(c: string): void } };
 
@@ -56,8 +56,6 @@ export function subscribeModals(fn: () => void): () => void {
   };
 }
 
-/** Whether any modal is open. */
-export const modalOpen = (): boolean => stack.length > 0;
 
 const changed = () => {
   for (const fn of [...listeners]) fn();
