@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/arr"
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/journal"
 )
@@ -151,6 +152,10 @@ func (w *Web) unblockWords(e *journal.Entry, providers map[int64]string) {
 		return
 	}
 	source, reason, _ := strings.Cut(rest, ": ")
+	// A reason holding a URL or a key keeps the journal's own line, whose words are already redacted.
+	if arr.UnsafeValue(reason) {
+		return
+	}
 	reason, byHand := strings.CutSuffix(reason, "; taken off by a grab by hand")
 	words := blockWords(source)
 	if r := blockedReasonWords(source, reason, providers[e.Action.DownloadID], w.providerTag); r != "" {

@@ -123,3 +123,24 @@ func TestJournalUnblockProvider(t *testing.T) {
 		t.Fatalf("list: %d %+v", code, page.Items)
 	}
 }
+
+// TestJournalUnblockKeepsRedaction: a stored block reason with a URL and a key stays redacted on the unblock's line, in
+// the list and in the entry.
+func TestJournalUnblockKeepsRedaction(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	key := e.apiKey()
+	// Stored as is (an older row, or one written before its text was cleaned): the line still reads redacted.
+	e.exec(`INSERT INTO journal_action (action, title_id, version_key, info_hash, release_title, target, detail, by,
+		created_at) VALUES ('unblock', 1, 'movie-web', ?, 'Alpha.Release', ?, ?, 'admin', ?)`, hashA, hashA,
+		"was blocked by provider: provider status https://tracker.example/announce?passkey=SECRETKEY42", store.Millis(testNow))
+	var page journal.Page
+	if code := e.getKey(APIBase+"/journal?kind=action", key, &page); code != 200 || len(page.Items) != 1 ||
+		strings.Contains(page.Items[0].Summary, "SECRETKEY42") || !strings.Contains(page.Items[0].Summary, "[redacted]") {
+		t.Fatalf("list: %d %+v", code, page.Items)
+	}
+	var en journal.Entry
+	if code := e.getKey(APIBase+"/journal/"+page.Items[0].ID, key, &en); code != 200 || strings.Contains(en.Summary, "SECRETKEY42") {
+		t.Errorf("entry: %d %q", code, en.Summary)
+	}
+}
