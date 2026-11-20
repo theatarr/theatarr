@@ -721,9 +721,15 @@ func (s *Service) addTitle(w http.ResponseWriter, r *request) {
 	}
 	// A new film's original language, read before its first search (catalog.Input.OriginalLanguage): from the details
 	// decideAnime read, else (the request or the mapping data decided anime, so no details were read) from one read here.
-	if v.Flavour == Radarr && lang == "" && (source == animeFromRequest || source == animeFromMapping) {
-		if h, err := s.holds(ctx, v, &in, ext); err == nil && !h {
+	if v.Flavour == Radarr && lang == "" {
+		switch source {
+		case animeFromMapping:
+			// decideAnime ran, so the title is not held.
 			lang = s.movieLanguage(ctx, ext)
+		case animeFromRequest:
+			if h, err := s.holds(ctx, v, &in, ext); err == nil && !h {
+				lang = s.movieLanguage(ctx, ext)
+			}
 		}
 	}
 	// A movie's minimum availability is stored per library, never on the view's record.

@@ -2,6 +2,7 @@ package arrview
 
 import (
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -65,9 +66,18 @@ func TestAddDecidesAnime(t *testing.T) {
 	}
 	// Seerr's single Radarr server: Rules default and the non-anime root. TMDb: Japanese animation.
 	check("TMDb anime", addMovie(149, def, "/media/movies"), true, "tmdb", "anime-movie")
-	// The mapping data wins over TMDb (which says not anime here): TMDb is read only for the new film's language.
+	// The mapping data wins over TMDb (which says not anime here): TMDb is asked once, only for the new film's language.
 	mapped := addMovie(150, def, "/media/movies")
 	check("mapped", mapped, true, "mapping", "anime-movie")
+	asked := 0
+	for _, r := range f.requests() {
+		if strings.Contains(r, "/movie/150") {
+			asked++
+		}
+	}
+	if asked != 1 {
+		t.Errorf("TMDb asked %d times about the mapped movie, want once (its language)", asked)
+	}
 	if l := e.str(`SELECT COALESCE(original_language, '') FROM title WHERE id = ?`, mapped); l != "en" {
 		t.Errorf("mapped new movie: original language %q, want en", l)
 	}
