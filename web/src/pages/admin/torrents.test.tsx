@@ -455,6 +455,36 @@ describe("torrents page", () => {
     expect(api.calls("POST", "/torrents/delete")).toHaveLength(1);
   });
 
+  it("ignores a refused confirm's late answer once the choices changed meanwhile", async () => {
+    const gone = { ...plan(false), items: [plan(false).items[0], { ...plan(false).items[1], expected_override_token: "o1-gone" }] };
+    const waiting: (() => void)[] = [];
+    const api = mockFetch([
+      { method: "GET", path: "/torrents/report", reply: report },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+      { method: "POST", path: "/torrents/delete/preview", reply: (r: { body?: { items: { override?: boolean }[] } }) => plan(!!r.body?.items.some((i) => i.override)) },
+      { method: "POST", path: "/torrents/delete", reply: () => new Promise((res) => waiting.push(() => res({ status: 422, body: { error: "explicit confirmation required", plan: gone } }))) },
+    ]);
+    renderPage(<TorrentsPage />);
+    await screen.findByText("Used.Movie");
+    fireEvent.click(screen.getByLabelText("Select all shown"));
+    fireEvent.click(screen.getByTestId("delete-selected"));
+    await screen.findByRole("heading", { name: /Delete 1 torrent/ });
+    fireEvent.click(screen.getByTestId("override"));
+    await screen.findByRole("heading", { name: /Delete 2 torrents/ });
+    await waitFor(() => expect((screen.getByTestId("confirm-ok") as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByTestId("confirm-ok"));
+    await waitFor(() => expect(waiting).toHaveLength(1));
+    // The person unticks while Confirm is pending; that preview answers first.
+    fireEvent.click(screen.getByTestId("override"));
+    await waitFor(() => expect(api.calls("POST", "/torrents/delete/preview")).toHaveLength(3));
+    await screen.findByRole("heading", { name: /Delete 1 torrent/ });
+    waiting[0]();
+    await new Promise((r) => setTimeout(r, 30));
+    expect(api.calls("POST", "/torrents/delete/preview")).toHaveLength(3);
+    expect(screen.getByRole("heading", { name: /Delete 1 torrent/ })).toBeTruthy();
+    expect((screen.getByTestId("override") as HTMLInputElement).checked).toBe(false);
+  });
+
   it("keeps Confirm off when the latest preview failed, though the choices match an older one", async () => {
     const waiting: (() => void)[] = [];
     let n = 0;

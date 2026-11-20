@@ -177,13 +177,14 @@ export function TorrentsPage() {
     JSON.stringify(plan.req) !== JSON.stringify(deleteSelection(chosen, overrides, allowRecent));
   const confirmDelete = () => {
     if (!plan || stale) return;
+    const n = seq.current; // a choice changed while Confirm is pending moves it on: the late answer is then ignored
     actions.del.mutate({ items: plan.req, token: plan.plan.confirmation_token }, {
       onSuccess: (p) => setDone(p),
       // The set changed since the preview (a copy that stayed is gone): nothing was deleted, and the server's corrected
       // plan is taken as a preview's answer would be.
       onError: (e) => {
         const fresh = e instanceof ApiError && e.status === 422 ? (e.body as { plan?: DeletePlan } | undefined)?.plan : undefined;
-        if (!fresh) return;
+        if (!fresh || n !== seq.current) return;
         actions.del.reset();
         seq.current++;
         take(fresh, plan.req, overrides, allowRecent, selected);
