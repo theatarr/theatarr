@@ -330,7 +330,8 @@ func (m *Manager) copyOne(ctx context.Context, je *JournalEntry, names []string,
 		if name == "" {
 			name = je.Name
 		}
-		m.recordHeld(ctx, key, added.ID, h, name, size)
+		// TorBox's answer shows it accepted as cached, not its files present: recorded as still finishing.
+		m.recordHeld(ctx, key, added.ID, h, name, size, t == nil && pv.Kind == provider.KindTorBox)
 		je.Outcome, je.Detail = CopyAdded, ""
 		return
 	}
@@ -400,16 +401,20 @@ func (m *Manager) copyPresent(ctx context.Context, je *JournalEntry, t *provider
 		if name == "" {
 			name = je.Name
 		}
-		m.recordHeld(ctx, je.Provider, t.ID, je.Hash, name, t.Bytes)
+		m.recordHeld(ctx, je.Provider, t.ID, je.Hash, name, t.Bytes, false)
 	default:
 		je.Detail = fmt.Sprintf("still downloading (%.0f%%)", t.Progress)
 	}
 }
 
-// recordHeld puts torrent id of hash in key's record, complete, as an import does (provider.RecordImport), and asks
-// for the usage to be worked out again.
-func (m *Manager) recordHeld(ctx context.Context, key, id, hash, name string, size int64) {
+// recordHeld puts torrent id of hash in key's record, complete, as an import does (provider.RecordImport), or, when
+// only accepted (unconfirmed), at 100% and still finishing (provider.RecordAccepted), and asks for the usage to be
+// worked out again.
+func (m *Manager) recordHeld(ctx context.Context, key, id, hash, name string, size int64, unconfirmed bool) {
 	if err := m.Store.WriteTx(context.WithoutCancel(ctx), func(tx *sql.Tx) error {
+		if unconfirmed {
+			return provider.RecordAccepted(ctx, tx, key, id, hash, name, size)
+		}
 		return provider.RecordImport(ctx, tx, key, id, hash, name, size)
 	}); err != nil {
 		m.log().Warn("torrents: copy: recording the torrent", "provider", key, "hash", hash, "err", err)

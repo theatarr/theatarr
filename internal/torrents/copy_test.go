@@ -411,3 +411,24 @@ func TestCopyReadsBeforeNameRuleAndBusy(t *testing.T) {
 		t.Error("an add was sent")
 	}
 }
+
+// A copy TorBox accepts (only-if-cached, no read-back) is on the account but not yet confirmed downloaded: the record
+// keeps it as still finishing, so it does not read Held on TB until the next listing or an import shows the files,
+// and it is not offered as a copy target meanwhile.
+func TestCopyToTorBoxNotRecordedDownloaded(t *testing.T) {
+	t.Parallel()
+	e, _, _ := copyEnv(t)
+	ctx := context.Background()
+	if _, err := e.m.Copy(ctx, CopyPayload{Hash: hA, Providers: []string{"tb"}}); err != nil {
+		t.Fatal(err)
+	}
+	if rows := e.copyRows(hA); rows["tb"].Outcome != CopyAdded {
+		t.Fatalf("outcomes %+v", rows)
+	}
+	var state string
+	var progress float64
+	if err := e.st.Reader().QueryRow(`SELECT state, progress FROM provider_torrent WHERE provider = 'tb' AND info_hash = ?`,
+		hA).Scan(&state, &progress); err != nil || state == string(provider.StateDownloaded) || progress < 100 {
+		t.Errorf("tb record row: %q %v %v", state, progress, err)
+	}
+}

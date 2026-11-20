@@ -425,6 +425,17 @@ func RecordImport(ctx context.Context, tx *sql.Tx, key, id, hash, name string, s
 	return err
 }
 
+// RecordAccepted puts torrent id of hash that provider key accepted as cached, but has not yet shown with its files
+// present (TorBox's add_only_if_cached, read back by nobody), in key's record at 100% and still finishing
+// (downloading): on the account, so no copy is sent there again, but not yet complete. The next listing or an import
+// from it finishes the row (RecordImport); a row already there stays.
+func RecordAccepted(ctx context.Context, tx *sql.Tx, key, id, hash, name string, size int64) error {
+	_, err := tx.ExecContext(ctx, `INSERT INTO provider_torrent (provider, torrent_id, info_hash, name, size_bytes,
+		state, progress) VALUES (?, ?, lower(?), ?, ?, 'downloading', 100) ON CONFLICT (provider, torrent_id) DO NOTHING`,
+		key, id, hash, name, size)
+	return err
+}
+
 // DropRecordTorrent removes torrent id from provider key's record (a delete, or a torrent found gone); the caller asks
 // for the usage to be worked out again.
 func DropRecordTorrent(ctx context.Context, tx *sql.Tx, key, id string) error {

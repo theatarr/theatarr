@@ -321,7 +321,9 @@ land between the copy's look at the account and its add:
 4. The add is read back as a route's is (`router.ReadBackAdd`, the router's own read-back): through Real-Debrid's magnet
    conversion, every playable file selected (`router.PlayableIDs`, never nfo, text or images) unless a selected video's
    own name is one Real-Debrid refuses (`refused`), and one `router.cached_grace` before calling it not cached.
-   Complete: `added`, the record row as in 1, cached evidence (`provider_cache`, source `add:<key>`). Otherwise
+   Complete: `added`, the record row as in 1 (TorBox, whose add answer shows it accepted as cached but not its files
+   present, gets a row at 100% still finishing, `provider.RecordAccepted`: no copy is sent there again, and Held on
+   waits for the next listing or an import), cached evidence (`provider_cache`, source `add:<key>`). Otherwise
    `not_cached` (uncached evidence for `miss_ttl`), or `failed` ("Real-Debrid cannot serve this file type") when nothing
    is playable.
 5. An add that ended anything but `added` is our own new entry and is deleted again on Real-Debrid and AllDebrid
