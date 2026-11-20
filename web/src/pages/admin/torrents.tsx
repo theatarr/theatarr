@@ -76,8 +76,10 @@ export function TorrentsPage() {
   const setSort = (v: SortKey) => setParam("sort", v === "size" ? "" : v);
   const [selected, setSelected] = useState<Record<string, Torrent>>({});
   // The last successful preview and the selection it was asked with: Confirm sends exactly that selection.
-  const [plan, setPlan] = useState<{ plan: DeletePlan; req: DeleteSelection[] } | null>(null);
+  // n: the preview's number; Confirm needs the answer to the latest one (seq), not an older one with the same choices.
+  const [plan, setPlan] = useState<{ plan: DeletePlan; req: DeleteSelection[]; n: number } | null>(null);
   const seq = useRef(0);
+  const [latest, setLatest] = useState(0); // the number of the latest preview asked for
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [allowRecent, setAllowRecent] = useState(false);
   const [done, setDone] = useState<DeletePlan | null>(null);
@@ -115,10 +117,11 @@ export function TorrentsPage() {
   // Each preview is numbered: only the newest one's answer is taken, so a slow earlier answer never replaces it.
   const preview = (ov: Record<string, string>, recent: boolean) => {
     const n = ++seq.current;
+    setLatest(n);
     const req = deleteSelection(chosen, ov, recent);
     actions.deletePreview.mutateAsync(req).then((p) => {
       if (n !== seq.current) return;
-      setPlan({ plan: p, req });
+      setPlan({ plan: p, req, n });
       // A held override whose token no longer matches (the references changed) is dropped, and the set previewed again.
       const kept = Object.fromEntries(Object.entries(ov).filter(([k, tok]) => p.items.some((it) => keyOf(it) === k && it.expected_override_token === tok)));
       if (Object.keys(kept).length !== Object.keys(ov).length) {
@@ -149,8 +152,8 @@ export function TorrentsPage() {
     if (done) setSelected({});
     setDone(null);
   };
-  // The dialog's choices differ from the last successful preview (one is pending, or failed): Confirm waits.
-  const stale = !!plan && JSON.stringify(plan.req) !== JSON.stringify(deleteSelection(chosen, overrides, allowRecent));
+  // The latest preview has not answered successfully (it is pending, or failed): Confirm waits.
+  const stale = !!plan && plan.n !== latest;
   const confirmDelete = () => {
     if (!plan || stale || actions.deletePreview.isPending) return;
     actions.del.mutate({ items: plan.req, token: plan.plan.confirmation_token }, { onSuccess: (p) => setDone(p) });

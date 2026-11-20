@@ -536,8 +536,8 @@ beside it and the rest folded ("and N more"), and "Another complete copy stays o
 "Tick all that have another complete copy on the same account", above the rows, ticks the override of every item
 carrying `surviving_copy` and nothing else; unticking it unticks those. Each change previews again; previews are
 numbered and only the newest answer is taken, a held override whose token no longer matches is dropped (and the set
-previewed again), and Confirm waits while a preview is pending or the choices differ from the last successful one,
-then sends exactly the selection that preview was asked with. A line says how many chosen torrents the current
+previewed again), and Confirm waits until the latest preview has answered successfully (a failed one keeps it off,
+even when the choices match an older answer), then sends exactly the selection that preview was asked with. A line says how many chosen torrents the current
 filter hides. "Also delete chosen torrents added in the last 24 hours or still downloading" shows only while a
 chosen torrent needs it (`needs_recent`) or it is ticked; once the delete finished the choices and rows go and the
 outcome shows. The backup is one

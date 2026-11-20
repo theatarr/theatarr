@@ -398,6 +398,33 @@ describe("torrents page", () => {
     expect(screen.getByTestId("confirm-blocked").textContent).toBe("Nothing chosen can be deleted as it is.");
   });
 
+  it("keeps Confirm off when the latest preview failed, though the choices match an older one", async () => {
+    const waiting: (() => void)[] = [];
+    let n = 0;
+    mockFetch([
+      { method: "GET", path: "/torrents/report", reply: report },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+      { method: "POST", path: "/torrents/delete/preview", reply: () => {
+        n++;
+        if (n === 2) return new Promise((res) => waiting.push(() => res(plan(true))));
+        if (n === 3) return { status: 502, body: { error: "rd: gateway: backing off" } };
+        return plan(false);
+      } },
+    ]);
+    renderPage(<TorrentsPage />);
+    await screen.findByText("Used.Movie");
+    fireEvent.click(screen.getByLabelText("Select all shown"));
+    fireEvent.click(screen.getByTestId("delete-selected"));
+    await screen.findByRole("heading", { name: /Delete 1 torrent/ });
+    fireEvent.click(screen.getByTestId("override"));
+    await waitFor(() => expect(waiting).toHaveLength(1));
+    fireEvent.click(screen.getByTestId("override"));
+    await screen.findByTestId("confirm-error");
+    waiting[0]();
+    await new Promise((r) => setTimeout(r, 20));
+    expect((screen.getByTestId("confirm-ok") as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it("drops a tick whose copy that stays is gone by the next preview, and previews again without it", async () => {
     let n = 0;
     const api = mockFetch([
