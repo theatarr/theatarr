@@ -18,7 +18,7 @@ import { Summary } from "@/components/title/show-releases";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
-import { titleWithYear } from "@/lib/format";
+import { fmtNumber, titleWithYear } from "@/lib/format";
 import { noneOfTitle, scopeTarget, searchTargetWords } from "@/lib/release-columns";
 
 export type SearchScope = { titleId: number; version?: string; season?: number; episode?: { id: number; code: string } };
@@ -160,7 +160,7 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
                 )}
                 {current ? (
                   <p className="text-sm text-[var(--ink-2)]" data-testid="interactive-current">
-                    {current.held ? `Current file: ${current.quality || "unknown quality"}${current.score != null ? `, score ${current.score}` : ""}` : "No file held"}
+                    {current.held ? `Current file: ${current.quality || "unknown quality"}${current.score != null ? `, score ${fmtNumber(current.score)}` : ""}` : "No file held"}
                   </p>
                 ) : null}
                 {/* Each answer gets a fresh grid: a new search (Search again, another library) starts without filters. */}

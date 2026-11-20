@@ -303,10 +303,10 @@ it("leads with no release of this title when every result is another title", asy
 it("says the requested item's own file, as the server reads it", async () => {
   const pack = { ...accepted, episodes: ["S01E01", "S01E02"], existing: { quality: "WEBDL-2160p", score: 900 } };
   mockFetch([ME, TITLE, CURRENT, CURRENT, { method: "GET", path: "/titles/7/releases",
-    reply: answer("movie-web", { candidates: [pack], current: { held: true, quality: "WEBDL-1080p", score: 1775 } }) }]);
+    reply: answer("movie-web", { candidates: [pack], current: { held: true, quality: "WEBDL-1080p", score: 4150 } }) }]);
   renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
   open();
-  expect((await screen.findByTestId("interactive-current")).textContent).toBe("Current file: WEBDL-1080p, score 1775");
+  expect((await screen.findByTestId("interactive-current")).textContent).toBe("Current file: WEBDL-1080p, score 4,150");
 });
 
 // A sort chosen in an earlier opening is not kept: reopening starts in the best-match order, and Show more adds rows.

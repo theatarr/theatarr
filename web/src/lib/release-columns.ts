@@ -29,7 +29,7 @@ export const RELEASE_COLUMNS: ReleaseColumn[] = [
   { id: "age", label: "Age", hint: "How long ago the indexer published it" },
   // Status (accepted, or why not) right after Title, so the verdict stays in view when the table scrolls sideways.
   { id: "status", label: "Status", hint: "Accepted, or why Theatarr rejects it" },
-  { id: "indexer", label: "Indexer", hint: "The indexers that returned it; point at it for each copy's name" },
+  { id: "indexer", label: "Indexer", hint: "The indexers that returned it; open it for each copy's name" },
   { id: "history", label: "History", hint: "What came of this release before: grabbed, imported, failed or replaced" },
   { id: "size", label: "Size", hint: "Size" },
   { id: "peers", label: "Peers", hint: "Seeders / leechers" },
@@ -37,7 +37,7 @@ export const RELEASE_COLUMNS: ReleaseColumn[] = [
   { id: "episodes", label: "Episodes", hint: "The episodes it covers", series: true },
   { id: "language", label: "Language", hint: "Languages in the release" },
   { id: "quality", label: "Quality", hint: "Quality, with Proper for a second revision" },
-  { id: "score", label: "Score", hint: "Custom format score; point at it for the formats it matched" },
+  { id: "score", label: "Score", hint: "Custom format score; open it for the formats it matched" },
   { id: "formats", label: "Formats", hint: "The custom formats it matched" },
   { id: "flags", label: "Flags", hint: "Indexer flags such as freeleech or internal" },
 ];

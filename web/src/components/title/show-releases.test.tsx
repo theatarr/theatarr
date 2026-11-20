@@ -43,6 +43,29 @@ it("shows one row per torrent with every indexer, each copy in the tooltip, and 
   expect(within(table).getAllByTestId("release-indexers").map((c) => c.textContent)).toEqual(["tpb, therarbg +1"]);
 });
 
+it("opens each copy's name by a tap on the indexers, in the table and on a card, and groups the score's thousands", () => {
+  mockFetch([ME]);
+  const merged = { ...cand(1, "aaa"), score: 4450, formats: [{ name: "DV", score: 4450 }], indexer: "prowlarr-tpb", indexers: ["prowlarr-tpb", "therarbg"],
+    copies: [{ indexer: "therarbg", release: "Alpha 2020 2160p WEB 1" }] };
+  renderPage(<ReleaseGrid kind="movie" items={[merged, { ...cand(2, "bbb"), indexer: "nyaa", indexers: ["nyaa"] }]} />);
+  const table = screen.getByTestId("releases-table");
+  const [withCopies, single] = within(table).getAllByTestId("release-indexers");
+  // A row with copies opens them by its indexers (a button, so a tap or Enter does it); one without stays text.
+  expect(withCopies.tagName).toBe("BUTTON");
+  expect(single.tagName).toBe("SPAN");
+  expect(screen.queryByTestId("release-copies")).toBeNull();
+  fireEvent.click(withCopies);
+  expect(withCopies.getAttribute("aria-expanded")).toBe("true");
+  expect(within(screen.getByTestId("release-copies-detail")).getByTestId("release-copies").textContent).toBe("tpb: Alpha.2020.2160p.WEB-1therarbg: Alpha 2020 2160p WEB 1");
+  fireEvent.click(withCopies);
+  expect(screen.queryByTestId("release-copies-detail")).toBeNull();
+  // The card: its indexers open the same list.
+  const card = within(screen.getByTestId("releases-list")).getAllByRole("listitem")[0];
+  fireEvent.click(within(card).getByTestId("release-card-indexers"));
+  expect(within(card).getByTestId("release-copies").textContent).toContain("therarbg: Alpha 2020 2160p WEB 1");
+  expect(within(table).getAllByTestId("release-score")[0].textContent).toBe("+4,450");
+});
+
 it("says what the shown search did and picks out the followed release", async () => {
   mockFetch([
     { method: "GET", path: "/auth/me", reply: { permissions: ["browse", "see_files", "manage"] } },

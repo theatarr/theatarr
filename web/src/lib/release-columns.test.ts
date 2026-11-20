@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Candidate } from "@/api/add";
 import {
   DEFAULT_RELEASE_COLUMNS,
+  RELEASE_COLUMNS,
   noneOfTitle,
   scopeTarget,
   searchTargetWords,
@@ -39,6 +40,8 @@ describe("normalizeReleaseColumns", () => {
     // Age leads; the verdict, quality and score follow Title; Source is offered but hidden.
     expect(DEFAULT_RELEASE_COLUMNS.order.slice(0, 4)).toEqual(["age", "status", "quality", "score"]);
     expect(DEFAULT_RELEASE_COLUMNS.shown).not.toContain("source");
+    // A phone has no pointer: no hint asks to point at a cell.
+    expect(RELEASE_COLUMNS.filter((c) => /point at/.test(c.hint ?? "")).map((c) => c.id)).toEqual([]);
     expect(p.shown).toEqual(["age", "size"]);
     expect(p).not.toHaveProperty("sort");
     expect(normalizeReleaseColumns(undefined).shown).not.toContain("formats");

@@ -28,7 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { readPref, writePref } from "@/lib/copies";
-import { fmtBytes } from "@/lib/format";
+import { fmtBytes, fmtNumber } from "@/lib/format";
 import {
   allIndexersText,
   BEST_MATCH,
@@ -93,7 +93,8 @@ export function retryNote(o: ReleaseOutcome): string | undefined {
   return undefined;
 }
 
-const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
+/** A score with its sign and the thousands separator: "+4,450", "-10", "0". */
+const signed = (n: number) => (n > 0 ? `+${fmtNumber(n)}` : fmtNumber(n));
 
 /** An accepted pack that replaces no held file, only fills episodes with none: the decision's upgrade reason is then
  *  only "fills N episode(s) with no file" (internal/decide/episodes.go); one that also replaces a file starts with
@@ -120,6 +121,33 @@ function Status({ c }: { c: Candidate }) {
       {all.length > 2 ? <span className="pl-4 text-[11px] text-[var(--ink-3)]">+{all.length - 2} more</span> : null}
       {all.length === 0 ? <span className="text-xs text-[var(--bad-ink)]">Rejected</span> : null}
     </span>
+  );
+}
+
+/** The Indexer cell; with open, a button that opens the row's copies (each indexer's name for the release) when it has
+ *  copies: a tap target, as the tooltip alone needs a pointer. */
+function Indexers({ c, open }: { c: Candidate; open?: { on: boolean; toggle: () => void } }) {
+  const text = indexersText(c) || "—";
+  if (open && c.copies?.length) {
+    return (
+      <button type="button" className="whitespace-nowrap text-left underline decoration-dotted underline-offset-2" title={indexersTitle(c)} aria-expanded={open.on} onClick={open.toggle} data-testid="release-indexers">
+        {text}
+      </button>
+    );
+  }
+  return <span className="whitespace-nowrap" title={indexersTitle(c)} data-testid="release-indexers">{text}</span>;
+}
+
+/** Each copy of a row: the indexer and the name it listed the release under, the shown copy first. */
+function Copies({ c }: { c: Candidate }) {
+  return (
+    <ul className="space-y-0.5" data-testid="release-copies">
+      {[{ indexer: c.indexer, release: c.release }, ...(c.copies ?? [])].map((x, i) => (
+        <li key={i} className="text-xs text-[var(--ink-2)]">
+          {x.indexer ? indexerWords(x.indexer) : "—"}: <span className="font-mono text-[12px] text-[var(--ink)] [overflow-wrap:anywhere]">{x.release ?? ""}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -173,7 +201,7 @@ function Cell({ id, c, outcomes }: { id: ReleaseColumnId; c: Candidate; outcomes
     case "age":
       return <span className="whitespace-nowrap" title={c.published}>{fmtAge(c.published)}</span>;
     case "indexer":
-      return <span className="whitespace-nowrap" title={indexersTitle(c)} data-testid="release-indexers">{indexersText(c) || "—"}</span>;
+      return <Indexers c={c} />;
     case "history":
       return <Outcome o={outcomeOf(c, outcomes)} />;
     case "size":
@@ -376,9 +404,9 @@ export function ReleaseGrid({
   const choices = useMemo(() => filterChoices(items), [items]);
   // The rows whose matched formats are open (the table), by row key.
   const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
-  const openOf = (c: Candidate) => ({
-    on: opened.has(key(c)),
-    toggle: () => setOpened((s) => { const n = new Set(s); if (!n.delete(key(c))) n.add(key(c)); return n; }),
+  const openOf = (c: Candidate, part = "") => ({
+    on: opened.has(key(c) + part),
+    toggle: () => setOpened((s) => { const n = new Set(s); if (!n.delete(key(c) + part)) n.add(key(c) + part); return n; }),
   });
   const picked = (c: Candidate) => !!focus && !!c.info_hash && c.info_hash.toLowerCase() === focus.toLowerCase();
   // The first RELEASE_PAGE rows, more with each Show more; a new list (other items, filter, reason or sort: list is
@@ -467,12 +495,15 @@ export function ReleaseGrid({
               <TableBody>
                 {visible.map((c) => {
                   const open = openOf(c);
+                  const copies = openOf(c, ":copies");
+                  const cell = (id: ReleaseColumnId) =>
+                    id === "score" ? <Score c={c} open={open} /> : id === "indexer" ? <Indexers c={c} open={copies} /> : <Cell id={id} c={c} outcomes={outcomes} />;
                   return (
                   <Fragment key={key(c)}>
                   <TableRow data-release-hash={c.info_hash?.toLowerCase()} data-focus={picked(c) || undefined} className={cn(!c.accepted && "opacity-80", picked(c) && "bg-[var(--accent-soft)] opacity-100")}>
                     {before.map((id) => (
                       <TableCell key={id} className="align-top" data-column={id}>
-                        {id === "score" ? <Score c={c} open={open} /> : <Cell id={id} c={c} outcomes={outcomes} />}
+                        {cell(id)}
                       </TableCell>
                     ))}
                     <TableCell className="min-w-64 align-top">
@@ -481,7 +512,7 @@ export function ReleaseGrid({
                     {after.map((id) => (
                       // Status keeps a readable width (the table scrolls) rather than wrapping its reasons a word a line.
                       <TableCell key={id} className={cn("align-top", id === "status" && "min-w-44")} data-column={id}>
-                        {id === "score" ? <Score c={c} open={open} /> : <Cell id={id} c={c} outcomes={outcomes} />}
+                        {cell(id)}
                       </TableCell>
                     ))}
                     {grab ? (
@@ -499,6 +530,13 @@ export function ReleaseGrid({
                       </TableCell>
                     </TableRow>
                   ) : null}
+                  {copies.on ? (
+                    <TableRow data-testid="release-copies-detail">
+                      <TableCell colSpan={shown.length + 1 + (grab ? 1 : 0)} className="bg-[var(--bg)] py-2">
+                        <Copies c={c} />
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
                   </Fragment>
                   );
                 })}
@@ -506,15 +544,26 @@ export function ReleaseGrid({
             </Table>
           </div>
           <ul className="space-y-2 md:hidden" data-testid="releases-list">
-            {visible.map((c) => (
+            {visible.map((c) => {
+              const copies = openOf(c, ":copies");
+              return (
               <li key={key(c)} data-release-hash={c.info_hash?.toLowerCase()} data-focus={picked(c) || undefined} className={cn("rounded-[5px] border border-[var(--line)] bg-[var(--surface)] p-3", picked(c) && "border-[var(--accent)] bg-[var(--accent-soft)]")}>
                 <div className="flex items-start justify-between gap-3">
                   <span className="font-mono text-[12px] text-[var(--ink)] [overflow-wrap:anywhere]"><ReleaseName name={c.release} /></span>
                   <Score c={c} />
                 </div>
                 <div className="mt-1 text-xs text-[var(--ink-2)]">
-                  {[c.quality || "—", c.size ? fmtBytes(c.size) : "", fmtAge(c.published) !== "—" ? fmtAge(c.published) : "", `${peersText(c)} peers`, allIndexersText(c)].filter(Boolean).join(" · ")}
+                  {[c.quality || "—", c.size ? fmtBytes(c.size) : "", fmtAge(c.published) !== "—" ? fmtAge(c.published) : "", `${peersText(c)} peers`, c.copies?.length ? "" : allIndexersText(c)].filter(Boolean).join(" · ")}
+                  {c.copies?.length ? (
+                    <>
+                      {" · "}
+                      <button type="button" className="underline decoration-dotted underline-offset-2" aria-expanded={copies.on} onClick={copies.toggle} data-testid="release-card-indexers">
+                        {allIndexersText(c)}
+                      </button>
+                    </>
+                  ) : null}
                 </div>
+                {copies.on ? <div className="mt-1.5"><Copies c={c} /></div> : null}
                 {kind === "series" && c.episodes?.length ? <div className="mt-1 font-mono text-[12px] text-[var(--ink-2)]" data-testid="release-card-episodes">{episodesText(c.episodes)}</div> : null}
                 {c.formats?.length ? <div className="mt-1.5" data-testid="release-card-formats"><Formats c={c} zeros /></div> : null}
                 {c.cached_on?.length || c.languages?.length || c.flags?.length ? (
@@ -530,7 +579,8 @@ export function ReleaseGrid({
                 </div>
                 {grab ? <div className="mt-2"><GrabCell c={c} target={grab} o={outcomeOf(c, outcomes)} sentFrom={sentFrom(c)} onSent={markSent(c)} /></div> : null}
               </li>
-            ))}
+              );
+            })}
           </ul>
           {visible.length < rows.length ? (
             <div className="flex justify-center">
