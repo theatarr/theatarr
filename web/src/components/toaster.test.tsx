@@ -2,10 +2,13 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { afterEach, expect, it, vi } from "vitest";
-import { dismiss, headerBottom, toast, Toaster } from "./toaster";
+import { dismiss, toast, Toaster, toastTop } from "./toaster";
 import { Modal } from "./ui/modal";
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 /** A Toaster alone on the page, with no toast left from an earlier test (the store lives outside React). */
 function fresh() {
@@ -112,26 +115,67 @@ it("moves the toasts to the top of the screen while a modal is open, off a dialo
   expect(screen.getByTestId("toasts").dataset.placement).toBe("bottom");
 });
 
-it("puts the toasts just below the open modal's header row on a phone, so its Close stays reachable", () => {
+const rect = (top: number, bottom: number) => ({ top, bottom, left: 0, right: 400, width: 400, height: bottom - top, x: 0, y: top }) as DOMRect;
+const overlaps = (a: { top: number; bottom: number }, b: { top: number; bottom: number }) => a.top < b.bottom && b.top < a.bottom;
+
+/** A phone-width modal laid out by hand (jsdom has no layout): its panel, header row with Close, and buttons. */
+function phoneModal(panel: [number, number], header: [number, number], close: [number, number], buttons: [number, number]) {
+  const view = render(
+    <Modal label="Confirm" onClose={() => {}} panelTestid="panel">
+      <div data-testid="head"><h2>Remove</h2><button type="button" aria-label="Close">x</button></div>
+      <div data-testid="buttons"><button type="button">Cancel</button><button type="button">Remove</button></div>
+    </Modal>,
+  );
+  vi.spyOn(screen.getByTestId("panel"), "getBoundingClientRect").mockReturnValue(rect(...panel));
+  vi.spyOn(screen.getByTestId("head"), "getBoundingClientRect").mockReturnValue(rect(...header));
+  return { view, close: rect(...close), buttons: rect(...buttons) };
+}
+
+/** The stack's box as placed: its --toast-top and its height. */
+function stackBox(height: number) {
+  const top = Number.parseFloat(screen.getByTestId("toasts").style.getPropertyValue("--toast-top"));
+  return { top, bottom: top + height };
+}
+
+it("puts the toasts above a short confirmation on a phone, over the backdrop, clear of the whole dialog", () => {
   vi.useFakeTimers();
+  vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (this: HTMLElement) {
+    return this.dataset.testid === "toasts" ? 80 : 0;
+  });
   fresh();
   act(() => {
     toast({ tone: "ok", title: "saved" });
   });
-  const dialog = render(
-    <Modal label="Add" onClose={() => {}}>
-      <div data-testid="head"><h2>Add Alpha</h2><button type="button" aria-label="Close">x</button></div>
-      <div><button type="button">Add</button></div>
-    </Modal>,
-  );
-  vi.spyOn(screen.getByTestId("head"), "getBoundingClientRect").mockReturnValue({ bottom: 140 } as DOMRect);
-  expect(headerBottom()).toBe(140);
-  // Measured again once a sliding sheet has settled.
+  // A bottom-aligned confirmation with no body (Cancel request): header 560-620, buttons right under it.
+  const m = phoneModal([560, 860], [560, 620], [572, 604], [620, 680]);
   act(() => {
     vi.advanceTimersByTime(400);
   });
-  const stack = screen.getByTestId("toasts");
-  expect(stack.className).toContain("top-[var(--toast-top,1rem)]");
-  expect(stack.style.getPropertyValue("--toast-top")).toBe("148px");
-  dialog.unmount();
+  const box = stackBox(80);
+  expect(screen.getByTestId("toasts").className).toContain("top-[var(--toast-top,1rem)]");
+  expect(box.top).toBe(16);
+  expect(overlaps(box, { top: 560, bottom: 860 })).toBe(false);
+  expect(overlaps(box, m.close) || overlaps(box, m.buttons)).toBe(false);
+  m.view.unmount();
+});
+
+it("puts the toasts just below a full-height sheet's header row on a phone, clear of its Close and its buttons", () => {
+  vi.useFakeTimers();
+  vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (this: HTMLElement) {
+    return this.dataset.testid === "toasts" ? 80 : 0;
+  });
+  fresh();
+  act(() => {
+    toast({ tone: "ok", title: "saved" });
+  });
+  // The add sheet at 400 px: from 40 down, header to 180, buttons at the bottom.
+  const m = phoneModal([40, 860], [40, 180], [52, 84], [800, 852]);
+  act(() => {
+    vi.advanceTimersByTime(400);
+  });
+  const box = stackBox(80);
+  expect(box.top).toBe(188);
+  expect(overlaps(box, m.close) || overlaps(box, m.buttons)).toBe(false);
+  expect(toastTop(40, 180, 80)).toBe(188);
+  m.view.unmount();
 });

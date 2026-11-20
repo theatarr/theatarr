@@ -110,8 +110,9 @@ function ToastCard({ t }: { t: Toast }) {
 /** The toasts, above every dialog and sheet (z-[70] to z-[85], with their scrims) and below the skip link
  *  (z-[100]); the stack lets clicks through, each toast takes its own. While a modal is open the stack sits at the top
  *  of the screen (centred from sm up, clear of a side sheet), so it never covers a dialog's or sheet's buttons at the
- *  bottom; on a phone it sits just below the top modal's header row (the row with its Close), measured
- *  (headerBottom), so Close stays reachable. */
+ *  bottom; on a phone (toastTop) it sits above the top modal, over the backdrop, when there is room there (a short,
+ *  bottom-aligned confirmation), else just below its header row (the row with its Close), so neither Close nor a button
+ *  row is under it. */
 export function Toaster() {
   const list = useSyncExternalStore(subscribe, () => toasts, () => toasts);
   const top = useSyncExternalStore(subscribeModals, modalOpen, () => false);
@@ -121,7 +122,10 @@ export function Toaster() {
     const el = stack.current;
     if (!el || !top) return;
     // A custom property set through the CSSOM (the CSP refuses style attributes, not this).
-    const place = () => el.style.setProperty("--toast-top", `${Math.max(headerBottom() + 8, 16)}px`);
+    const place = () => {
+      const { panelTop, headerBottom } = modalGeometry();
+      el.style.setProperty("--toast-top", `${toastTop(panelTop, headerBottom, el.offsetHeight)}px`);
+    };
     place();
     // Again once a sliding sheet has settled.
     const t = setTimeout(place, 350);
@@ -130,7 +134,7 @@ export function Toaster() {
       clearTimeout(t);
       window.removeEventListener("resize", place);
     };
-  }, [top, shown]);
+  }, [top, list.length]);
   if (!shown) return null;
   return (
     <div
@@ -152,12 +156,23 @@ export function Toaster() {
   );
 }
 
-/** The bottom edge (px from the viewport top) of the top modal's header row: the row holding its Close button, else
- *  the panel's first child; 0 when there is none. */
-export function headerBottom(): number {
+/** The margin (px) around the toast stack at the top of a phone screen. */
+export const TOAST_MARGIN = 16;
+
+/** Where the toast stack's top goes on a phone while a modal is open (px from the viewport top): at the margin when the
+ *  stack (height px) and its margins fit above the modal's panel (top edge panelTop), so the whole dialog stays clear;
+ *  else just below the modal's header row (its bottom edge headerBottom), keeping Close reachable. */
+export function toastTop(panelTop: number, headerBottom: number, height: number): number {
+  if (panelTop >= height + 2 * TOAST_MARGIN) return TOAST_MARGIN;
+  return Math.max(headerBottom + 8, TOAST_MARGIN);
+}
+
+/** The top modal's panel top edge and its header row's bottom edge (the row holding its Close button, else the panel's
+ *  first child), px from the viewport top; 0 for what is not there. */
+export function modalGeometry(): { panelTop: number; headerBottom: number } {
   const root = topModal() as unknown as Element | undefined;
   const panel = root?.querySelector?.('[aria-modal="true"]');
-  if (!panel) return 0;
+  if (!panel) return { panelTop: 0, headerBottom: 0 };
   const head = panel.querySelector('[aria-label="Close"]')?.parentElement ?? panel.firstElementChild;
-  return head ? Math.round(head.getBoundingClientRect().bottom) : 0;
+  return { panelTop: Math.round(panel.getBoundingClientRect().top), headerBottom: head ? Math.round(head.getBoundingClientRect().bottom) : 0 };
 }
