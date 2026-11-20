@@ -451,7 +451,7 @@ describe("torrents page", () => {
       { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
       { method: "POST", path: "/torrents/delete/preview", reply: (r: { body?: { items: { override?: boolean }[] } }) => {
         n++;
-        const p = plan(false);
+        const p: { items: object[] } = plan(false);
         // The first preview names the copy that stays; after the tick the copy is gone: a new token, no survivor.
         p.items[1] = n === 1 ? { ...p.items[1], surviving_copy: "12" } : { ...p.items[1], expected_override_token: "o1-gone" };
         if (r.body?.items.some((i) => i.override)) p.items[1] = { ...p.items[1], refusal: "the override does not name this torrent's references as they are now: referenced by 1 link" };
@@ -472,7 +472,7 @@ describe("torrents page", () => {
 
   it("says how many more references the fold lists and how many the server did not send", async () => {
     const list = Array.from({ length: 20 }, (_, i) => ({ kind: "link", detail: `/lib/E${i + 1}.mkv` }));
-    const p = plan(false);
+    const p: { items: object[] } = plan(false);
     p.items[1] = { ...p.items[1], refs: { link: 108 }, ref_list: list };
     mockFetch([
       { method: "GET", path: "/torrents/report", reply: report },
