@@ -75,11 +75,13 @@ export function TorrentsPage() {
   const sort: SortKey = SORTS.some((x) => x.id === sortAsked) ? (sortAsked as SortKey) : "size";
   const setSort = (v: SortKey) => setParam("sort", v === "size" ? "" : v);
   const [selected, setSelected] = useState<Record<string, Torrent>>({});
-  // The last successful preview and the selection it was asked with: Confirm sends exactly that selection.
-  // n: the preview's number; Confirm needs the answer to the latest one (seq), not an older one with the same choices.
-  const [plan, setPlan] = useState<{ plan: DeletePlan; req: DeleteSelection[]; n: number } | null>(null);
+  // The last successful preview and the selection it was asked with: Confirm sends exactly that selection, and only
+  // while it is the request the current selection and choices make. failed: the preview asked after it failed.
+  const [plan, setPlan] = useState<{ plan: DeletePlan; req: DeleteSelection[]; failed?: boolean } | null>(null);
+  // Each preview's number: a late answer to an earlier one is dropped.
   const seq = useRef(0);
-  const [latest, setLatest] = useState(0); // the number of the latest preview asked for
+  // The delete is being prepared (from Delete selected until the dialog closes): a change of selection previews again.
+  const preparing = useRef(false);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [allowRecent, setAllowRecent] = useState(false);
   const [done, setDone] = useState<DeletePlan | null>(null);
@@ -96,41 +98,53 @@ export function TorrentsPage() {
   );
   const chosen = Object.values(selected);
   const shown = useMemo(() => new Set(rows.map(keyOf)), [rows]);
-  const toggle = (t: Torrent) =>
-    setSelected((s) => {
-      const n = { ...s };
-      if (n[keyOf(t)]) delete n[keyOf(t)];
-      else n[keyOf(t)] = t;
-      return n;
-    });
+  // Every change of the selection while a delete is prepared asks for a fresh preview of the new set.
+  const select = (n: Record<string, Torrent>) => {
+    setSelected(n);
+    if (preparing.current) preview(overrides, allowRecent, n);
+  };
+  const toggle = (t: Torrent) => {
+    const n = { ...selected };
+    if (n[keyOf(t)]) delete n[keyOf(t)];
+    else n[keyOf(t)] = t;
+    select(n);
+  };
   const allShown = rows.length > 0 && rows.every((t) => selected[keyOf(t)]);
-  const toggleAll = () =>
-    setSelected((s) => {
-      const n = { ...s };
-      for (const t of rows) {
-        if (allShown) delete n[keyOf(t)];
-        else n[keyOf(t)] = t;
-      }
-      return n;
-    });
+  const toggleAll = () => {
+    const n = { ...selected };
+    for (const t of rows) {
+      if (allShown) delete n[keyOf(t)];
+      else n[keyOf(t)] = t;
+    }
+    select(n);
+  };
 
   // Each preview is numbered: only the newest one's answer is taken, so a slow earlier answer never replaces it.
-  const preview = (ov: Record<string, string>, recent: boolean) => {
+  function preview(ov: Record<string, string>, recent: boolean, sel: Record<string, Torrent> = selected) {
     const n = ++seq.current;
-    setLatest(n);
-    const req = deleteSelection(chosen, ov, recent);
+    const req = deleteSelection(Object.values(sel), ov, recent);
     actions.deletePreview.mutateAsync(req).then((p) => {
+      if (n === seq.current) take(p, req, ov, recent, sel);
+    }, () => {
       if (n !== seq.current) return;
-      setPlan({ plan: p, req, n });
-      // A held override whose token no longer matches (the references changed) is dropped, and the set previewed again.
-      const kept = Object.fromEntries(Object.entries(ov).filter(([k, tok]) => p.items.some((it) => keyOf(it) === k && it.expected_override_token === tok)));
-      if (Object.keys(kept).length !== Object.keys(ov).length) {
-        setOverrides(kept);
-        preview(kept, recent);
-      }
-    }, () => {});
-  };
+      setPlan((x) => (x ? { ...x, failed: true } : x));
+      // The dialog never opened: the error shows above the table and the delete is no longer being prepared.
+      if (!plan) preparing.current = false;
+    });
+  }
+  // A plan from the server for req (a preview's answer, or a refused confirm's corrected plan): shown; a held override
+  // whose token no longer matches (the references, or whether a copy stays, changed) is dropped, and the set previewed
+  // again.
+  function take(p: DeletePlan, req: DeleteSelection[], ov: Record<string, string>, recent: boolean, sel: Record<string, Torrent>) {
+    setPlan({ plan: p, req });
+    const kept = Object.fromEntries(Object.entries(ov).filter(([k, tok]) => p.items.some((it) => keyOf(it) === k && it.expected_override_token === tok)));
+    if (Object.keys(kept).length !== Object.keys(ov).length) {
+      setOverrides(kept);
+      preview(kept, recent, sel);
+    }
+  }
   const openDelete = () => {
+    preparing.current = true;
     setOverrides({});
     setAllowRecent(false);
     setDone(null);
@@ -148,16 +162,20 @@ export function TorrentsPage() {
   };
   const closeDelete = () => {
     seq.current++;
+    preparing.current = false;
     // A failed preview's error does not stay above the table once the dialog is closed.
     actions.deletePreview.reset();
     setPlan(null);
     if (done) setSelected({});
+    setOverrides({});
     setDone(null);
   };
-  // The latest preview has not answered successfully (it is pending, or failed): Confirm waits.
-  const stale = !!plan && plan.n !== latest;
+  // Confirm waits unless the shown plan is the successful answer to the request the current selection and choices make
+  // (a preview pending, or the latest failed, or the plan is for another set).
+  const stale = !plan || !!plan.failed || actions.deletePreview.isPending ||
+    JSON.stringify(plan.req) !== JSON.stringify(deleteSelection(chosen, overrides, allowRecent));
   const confirmDelete = () => {
-    if (!plan || stale || actions.deletePreview.isPending) return;
+    if (!plan || stale) return;
     actions.del.mutate({ items: plan.req, token: plan.plan.confirmation_token }, { onSuccess: (p) => setDone(p) });
   };
 
@@ -214,7 +232,7 @@ export function TorrentsPage() {
             <Button size="sm" variant="destructive" disabled={chosen.length === 0 || actions.deletePreview.isPending} onClick={openDelete} data-testid="delete-selected">
               Delete selected
             </Button>
-            {chosen.length > 0 ? <Button size="sm" variant="ghost" onClick={() => setSelected({})}>Clear selection</Button> : null}
+            {chosen.length > 0 ? <Button size="sm" variant="ghost" onClick={() => select({})}>Clear selection</Button> : null}
           </div>
           {actions.deletePreview.error ? <p className="mb-2 text-sm text-[var(--bad-ink)]">{errText(actions.deletePreview.error)}</p> : null}
           {rows.length === 0 ? (

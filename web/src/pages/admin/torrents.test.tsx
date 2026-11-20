@@ -398,6 +398,34 @@ describe("torrents page", () => {
     expect(screen.getByTestId("confirm-blocked").textContent).toBe("Nothing chosen can be deleted as it is.");
   });
 
+  it("previews again when the selection changes while a preview loads: Confirm never sends a torrent no longer chosen", async () => {
+    const waiting: (() => void)[] = [];
+    let n = 0;
+    const api = mockFetch([
+      { method: "GET", path: "/torrents/report", reply: report },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+      { method: "POST", path: "/torrents/delete/preview", reply: (r: { body?: { items: { provider: string; id: string; hash: string }[] } }) => {
+        const items = (r.body?.items ?? []).map((i) => ({ ...i, name: i.id === "1" ? "Unused.Movie" : "Used.Movie", bytes: 1024, usage: "unused", action: "delete" }));
+        const p = { items, count: items.length, bytes: 1024 * items.length, refused: 0, digest: "d", confirmation_token: `d1-${items.map((i) => i.id).join("")}`, warning: "", deleted: 0, failed: 0 };
+        return ++n === 1 ? new Promise((res) => waiting.push(() => res(p))) : p;
+      } },
+      { method: "POST", path: "/torrents/delete", reply: { ...plan(false), backup_id: "b", deleted: 1 } },
+    ]);
+    renderPage(<TorrentsPage />);
+    await screen.findByText("Used.Movie");
+    fireEvent.click(screen.getByLabelText("Select Unused.Movie"));
+    fireEvent.click(screen.getByTestId("delete-selected"));
+    await waitFor(() => expect(waiting).toHaveLength(1));
+    // A is replaced by B while A's preview loads.
+    fireEvent.click(screen.getByLabelText("Select Unused.Movie"));
+    fireEvent.click(screen.getByLabelText("Select Used.Movie"));
+    waiting[0]();
+    await waitFor(() => expect((screen.getByTestId("confirm-ok") as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByTestId("confirm-ok"));
+    await waitFor(() => expect(api.calls("POST", "/torrents/delete")).toHaveLength(1));
+    expect((api.calls("POST", "/torrents/delete")[0].body as { items: { id: string }[] }).items.map((i) => i.id)).toEqual(["2"]);
+  });
+
   it("keeps Confirm off when the latest preview failed, though the choices match an older one", async () => {
     const waiting: (() => void)[] = [];
     let n = 0;
