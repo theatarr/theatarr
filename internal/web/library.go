@@ -292,9 +292,10 @@ func watchConds(c airClock) map[string]string {
 	st := availStateSQL(c)
 	live := `FROM version v WHERE v.title_id = t.id AND ` + liveVersion
 	nVersions := `(SELECT COUNT(*) ` + live + `)`
-	// anyFile: some version has a file; completeVersion: some version is complete (filled or at cutoff).
+	// anyFile: some version has a file; completeVersion: some version is complete (filled or at cutoff) and has a
+	// current file (a stored complete state alone can be left by a file of a removed episode).
 	anyFile := `EXISTS (SELECT 1 ` + live + ` AND ` + currentFileSQL + `)`
-	completeVersion := `EXISTS (SELECT 1 ` + live + ` AND ` + st + ` IN ('filled', 'cutoff_met'))`
+	completeVersion := `EXISTS (SELECT 1 ` + live + ` AND ` + st + ` IN ('filled', 'cutoff_met') AND ` + currentFileSQL + `)`
 	return map[string]string{
 		"watch_available": nVersions + ` > 0 AND ((t.kind = 'movie' AND ` + anyFile + `) OR (t.kind <> 'movie' AND ` +
 			completeVersion + `))`,

@@ -80,6 +80,7 @@ func plainState(s string) string {
 // every version the household keeps is there. A movie with a file in any version is
 // available; a series is available when some version is complete (filled or at its cutoff), partial ("some
 // episodes available") when versions have files but none is complete, and missing when no version has a file.
+// Complete needs a current file too (hasFile): a stored complete state can be left by a file of a removed episode.
 // Below cutoff is available. The SQL twins are watchConds.
 func plainAvailability(kind string, vs []versionState) string {
 	if len(vs) == 0 {
@@ -88,7 +89,7 @@ func plainAvailability(kind string, vs []versionState) string {
 	anyFile, complete := false, false
 	for _, v := range vs {
 		anyFile = anyFile || v.hasFile
-		complete = complete || v.state == "filled" || v.state == "cutoff_met"
+		complete = complete || (v.hasFile && (v.state == "filled" || v.state == "cutoff_met"))
 	}
 	switch {
 	case kind == "movie" && anyFile, kind != "movie" && complete:

@@ -48,7 +48,8 @@ catalog,title}.tsx`, `web/src/components/{library,title}/`.
   sizes, scores, providers, profiles, minimum availability, folders, arr records or registry rows in any of these answers, and `provider=` is refused (403).
   `availability` is watchability for these callers (`plainAvailability`): a movie with a file
   in any version is available (one missing copy does not make it partial); a series is available when some version
-  is complete, partial ("Some episodes available") when versions have files but none is complete, missing ("Not
+  is complete and holds a current file (a file of an episode the metadata source removed does not count, though the
+  copy's stored state may still say complete), partial ("Some episodes available") when versions have files but none is complete, missing ("Not
   available") when nothing has a file; never upgrade. The `availability=` filter and the facet counts use the same
   rule (`watch_*` in `availabilitySQL`).
   Qualities are resolutions only (1080p, 2160p), with no file counts, version or file dates, cutoff, upgrade state or

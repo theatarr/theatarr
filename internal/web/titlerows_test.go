@@ -613,6 +613,31 @@ func TestStaleCompleteSeriesIsPartial(t *testing.T) {
 	}
 }
 
+// TestRemovedEpisodeFileIsNotAvailable: a series copy stored as complete whose only file holds an episode the
+// metadata source removed, with no other episode aired, has no current file: an account without "see files" does not
+// read it as Available, in the row, the title page, the facets or the Available filter.
+func TestRemovedEpisodeFileIsNotAvailable(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	e.exec(`UPDATE version SET state = 'cutoff_met' WHERE id = 10`)
+	e.exec(`DELETE FROM link_episode WHERE link_id = 901`)
+	e.exec(`DELETE FROM link_version WHERE link_id = 901`)
+	e.exec(`UPDATE link SET state = 'unlinked' WHERE id = 901`)
+	e.exec(`UPDATE episode SET air_date = '2099-01-01', air_date_utc_at = NULL WHERE id IN (102, 103)`)
+	e.exec(`UPDATE episode SET removed_at = 1 WHERE id = 101`)
+	for _, path := range []string{"/titles/10", "/titles?kind=series"} {
+		if body := e.userBody(APIBase + path); strings.Contains(body, `"availability":"available"`) {
+			t.Errorf("user %s reads available: %s", path, body)
+		}
+	}
+	if body := e.userBody(APIBase + "/titles/facets?kind=series"); !strings.Contains(body, `"availability":{"available":0,`) {
+		t.Errorf("user facets count it available: %s", body)
+	}
+	if body := e.userBody(APIBase + "/titles?kind=series&availability=available"); !strings.HasPrefix(body, `{"total":0,`) {
+		t.Errorf("user available filter: %s", body)
+	}
+}
+
 // TestMoviePartlyAvailable: a movie held in one library and missing in a second, monitored library is partial in the
 // row, the filters, the facets and the title page. Unmonitored, or removed, the empty library does not count and the
 // held file decides: available (whatever its quality). A caller without "see files" reads available throughout.
