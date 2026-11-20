@@ -136,10 +136,13 @@ func redactRowWith(r *TitleRow, states []versionState) {
 	}
 }
 
-// redactVersion keeps a version's state, its resolution, languages and edition, and its episode counts: no files,
+// redactVersion keeps a version's state, whether it has a current file, its resolution, languages and edition, and its episode counts: no files,
 // history, cutoff or upgrade explanation.
 func redactVersion(v *Version) {
 	v.State = plainState(v.State)
+	// Watchability: a file only of an episode the metadata source removed is no file to watch (currentFileSQL), as the
+	// badge reads it; the hero's readiness reads this.
+	v.HasFile = v.currentFile
 	v.Links = []Link{}
 	v.Providers, v.CachedOn, v.AddTo = nil, nil, nil
 	if c := v.Current; c != nil {

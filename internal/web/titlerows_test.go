@@ -636,6 +636,17 @@ func TestRemovedEpisodeFileIsNotAvailable(t *testing.T) {
 	if body := e.userBody(APIBase + "/titles?kind=series&availability=available"); !strings.HasPrefix(body, `{"total":0,`) {
 		t.Errorf("user available filter: %s", body)
 	}
+	// The household title page reads the copies' has_file (web/src/lib/title-layout.ts readiness): no current file,
+	// so "Not available yet", not "0 of 0 episodes ready".
+	var d TitleDetail
+	if err := json.Unmarshal([]byte(e.userBody(APIBase+"/titles/10")), &d); err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range d.Versions {
+		if v.HasFile {
+			t.Errorf("user title page: %s has_file", v.Key)
+		}
+	}
 }
 
 // TestMoviePartlyAvailable: a movie held in one library and missing in a second, monitored library is partial in the
