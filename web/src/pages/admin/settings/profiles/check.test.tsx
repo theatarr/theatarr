@@ -113,6 +113,26 @@ describe("Release check", () => {
     expect(title.value).toBe("7");
   });
 
+  it("drops a failed check's error once the title shown is another one", async () => {
+    const whiplash = { id: 9, kind: "movie", name: "Whiplash", year: 2014, versions: [{ id: 90, key: "movie-remux", label: "4K Remux", has_file: true }] };
+    mockFetch([{ method: "GET", path: "/search", reply: (r: { search: string }) => new URLSearchParams(r.search).get("q") === "whiplash" ? { ...searchReply, library: [whiplash] } : searchReply },
+      { method: "POST", path: "/decide", reply: json({ error: "the release name is empty after cleaning" }, 400) }]);
+    const user = userEvent.setup();
+    renderPage(<ReleaseCheck />, "/admin/settings/profiles/check");
+    const box = screen.getByRole("textbox", { name: "Find a title" });
+    const title = screen.getByRole("combobox", { name: "Title" }) as HTMLSelectElement;
+    await user.type(box, "dune");
+    await waitFor(() => expect(title.value).toBe("7"));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Library" }), "movie-remux");
+    await user.type(screen.getByRole("textbox", { name: "Release name" }), "x");
+    await user.click(screen.getByRole("button", { name: "Check" }));
+    expect((await screen.findByRole("alert")).textContent).toContain("empty after cleaning");
+    await user.clear(box);
+    await user.type(box, "whiplash");
+    await waitFor(() => expect(title.value).toBe("9"));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("keeps a title chosen by hand while the search text changes", async () => {
     const two = { ...searchReply, library: [dune, { ...dune, id: 8, name: "Dune", year: 2021 }], library_total: 2 };
     mockFetch([{ method: "GET", path: "/search", reply: (r: { search: string }) => new URLSearchParams(r.search).get("q") === "dune" ? two : { ...searchReply, library: [] } }]);

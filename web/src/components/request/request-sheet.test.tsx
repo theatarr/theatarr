@@ -112,3 +112,17 @@ it("shows the libraries in sync with the asked-for one, which the request stores
   expect(list.querySelector('[data-vkey="movie-remux"]')?.textContent).toBe("4K Remux");
   expect(list.querySelector('[data-vkey="movie-web"]')?.textContent).toBe("4K WEBin sync with 4K Remux");
 });
+
+it("never names the environment to a household account requesting under a forced Pause", async () => {
+  const locked = { paused: true, pause_forced: true, will_grab: false };
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 3, permissions: ["browse", "request"] } },
+    { method: "GET", path: "/add/options", reply: { ...options, router_enabled: false, can_search: false,
+      versions: [{ key: "movie-web", label: "4K", kind: "movie", enable: "", fits: true, default: true, on: false, searchable: false, grab_state: locked }] } },
+    { method: "GET", path: "/requests", reply: { items: [], total: 0, counts: {} } },
+  ]);
+  renderPage(<RequestSheet target={{ kind: "movie", name: "Alpha", title_id: 5 }} onClose={() => {}} />);
+  await screen.findByTestId("request-sheet");
+  await waitFor(() => expect(screen.getByTestId("request-sheet").textContent).toContain("4K"));
+  expect(document.body.textContent).not.toContain("THEATARR_FORCE_OFF");
+});

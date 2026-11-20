@@ -343,7 +343,20 @@ it("phone: a failed download's reason and release name wrap in full on its card"
   expect(release.textContent).toBe(failed.release);
   for (const el of [words, release, name, column]) {
     const classes = el.className.split(/\s+/);
-    expect(classes.some((c) => /(^|:)(line-clamp-\d|truncate)$/.test(c))).toBe(false);
+    // Nothing that cuts the text applies below sm (a class for sm and up may).
+    expect(classes.some((c) => /^(max-sm:)?(line-clamp-\d|truncate)$/.test(c))).toBe(false);
   }
   vi.unstubAllGlobals();
+});
+
+it("phone: a household row's long title wraps in full", async () => {
+  const long = { ...base, id: 81, title: { id: 10, name: "Glasswing Protocol: The Extended Director's Cut of the Long Northern Winter", kind: "movie", poster: "" }, state: "downloading", words: "Downloading (40%)" };
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 4, username: "kid", permissions: ["browse", "request"], csrf_token: "t" } },
+    { method: "GET", path: "/activity", reply: { state: "now", admin: false, total: 1, now: [long] } },
+  ]);
+  renderPage(<QueueTab admin={false} show="all" onShow={() => {}} />, "/activity");
+  const row = await screen.findByTestId("download");
+  const name = within(row).getByRole("link", { name: long.title.name });
+  expect(name.className.split(/\s+/).some((c) => /^(max-sm:)?(line-clamp-\d|truncate)$/.test(c))).toBe(false);
 });

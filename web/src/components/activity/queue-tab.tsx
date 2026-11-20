@@ -45,7 +45,6 @@ import { ProviderTag } from "@/components/provider-pills";
 import { InfoHash } from "@/components/title/info-hash";
 import { attemptCodeWords, attemptMessageWords, attemptOutcomeWords, cacheSourceWords, cacheStateWords } from "@/lib/router-words";
 import { InteractiveSearchButton, useLiveLibraries } from "@/components/title/interactive-search";
-import { useMinWidth } from "@/components/library/copy-bits";
 
 const WORD_TONE = {
   active: "text-[var(--accent-ink)]",
@@ -292,8 +291,7 @@ function Ago({ iso }: { iso: string }) {
 }
 
 /** Every Queue column; the page shows Status, Title and the chosen ones. */
-/** wide: the table; on the phone cards (below it) the Release column wraps instead of being cut. */
-function queueColumns(now: number, wide: boolean): { fixed: DataColumn<ActivityDownload>[]; optional: Record<QueueColumnId, DataColumn<ActivityDownload>> } {
+function queueColumns(now: number): { fixed: DataColumn<ActivityDownload>[]; optional: Record<QueueColumnId, DataColumn<ActivityDownload>> } {
   return {
     fixed: [
       { id: "status", label: "Status", card: "none", cellClassName: "max-w-[8rem]", cell: (d) => <Stage d={d} admin attention={needsAttention(d, now)} /> },
@@ -324,7 +322,7 @@ function queueColumns(now: number, wide: boolean): { fixed: DataColumn<ActivityD
         id: "release",
         label: "Release",
         cellClassName: "max-w-[24rem]",
-        cell: (d) => (d.release ? <span className={cn("block font-mono text-[12px]", wide ? "truncate" : "break-all")} title={d.release}>{d.release}</span> : <Dash />),
+        cell: (d) => (d.release ? <span className="block font-mono text-[12px] max-sm:break-all sm:truncate" title={d.release}>{d.release}</span> : <Dash />),
       },
       added: { id: "added", label: "Added", sortable: true, cell: (d) => <Ago iso={d.created_at} /> },
       updated: { id: "updated", label: "Last update", sortable: true, cell: (d) => <Ago iso={d.updated_at} /> },
@@ -380,8 +378,7 @@ function QueueTable({ items, now, prefs, sort, onSort }: { items: ActivityDownlo
   const select = useChosen(rows.map((d) => d.id));
   const [removing, setRemoving] = useState(false);
   const [block, setBlock] = useState(false);
-  const wide = useMinWidth(640);
-  const { fixed, optional } = queueColumns(now, wide);
+  const { fixed, optional } = queueColumns(now);
   const columns = tight([...fixed, ...prefs.order.filter((id) => prefs.shown.includes(id)).map((id) => optional[id])]);
   const toggle = (id: number) => {
     if (id === deep) {
@@ -424,7 +421,7 @@ function QueueTable({ items, now, prefs, sort, onSort }: { items: ActivityDownlo
         })}
         cardHead={(d) => (
           <>
-            <TitleLine t={d.title} wrap />
+            <TitleLine t={d.title} />
             <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
               <VersionTag k={d.version} className="text-[11px]" />
               {d.quality ? <Badge tone="outline">{d.quality}</Badge> : null}

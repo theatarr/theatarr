@@ -175,7 +175,8 @@ export function ReleaseCheck() {
         <div className="sm:col-span-2"><Button type="submit" disabled={!title || !version || !release.trim() || sizeBad || check.isPending}>{check.isPending ? "Checking…" : "Check"}</Button></div>
       </form>
     </Card>
-    {check.error ? <p role="alert" className="text-sm text-[var(--bad-ink)]">{check.error instanceof Error ? check.error.message : String(check.error)}</p> : null}
+    {/* An error, like a result, shows only for the title it was checked for. */}
+    {check.error && check.variables?.title_id === title?.id ? <p role="alert" className="text-sm text-[var(--bad-ink)]">{check.error instanceof Error ? check.error.message : String(check.error)}</p> : null}
     {/* A result shows only for the title it was checked for. */}
     {check.data && check.data.sent.title_id === title?.id ? <Result d={check.data.d} sent={check.data.sent} library={title?.versions?.find((v) => v.key === check.data.d.version)?.label || nameOf(check.data.d.version ?? "")} /> : null}
   </div>;
