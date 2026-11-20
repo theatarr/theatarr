@@ -1,8 +1,10 @@
 // Toasts for live events (Scryer turns its subscription updates into toasts; Seerr shows them bottom right). A tiny
-// store outside React, so the event stream can push without a context; the Toaster renders the queue. No portal,
-// no inline style: a fixed stack in the corner, above the phone tab bar.
+// store outside React, so the event stream can push without a context; the Toaster renders the queue. A portal to
+// <body> that the modal stack never makes inert (data-toaster, TOASTER_ATTR), so a toast can be tapped while a dialog is open; no
+// inline style: a fixed stack in the corner, above the phone tab bar.
 import { CheckCircle2, Info, TriangleAlert, X, XCircle } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router";
 import { subscribeModals, topModal } from "@/lib/modal-stack";
 import { cn } from "@/lib/utils";
@@ -138,9 +140,10 @@ export function Toaster() {
     };
   }, [modal, top, list.length]);
   if (!shown) return null;
-  return (
+  return createPortal(
     <div
       ref={stack}
+      data-toaster=""
       aria-live="polite"
       data-placement={top ? "top" : "bottom"}
       data-testid="toasts"
@@ -154,7 +157,8 @@ export function Toaster() {
       {list.map((t) => (
         <ToastCard key={t.id} t={t} />
       ))}
-    </div>
+    </div>,
+    document.body,
   );
 }
 

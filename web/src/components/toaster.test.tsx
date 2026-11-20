@@ -115,6 +115,27 @@ it("moves the toasts to the top of the screen while a modal is open, off a dialo
   expect(screen.getByTestId("toasts").dataset.placement).toBe("bottom");
 });
 
+it("keeps a toast tappable while a modal is open: the stack sits on <body>, not inert, and Dismiss works without closing the dialog", () => {
+  fresh();
+  const onClose = vi.fn();
+  const dialog = render(<Modal label="Confirm" onClose={onClose}><button type="button">Confirm</button></Modal>);
+  act(() => {
+    toast({ tone: "ok", title: "marked fixed" });
+  });
+  const stack = screen.getByTestId("toasts");
+  expect(stack.parentElement).toBe(document.body);
+  expect(stack.closest("[inert]")).toBeNull();
+  fireEvent.click(within(stack).getByRole("button", { name: "Dismiss" }));
+  expect(screen.queryAllByTestId("toast")).toHaveLength(0);
+  expect(onClose).not.toHaveBeenCalled();
+  dialog.unmount();
+  // One live region: the toast is announced once.
+  act(() => {
+    toast({ tone: "ok", title: "again" });
+  });
+  expect(document.querySelectorAll("[aria-live]")).toHaveLength(1);
+});
+
 const rect = (top: number, bottom: number) => ({ top, bottom, left: 0, right: 400, width: 400, height: bottom - top, x: 0, y: top }) as DOMRect;
 const overlaps = (a: { top: number; bottom: number }, b: { top: number; bottom: number }) => a.top < b.bottom && b.top < a.bottom;
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lockScroll, pushModal, SCROLL_LOCK_CLASS, scrollLocks, topModal, type StackNode } from "./modal-stack";
+import { lockScroll, pushModal, SCROLL_LOCK_CLASS, scrollLocks, TOASTER_ATTR, topModal, type StackNode } from "./modal-stack";
 
 function classes() {
   const set = new Set<string>();
@@ -63,5 +63,16 @@ describe("modal stack", () => {
     expect(app.hasAttribute("inert")).toBe(false);
     // Someone else's inert stays.
     expect(foreign.hasAttribute("inert")).toBe(true);
+  });
+
+  it("leaves the toast stack tappable while a modal is open", () => {
+    const app = new Node("root");
+    const toasts = new Node("toasts");
+    toasts.setAttribute(TOASTER_ATTR, "");
+    const dialog = new Node("dialog");
+    const pop = pushModal(dialog, { children: [app, toasts, dialog] });
+    expect(app.hasAttribute("inert")).toBe(true);
+    expect(toasts.hasAttribute("inert")).toBe(false);
+    pop();
   });
 });

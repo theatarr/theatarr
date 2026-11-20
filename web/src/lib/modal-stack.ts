@@ -61,13 +61,17 @@ const changed = () => {
   for (const fn of [...listeners]) fn();
 };
 
+/** The attribute of the toast stack (Toaster), a child of <body> of its own: no modal makes it inert, so a toast's
+ *  Dismiss and link work while a dialog is open, and a tap on it never reaches the backdrop under it. */
+export const TOASTER_ATTR = "data-toaster";
+
 function sync(host: Host) {
   for (const el of ours) el.removeAttribute("inert");
   ours.clear();
   const top = stack[stack.length - 1];
   if (!top) return;
   for (const el of Array.from(host.children)) {
-    if (el === top || el.contains(top as never) || el.hasAttribute("inert")) continue;
+    if (el === top || el.contains(top as never) || el.hasAttribute("inert") || el.hasAttribute(TOASTER_ATTR)) continue;
     el.setAttribute("inert", "");
     ours.add(el);
   }

@@ -72,7 +72,9 @@ calls them. The UI shares two things with them (§3, §6): the add path (`catalo
   switch to Plex Sans). The primitives (button, input, select, switch, checkbox, chip, tag, table, dialog, sheet,
   tabs, toast, skeleton, empty state) live in `web/src/components/ui`. Toasts stack above every dialog and sheet (z-[95]; dialogs and sheets are z-[70] to z-[85],
   the skip link z-[100]), so a grab's "Grab started" or "Not sent" shows over Interactive search; the stack
-  lets clicks through and each toast takes its own. While any modal is open (`lib/modal-stack.ts` `topModal`) the stack
+  lets clicks through and each toast takes its own. It is a portal on `<body>` that the modal stack never makes inert
+  (`data-toaster`), so a toast's Dismiss and link work while a dialog is open and a tap on a toast never reaches the
+  backdrop or the sheet under it. While any modal is open (`lib/modal-stack.ts` `topModal`) the stack
   moves to the top of the screen (centred from sm up, clear of a side sheet). On a phone (`toastTop`, measured) it sits
   above the top modal, over the backdrop, when the stack and its margins fit there (a short, bottom-aligned
   confirmation), else just below the modal's header row (the row with its Close), so no toast lies over a dialog's
