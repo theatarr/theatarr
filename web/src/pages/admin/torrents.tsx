@@ -7,6 +7,7 @@
 // live in the URL (?provider=, ?group=, ?q=, ?sort=), so Back and a reload keep them.
 import { useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
+import { ApiError } from "@/api/client";
 import { useTorrentActions, useTorrentJournal, useTorrentReport } from "@/api/torrents";
 import { Empty, ErrorState, Loading, PageHeader, Section } from "@/components/page";
 import { ProviderPills, ProviderTag, providerLabel } from "@/components/provider-pills";
@@ -176,7 +177,18 @@ export function TorrentsPage() {
     JSON.stringify(plan.req) !== JSON.stringify(deleteSelection(chosen, overrides, allowRecent));
   const confirmDelete = () => {
     if (!plan || stale) return;
-    actions.del.mutate({ items: plan.req, token: plan.plan.confirmation_token }, { onSuccess: (p) => setDone(p) });
+    actions.del.mutate({ items: plan.req, token: plan.plan.confirmation_token }, {
+      onSuccess: (p) => setDone(p),
+      // The set changed since the preview (a copy that stayed is gone): nothing was deleted, and the server's corrected
+      // plan is taken as a preview's answer would be.
+      onError: (e) => {
+        const fresh = e instanceof ApiError && e.status === 422 ? (e.body as { plan?: DeletePlan } | undefined)?.plan : undefined;
+        if (!fresh) return;
+        actions.del.reset();
+        seq.current++;
+        take(fresh, plan.req, overrides, allowRecent, selected);
+      },
+    });
   };
 
   const r = report.data;

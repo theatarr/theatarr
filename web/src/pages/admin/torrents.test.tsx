@@ -426,6 +426,35 @@ describe("torrents page", () => {
     expect((api.calls("POST", "/torrents/delete")[0].body as { items: { id: string }[] }).items.map((i) => i.id)).toEqual(["2"]);
   });
 
+  it("takes a refused confirm's corrected plan like a preview: the tick whose copy is gone is dropped", async () => {
+    const gone = { ...plan(false), items: [plan(false).items[0], { ...plan(false).items[1], expected_override_token: "o1-gone" }] };
+    const api = mockFetch([
+      { method: "GET", path: "/torrents/report", reply: report },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+      { method: "POST", path: "/torrents/delete/preview", reply: (r: { body?: { items: { override?: boolean }[] } }) => {
+        if (api.calls("POST", "/torrents/delete").length > 0) return gone;
+        const p: { items: object[] } = plan(!!r.body?.items.some((i) => i.override));
+        p.items[1] = { ...p.items[1], surviving_copy: "12" };
+        return p;
+      } },
+      { method: "POST", path: "/torrents/delete", reply: { status: 422, body: { error: "explicit confirmation required", plan: gone } } },
+    ]);
+    renderPage(<TorrentsPage />);
+    await screen.findByText("Used.Movie");
+    fireEvent.click(screen.getByLabelText("Select all shown"));
+    fireEvent.click(screen.getByTestId("delete-selected"));
+    await screen.findByTestId("surviving-copy");
+    fireEvent.click(screen.getByTestId("override-all-copies"));
+    await screen.findByRole("heading", { name: /Delete 2 torrents/ });
+    await waitFor(() => expect((screen.getByTestId("confirm-ok") as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByTestId("confirm-ok"));
+    await screen.findByRole("heading", { name: /Delete 1 torrent/ });
+    await waitFor(() => expect((screen.getByTestId("override") as HTMLInputElement).checked).toBe(false));
+    expect(screen.queryByTestId("surviving-copy")).toBeNull();
+    expect(screen.queryByTestId("override-all-copies")).toBeNull();
+    expect(api.calls("POST", "/torrents/delete")).toHaveLength(1);
+  });
+
   it("keeps Confirm off when the latest preview failed, though the choices match an older one", async () => {
     const waiting: (() => void)[] = [];
     let n = 0;

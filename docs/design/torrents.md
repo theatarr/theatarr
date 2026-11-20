@@ -541,7 +541,9 @@ carrying `surviving_copy` and nothing else; unticking it unticks those. Each cha
 numbered and only the newest answer is taken, a held override whose token no longer matches is dropped (and the set
 previewed again), and a change of the selection while the delete is prepared (also before the dialog opened) asks for a
 fresh preview. Confirm is on only when the shown plan is the successful answer to the request the current selection
-and choices make (a pending or failed latest preview keeps it off), and sends exactly that request. A line says how many chosen torrents the current
+and choices make (a pending or failed latest preview keeps it off), and sends exactly that request. A
+refused confirm (422: the set changed, nothing deleted) hands back the corrected plan, which the dialog takes as it
+takes a preview's answer (a tick whose token no longer matches is dropped and the set previewed again). A line says how many chosen torrents the current
 filter hides and names the first three with their account ("RD Name, …"), then "and N more". "Also delete chosen torrents added in the last 24 hours or still downloading" shows only while a
 chosen torrent needs it (`needs_recent`) or it is ticked; once the delete finished the choices and rows go and the
 outcome shows. The backup is one
