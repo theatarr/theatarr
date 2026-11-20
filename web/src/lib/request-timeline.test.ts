@@ -45,7 +45,8 @@ describe("request timeline", () => {
     for (const fetching of [true, false]) {
       const step = requestTimeline({ ...base, status: "failed", decided_at: decided }, fetching)[2];
       expect(step).toMatchObject({ label: "Did not work", state: "stopped", at: decided, words: FAILED_WORDS });
-      expect(step.words).toMatch(/did not work.*manager/i);
+      // Corrected in phase Z: the admin is named ("A manager" before).
+      expect(step.words).toMatch(/did not work.*an admin can look/i);
       expect(step.words).not.toMatch(/fetched|downloads are off/);
     }
   });

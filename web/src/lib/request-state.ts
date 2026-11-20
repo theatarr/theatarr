@@ -148,13 +148,13 @@ export function settledWords(tone: "positive" | "partial" | "neutral" | undefine
 /**
  * The request sheet's promise before sending: an auto-approve account's request is approved at once, except when it
  * joins a pending request that asks for more than it does (POST /requests, not_approved "asks_more"). manages: the
- * account holds manage_requests, so it is told it can approve the request itself rather than wait for a manager.
+ * account holds manage_requests, so it is told it can approve the request itself. No role is named to anyone else.
  */
 export function approvalNotice(autoApprove: boolean, manages = false): string {
-  if (!autoApprove) return "Your request needs approval from a manager.";
+  if (!autoApprove) return "Your request needs approval.";
   return manages
     ? "Your request is approved automatically. If someone already asked for more of this title, it waits for approval; you can approve it in Requests."
-    : "Your request is approved automatically. If someone already asked for more of this title, a manager approves it.";
+    : "Your request is approved automatically. If someone already asked for more of this title, it needs approval.";
 }
 
 /** What the request sheet says once a request is sent (a POST /requests answer). */
@@ -163,10 +163,17 @@ export function requestDoneWords(result: { approved: boolean; merged: boolean; n
   if (result.merged && result.not_approved === "asks_more") {
     return manages
       ? "Someone asked for this already, for more than you did, so it waits for approval; you can approve it in Requests. You are on that request too."
-      : "Someone asked for this already, for more than you did, so a manager approves it. You are on that request too.";
+      : "Someone asked for this already, for more than you did, so it needs approval. You are on that request too.";
   }
   if (result.merged) return "Someone asked for this already; you are on that request too.";
-  return "Sent. An admin will look at it; you will see it change here and on your requests page.";
+  return "Sent. It is waiting for approval. You will see it change here and on your requests page.";
+}
+
+/** The request sheet's line while downloads are paused (Pause, or Pause locked by the environment): any of the
+ *  request's copies says so in its grab gates (add options' grab_state). */
+export const PAUSED_REQUEST_WORDS = "Downloads are paused right now. Your request is saved and starts when they are turned back on.";
+export function versionsPaused(versions: readonly { grab_state?: GrabGates }[]): boolean {
+  return versions.some((v) => v.grab_state?.paused || v.grab_state?.pause_forced);
 }
 
 /** The grab gates every account sees on a version (control.grab_state; redaction keeps it). */

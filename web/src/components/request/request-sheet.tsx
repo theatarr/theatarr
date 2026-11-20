@@ -24,6 +24,8 @@ import { Modal } from "@/components/ui/modal";
 import {
   applicableRequestVersionKeys,
   approvalNotice,
+  PAUSED_REQUEST_WORDS,
+  versionsPaused,
   versionFetching,
   findRequest,
   moreSeasonsOnly,
@@ -162,6 +164,7 @@ export function RequestSheet({ target, onClose }: { target: AddTarget; onClose: 
                     <p className="mt-2 text-sm" data-testid="request-approval-notice">
                       {approvalNotice(Boolean(me.data?.permissions?.includes("auto_approve")), Boolean(me.data?.permissions?.includes("manage_requests")))}
                     </p>
+                    {versionsPaused((o.versions ?? []).filter((v) => applicable.has(v.key))) ? <p className="mt-2 text-sm text-[var(--warn-ink)]" data-testid="request-paused">{PAUSED_REQUEST_WORDS}</p> : null}
                   </section>
                   {o.kind === "series" && allSeasons.length > 0 ? (
                     <section>
@@ -182,7 +185,7 @@ export function RequestSheet({ target, onClose }: { target: AddTarget; onClose: 
                             >
                               <input type="checkbox" className="size-4 accent-[var(--accent)]" disabled={here} checked={seasonOn(s.season)} onChange={(e) => setSeasons((p) => ({ ...p, [s.season]: e.target.checked }))} />
                               <span className="font-medium">{seasonLabel(s.season)}</span>
-                              {here || s.episodes ? <span className="text-xs text-[var(--ink-3)]">{here ? "Already monitored" : `${s.episodes} ep.`}</span> : null}
+                              {here || s.episodes ? <span className="text-xs text-[var(--ink-3)]">{here ? "Already added" : `${s.episodes} ep.`}</span> : null}
                             </label>
                           );
                         })}

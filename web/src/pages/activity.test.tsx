@@ -116,7 +116,8 @@ describe("Activity for an account without See files", () => {
     showAs(["browse", "request"]);
     renderPage(<ActivityPageView />, "/activity");
     await userEvent.click(await screen.findByTestId("download-details"));
-    expect((await screen.findByTestId("failed-words")).textContent).toBe("This did not work. A manager can look at it.");
+    // Corrected in phase Z: names the admin ("A manager" before).
+    expect((await screen.findByTestId("failed-words")).textContent).toBe("This did not work. An admin can look at it.");
     expect(document.querySelector("[data-vkey]")).toBeNull();
     expect(document.body.textContent).not.toContain("movie-remux");
     expect(screen.getByText("4K")).toBeTruthy();

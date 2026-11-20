@@ -42,6 +42,7 @@ export function ConfirmDialog({
   testid,
   does,
   top,
+  cancelWord = "Cancel",
 }: {
   scope: Scope;
   /** A choice the scope depends on (the library a selection is removed from), above "This will". */
@@ -64,6 +65,8 @@ export function ConfirmDialog({
   /** Choices (checkboxes) between the scope and the buttons. */
   children?: ReactNode;
   testid?: string;
+  /** The dismiss button's word before the action is done ("Keep request" beside "Cancel request"). */
+  cancelWord?: string;
 }) {
   const cancel = useRef<HTMLButtonElement>(null);
   // A plain question (window.confirm's former callers) may have nothing to list: empty headings, and an empty body,
@@ -143,7 +146,7 @@ export function ConfirmDialog({
       <div className="flex justify-end gap-2 border-t sm:rounded-b-[8px] border-[var(--line)] bg-[var(--bg)] p-3">
         {/* Done, or nothing to confirm (an empty confirm word): only Close. */}
         <Button ref={cancel} variant="ghost" size="sm" onClick={onClose} data-testid="confirm-cancel">
-          {done || !scope.confirm ? "Close" : "Cancel"}
+          {done || !scope.confirm ? "Close" : cancelWord}
         </Button>
         {done || !scope.confirm ? null : (
           <Button

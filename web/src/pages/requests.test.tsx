@@ -63,6 +63,8 @@ describe("a request the user joined", () => {
     await ue.click(await screen.findByTestId("request-cancel"));
     const d = await screen.findByTestId("request-cancel-confirm");
     expect(d.querySelector("h2")?.textContent).toBe("Cancel your request for Alpha?");
+    // Two buttons that cannot be mixed up: keep it, or cancel it.
+    expect([within(d).getByTestId("confirm-cancel").textContent, within(d).getByTestId("confirm-ok").textContent]).toEqual(["Keep request", "Cancel request"]);
     await ue.click(within(d).getByTestId("confirm-cancel"));
     expect(api.calls("DELETE", "/requests/1")).toHaveLength(0);
     await ue.click(screen.getByTestId("request-cancel"));
@@ -86,7 +88,8 @@ it("keeps each copy's progress under a failed request's plain failure words", as
   renderPage(<Routes><Route path="/requests/:tab" element={<RequestsPage />} /></Routes>, "/requests/1");
   const timeline = await screen.findByTestId("request-timeline");
   expect(within(timeline).getByText("Did not work")).toBeTruthy();
-  expect(timeline.textContent).toContain("This did not work. A manager can look at it.");
+  // Corrected in phase Z: names the admin, as the request sheet does ("A manager" before).
+  expect(timeline.textContent).toContain("This did not work. An admin can look at it.");
   expect(timeline.textContent).not.toContain("downloads are off");
   expect(within(timeline).getByText("Download failed")).toBeTruthy();
 });

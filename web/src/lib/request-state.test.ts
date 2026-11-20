@@ -139,16 +139,17 @@ it.each(["approved", "processing"])("does not promise progress for %s while grab
 
 describe("request sheet words", () => {
   it("promises auto-approval only for the account's own ask", () => {
-    expect(approvalNotice(true)).toContain("If someone already asked for more of this title, a manager approves it.");
-    expect(approvalNotice(false)).toBe("Your request needs approval from a manager.");
+    // Corrected in phase Z: no role is named ("a manager" before).
+    expect(approvalNotice(true)).toContain("If someone already asked for more of this title, it needs approval.");
+    expect(approvalNotice(false)).toBe("Your request needs approval.");
   });
   it("says why a joined request was not approved", () => {
     expect(requestDoneWords({ approved: true, merged: true })).toMatch(/^Approved automatically/);
     expect(requestDoneWords({ approved: false, merged: true, not_approved: "asks_more" })).toBe(
-      "Someone asked for this already, for more than you did, so a manager approves it. You are on that request too.",
+      "Someone asked for this already, for more than you did, so it needs approval. You are on that request too.",
     );
     expect(requestDoneWords({ approved: false, merged: true })).toBe("Someone asked for this already; you are on that request too.");
-    expect(requestDoneWords({ approved: false, merged: false })).toMatch(/^Sent\./);
+    expect(requestDoneWords({ approved: false, merged: false })).toBe("Sent. It is waiting for approval. You will see it change here and on your requests page.");
   });
   it("tells an account that manages requests it can approve, not to wait for a manager", () => {
     const notice = approvalNotice(true, true);
@@ -157,6 +158,7 @@ describe("request sheet words", () => {
     const done = requestDoneWords({ approved: false, merged: true, not_approved: "asks_more" }, true);
     expect(done).toContain("so it waits for approval; you can approve it in Requests.");
     expect(done).not.toContain("a manager approves it");
-    expect(approvalNotice(true, false)).toContain("a manager approves it.");
+    // Corrected in phase Z: an account that cannot approve is told it needs approval, with no role named.
+    expect(approvalNotice(true, false)).toContain("it needs approval.");
   });
 });

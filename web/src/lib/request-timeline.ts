@@ -9,7 +9,7 @@ export type RequestStep = {
 };
 
 /** What a failed request or download says: that it did not work and who can look at it, without detail. */
-export const FAILED_WORDS = "This did not work. A manager can look at it.";
+export const FAILED_WORDS = "This did not work. An admin can look at it.";
 
 /** Request rows record creation, decision and the latest status time, not a complete transition history. */
 export function requestTimeline(r: RequestDetail, fetching = true): RequestStep[] {

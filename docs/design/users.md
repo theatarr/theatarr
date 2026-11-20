@@ -144,7 +144,12 @@ and no other-requester list or count.
   that request with the joiner as the decision maker, but only when the request's versions and seasons are all within
   the joiner's own ask (`askCovers`): approving more would let a non-manager approve someone else's request. Otherwise
   the request stays pending and the answer says why (`not_approved: "asks_more"`; the request sheet puts it in
-  words, telling an account with `manage_requests` it can approve it in Requests rather than wait for a manager). Joining an approved or processing request approves nothing. The same rule holds for managers' asks. A
+  words, telling an account with `manage_requests` it can approve it in Requests; any other account reads that it
+  needs approval, with no role named). Before sending, the sheet says "Your request needs approval." to an account
+  without auto-approve, a season already in the library reads "Already added", and while Pause is on (ordinary or
+  locked, from the add options' `grab_state`) "Downloads are paused right now. Your request is saved and starts when
+  they are turned back on."; once sent it says "Sent. It is waiting for approval. …". Cancelling your own request asks
+  with **Keep request** / **Cancel request**. Joining an approved or processing request approves nothing. The same rule holds for managers' asks. A
   joiner's approval notifies as an approval, not an auto-approval. `TestAutoApproveJoinsPendingRequest` and `TestAutoApproveJoinSeasons` cover it.
 - **Joining**: containment only (`askCovers`, `createRequest`). A new ask joins an open request (pending, approved or
   processing) only when that one request holds all of it: every library asked, for every season asked (a request

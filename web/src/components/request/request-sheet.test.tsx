@@ -126,3 +126,29 @@ it("never names the environment to a household account requesting under a forced
   await waitFor(() => expect(screen.getByTestId("request-sheet").textContent).toContain("4K"));
   expect(document.body.textContent).not.toContain("THEATARR_FORCE_OFF");
 });
+
+// T6: the household words name no role, a season already in the library reads "Already added", and a Pause (ordinary
+// or locked) is said before sending.
+it("says what happens in plain words: approval with no role, Already added, and Pause when downloads are paused", async () => {
+  const gs = (paused: boolean, forced = false) => ({ paused, pause_forced: forced, library_writes: true, will_grab: !paused });
+  const series = (grab: object) => ({ ...options, kind: "series", anime: false, in_library: true, seasons: [{ season: 1, episodes: 8 }, { season: 2, episodes: 8 }],
+    versions: [{ key: "tv-web", label: "TV", kind: "series", enable: "", fits: true, default: true, on: true, open_seasons: [2], searchable: true, grab_state: grab }] });
+  for (const [grab, paused] of [[gs(false), false], [gs(true), true], [gs(true, true), true]] as const) {
+    mockFetch([
+      { method: "GET", path: "/auth/me", reply: { id: 3, permissions: ["browse", "request"] } },
+      { method: "GET", path: "/add/options", reply: series(grab) },
+      { method: "GET", path: "/requests", reply: { items: [], total: 0, counts: {} } },
+      { method: "POST", path: "/requests", reply: json({ approved: false, merged: false, request: { id: 4, name: "Kappa", status: "pending", versions: [{ key: "tv-web", label: "TV" }], seasons: [2] } }) },
+    ]);
+    const user = userEvent.setup();
+    const { unmount } = renderPage(<RequestSheet target={{ kind: "series", name: "Kappa", title_id: 5 }} onClose={() => {}} />);
+    expect((await screen.findByTestId("request-approval-notice")).textContent).toBe("Your request needs approval.");
+    const list = screen.getByTestId("request-seasons");
+    expect(list.querySelector('[data-season="1"]')?.textContent).toBe("Season 1Already added");
+    const pause = screen.queryByTestId("request-paused");
+    expect(pause?.textContent ?? null).toBe(paused ? "Downloads are paused right now. Your request is saved and starts when they are turned back on." : null);
+    await user.click(screen.getByTestId("request-submit"));
+    expect((await screen.findByText(/^Sent\./)).textContent).toBe("Sent. It is waiting for approval. You will see it change here and on your requests page.");
+    unmount();
+  }
+});

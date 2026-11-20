@@ -323,7 +323,7 @@ function RequestRow({ r, manager, detail }: { r: Request; manager: boolean; deta
               {cancelling ? (
                 <ConfirmDialog testid="request-cancel-confirm" busy={cancel.isPending} error={cancel.error} onClose={() => setCancelling(false)}
                   onConfirm={() => cancel.mutate(r.id, { onSuccess: () => setCancelling(false) })}
-                  scope={{ title: `Cancel your request for ${r.name}?`, does: [], keeps: [], confirm: "Cancel request" }} />
+                  scope={{ title: `Cancel your request for ${r.name}?`, does: [], keeps: [], confirm: "Cancel request" }} cancelWord="Keep request" />
               ) : null}
             </div>
           </div>
