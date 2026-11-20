@@ -60,9 +60,28 @@ import {
 import { providerAnswersWords } from "@/lib/router-words";
 import { cn } from "@/lib/utils";
 
+/** Each provider's answer to a failed release, opened by a tap (the phone card: no tooltip without a pointer). */
+function ProviderAnswers({ full, testid = "release-answers-open" }: { full: string; testid?: string }) {
+  const [open, setOpen] = useState(false);
+  if (!full) return null;
+  return (
+    <span className="flex flex-col items-start gap-0.5">
+      <button type="button" className="py-1 text-[11px] text-[var(--ink-2)] underline decoration-dotted underline-offset-2" aria-expanded={open} onClick={() => setOpen(!open)} data-testid={testid}>
+        Provider answers
+      </button>
+      {open ? (
+        <ul className="space-y-0.5 text-[11px] text-[var(--ink-2)]" data-testid="release-answers-list">
+          {full.split("\n").map((l, i) => <li key={i} className="[overflow-wrap:anywhere]">{l}</li>)}
+        </ul>
+      ) : null}
+    </span>
+  );
+}
+
 /** What came of a release for this library, by its hash (Releases.outcomes): grabbed (with the download's words, as
- *  Activity says them), imported, current, failed or replaced. */
-export function Outcome({ o }: { o?: ReleaseOutcome }) {
+ *  Activity says them), imported, current, failed or replaced. On a card (the phone) a failure's reason wraps in full
+ *  and its provider answers open by a tap; the table keeps the one-line badge with its tooltip. */
+export function Outcome({ o, card }: { o?: ReleaseOutcome; card?: boolean }) {
   if (!o) return null;
   switch (o.outcome) {
     case "grabbed":
@@ -72,6 +91,16 @@ export function Outcome({ o }: { o?: ReleaseOutcome }) {
     case "current":
       return <Badge tone="ok" data-testid="release-outcome">Current file</Badge>;
     case "failed":
+      if (card) {
+        return (
+          <span className="flex max-w-full flex-col items-start gap-0.5">
+            <Badge tone="bad" className="h-auto max-w-full whitespace-normal py-1 leading-snug" data-testid="release-outcome">
+              <span className="[overflow-wrap:anywhere]">Failed{o.reason ? ` · ${o.reason}` : ""}</span>
+            </Badge>
+            <ProviderAnswers full={providerAnswersWords(o.attempts).full} />
+          </span>
+        );
+      }
       return <Badge tone="bad" className="max-w-full" title={[o.reason, providerAnswersWords(o.attempts).full].filter(Boolean).join("\n") || undefined} data-testid="release-outcome"><span className="truncate">Failed{o.reason ? ` · ${o.reason}` : ""}</span></Badge>;
     case "replaced":
       return (
@@ -235,7 +264,7 @@ function Cell({ id, c, outcomes }: { id: ReleaseColumnId; c: Candidate; outcomes
  *  then (0: none); "Sent" stands until an outcome of another download answers. In flight: the download's words, with
  *  a spinner while something works on it; imported or current: Imported; failed: Failed, with the button back
  *  ("Try again") and what each provider answered, with a note when it is blocklisted (the grab asks first); replaced or nothing: the button. */
-export function GrabCell({ c, target, o, sentFrom, onSent }: { c: Candidate; target: GrabTarget; o?: ReleaseOutcome; sentFrom?: number; onSent: () => void }) {
+export function GrabCell({ c, target, o, sentFrom, onSent, card }: { c: Candidate; target: GrabTarget; o?: ReleaseOutcome; sentFrom?: number; onSent: () => void; card?: boolean }) {
   const grab = useGrab(target.titleId);
   const [dialog, setDialog] = useState<{ late?: string[]; blocked?: BlockedRelease }>();
   const library = target.label ?? target.version;
@@ -290,13 +319,24 @@ export function GrabCell({ c, target, o, sentFrom, onSent }: { c: Candidate; tar
   }
   const failure = fresh?.outcome === "failed" ? (
     <span className="flex min-w-0 max-w-[18rem] flex-col">
-      <span className="text-xs font-medium text-[var(--bad-ink)]" title={[fresh.reason, answers?.full, note].filter(Boolean).join("\n") || undefined} data-testid="release-failed">
-        Failed
-      </span>
-      {answers?.line ? (
-        <span className="truncate text-[11px] text-[var(--ink-3)]" title={answers.full} data-testid="release-answers">
-          {answers.line}
+      {card ? (
+        // The phone: the reason and the note in full, no tooltip.
+        <span className="text-xs font-medium text-[var(--bad-ink)] [overflow-wrap:anywhere]" data-testid="release-failed">
+          Failed{fresh.reason ? ` · ${fresh.reason}` : ""}{note ? `. ${note}` : ""}
         </span>
+      ) : (
+        <span className="text-xs font-medium text-[var(--bad-ink)]" title={[fresh.reason, answers?.full, note].filter(Boolean).join("\n") || undefined} data-testid="release-failed">
+          Failed
+        </span>
+      )}
+      {answers?.line ? (
+        card ? (
+          <ProviderAnswers full={answers.full} testid="release-grab-answers-open" />
+        ) : (
+          <span className="truncate text-[11px] text-[var(--ink-3)]" title={answers.full} data-testid="release-answers">
+            {answers.line}
+          </span>
+        )
       ) : null}
     </span>
   ) : null;
@@ -557,7 +597,7 @@ export function ReleaseGrid({
                   {c.copies?.length ? (
                     <>
                       {" · "}
-                      <button type="button" className="underline decoration-dotted underline-offset-2" aria-expanded={copies.on} onClick={copies.toggle} data-testid="release-card-indexers">
+                      <button type="button" className="py-1.5 underline decoration-dotted underline-offset-2" aria-expanded={copies.on} onClick={copies.toggle} data-testid="release-card-indexers">
                         {allIndexersText(c)}
                       </button>
                     </>
@@ -575,9 +615,9 @@ export function ReleaseGrid({
                 ) : null}
                 <div className="mt-1.5 flex flex-col items-start gap-1">
                   <Status c={c} />
-                  <Outcome o={outcomeOf(c, outcomes)} />
+                  <Outcome o={outcomeOf(c, outcomes)} card />
                 </div>
-                {grab ? <div className="mt-2"><GrabCell c={c} target={grab} o={outcomeOf(c, outcomes)} sentFrom={sentFrom(c)} onSent={markSent(c)} /></div> : null}
+                {grab ? <div className="mt-2"><GrabCell c={c} target={grab} o={outcomeOf(c, outcomes)} sentFrom={sentFrom(c)} onSent={markSent(c)} card /></div> : null}
               </li>
               );
             })}

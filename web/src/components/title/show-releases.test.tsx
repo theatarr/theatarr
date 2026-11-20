@@ -66,6 +66,24 @@ it("opens each copy's name by a tap on the indexers, in the table and on a card,
   expect(within(table).getAllByTestId("release-score")[0].textContent).toBe("+4,450");
 });
 
+it("words a failed release in full on a phone card and opens its provider answers by a tap; the table keeps its line", () => {
+  mockFetch([ME]);
+  const reason = "Not cached on RD, AD and TB, and the library's sample guard refused the only file it found";
+  const outcomes = { aaa: { outcome: "failed", provider: "rd", reason, attempts: [{ provider: "RD", outcome: "miss", code: "not_cached", message: "" }, { provider: "AD", outcome: "error", message: "HTTP 503" }] } };
+  renderPage(<ReleaseGrid kind="movie" items={[cand(1, "aaa")]} outcomes={outcomes as never} />);
+  const card = within(screen.getByTestId("releases-list")).getAllByRole("listitem")[0];
+  const badge = within(card).getByTestId("release-outcome");
+  expect(badge.textContent).toBe(`Failed · ${reason}`);
+  expect(badge.querySelector(".truncate")).toBeNull();
+  expect(within(card).queryByTestId("release-answers-list")).toBeNull();
+  fireEvent.click(within(card).getByTestId("release-answers-open"));
+  expect(within(card).getByTestId("release-answers-list").querySelectorAll("li")).toHaveLength(2);
+  // The table: one line, the rest in the tooltip, as before.
+  const row = within(screen.getByTestId("releases-table")).getByTestId("release-outcome");
+  expect(row.querySelector(".truncate")).toBeTruthy();
+  expect(row.getAttribute("title")).toContain(reason);
+});
+
 it("says what the shown search did and picks out the followed release", async () => {
   mockFetch([
     { method: "GET", path: "/auth/me", reply: { permissions: ["browse", "see_files", "manage"] } },
