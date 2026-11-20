@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { mockFetch, renderPage } from "@/test/page";
 import { ReleaseGrid } from "./release-grid";
@@ -134,7 +134,7 @@ it("says what the shown search did and picks out the followed release", async ()
   expect(screen.getByTestId("releases-notes").textContent).toBe("Indexers: seadex: dropped 1 entry: private tracker; dropped 1 single-file entry; dropped 1 recent entry not filed under one of our titles; dropped 2 entries with an excluded tag");
   expect(screen.queryByText("the last search Theatarr decided for each library")).toBeNull();
   // The stored list is a sample of the 12: it says how many it shows.
-  expect(screen.getByTestId("releases-stored-count").textContent).toBe("Showing 2 stored results.");
+  expect(screen.getByTestId("release-stored-count").textContent).toBe("Showing 2 stored results.");
 });
 
 it("says when the followed release is not in the stored list", async () => {
@@ -155,6 +155,19 @@ const stored = (cands: ReturnType<typeof cand>[]) => ({
   candidates: cands, rejections: {}, outcomes: {}, grabbed: "Nothing grabbed: blocklisted", grab: false,
 });
 
+it("counts the stored results the filter leaves, and says nothing beside No release matches", async () => {
+  mockFetch([ME, { method: "GET", path: "/titles/7/releases", reply: { ...stored([cand(1, "aaa"), cand(2, "bbb", false)]), results: 12 } }]);
+  renderPage(<ShowReleases titleId={7} defaultOpen initialVersion="movie-web" />);
+  await screen.findByTestId("releases-table");
+  const caption = () => screen.queryByTestId("release-stored-count")?.textContent ?? null;
+  expect(caption()).toBe("Showing 2 stored results.");
+  fireEvent.click(screen.getByTestId("release-accepted-only"));
+  await waitFor(() => expect(caption()).toBe("1 of 2 stored results matches the filter."));
+  fireEvent.change(screen.getByTestId("release-filter"), { target: { value: "nothing-matches-this" } });
+  await screen.findByTestId("release-no-match");
+  expect(caption()).toBeNull();
+});
+
 it("a stored list has no Grab buttons and offers Interactive search", async () => {
   mockFetch([
     ME,
@@ -166,7 +179,7 @@ it("a stored list has no Grab buttons and offers Interactive search", async () =
   renderPage(<ShowReleases titleId={7} defaultOpen initialVersion="movie-web" />);
   await screen.findByTestId("releases-table");
   // Every result is shown: nothing to say about a sample.
-  expect(screen.queryByTestId("releases-stored-count")).toBeNull();
+  expect(screen.queryByTestId("release-stored-count")).toBeNull();
   expect(screen.queryByTestId("release-grab")).toBeNull();
   fireEvent.click(screen.getByTestId("interactive-search-open"));
   expect(await screen.findByTestId("interactive-waiting")).toBeTruthy();

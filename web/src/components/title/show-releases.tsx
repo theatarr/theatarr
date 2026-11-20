@@ -136,11 +136,8 @@ export function Summary({ r, reason, onReason, episode = false }: { r: Releases;
 }
 
 /** A stored search keeps a sample of its releases (the best accepted, then the best-scored rejected:
- *  internal/journal/snapshot): when it returned more than it kept, say how many rows are shown. */
-export function StoredCount({ r, shown }: { r: Releases; shown: number }) {
-  if (r.source !== "journal" || (r.results ?? 0) <= shown || shown === 0) return null;
-  return <p className="text-xs text-[var(--ink-3)]" data-testid="releases-stored-count">Showing {plural(shown, "stored result")}.</p>;
-}
+ *  internal/journal/snapshot): whether it returned more than it kept, so the grid counts stored results. */
+export const storedSample = (r: Releases, shown: number) => r.source === "journal" && (r.results ?? 0) > shown;
 
 /** The panel. Collapsed until opened (a closed panel loads nothing). */
 export function ShowReleases({
@@ -226,8 +223,7 @@ function Panel({ titleId, kind, initialVersion, focus, labels }: { titleId: numb
           {shownFocus && !items.some((c) => c.info_hash?.toLowerCase() === shownFocus.toLowerCase()) ? (
             <p className="text-xs text-[var(--ink-3)]" data-testid="releases-focus-missing">The release you followed is not in this list: only the newest search's releases are kept here.</p>
           ) : null}
-          <StoredCount r={r} shown={items.length} />
-          {items.length === 0 ? (r.source === "none" ? null : <Empty>No releases to show for {labels?.[r.version] || nameOf(r.version)}.</Empty>) : <ReleaseGrid key={r.version} items={items} kind={kind} outcomes={oc.data?.outcomes ?? r.outcomes} focus={shownFocus} />}
+          {items.length === 0 ? (r.source === "none" ? null : <Empty>No releases to show for {labels?.[r.version] || nameOf(r.version)}.</Empty>) : <ReleaseGrid key={r.version} items={items} stored={storedSample(r, items.length)} kind={kind} outcomes={oc.data?.outcomes ?? r.outcomes} focus={shownFocus} />}
         </>
       ) : null}
       {r && perms.admin ? <AddByHash key={r.version} titleId={titleId} version={r.version} label={labels?.[r.version]} /> : null}

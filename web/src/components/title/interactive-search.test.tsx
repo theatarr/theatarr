@@ -164,6 +164,15 @@ it("a refused live search shows why and offers no Grab", async () => {
   expect(screen.queryByTestId("release-grab")).toBeNull();
 });
 
+it("a refused live search says how many stored results it shows, as Last search does, not \"the best N of M\"", async () => {
+  mockFetch([ME, TITLE, CURRENT, CURRENT, { method: "GET", path: "/titles/7/releases", reply: answer("movie-web", { source: "journal", results: 40, grab: false, message: "Live search failed: no indexer answered; showing the last stored decision" }) }]);
+  renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
+  open();
+  await table();
+  expect(screen.getByTestId("release-stored-count").textContent).toBe("Showing 2 stored results.");
+  expect(screen.queryByTestId("release-capped")).toBeNull();
+});
+
 it("a refused live search says when the stored results come from another search", async () => {
   mockFetch([ME, TITLE, CURRENT, CURRENT, { method: "GET", path: "/titles/7/releases", reply: answer("movie-web", { source: "journal", target: "rss", grab: false, message: "Live search failed: no indexer answered; showing the last stored decision" }) }]);
   renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);

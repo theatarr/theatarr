@@ -874,7 +874,7 @@ func (b *builder) unlinkAction(e *Entry, path string) error {
 		return err
 	}
 	ref := "act:" + strconv.FormatInt(id, 10)
-	e.After = append(e.After, Event{At: store.FromMillis(at), Kind: KindAction, Text: "Removed by " + orDash(by), Ref: ref})
+	e.After = append(e.After, Event{At: store.FromMillis(at), Kind: KindAction, Text: "Removed by " + orDash(actorWords(by)), Ref: ref})
 	e.Related = append(e.Related, ref)
 	return nil
 }

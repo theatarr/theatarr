@@ -14,7 +14,7 @@ import { usePerms, useTitle } from "@/api/library";
 import { useRemovalScope } from "@/api/ops";
 import { ErrorState, Loading, VersionTag } from "@/components/page";
 import { ReleaseGrid } from "@/components/title/release-grid";
-import { Summary } from "@/components/title/show-releases";
+import { storedSample, Summary } from "@/components/title/show-releases";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
@@ -167,7 +167,7 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
                 {items.length === 0 ? (
                   <p className="py-4 text-center text-sm text-muted-foreground">No releases found.</p>
                 ) : (
-                  <ReleaseGrid key={`${lib.key}-${q.dataUpdatedAt}`} items={items} outcomes={outcomes} kind={kind} grab={grab} capped={r.results > items.length ? r.results : undefined} reason={reason} />
+                  <ReleaseGrid key={`${lib.key}-${q.dataUpdatedAt}`} items={items} outcomes={outcomes} kind={kind} grab={grab} capped={live && r.results > items.length ? r.results : undefined} stored={!live && storedSample(r, items.length)} reason={reason} />
                 )}
               </>
             ) : null}

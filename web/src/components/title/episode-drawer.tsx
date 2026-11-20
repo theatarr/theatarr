@@ -25,7 +25,7 @@ import { Empty, ErrorState, KV, Mono, VersionTag } from "@/components/page";
 import { ControlNote, MonitorSwitch, UpgradeBlock } from "@/components/title/manage-bits";
 import { InteractiveSearchButton } from "@/components/title/interactive-search";
 import { ReleaseGrid } from "@/components/title/release-grid";
-import { StoredCount, Summary } from "@/components/title/show-releases";
+import { storedSample, Summary } from "@/components/title/show-releases";
 import { ChangeEpisodes } from "@/components/title/change-episodes";
 import { EditFacts } from "@/components/title/edit-facts";
 import { ReplaceFile } from "@/components/title/replace-file";
@@ -79,8 +79,7 @@ function Releases({ titleId, eid, d }: { titleId: number; eid: number; d: Episod
       ) : r ? (
         <>
           <Summary r={r} episode />
-          <StoredCount r={r} shown={(r.candidates ?? []).length} />
-          {(r.candidates ?? []).length === 0 ? (r.source === "none" ? null : <Empty>No releases stored for this episode.</Empty>) : <ReleaseGrid items={r.candidates ?? []} kind="series" outcomes={oc.data?.outcomes ?? r.outcomes} />}
+          {(r.candidates ?? []).length === 0 ? (r.source === "none" ? null : <Empty>No releases stored for this episode.</Empty>) : <ReleaseGrid items={r.candidates ?? []} stored={storedSample(r, (r.candidates ?? []).length)} kind="series" outcomes={oc.data?.outcomes ?? r.outcomes} />}
         </>
       ) : null}
     </div>

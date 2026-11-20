@@ -223,9 +223,9 @@ func upgradeEvidencePool(it evItem, recs []evRecord) ([]*evRecord, int64) {
 
 // judgeUpgrade applies the rule above to one item. failed is the newest failed try per hash (lower case) of the
 // item's title and library; cachedOK says whether a cache code is one of the providers the library sends a release of
-// that indexer to (nil: none). It returns the best release seen (nil
-// when none; tried when every one was tried after it was seen) and the time of the newest search that covered the
-// item (0 when none).
+// that indexer to (nil: none). It returns the best release seen (nil when none; tried when every counted one was
+// tried: a search's release with any failed try of its hash, a feed's by the RSS rule above) and the time of the
+// newest search that covered the item (0 when none).
 func judgeUpgrade(it evItem, recs []evRecord, failed map[string]failedTry, cachedOK func(indexer, code string) bool) (*UpgradeNext, int64) {
 	pool, lastSearch := upgradeEvidencePool(it, recs)
 	var best *UpgradeNext

@@ -807,6 +807,14 @@ func TestListFolds(t *testing.T) {
 			t.Errorf("%s: %q, want %q", id, g.Summary, w)
 		}
 	}
+	// What followed names an API key in words, as History does ("Removed by auto (API key)", not "key:auto").
+	e.exec(`UPDATE journal_action SET by = 'key:auto' WHERE id = 1`)
+	for _, ev := range e.get("lib:6").After {
+		if ev.Ref == "act:1" && ev.Text != "Removed by auto (API key)" {
+			t.Errorf("what followed: %q, want %q", ev.Text, "Removed by auto (API key)")
+		}
+	}
+	e.exec(`UPDATE journal_action SET by = 'mgr' WHERE id = 1`)
 	// Filters: a kind whose parent is not listed shows its own entries; the parent's kind folds them again.
 	for _, c := range []struct {
 		f    Filter

@@ -28,7 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { readPref, writePref } from "@/lib/copies";
-import { fmtBytes, fmtNumber } from "@/lib/format";
+import { fmtBytes, fmtNumber, plural } from "@/lib/format";
 import {
   allIndexersText,
   BEST_MATCH,
@@ -401,6 +401,7 @@ export function ReleaseGrid({
   grab,
   focus,
   capped,
+  stored,
   reason,
 }: {
   items: Candidate[];
@@ -412,8 +413,10 @@ export function ReleaseGrid({
   grab?: GrabTarget & { sent: ReadonlyMap<string, number>; onSent: (hash: string, download: number) => void };
   /** A hash to pick out and scroll to. */
   focus?: string;
-  /** The search's result count, when the answer holds only the best of them. */
+  /** The search's result count, when a live answer holds only the best of them. */
   capped?: number;
+  /** The items are a stored search's sample (it returned more than it kept): the caption counts stored results. */
+  stored?: boolean;
   /** A rejection reason picked outside the grid (interactive search's summary chips): only those rows. */
   reason?: string;
 }) {
@@ -517,6 +520,11 @@ export function ReleaseGrid({
       {capped && capped > items.length ? (
         <p className="text-xs text-[var(--ink-3)]" data-testid="release-capped">
           {filtered ? `${rows.length} of the best ${items.length} of ${capped} match the filter.` : `Showing the best ${items.length} of ${capped}.`}
+        </p>
+      ) : stored && rows.length > 0 ? (
+        // Counts what the grid shows; beside "No release matches the filter" it says nothing.
+        <p className="text-xs text-[var(--ink-3)]" data-testid="release-stored-count">
+          {filtered ? `${rows.length} of ${plural(items.length, "stored result")} ${rows.length === 1 ? "matches" : "match"} the filter.` : `Showing ${plural(items.length, "stored result")}.`}
         </p>
       ) : null}
       {rows.length === 0 ? (
