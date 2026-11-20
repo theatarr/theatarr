@@ -81,5 +81,6 @@ it("the restore preview says once per unavailable account how many it skips and 
  expect(line.textContent).toBe("3 torrents skipped: RD is not asked for now: paused after 5 failed requests in a row (last: HTTP 503).");
  expect(screen.getAllByTestId("restore-skipped")).toHaveLength(1);
  expect(screen.queryByText(/skip_target/)).toBeNull();
- expect(screen.getByText("Readd.Movie")).toBeTruthy();
+ expect(screen.getByText("Readd.Movie").closest("li")?.textContent).toBe("Re-add Readd.Movie");
+ expect(screen.queryByText("readd")).toBeNull();
 });

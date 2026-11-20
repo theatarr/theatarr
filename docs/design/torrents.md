@@ -225,7 +225,8 @@ DMM backup; optionally one provider's list (`provider`), another target account 
 The preview says per torrent: already present (`present`), will be re-added (`readd`), or skipped: `skip_invalid`
 (not a v1 hash), `skip_target` (the target account cannot be listed). System › Backup shows the `skip_target`
 skips of one account as one line, the count and the account's error in plain words ("3 torrents skipped: RD is not
-asked for now: paused after 5 failed requests in a row."), not the raw error on every row. The token binds the
+asked for now: paused after 5 failed requests in a row."), not the raw error on every row; the other rows name their action in words ("Re-add", "Not a valid hash",
+"Finish the selection"). The token binds the
 set of re-adds (digest `r1-<count>-<digest>`) to the caller (`r2-…`, as for the delete, step 5 below); the job plans
 again and adds only hashes in the confirmed set that are still missing.
 

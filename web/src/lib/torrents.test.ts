@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fmtTime } from "./format";
-import { deleteScope, providerProblem, usageWord, deleteSelection, filterTorrents, groupCounts, groupKeys, hashesTogether, refSummary, restoreScope, servedByLine, sortTorrents, usageDetail, type DeletePlan, type Torrent, type TorrentReport } from "./torrents";
+import { deleteScope, providerProblem, restoreActionWords, usageWord, deleteSelection, filterTorrents, groupCounts, groupKeys, hashesTogether, refSummary, restoreScope, servedByLine, sortTorrents, usageDetail, type DeletePlan, type Torrent, type TorrentReport } from "./torrents";
 
 const t = (provider: string, id: string, name: string, bytes: number, added: string, extra: Partial<Torrent> = {}): Torrent => ({
   provider,
@@ -134,6 +134,12 @@ describe("delete", () => {
     expect(s.keeps[0]).toMatch(/1 chosen torrent is refused/);
     expect(s.blocked).toBeUndefined();
     expect(deleteScope({ ...plan, count: 0 }).blocked).toBe("Nothing chosen can be deleted as it is.");
+  });
+  it("restore preview actions in words", () => {
+    expect(restoreActionWords("readd")).toBe("Re-add");
+    expect(restoreActionWords("skip_invalid")).toBe("Not a valid hash");
+    expect(restoreActionWords("resume")).toBe("Finish the selection");
+    expect(restoreActionWords("other")).toBe("other");
   });
   it("restore preview wording", () => {
     const s = restoreScope({ backup_id: "b", items: [], counts: { present: 2, readd: 1, skip_invalid: 1 }, readd: 1, resume: 0, bytes: 10, confirmation_token: "r1" });

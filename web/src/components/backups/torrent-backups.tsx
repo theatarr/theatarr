@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { ConfirmDialog, errText } from "@/components/ui/confirm-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fmtBytes, fmtNumber, fmtTime, plural } from "@/lib/format";
-import { providerProblem, restoreScope, restoreSkips, type RestorePlan } from "@/lib/torrents";
+import { providerProblem, restoreActionWords, restoreScope, restoreSkips, type RestorePlan } from "@/lib/torrents";
 import { useProviderCode } from "@/lib/library-names";
 import { settingHref } from "@/lib/settings-map";
 import { ProviderTag, providerLabel } from "@/components/provider-pills";
@@ -154,7 +154,7 @@ export function TorrentBackups() {
               </li>
             ))}
             {restore.plan.items.filter((it) => it.action !== "present" && it.action !== "skip_target").map((it) => (
-              <li key={`${it.target}:${it.hash}`} className="[overflow-wrap:anywhere]"><Badge tone={it.action === "readd" ? "info" : "neutral"}>{it.action}</Badge> {it.name || it.hash}{it.reason ? `: ${it.reason}` : ""}</li>
+              <li key={`${it.target}:${it.hash}`} className="[overflow-wrap:anywhere]"><Badge tone={it.action === "readd" ? "info" : "neutral"}>{restoreActionWords(it.action)}</Badge> {it.name || it.hash}{it.reason ? `: ${it.reason}` : ""}</li>
             ))}
           </ul>
         </ConfirmDialog>

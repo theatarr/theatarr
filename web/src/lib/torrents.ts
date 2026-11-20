@@ -223,6 +223,11 @@ export function deleteScope(p: DeletePlan): Scope {
   };
 }
 
+const RESTORE_ACTIONS: Record<string, string> = { readd: "Re-add", resume: "Finish the selection", skip_invalid: "Not a valid hash", skip_target: "Skipped", present: "Already there" };
+
+/** A restore preview row's action in words ("readd" → "Re-add"); an action not known here keeps its code. */
+export const restoreActionWords = (a: string) => RESTORE_ACTIONS[a] ?? a;
+
 /** The restore preview's skips for a target account that is unavailable (skip_target), one per account: how many and
  *  the account's error (the same for each of them), so one outage is one line, not one per torrent. */
 export function restoreSkips(p: RestorePlan): { target: string; count: number; reason: string }[] {
