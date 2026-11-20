@@ -1106,6 +1106,32 @@ func TestDeleteOverrideNeedsItsSurvivor(t *testing.T) {
 	}
 }
 
+// The override names that a copy stays, not which one: with two, one going leaves the override valid, and the reply
+// names the lowest id.
+func TestDeleteOverrideWithTwoSurvivors(t *testing.T) {
+	t.Parallel()
+	e := deleteFixture(t)
+	ctx := context.Background()
+	old := e.now.Add(-72 * time.Hour)
+	e.rd.list = append(e.rd.list, tor("26", hA, "Movie.A.2020.1080p.WEB-DL", 100, old, provider.StateDownloaded),
+		tor("21", hA, "Movie.A.2020.1080p.WEB-DL", 100, old, provider.StateDownloaded))
+	first, err := e.m.PlanDelete(ctx, []DeleteSelection{{Provider: "rd", ID: "1", Hash: hA}})
+	if err != nil || first.Items[0].SurvivingCopy != "21" {
+		t.Fatalf("the lowest survivor: %+v %v", first.Items, err)
+	}
+	sel := []DeleteSelection{{Provider: "rd", ID: "1", Hash: hA, Override: true,
+		OverrideToken: first.Items[0].ExpectedOverride}}
+	plan, err := e.m.PlanDelete(ctx, sel)
+	if err != nil || plan.Count != 1 {
+		t.Fatalf("override: %+v %v", plan.Items, err)
+	}
+	e.rd.list = slices.DeleteFunc(e.rd.list, func(x provider.Torrent) bool { return x.ID == "21" })
+	done, err := e.m.Delete(ctx, sel, plan.Token, "admin")
+	if err != nil || done.Deleted != 1 || done.Items[0].SurvivingCopy != "26" {
+		t.Fatalf("another copy still stays: %v %+v", err, done)
+	}
+}
+
 // A used torrent added in the last day needs both the override and allow_recent, and says so at once.
 func TestDeleteUsedAndRecent(t *testing.T) {
 	t.Parallel()

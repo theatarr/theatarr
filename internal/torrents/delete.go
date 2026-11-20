@@ -173,7 +173,7 @@ func (m *Manager) planDelete(ctx context.Context, sel []DeleteSelection, lists m
 			if it.Usage != Unused {
 				it.SurvivingCopy = surv.of(ctx, s.Provider, t)
 				it.ExpectedOverride = overrideToken(s.Provider, t, it.Usage, it.Refs, it.RefList, it.Reasons,
-					it.SurvivingCopy)
+					it.SurvivingCopy != "")
 			}
 			recent := t.Added.IsZero() || now.Sub(t.Added) < YoungAfter
 			busy := t.State == provider.StateQueued || t.State == provider.StateDownloading
@@ -242,9 +242,11 @@ func (s *survivors) add(prov string, list []provider.Torrent) {
 // of is the id of another complete entry of t's hash on its account, outside the selection, of the same size and with
 // the same selected files, both selections known; "" without one. Only entries that match on everything else have
 // their selection read.
+// With several, the lowest id, so the answer stays the same while they last.
 func (s *survivors) of(ctx context.Context, prov string, t provider.Torrent) string {
+	best := ""
 	for _, o := range s.cands[prov][indexer.NormalizeHash(t.Hash)] {
-		if o.ID == t.ID || o.Bytes != t.Bytes {
+		if o.ID == t.ID || o.Bytes != t.Bytes || (best != "" && o.ID >= best) {
 			continue
 		}
 		a := s.selection(ctx, prov, t)
@@ -252,10 +254,10 @@ func (s *survivors) of(ctx context.Context, prov string, t provider.Torrent) str
 			return ""
 		}
 		if b := s.selection(ctx, prov, o); b != nil && slices.Equal(a, b) {
-			return o.ID
+			best = o.ID
 		}
 	}
-	return ""
+	return best
 }
 
 // selection is t's selected file paths, sorted: from the list when it gives files (TorBox), else from the files the
@@ -317,10 +319,10 @@ func plural(n int, what string) string {
 	return s + " " + what
 }
 
-// overrideToken names a used or unknown torrent's references, and the copy that stays when there is one: an override
+// overrideToken names a used or unknown torrent's references, and whether another complete copy stays: an override
 // is valid only for them.
 func overrideToken(prov string, t provider.Torrent, u Usage, refs map[string]int, list []Ref,
-	reasons []string, survivor string) string {
+	reasons []string, survives bool) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s|%s|%s|%s", prov, t.ID, indexer.NormalizeHash(t.Hash), u)
 	keys := make([]string, 0, len(refs))
@@ -337,10 +339,10 @@ func overrideToken(prov string, t provider.Torrent, u Usage, refs map[string]int
 	for _, r := range reasons {
 		fmt.Fprintf(&b, "|%s", r)
 	}
-	// An override given while another complete copy stays holds only while that same copy does (the replan at
-	// confirm refuses it once the copy is gone, and the dialog drops the tick).
-	if survivor != "" {
-		fmt.Fprintf(&b, "|survivor=%s", survivor)
+	// An override given while another complete copy stays holds only while one does (any of them: the replan at
+	// confirm refuses it once none is left, and the dialog drops the tick).
+	if survives {
+		b.WriteString("|survives")
 	}
 	sum := sha256.Sum256([]byte(b.String()))
 	return "o1-" + hex.EncodeToString(sum[:8])
@@ -571,7 +573,7 @@ func (m *Manager) usageChanged(ctx context.Context, plan *DeletePlan, it *Delete
 	}
 	token := ""
 	if u != Unused {
-		token = overrideToken(it.Provider, t, u, refs, list, reasons, it.SurvivingCopy)
+		token = overrideToken(it.Provider, t, u, refs, list, reasons, it.SurvivingCopy != "")
 	}
 	if u == it.Usage && token == it.ExpectedOverride {
 		return "", nil
