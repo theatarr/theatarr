@@ -118,14 +118,14 @@ func activityMessage(s string) string {
 const detailsMessageRunes = 500
 
 // detailsMessage is a stored message for a download's Details: normalised and cut at 500 runes, not 120; when the
-// whole text trips the unsafe-value check, the short text the list shows (activityMessage) instead.
+// whole text (before the cut) trips the unsafe-value check, the short text the list shows (activityMessage) instead.
 func detailsMessage(s string) string {
 	full := provider.NormalizeMessage(s)
-	if r := []rune(full); len(r) > detailsMessageRunes {
-		full = strings.TrimSpace(string(r[:detailsMessageRunes-1])) + "…"
-	}
 	if arr.UnsafeValue(full) {
 		return activityMessage(s)
+	}
+	if r := []rune(full); len(r) > detailsMessageRunes {
+		full = strings.TrimSpace(string(r[:detailsMessageRunes-1])) + "…"
 	}
 	return full
 }

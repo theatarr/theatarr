@@ -1634,6 +1634,12 @@ func TestActivityAttemptsWholeError(t *testing.T) {
 	if e.getKey(APIBase+"/activity/downloads/1/attempts", key, &a); a.Message != activityMessage(long) || strings.Contains(a.Message, "://") {
 		t.Errorf("url %q", a.Message)
 	}
+	// A URL past rune 500 still counts: the whole text is checked before the cut.
+	pastCut := long + strings.Repeat(" x", 400) + " see http://192.0.2.7:9999/health"
+	e.exec(`UPDATE library_import SET last_error = ? WHERE download_id = 1`, pastCut)
+	if e.getKey(APIBase+"/activity/downloads/1/attempts", key, &a); a.Message != activityMessage(pastCut) {
+		t.Errorf("url past the cut %q", a.Message)
+	}
 	// A failed download's stored error, the same way.
 	e.exec(`UPDATE download SET state = 'failed', error = ? WHERE id = 1`, long)
 	e.exec(`DELETE FROM library_import`)
