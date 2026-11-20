@@ -21,8 +21,9 @@ export function Poster({ src, className }: { src: string; className?: string }) 
   );
 }
 
-export function TitleLine({ t }: { t: ActivityDownload["title"] }) {
-  const nameClass = "min-w-0 truncate text-[14px] font-semibold text-[var(--ink)]";
+/** wrap: the phone queue card, where a long name wraps in full instead of ending in "…". */
+export function TitleLine({ t, wrap = false }: { t: ActivityDownload["title"]; wrap?: boolean }) {
+  const nameClass = cn("min-w-0 text-[14px] font-semibold text-[var(--ink)]", wrap ? "break-words" : "truncate");
   return (
     <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
       {t.id ? (

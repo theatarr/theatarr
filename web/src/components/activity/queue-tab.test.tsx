@@ -329,14 +329,19 @@ it("phone: a failed download's reason and release name wrap in full on its card"
     { method: "GET", path: "/auth/me", reply: me },
     { method: "GET", path: "/activity", reply: { state: "now", admin: true, total: 1, now: [failed] } },
   ]);
+  // The optional Release column on, and a long title.
+  window.localStorage.setItem("theatarr.library.activity-queue.9", JSON.stringify({ order: ["release", "library", "progress"], shown: ["release", "library", "progress"] }));
   renderPage(<QueueTab admin show="all" onShow={() => {}} />, "/activity");
   const card = await screen.findByTestId("download");
   expect(card.tagName).toBe("LI");
   const words = within(card).getByTestId("words");
   const release = within(card).getByTestId("failed-release");
+  const name = within(card).getByRole("link", { name: "Theta" });
+  const column = within(card).getAllByText(failed.release).find((el) => el !== release)!;
+  expect(column).toBeTruthy();
   expect(words.textContent).toBe(reason);
   expect(release.textContent).toBe(failed.release);
-  for (const el of [words, release]) {
+  for (const el of [words, release, name, column]) {
     const classes = el.className.split(/\s+/);
     expect(classes.some((c) => /(^|:)(line-clamp-\d|truncate)$/.test(c))).toBe(false);
   }
