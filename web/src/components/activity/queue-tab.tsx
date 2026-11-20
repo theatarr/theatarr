@@ -139,7 +139,8 @@ function DownloadDetails({ d }: { d: ActivityDownload }) {
  * failed. */
 const failedWhy = (d: ActivityDownload) => (d.state === "failed" && !d.not_started) || d.import_state === "rejected" || d.import_state === "failed";
 
-function Stage({ d, admin, attention }: { d: ActivityDownload; admin: boolean; attention: boolean }) {
+/** full: the phone card, where the reason wraps in full; the table cell keeps it to two lines. */
+function Stage({ d, admin, attention, full = false }: { d: ActivityDownload; admin: boolean; attention: boolean; full?: boolean }) {
   const label = stageLabel(d);
   const tone = attention && toneOf(d) !== "bad" ? "warn" : toneOf(d);
   // A failure names its reason in plain words (the server's reason; the stored error from an older server), not
@@ -149,15 +150,15 @@ function Stage({ d, admin, attention }: { d: ActivityDownload; admin: boolean; a
   return (
     <div className="min-w-0">
       <p className={cn("text-sm font-medium", WORD_TONE[tone])} data-testid="stage" title={stageMeaning(label) || undefined}>{label}</p>
-      {words && words !== label ? <p className={cn("text-xs text-muted-foreground", reason ? "line-clamp-2 break-words" : "break-words")} data-testid="words" title={words}>{words}</p> : null}
+      {words && words !== label ? <p className={cn("text-xs text-muted-foreground", reason && !full ? "line-clamp-2 break-words" : "break-words")} data-testid="words" title={words}>{words}</p> : null}
     </div>
   );
 }
 
 /** A failed download's release name, under its title, so repeated failures for one item tell apart (admins). */
-function FailedRelease({ d }: { d: ActivityDownload }) {
+function FailedRelease({ d, full = false }: { d: ActivityDownload; full?: boolean }) {
   if (!d.release || !failedWhy(d)) return null;
-  return <p className="truncate font-mono text-[11.5px] text-muted-foreground" data-testid="failed-release" title={d.release}>{d.release}</p>;
+  return <p className={cn("font-mono text-[11.5px] text-muted-foreground", full ? "break-all" : "truncate")} data-testid="failed-release" title={d.release}>{d.release}</p>;
 }
 
 /** Whether the row shows a progress bar: while it is with the provider or being linked. */
@@ -426,8 +427,8 @@ function QueueTable({ items, now, prefs, sort, onSort }: { items: ActivityDownlo
               {d.quality ? <Badge tone="outline">{d.quality}</Badge> : null}
               {d.episodes?.length ? <span>{episodesWords(d.episodes)}</span> : null}
             </div>
-            <FailedRelease d={d} />
-            <Stage d={d} admin attention={needsAttention(d, now)} />
+            <FailedRelease d={d} full />
+            <Stage d={d} admin attention={needsAttention(d, now)} full />
             <QueueProgress d={d} now={now} empty={null} />
           </>
         )}

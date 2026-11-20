@@ -2,7 +2,7 @@
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { focusManager } from "@tanstack/react-query";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { Toaster } from "@/components/toaster";
 import { json, mockFetch, renderPage } from "@/test/page";
 import { QueueTab } from "./queue-tab";
@@ -318,4 +318,27 @@ it("shows a mount wait's whole message in Details, wraps the row's words, and li
   const lines = panel.querySelectorAll('[aria-label="Steps"] [data-slot="step-line"]');
   expect(lines).toHaveLength(4);
   for (const l of lines) expect(l.className).toContain("right-[calc(50%+14px)]");
+});
+
+it("phone: a failed download's reason and release name wrap in full on its card", async () => {
+  vi.stubGlobal("matchMedia", (q: string) => ({ matches: !q.includes("min-width"), media: q, addEventListener() {}, removeEventListener() {} }));
+  const reason = "Not imported: these files do not improve on the files you have. This release scores 1,202, yours 6,200, and the library keeps the files it has; nothing was replaced.";
+  const failed = { ...base, id: 80, title: { id: 9, name: "Theta", kind: "movie", poster: "" }, state: "failed", words: "Failed", import_state: "rejected", reason,
+    release: "Theta.2024.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-SOMEVERYLONGGROUPNAME", info_hash: "ad" };
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: me },
+    { method: "GET", path: "/activity", reply: { state: "now", admin: true, total: 1, now: [failed] } },
+  ]);
+  renderPage(<QueueTab admin show="all" onShow={() => {}} />, "/activity");
+  const card = await screen.findByTestId("download");
+  expect(card.tagName).toBe("LI");
+  const words = within(card).getByTestId("words");
+  const release = within(card).getByTestId("failed-release");
+  expect(words.textContent).toBe(reason);
+  expect(release.textContent).toBe(failed.release);
+  for (const el of [words, release]) {
+    const classes = el.className.split(/\s+/);
+    expect(classes.some((c) => /(^|:)(line-clamp-\d|truncate)$/.test(c))).toBe(false);
+  }
+  vi.unstubAllGlobals();
 });

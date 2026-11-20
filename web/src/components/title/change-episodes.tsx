@@ -3,7 +3,7 @@
 // server renames the link for them in its library and keeps the choice for later imports of its download; with
 // Replace, another file of that library holding a chosen episode moves to the trash instead of stopping the change.
 import { ListOrdered } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useEpisodes } from "@/api/library";
 import { useReassignEpisodes } from "@/api/ops";
 import { Button } from "@/components/ui/button";
@@ -20,9 +20,11 @@ function ChangeEpisodesDialog({ titleId, linkId, path, copy, held, onClose }: { 
   const [chosen, setChosen] = useState<ReadonlySet<number> | null>(null);
   const [filter, setFilter] = useState("");
   const [replace, setReplace] = useState(false);
-  const eps = list.data?.episodes ?? [];
+  const data = list.data?.episodes;
+  const eps = useMemo(() => data ?? [], [data]);
   const label = (e: (typeof eps)[number]) => `${code(e.season, e.number)}${e.absolute ? ` · absolute ${e.absolute}` : ""}${e.name ? ` ${e.name}` : ""}`;
-  const stored = new Set(eps.filter((e) => held.includes(code(e.season, e.number))).map((e) => e.id));
+  // The file's episodes, worked out once per list, not on every keystroke in the filter.
+  const stored = useMemo(() => new Set(eps.filter((e) => held.includes(code(e.season, e.number))).map((e) => e.id)), [eps, held]);
   const ticked = chosen ?? stored;
   // In the list's order; an episode hidden by the filter keeps its tick.
   const picked = eps.filter((e) => ticked.has(e.id)).map((e) => e.id);
