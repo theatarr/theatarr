@@ -162,6 +162,21 @@ func TestReplaceReportedFile(t *testing.T) {
 		t.Fatalf("replace with an unmonitored episode: %d", code)
 	}
 	o.exec(`UPDATE episode_version_state SET monitored = 1 WHERE episode_id = 43`)
+	// An episode the file holds was removed from the series' episode list (S01E03; S01E01 is current): the search
+	// leaves it out, so nothing could replace the file. Refused before the link, the file or the blocklist change,
+	// though the episode is still marked monitored.
+	o.exec(`UPDATE episode SET removed_at = 1 WHERE id = 43`)
+	const removedWhy = "This episode is no longer in the series' episode list, so nothing can replace its file"
+	if fs := files(); fs[0].Replace || fs[0].Why != removedWhy {
+		t.Fatalf("removed episode %+v", fs[0])
+	}
+	var refused apiError
+	if code := o.jsonCall("POST", APIBase+"/reports/1/replace", ReplaceReported{LinkID: 90}, o.mc, o.mcsrf,
+		&refused); code != http.StatusConflict || refused.Error != removedWhy || len(o.ops.unlinks) != 0 ||
+		blocked() != 0 || o.count(`SELECT COUNT(*) FROM link WHERE id = 90 AND state = 'active'`) != 1 {
+		t.Fatalf("replace with a removed episode: %d %+v unlinks %v blocklist %d", code, refused, o.ops.unlinks, blocked())
+	}
+	o.exec(`UPDATE episode SET removed_at = NULL WHERE id = 43`)
 	// The library is not monitored.
 	o.exec(`UPDATE version SET monitored = 0 WHERE id = 4`)
 	if fs := files(); fs[0].Replace {

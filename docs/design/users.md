@@ -249,7 +249,9 @@ A household member says a film or an episode is broken without leaving the app; 
   symlink, its release known (a hash or a release name, so the blocklist keeps it out), searching running, Pause off,
   each of those libraries searching this title (a library for anime only skips a title that is not anime, and the
   other way round: "4K WEB does not search this title (it is not for anime), so no new file would be searched"),
-  and each of those libraries monitored for the movie or each of those episodes. Otherwise the row says why and links
+  each of those libraries monitored for the movie or each of those episodes, and no episode the file holds removed
+  from the series' episode list (the search leaves a removed episode out: "This episode is no longer in the series'
+  episode list, so nothing can replace its file"). Otherwise the row says why and links
   to the title page; the server refuses the same cases (409) before anything changes. The report stays open. The
   journal records it as an unlink with "replaced for problem report N". The title page offers the same **Replace file…** without a report (a movie's library row and the episode overview, `POST links/{id}/replace`; [ui.md](ui.md) "Recovery actions").
 - **Mark fixed** with an optional reply: the reporter's list shows it, and the reporter gets an in-app toast (SSE

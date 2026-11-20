@@ -99,6 +99,8 @@ type ReportFile struct {
 	episodeIDs []int64
 	hash       string
 	downloadID int64
+	// removed: an episode the file holds is no longer in the series' episode list (the search leaves it out).
+	removed bool
 }
 
 // ProblemEvent is the SSE "problem" event: a report was made, changed or fixed. It goes to managers and to the
@@ -516,16 +518,18 @@ func (w *Web) linkFiles(ctx context.Context, titleID, episodeID, linkID int64) (
 		return nil, err
 	}
 	type ep struct {
-		id   int64
-		code string
+		id      int64
+		code    string
+		removed bool
 	}
 	episodes := map[int64][]ep{}
-	if err := scanAll(ctx, db, `SELECT x.link_id, e.id, e.season, e.number FROM link_episode x
+	if err := scanAll(ctx, db, `SELECT x.link_id, e.id, e.season, e.number, e.removed_at IS NOT NULL FROM link_episode x
 		JOIN episode e ON e.id = x.episode_id WHERE x.link_id IN (`+active+`) ORDER BY e.season, e.number`,
 		[]any{string(idList)}, func(rows *sql.Rows) error {
 			var link, id, s, n int64
-			err := rows.Scan(&link, &id, &s, &n)
-			episodes[link] = append(episodes[link], ep{id, episodeCode(s, n)})
+			var removed bool
+			err := rows.Scan(&link, &id, &s, &n, &removed)
+			episodes[link] = append(episodes[link], ep{id, episodeCode(s, n), removed})
 			return err
 		}); err != nil {
 		return nil, err
@@ -558,6 +562,7 @@ func (w *Web) linkFiles(ctx context.Context, titleID, episodeID, linkID int64) (
 		for _, e := range episodes[f.LinkID] {
 			f.episodeIDs = append(f.episodeIDs, e.id)
 			f.Episodes = append(f.Episodes, e.code)
+			f.removed = f.removed || e.removed
 		}
 		f.Why = w.replaceBlocked(f, kinds[f.LinkID], on, monitored, anime)
 		f.Replace = f.Why == ""
@@ -575,13 +580,17 @@ type episodeKey struct {
 // replaceBlocked says why Replace file cannot run for f ("" when it can): it runs only when the search after it can,
 // in every library that loses the file, for the movie or every episode the file holds (monitored: the episodes
 // monitored per library; anime: the title is anime as the search reads it, which skips a library whose anime
-// setting does not match).
+// setting does not match). A file that holds an episode no longer in the series' episode list is refused: the search
+// leaves that episode out, so nothing could replace it.
 func (w *Web) replaceBlocked(f ReportFile, kind string, on []string, monitored map[episodeKey]bool, anime bool) string {
 	if kind != "symlink" {
 		return "This file is not one of Theatarr's links, so Theatarr cannot replace it"
 	}
 	if router.BlocklistKey(f.hash, f.ReleaseTitle) == "" {
 		return "Theatarr does not know this file's release, so it cannot keep it from coming back"
+	}
+	if f.removed {
+		return "This episode is no longer in the series' episode list, so nothing can replace its file"
 	}
 	if w.ops == nil || w.add.Acquirer == nil {
 		return "Searching is not running, so no new file would be searched"
