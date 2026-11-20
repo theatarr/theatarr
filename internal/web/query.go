@@ -655,7 +655,7 @@ func (w *Web) versions(ctx context.Context, cond string, args []any, limit, offs
 type VersionFilter struct {
 	Key   string
 	State string
-	// plainState: filled also takes cutoff_met (a caller without "see files").
+	// plainState: filled also takes cutoff_met, and has_file is the current file (a caller without "see files").
 	plainState bool
 	HasFile    *bool
 	Limit      int
@@ -678,10 +678,15 @@ func (w *Web) listVersions(ctx context.Context, f VersionFilter) ([]Version, err
 		args = append(args, f.State)
 	}
 	if f.HasFile != nil {
+		// Without "see files" (plainState) has_file is the current file, as redactVersion answers it.
+		has := hasFileSQL
+		if f.plainState {
+			has = currentFileSQL
+		}
 		if *f.HasFile {
-			conds = append(conds, hasFileSQL)
+			conds = append(conds, has)
 		} else {
-			conds = append(conds, "NOT "+hasFileSQL)
+			conds = append(conds, "NOT "+has)
 		}
 	}
 	if f.Limit <= 0 || f.Limit > 500 {

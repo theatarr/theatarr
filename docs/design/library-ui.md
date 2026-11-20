@@ -50,7 +50,7 @@ catalog,title}.tsx`, `web/src/components/{library,title}/`.
   in any version is available (one missing copy does not make it partial); a series is available when some version
   is complete and holds a current file (a file of an episode the metadata source removed does not count, though the
   copy's stored state may still say complete; a copy's `has_file`, which the title page's readiness reads, is the
-  current file too), partial ("Some episodes available") when versions have files but none is complete, missing ("Not
+  current file too, and so is GET versions' `has_file` filter), partial ("Some episodes available") when versions have files but none is complete, missing ("Not
   available") when nothing has a file; never upgrade. The `availability=` filter and the facet counts use the same
   rule (`watch_*` in `availabilitySQL`).
   Qualities are resolutions only (1080p, 2160p), with no file counts, version or file dates, cutoff, upgrade state or

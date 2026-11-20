@@ -647,6 +647,33 @@ func TestRemovedEpisodeFileIsNotAvailable(t *testing.T) {
 			t.Errorf("user title page: %s has_file", v.Key)
 		}
 	}
+	// GET versions' has_file filter agrees with its answer: current files for the household, any file for a manager.
+	ids := func(body string) []int64 {
+		t.Helper()
+		var page struct{ Items []Version }
+		if err := json.Unmarshal([]byte(body), &page); err != nil {
+			t.Fatalf("%v: %s", err, body)
+		}
+		var out []int64
+		for _, v := range page.Items {
+			out = append(out, v.ID)
+		}
+		return out
+	}
+	q := APIBase + "/versions?key=tv-2160p&has_file="
+	if got := ids(e.userBody(q + "true")); slices.Contains(got, 10) {
+		t.Errorf("user has_file=true lists version 10: %v", got)
+	}
+	if got := ids(e.userBody(q + "false")); !slices.Contains(got, 10) {
+		t.Errorf("user has_file=false leaves version 10 out: %v", got)
+	}
+	for v, want := range map[string]bool{"true": true, "false": false} {
+		var page struct{ Items []Version }
+		e.call("GET", q+v, nil, 200, &page)
+		if got := slices.ContainsFunc(page.Items, func(x Version) bool { return x.ID == 10 }); got != want {
+			t.Errorf("manager has_file=%s lists version 10: %v", v, got)
+		}
+	}
 }
 
 // TestMoviePartlyAvailable: a movie held in one library and missing in a second, monitored library is partial in the
