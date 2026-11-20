@@ -18,7 +18,8 @@ one stores TMDb's code in `title.original_language` (the native add and a reques
 for it, even when the request names the title and year; collections, lists and the arr import pass the details they
 fetched; a connected app's add passes the details its anime check read, or reads them once for the language when
 the request or the anime mapping decided anime). A details error leaves the add as it was, with no language until
-this job; a stored language is never replaced by an add, nor by a refresh whose answer has none. The same details
+this job; a stored language is never replaced by an add, nor by a refresh whose answer has none (neither the title's
+column nor `title_meta`, which the title page shows). The same details
 read gives a film added by name and year its IMDb id before its first search, so sources that need one (Torrentio)
 take part in that first search as in every later one. Every successful metadata refresh also replaces TMDb's alternative
 titles and translations in `title_alias`; source `tmdb-original` holds the original title as an alternative name.

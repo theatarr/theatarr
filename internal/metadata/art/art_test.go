@@ -527,19 +527,23 @@ func TestMovieIdentityRefresh(t *testing.T) {
 func TestMovieRefreshKeepsLanguage(t *testing.T) {
 	e := newTestEnv(t)
 	e.seed(t)
-	e.fake.mu.Lock()
-	e.fake.noLanguage = true
-	e.fake.mu.Unlock()
-	e.exec(t, `UPDATE title SET original_language = 'fr' WHERE id = 1`)
+	// A first refresh stores TMDb's "en" in both the title and its metadata (which the title page shows).
 	if err := e.svc.FillTitle(context.Background(), 1); err != nil {
 		t.Fatal(err)
 	}
-	var got string
-	if err := e.st.Reader().QueryRow(`SELECT COALESCE(original_language, '') FROM title WHERE id = 1`).Scan(&got); err != nil {
+	e.fake.mu.Lock()
+	e.fake.noLanguage = true
+	e.fake.mu.Unlock()
+	if err := e.svc.FillTitle(context.Background(), 1); err != nil {
 		t.Fatal(err)
 	}
-	if got != "fr" {
-		t.Fatalf("blank answer: original_language = %q, want fr kept", got)
+	var title, meta string
+	if err := e.st.Reader().QueryRow(`SELECT COALESCE(t.original_language, ''), COALESCE(m.original_language, '')
+		FROM title t JOIN title_meta m ON m.title_id = t.id WHERE t.id = 1`).Scan(&title, &meta); err != nil {
+		t.Fatal(err)
+	}
+	if title != "en" || meta != "en" {
+		t.Fatalf("blank answer: title %q, title_meta %q, want en kept in both", title, meta)
 	}
 }
 
