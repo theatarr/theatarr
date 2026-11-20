@@ -73,6 +73,42 @@ describe("Release check", () => {
     expect(fetch.calls("POST", "/decide")[0].body).toMatchObject({ title_id: 7, version: "movie-remux" });
   });
 
+  it("drops an automatic pick when the text changes, so Check never sends the previous title", async () => {
+    const whiplash = { id: 9, kind: "movie", name: "Whiplash", year: 2014, versions: [{ id: 90, key: "movie-remux", label: "4K Remux", has_file: true }] };
+    const fetch = mockFetch([{ method: "GET", path: "/search", reply: (r: { search: string }) => new URLSearchParams(r.search).get("q") === "whiplash" ? { ...searchReply, library: [whiplash] } : searchReply },
+      { method: "POST", path: "/decide", reply: rejected }]);
+    const user = userEvent.setup();
+    renderPage(<ReleaseCheck />, "/admin/settings/profiles/check");
+    const box = screen.getByRole("textbox", { name: "Find a title" });
+    const title = screen.getByRole("combobox", { name: "Title" }) as HTMLSelectElement;
+    await user.type(box, "dune");
+    await waitFor(() => expect(title.value).toBe("7"));
+    await user.clear(box);
+    await user.type(box, "whiplash");
+    // While the new text has no answer, nothing is chosen.
+    expect(title.value).toBe("");
+    await waitFor(() => expect(title.value).toBe("9"));
+    await user.type(screen.getByRole("textbox", { name: "Release name" }), "Whiplash.2014.2160p.UHD.BluRay.REMUX-GRP");
+    await user.click(screen.getByRole("button", { name: "Check" }));
+    await waitFor(() => expect(fetch.calls("POST", "/decide")).toHaveLength(1));
+    expect(fetch.calls("POST", "/decide")[0].body).toMatchObject({ title_id: 9, version: "movie-remux" });
+  });
+
+  it("keeps a title chosen by hand while the search text changes", async () => {
+    const two = { ...searchReply, library: [dune, { ...dune, id: 8, name: "Dune", year: 2021 }], library_total: 2 };
+    mockFetch([{ method: "GET", path: "/search", reply: (r: { search: string }) => new URLSearchParams(r.search).get("q") === "dune" ? two : { ...searchReply, library: [] } }]);
+    const user = userEvent.setup();
+    renderPage(<ReleaseCheck />, "/admin/settings/profiles/check");
+    const box = screen.getByRole("textbox", { name: "Find a title" });
+    const title = screen.getByRole("combobox", { name: "Title" }) as HTMLSelectElement;
+    await user.type(box, "dune");
+    await within(title).findByRole("option", { name: "Dune (2021)" });
+    await user.selectOptions(title, "8");
+    await user.type(box, "x");
+    await new Promise((r) => setTimeout(r, 400));
+    expect(title.value).toBe("8");
+  });
+
   it("posts the release for the chosen title and library, and shows rejections and the inputs it lacked", async () => {
     const fetch = mockFetch([{ method: "GET", path: "/search", reply: searchReply }, { method: "POST", path: "/decide", reply: rejected }]);
     const user = userEvent.setup();

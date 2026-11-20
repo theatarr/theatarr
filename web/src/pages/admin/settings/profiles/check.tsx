@@ -121,22 +121,27 @@ export function ReleaseCheck() {
   const check = useMutation({
     mutationFn: (body: DecideRequest) => api<Decision>("/decide", { method: "POST", body }).then((d) => ({ d, sent: body })),
   });
+  // One way to choose a title, by hand or for you: auto marks a pick made for you, which goes when the text changes.
+  const [auto, setAuto] = useState(false);
+  const choose = (t: LibraryHit | undefined, picked: boolean) => {
+    setTitle(t);
+    setAuto(!!t && picked);
+    setVersion(t?.versions?.length === 1 ? t.versions[0].key ?? "" : "");
+    // While rendering (a pick made for you) no result is reset: it went with the earlier pick when the text changed.
+    if (!picked) check.reset();
+  };
+  const type = (text: string) => {
+    setQ(text);
+    if (auto) choose(undefined, false);
+  };
   // A sole match is chosen for you once the search for the text as it is now has answered (the list keeps the
   // previous answer while a new one loads), once per text, so clearing the choice sticks.
   const [autoFor, setAutoFor] = useState("");
   if (q === dq && dq.trim() && search.isSuccess && !search.isFetching && !search.isPlaceholderData && autoFor !== dq) {
     setAutoFor(dq);
-    if (hits.length === 1 && !title) {
-      setTitle(hits[0]);
-      setVersion(hits[0].versions?.length === 1 ? hits[0].versions[0].key ?? "" : "");
-    }
+    if (hits.length === 1 && !title) choose(hits[0], true);
   }
-  const pick = (id: string) => {
-    const t = options.find((h) => String(h.id) === id);
-    setTitle(t);
-    setVersion(t?.versions?.length === 1 ? t.versions[0].key ?? "" : "");
-    check.reset();
-  };
+  const pick = (id: string) => choose(options.find((h) => String(h.id) === id), false);
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!title?.id || !version || !release.trim()) return;
@@ -152,7 +157,7 @@ export function ReleaseCheck() {
     <Card>
       <form onSubmit={submit} className="grid gap-3 sm:grid-cols-2" aria-label="Check a release">
         <label className="flex min-w-0 flex-col gap-1 text-sm">Find a title
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name in your library" />
+          <Input value={q} onChange={(e) => type(e.target.value)} placeholder="Name in your library" />
         </label>
         <label className="flex min-w-0 flex-col gap-1 text-sm">Title
           <select className={SELECT_CLASS} value={title?.id ?? ""} onChange={(e) => pick(e.target.value)}>
