@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { readableCode } from "@/lib/code-words";
 import { fmtBytes } from "@/lib/format";
 import { useLibraryName } from "@/lib/library-names";
 
@@ -64,7 +65,7 @@ function Result({ d, sent, library }: { d: Decision; sent: DecideRequest; librar
     <Card className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         {d.accepted ? <Badge tone="positive">Would be accepted</Badge> : <Badge tone="negative">Rejected</Badge>}
-        <span className="text-[13px] text-muted-foreground">Library <span title={d.version}>{library}</span>, profile <Mono>{d.profile}</Mono>. Nothing was recorded, searched or grabbed.</span>
+        <span className="text-[13px] text-muted-foreground">Library <span title={d.version}>{library}</span>, profile <span title={d.profile}>{readableCode(d.profile)}</span>. Nothing was recorded, searched or grabbed.</span>
       </div>
       <KV items={[
         ["Parsed", d.parsed ? <span key="p">{parsed || "—"}{d.release_group ? <> · group <Mono>{d.release_group}</Mono></> : null}{d.edition ? ` · ${d.edition}` : null}</span> : "Could not parse the name"],
@@ -167,7 +168,7 @@ export function ReleaseCheck() {
           <Input inputMode="decimal" value={size} onChange={(e) => setSize(e.target.value)} placeholder="unknown, or e.g. 36 GiB" aria-invalid={sizeBad || undefined} aria-describedby={sizeBad ? "check-size-error" : undefined} />
         </label>{sizeBad ? <p id="check-size-error" role="alert" className="text-xs text-[var(--bad-ink)]">Not a size: type a number of GiB, or one with a unit such as 36 GiB.</p> : null}</div>
         <label className="flex min-w-0 flex-col gap-1 text-sm sm:col-span-2">Release name
-          <Input value={release} onChange={(e) => setRelease(e.target.value)} placeholder="Movie.Name.2024.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-GROUP" className="font-mono" />
+          <Input value={release} onChange={(e) => { setRelease(e.target.value); if (!e.target.value.trim()) check.reset(); }} placeholder="Movie.Name.2024.2160p.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-GROUP" className="font-mono" />
         </label>
         <label className="flex min-w-0 flex-col gap-1 text-sm sm:col-span-2">Info hash (optional)
           <Input value={hash} onChange={(e) => setHash(e.target.value)} placeholder="unknown: SeaDex standing needs it" className="font-mono" />

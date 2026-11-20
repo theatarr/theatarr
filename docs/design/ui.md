@@ -1075,7 +1075,8 @@ and the hidden `/admin/settings/profiles/format_sets` editor. Its **Check a rele
 (`/admin/settings/profiles/check`) judges a pasted release name for one title and library through `POST /decide`,
 read-only ([decide.md](decide.md#release-check)). A sole title match is chosen once the search for the text as
 typed has answered (once per text; several matches wait for a choice), and the result names the library by its label
-(the key as tooltip). Its optional size is in GiB, as sizes are shown, or carries a
+(the key as tooltip) and the profile in words, as the library editor's picker shows it (the key as tooltip); clearing
+the release name clears the result. Its optional size is in GiB, as sizes are shown, or carries a
 unit as in the settings forms (`36 GB` is 36×10⁹ bytes); text that is not a size is refused beside the field and
 nothing is checked. Indexers and debrid providers show status beside
 their editors, with Edit links. VPN status is above its settings. **Send notifications** is the first field of the

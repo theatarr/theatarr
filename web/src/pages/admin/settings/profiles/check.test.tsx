@@ -167,6 +167,18 @@ describe("Release check", () => {
     expect(within(result).getByTestId("total-score").textContent).toContain("-10000");
   });
 
+  it("names the profile by its label, the key as tooltip, and clears the result when the release name is cleared", async () => {
+    mockFetch([{ method: "GET", path: "/search", reply: searchReply }, { method: "POST", path: "/decide", reply: rejected }]);
+    const user = userEvent.setup();
+    renderPage(<ReleaseCheck />, "/admin/settings/profiles/check");
+    await fill(user, rejected.release);
+    const result = await screen.findByTestId("release-check-result");
+    expect(result.textContent).toContain("Library 4K Remux, profile Remux 2160p. Nothing was recorded");
+    expect(within(result).getByText("Remux 2160p").getAttribute("title")).toBe("remux-2160p");
+    await user.clear(screen.getByRole("textbox", { name: "Release name" }));
+    expect(screen.queryByTestId("release-check-result")).toBeNull();
+  });
+
   it("reads a size with a unit as the settings forms do (GB is 10^9 bytes)", async () => {
     const fetch = mockFetch([{ method: "GET", path: "/search", reply: searchReply }, { method: "POST", path: "/decide", reply: json(accepted) }]);
     const user = userEvent.setup();
