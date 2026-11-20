@@ -345,12 +345,13 @@ function DeleteChoices({ plan, codes, names, overrides, setOverride, allowRecent
             {list.length > 0 ? (
               <div className="mt-1 pl-6 text-xs text-muted-foreground" data-testid="override-refs">
                 <ul className="list-disc pl-5">{list.slice(0, 3).map((x, i) => <li key={i} className="[overflow-wrap:anywhere]">{REF_LABEL[x.kind] ?? x.kind}: {x.detail}</li>)}</ul>
-                {total > 3 ? (
+                {/* The server lists at most 20 references: the fold says how many it lists and how many it cannot. */}
+                {list.length > 3 ? (
                   <details>
-                    <summary className="cursor-pointer" data-testid="override-refs-more">and {fmtNumber(total - 3)} more</summary>
+                    <summary className="cursor-pointer" data-testid="override-refs-more">and {fmtNumber(total - 3)} more{total > list.length ? `: ${fmtNumber(list.length - 3)} listed, ${fmtNumber(total - list.length)} not listed` : ""}</summary>
                     <ul className="list-disc pl-5">{list.slice(3).map((x, i) => <li key={i} className="[overflow-wrap:anywhere]">{REF_LABEL[x.kind] ?? x.kind}: {x.detail}</li>)}</ul>
                   </details>
-                ) : null}
+                ) : total > list.length ? <p data-testid="override-refs-more">and {fmtNumber(total - list.length)} more, not listed</p> : null}
               </div>
             ) : null}
           </div>

@@ -451,6 +451,24 @@ describe("torrents page", () => {
     expect((api.calls("POST", "/torrents/delete/preview")[2].body as { items: { override?: boolean }[] }).items.some((i) => i.override)).toBe(false);
   });
 
+  it("says how many more references the fold lists and how many the server did not send", async () => {
+    const list = Array.from({ length: 20 }, (_, i) => ({ kind: "link", detail: `/lib/E${i + 1}.mkv` }));
+    const p = plan(false);
+    p.items[1] = { ...p.items[1], refs: { link: 108 }, ref_list: list };
+    mockFetch([
+      { method: "GET", path: "/torrents/report", reply: report },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+      { method: "POST", path: "/torrents/delete/preview", reply: p },
+    ]);
+    renderPage(<TorrentsPage />);
+    await screen.findByText("Used.Movie");
+    fireEvent.click(screen.getByLabelText("Select all shown"));
+    fireEvent.click(screen.getByTestId("delete-selected"));
+    const more = await screen.findByTestId("override-refs-more");
+    expect(more.textContent).toBe("and 105 more: 17 listed, 88 not listed");
+    expect(more.closest("details")?.querySelectorAll("li")).toHaveLength(17);
+  });
+
   it("names the chosen torrents the filter hides", async () => {
     mockFetch([
       { method: "GET", path: "/torrents/report", reply: { ...report, providers: [{ ...report.providers[0], torrents: [...report.providers[0].torrents,

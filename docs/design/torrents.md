@@ -531,7 +531,8 @@ multi-select and **Delete selected**: the preview opens a
 confirmation with the count, size and the backup it takes first; refused torrents are
 listed by name (the selected row's name when the refusal has none, as when the provider could not be listed) with
 why, and used or unknown ones with a checkbox naming their references to override, the first three references
-beside it and the rest folded ("and N more"), and "Another complete copy stays on RD." when the item carries
+beside it and the rest folded ("and N more"; past the 20 references the server lists, "and 105 more: 17 listed, 88
+not listed"), and "Another complete copy stays on RD." when the item carries
 `surviving_copy`. A row whose override is ticked stays listed with its checkbox, so it can be read and unticked.
 "Tick all that have another complete copy on the same account", above the rows, ticks the override of every item
 carrying `surviving_copy` and nothing else; unticking it unticks those. Each change previews again; previews are
