@@ -335,11 +335,11 @@ func TestAutoCopy(t *testing.T) {
 	if _, _ = e.m.QueueAutoCopy(ctx, "ad", hA); queued() != "" {
 		t.Error("queued for a provider that holds it")
 	}
-	// TorBox at 100% without its files present (download_present false: the record keeps it downloading) does not
-	// hold it complete: still a target.
+	// TorBox at 100% without its files present yet (download_present false: the record keeps it downloading) has it
+	// on the account: no copy is queued there either.
 	e.exec(`UPDATE provider_torrent SET state = 'downloading' WHERE provider = 'tb'`)
-	if _, _ = e.m.QueueAutoCopy(ctx, "ad", hA); queued() != `{"hash":"`+hA+`","by":"auto","auto":true,"providers":["tb"]}` {
-		t.Error("not queued for TorBox holding it without its files")
+	if _, _ = e.m.QueueAutoCopy(ctx, "ad", hA); queued() != "" {
+		t.Error("queued for TorBox holding it at 100% without its files")
 	}
 	e.exec(`DELETE FROM provider_torrent`)
 	e.pol.Router.Enabled = false

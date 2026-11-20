@@ -97,7 +97,7 @@ func (m *Manager) KnownHash(ctx context.Context, hash string) (bool, error) {
 
 // QueueAutoCopy queues the automatic copy after an import of hash from provider from: to every other provider with a
 // key and also_add on that has live cached evidence for the hash (provider_cache cached, not expired: DMM's lists,
-// TorBox's check, an earlier add) and does not hold it complete in the record (on TorBox: downloaded). No evidence, nothing queued: the
+// TorBox's check, an earlier add) and does not hold it complete in the record. No evidence, nothing queued: the
 // automatic copy never tries an add of something not known cached. Nothing while paused (or the router off). It
 // answers the job's id, 0 when nothing was queued.
 func (m *Manager) QueueAutoCopy(ctx context.Context, from, hash string) (int64, error) {
@@ -105,34 +105,17 @@ func (m *Manager) QueueAutoCopy(ctx context.Context, from, hash string) (int64, 
 	if h == "" || !m.Policy.RouterSettings().Enabled {
 		return 0, nil
 	}
-	// The providers with live cached evidence for the hash that do not hold it complete (complete), in one read.
-	var cached, held []string
-	rows, err := m.Store.Reader().QueryContext(ctx, `SELECT c.provider, COALESCE(t.progress, 0), COALESCE(t.state, '')
-		FROM provider_cache c LEFT JOIN provider_torrent t ON t.provider = c.provider AND t.info_hash = ?1
-		WHERE c.info_hash = ?1 AND c.state = 'cached' AND (c.expires_at IS NULL OR c.expires_at > ?2)`,
-		h, store.Millis(m.now()))
-	if err != nil {
-		return 0, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var k, state string
-		var progress float64
-		if err := rows.Scan(&k, &progress, &state); err != nil {
-			return 0, err
-		}
-		cached = append(cached, k)
-		if m.complete(k, progress, provider.State(state)) {
-			held = append(held, k)
-		}
-	}
-	if err := rows.Err(); err != nil {
+	// The providers with live cached evidence for the hash that do not hold it complete, in one read.
+	var cached []string
+	if err := scanStrings(ctx, m.Store.Reader(), `SELECT provider FROM provider_cache WHERE info_hash = ?1
+		AND state = 'cached' AND (expires_at IS NULL OR expires_at > ?2)
+		AND provider NOT IN (SELECT provider FROM provider_torrent WHERE info_hash = ?1 AND progress >= 100
+			AND state <> 'error')`, []any{h, store.Millis(m.now())}, func(k string) { cached = append(cached, k) }); err != nil {
 		return 0, err
 	}
 	var targets []string
 	for _, k := range m.keys() {
-		if pv := m.Policy.Providers[k]; k != from && pv.AlsoAdd && m.Providers[k] != nil && slices.Contains(cached, k) &&
-			!slices.Contains(held, k) {
+		if pv := m.Policy.Providers[k]; k != from && pv.AlsoAdd && m.Providers[k] != nil && slices.Contains(cached, k) {
 			targets = append(targets, k)
 		}
 	}

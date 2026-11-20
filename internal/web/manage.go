@@ -1071,13 +1071,13 @@ func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64,
 	}
 	f.LinkID, f.Score, f.SizeBytes, f.NoDownload = linkID, nullInt(score), nullInt(size), adopted
 	f.Media = linkMedia(pr, am, adopted, f.ReleaseTitle, true, true)
-	held, err := w.heldByHash(ctx, db, f.InfoHash)
+	held, full, err := w.heldByHash(ctx, db, f.InfoHash)
 	if err != nil {
 		return nil, err
 	}
 	f.CachedOn = w.cacheCodes(held[f.InfoHash])
 	if indexer.NormalizeHash(f.InfoHash) != "" {
-		f.AddTo = targets(held[f.InfoHash])
+		f.AddTo = targets(full[f.InfoHash])
 	}
 	if err := scanAll(ctx, db, `SELECT e.season, e.number FROM link_episode le JOIN episode e ON e.id = le.episode_id
 		WHERE le.link_id = ? ORDER BY e.season, e.number`, []any{linkID}, func(r *sql.Rows) error {

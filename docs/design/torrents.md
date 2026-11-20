@@ -356,7 +356,7 @@ download client), right after the import's commit, the library tells the torrent
 in `cmd/theatarr/serve.go`; `internal/torrents` imports `internal/library`, so it is a hook). `Manager.QueueAutoCopy`
 queues job `torrents.copy` (`auto`, by `auto`, key `torrents.copy.auto/<hash>`) for exactly the other providers with a
 key and the switch on that have live cached evidence for the hash (`provider_cache` state `cached`, not expired: DMM's
-lists and availability, TorBox's check, an earlier add) and do not hold it complete in the record (on TorBox: downloaded, not only at 100%). No evidence, nothing
+lists and availability, TorBox's check, an earlier add) and do not hold it complete in the record (at 100% and not failed; a TorBox entry still finishing counts, so nothing is added there again). No evidence, nothing
 queued: the automatic path never tries an add of something not known cached; the button is there for that. Nothing is
 queued while Pause is on (or the router is off), and a queued one that runs while paused ends `skipped` ("paused"). The
 job is the button's, but an account at the torrent-limit warning share of its limit (`TorrentLimitWarnPercent` of

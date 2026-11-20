@@ -246,7 +246,7 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail, seeFiles bool) er
 		if err != nil {
 			return err
 		}
-		aggs, provs := vf.aggs, vf.provs
+		aggs, provs, full := vf.aggs, vf.provs, vf.full
 		held = vf.held
 		var added int64
 		var current []*Version
@@ -259,7 +259,7 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail, seeFiles bool) er
 			v.CachedOn = w.cacheCodes(provs[id])
 			v.Current = currentOf(v, briefFiles(v.Label, aggs[id], nil))
 			if d.Kind == "movie" && v.Current != nil && indexer.NormalizeHash(v.Current.InfoHash) != "" {
-				v.AddTo = targets(provs[id])
+				v.AddTo = targets(full[id])
 			}
 			if v.Current != nil && !v.Removed {
 				current = append(current, v)

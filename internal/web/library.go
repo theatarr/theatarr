@@ -121,7 +121,17 @@ const linkScoreSQL = `CASE WHEN json_valid(l.file_metadata) AND (json_type(l.fil
 // A TorBox account counts only in the downloaded state: TorBox can report 100% before its files are present
 // (download_present false, which provider.tbState keeps as downloading).
 func (w *Web) providerHolds() string {
-	cond := `(cp.progress >= 100 AND cp.state <> '` + string(provider.StateError) + `'`
+	return `(` + onAccountFull + ` AND ` + w.torBoxDownloaded() + `)`
+}
+
+// onAccountFull is the condition that provider_torrent cp is on the account at 100% and not failed, TorBox's entry
+// still finishing (download_present false) included: where "Add to other providers" does not add it again
+// (copyTargets), as torrents.Manager.CopyTargets reads the record.
+const onAccountFull = `cp.progress >= 100 AND cp.state <> '` + string(provider.StateError) + `'`
+
+// torBoxDownloaded is the condition that cp, when on a TorBox account, is in the downloaded state (providerHolds);
+// always true on other accounts.
+func (w *Web) torBoxDownloaded() string {
 	var tb []string
 	if w.pol != nil {
 		for k, p := range w.pol.Providers {
@@ -130,12 +140,11 @@ func (w *Web) providerHolds() string {
 			}
 		}
 	}
-	if len(tb) > 0 {
-		slices.Sort(tb)
-		cond += ` AND (cp.state = '` + string(provider.StateDownloaded) + `' OR cp.provider NOT IN (` +
-			strings.Join(tb, ", ") + `))`
+	if len(tb) == 0 {
+		return `1`
 	}
-	return cond + `)`
+	slices.Sort(tb)
+	return `(cp.state = '` + string(provider.StateDownloaded) + `' OR cp.provider NOT IN (` + strings.Join(tb, ", ") + `))`
 }
 
 // heldJoin joins link l to the torrents of its hash (linkShownHashSQL, as linkHashSQL: with the folder hash) in the
@@ -877,6 +886,8 @@ func briefFiles(label string, aggs []fileAgg, provs []string) VersionFiles {
 type versionFiles struct {
 	aggs  map[int64][]fileAgg
 	provs map[int64][]string
+	// full: the providers with the files' torrents on the account at 100% (heldByHash's full), for copy targets.
+	full  map[int64][]string
 	items map[int64]map[int64]itemFile
 	held  map[[2]int64]bool
 }
@@ -884,7 +895,7 @@ type versionFiles struct {
 // readVersionFiles reads the current files of versions ids: their active links, the links' episodes and the
 // providers that hold the links' torrents now (heldByHash; a link's torrent is its hash, linkHashSQL).
 func (w *Web) readVersionFiles(ctx context.Context, db *sql.DB, ids []any) (*versionFiles, error) {
-	vf := &versionFiles{aggs: map[int64][]fileAgg{}, provs: map[int64][]string{}, items: map[int64]map[int64]itemFile{},
+	vf := &versionFiles{aggs: map[int64][]fileAgg{}, provs: map[int64][]string{}, full: map[int64][]string{}, items: map[int64]map[int64]itemFile{},
 		held: map[[2]int64]bool{}}
 	if len(ids) == 0 {
 		return vf, nil
@@ -933,7 +944,7 @@ func (w *Web) readVersionFiles(ctx context.Context, db *sql.DB, ids []any) (*ver
 			return nil, err
 		}
 	}
-	holders, err := w.heldByHash(ctx, db, hashes...)
+	holders, full, err := w.heldByHash(ctx, db, hashes...)
 	if err != nil {
 		return nil, err
 	}
@@ -967,6 +978,11 @@ func (w *Web) readVersionFiles(ctx context.Context, db *sql.DB, ids []any) (*ver
 				vf.provs[x.vid] = append(vf.provs[x.vid], p)
 			}
 		}
+		for _, p := range full[x.hash] {
+			if !slices.Contains(vf.full[x.vid], p) {
+				vf.full[x.vid] = append(vf.full[x.vid], p)
+			}
+		}
 	}
 	for g, a := range groups {
 		vf.aggs[g.vid] = append(vf.aggs[g.vid], *a)
@@ -981,9 +997,11 @@ func (w *Web) readVersionFiles(ctx context.Context, db *sql.DB, ids []any) (*ver
 }
 
 // heldByHash lists, by lower-case hash, the providers that hold each torrent complete now (providerHolds): Cached on
-// of a file whose hash is resolved (linkHashSQL).
-func (w *Web) heldByHash(ctx context.Context, db *sql.DB, hashes ...string) (map[string][]string, error) {
+// of a file whose hash is resolved (linkHashSQL); full lists those that have it on the account at 100% and not failed
+// (onAccountFull, a TorBox entry still finishing too): where Add to other providers does not offer it (copyTargets).
+func (w *Web) heldByHash(ctx context.Context, db *sql.DB, hashes ...string) (held, full map[string][]string, err error) {
 	out := map[string][]string{}
+	full = map[string][]string{}
 	var args []any
 	seen := map[string]bool{}
 	for _, h := range hashes {
@@ -993,19 +1011,23 @@ func (w *Web) heldByHash(ctx context.Context, db *sql.DB, hashes ...string) (map
 		}
 	}
 	if len(args) == 0 {
-		return out, nil
+		return out, full, nil
 	}
-	err := scanAll(ctx, db, `SELECT DISTINCT cp.info_hash, cp.provider FROM provider_torrent cp
-		WHERE cp.info_hash IN (`+store.Placeholders(len(args))+`) AND `+w.providerHolds()+` ORDER BY 1, 2`, args,
+	err = scanAll(ctx, db, `SELECT cp.info_hash, cp.provider, MAX(`+w.torBoxDownloaded()+`) FROM provider_torrent cp
+		WHERE cp.info_hash IN (`+store.Placeholders(len(args))+`) AND `+onAccountFull+` GROUP BY 1, 2 ORDER BY 1, 2`, args,
 		func(r *sql.Rows) error {
 			var h, p string
-			if err := r.Scan(&h, &p); err != nil {
+			var claim bool
+			if err := r.Scan(&h, &p, &claim); err != nil {
 				return err
 			}
-			out[h] = append(out[h], p)
+			full[h] = append(full[h], p)
+			if claim {
+				out[h] = append(out[h], p)
+			}
 			return nil
 		})
-	return out, err
+	return out, full, err
 }
 
 // cacheCodes turns provider keys into cache codes (rd, ad, tb) by their kind in the running settings; a key of no

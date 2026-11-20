@@ -295,7 +295,7 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 				hashes = append(hashes, c.InfoHash)
 			}
 		}
-		byHash, err := w.heldByHash(ctx, db, hashes...)
+		byHash, _, err := w.heldByHash(ctx, db, hashes...)
 		if err != nil {
 			return nil, err
 		}

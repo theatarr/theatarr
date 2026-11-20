@@ -224,13 +224,13 @@ func (m *Manager) complete(key string, progress float64, state provider.State) b
 		(state == provider.StateDownloaded || m.kind(key) != provider.KindTorBox)
 }
 
-// addTo sets AddTo on each torrent with a v1 hash: the codes of CopyTargets for the providers that hold its hash
-// complete (complete: progress 100, not failed, on TorBox downloaded) in the record.
+// addTo sets AddTo on each torrent with a v1 hash: the codes of CopyTargets for the providers that have its hash on
+// the account at 100% and not failed in the record (a TorBox entry still finishing too: it is not added there again).
 func (m *Manager) addTo(r *Report) {
 	held := map[string][]string{}
 	for _, pr := range r.Providers {
 		for _, t := range pr.Torrents {
-			if m.complete(pr.Provider, t.Progress, t.State) && !slices.Contains(held[t.Hash], pr.Provider) {
+			if t.Progress >= 100 && t.State != provider.StateError && !slices.Contains(held[t.Hash], pr.Provider) {
 				held[t.Hash] = append(held[t.Hash], pr.Provider)
 			}
 		}

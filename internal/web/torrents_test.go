@@ -270,14 +270,14 @@ func TestTorrentCopyAPI(t *testing.T) {
 		}
 	}
 	// TorBox at 100% without its files present (download_present false: the record keeps it downloading) holds no
-	// complete copy: not Held on TB, not under the TB provider filter, and TB is still a place to add it.
+	// complete copy: not Held on TB, not under the TB provider filter; it is on the account, so not offered to add.
 	e.exec(`UPDATE provider_torrent SET state = 'downloading' WHERE provider = 'tb'`)
 	title.Versions = nil
 	if code := e.getKey(APIBase+"/titles/1", key, &title); code != 200 {
 		t.Fatalf("title: %d", code)
 	}
 	for _, v := range title.Versions {
-		if v.Key == "movie-remux" && (len(v.CachedOn) != 0 || strings.Join(v.AddTo, ",") != "rd,tb") {
+		if v.Key == "movie-remux" && (len(v.CachedOn) != 0 || strings.Join(v.AddTo, ",") != "rd") {
 			t.Errorf("movie-remux, tb not downloaded: cached_on %v add_to %v", v.CachedOn, v.AddTo)
 		}
 	}
