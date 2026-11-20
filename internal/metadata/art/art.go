@@ -491,7 +491,12 @@ func (s *Service) write(ctx context.Context, m *Meta, movie *tmdb.Movie) error {
 				logo_path = excluded.logo_path, genres = excluded.genres,
 				runtime_minutes = COALESCE(excluded.runtime_minutes, title_meta.runtime_minutes),
 				rating = excluded.rating, rating_votes = excluded.rating_votes, certification = excluded.certification,
-				status = excluded.status, network = excluded.network, original_language = COALESCE(NULLIF(excluded.original_language, ''), title_meta.original_language),
+				status = excluded.status, network = excluded.network,
+				-- A film keeps its stored language when TMDb answers none; a series is written as answered (its
+				-- loader falls back to the series refresh language).
+				original_language = CASE WHEN excluded.original_language = ''
+					AND (SELECT kind FROM title WHERE id = excluded.title_id) = 'movie'
+					THEN title_meta.original_language ELSE excluded.original_language END,
 				release_date = excluded.release_date, last_air_date = excluded.last_air_date,
 				next_air_date = excluded.next_air_date, art_hash = excluded.art_hash,
 				refreshed_at = excluded.refreshed_at, attempted_at = excluded.attempted_at,

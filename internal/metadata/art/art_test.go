@@ -121,6 +121,14 @@ func (f *fakeTMDb) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "want append_to_response", http.StatusBadRequest)
 			return
 		}
+		if f.noLanguage {
+			b, err := os.ReadFile(filepath.Join("testdata", "tv_1396.json"))
+			if err != nil {
+				f.t.Fatal(err)
+			}
+			w.Write(bytes.ReplaceAll(b, []byte(`"original_language": "en"`), []byte(`"original_language": ""`)))
+			return
+		}
 		fixture("tv_1396.json")
 	case "/3/tv/2000":
 		fixture("tv_airing.json")
@@ -527,23 +535,56 @@ func TestMovieIdentityRefresh(t *testing.T) {
 func TestMovieRefreshKeepsLanguage(t *testing.T) {
 	e := newTestEnv(t)
 	e.seed(t)
-	// A first refresh stores TMDb's "en" in both the title and its metadata (which the title page shows).
+	langs := func(id int64) (string, string) {
+		t.Helper()
+		var title, meta string
+		if err := e.st.Reader().QueryRow(`SELECT COALESCE(t.original_language, ''), COALESCE(m.original_language, '')
+			FROM title t JOIN title_meta m ON m.title_id = t.id WHERE t.id = ?`, id).Scan(&title, &meta); err != nil {
+			t.Fatal(err)
+		}
+		return title, meta
+	}
+	setBlank := func(on bool) {
+		e.fake.mu.Lock()
+		e.fake.noLanguage = on
+		e.fake.mu.Unlock()
+	}
+	// A film whose stored language is French in both places (not TMDb's fixture "en"): a blank answer keeps it.
 	if err := e.svc.FillTitle(context.Background(), 1); err != nil {
 		t.Fatal(err)
 	}
-	e.fake.mu.Lock()
-	e.fake.noLanguage = true
-	e.fake.mu.Unlock()
+	e.exec(t, `UPDATE title SET original_language = 'fr' WHERE id = 1`)
+	e.exec(t, `UPDATE title_meta SET original_language = 'fr' WHERE title_id = 1`)
+	setBlank(true)
 	if err := e.svc.FillTitle(context.Background(), 1); err != nil {
 		t.Fatal(err)
 	}
-	var title, meta string
-	if err := e.st.Reader().QueryRow(`SELECT COALESCE(t.original_language, ''), COALESCE(m.original_language, '')
-		FROM title t JOIN title_meta m ON m.title_id = t.id WHERE t.id = 1`).Scan(&title, &meta); err != nil {
+	if title, meta := langs(1); title != "fr" || meta != "fr" {
+		t.Fatalf("blank answer: title %q, title_meta %q, want fr kept in both", title, meta)
+	}
+	// A later non-empty answer updates both.
+	setBlank(false)
+	if err := e.svc.FillTitle(context.Background(), 1); err != nil {
 		t.Fatal(err)
 	}
-	if title != "en" || meta != "en" {
-		t.Fatalf("blank answer: title %q, title_meta %q, want en kept in both", title, meta)
+	if title, meta := langs(1); title != "en" || meta != "en" {
+		t.Fatalf("non-empty answer: title %q, title_meta %q, want en", title, meta)
+	}
+	// A series is written as before: a blank TMDb answer blanks title_meta's language, so the loader falls back to the
+	// series refresh's (TVDB) language.
+	if err := e.svc.FillTitle(context.Background(), 2); err != nil {
+		t.Fatal(err)
+	}
+	setBlank(true)
+	if err := e.svc.FillTitle(context.Background(), 2); err != nil {
+		t.Fatal(err)
+	}
+	var meta string
+	if err := e.st.Reader().QueryRow(`SELECT original_language FROM title_meta WHERE title_id = 2`).Scan(&meta); err != nil {
+		t.Fatal(err)
+	}
+	if meta != "" {
+		t.Fatalf("series: title_meta language %q after a blank answer, want blank (TVDB fallback)", meta)
 	}
 }
 
