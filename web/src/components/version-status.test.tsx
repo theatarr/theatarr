@@ -1,9 +1,19 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render as rtlRender, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement, ReactNode } from "react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 import { MemoryRouter } from "react-router";
 import { DownloadsOffNotice, VersionStatus } from "./version-status";
+import { mockFetch } from "@/test/page";
+
+// The library state reads the account (who gets the household's words); signed out here, so the full words.
+const render = (ui: ReactElement) => {
+  mockFetch([]);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return rtlRender(ui, { wrapper: ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider> });
+};
 
 afterEach(cleanup);
 

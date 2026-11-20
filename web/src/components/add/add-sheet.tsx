@@ -79,14 +79,13 @@ function SwitchRow({ on, onChange, title, detail, testid }: { on: boolean; onCha
 
 /** One library in the add drawer: the checkbox, then identity (name, key, kind) and the explanation on
  * their own wrapping rows, then the library state, so long names and narrow phones never overlap. */
-function LibraryRow({ v, checked, disabled, onChange, note, admin, household = false, syncedWith }: {
+function LibraryRow({ v, checked, disabled, onChange, note, admin, syncedWith }: {
   v: VersionOption;
   checked: boolean;
   disabled?: boolean;
   onChange: (v: boolean) => void;
   note?: string;
   admin: boolean;
-  household?: boolean;
   /** The ticked library this one is added with because they are kept in sync: shown ticked and disabled. */
   syncedWith?: string;
 }) {
@@ -101,7 +100,7 @@ function LibraryRow({ v, checked, disabled, onChange, note, admin, household = f
         </label>
         {fetchesWords(v) ? <p className="text-xs text-[var(--ink-2)]" title={admin && v.profile ? `Profile key ${v.profile}` : undefined} data-testid="add-fetches">{fetchesWords(v)}</p> : null}
         {syncedWith ? <p className="text-xs text-[var(--ink-3)]" data-testid="add-synced-with">in sync with {syncedWith}{v.removed ? "; it was removed and comes back" : ""}</p> : note ? <p className="text-xs text-[var(--ink-3)]">{note}</p> : null}
-        <div id={`${id}-state`}><VersionStatus state={v.grab_state} settingsKey={v.key} canManage={admin} household={household} quiet /></div>
+        <div id={`${id}-state`}><VersionStatus state={v.grab_state} settingsKey={v.key} canManage={admin} quiet /></div>
       </div>
     </div>
   );
@@ -301,10 +300,10 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
                   ) : null}
                   <section>
                     <h3 className="mb-1 text-[13px] font-semibold text-[var(--ink-2)]">Add to these libraries</h3>
-                    <DownloadsOffNotice off={globalOff} canManage={perms.admin} household={!perms.admin && !perms.manage} className="mb-2" />
+                    <DownloadsOffNotice off={globalOff} canManage={perms.admin} className="mb-2" />
                     <div className="border-t border-[var(--line)]" data-testid="add-versions">
                       {fitting.map((v) => (
-                        <LibraryRow key={v.key} v={v} checked={isShown(v)} disabled={v.on || syncedWith(v) !== undefined} admin={perms.admin} household={!perms.admin && !perms.manage} onChange={(c) => setPicked((p) => ({ ...p, [v.key]: c }))} note={heldNote(v)}
+                        <LibraryRow key={v.key} v={v} checked={isShown(v)} disabled={v.on || syncedWith(v) !== undefined} admin={perms.admin} onChange={(c) => setPicked((p) => ({ ...p, [v.key]: c }))} note={heldNote(v)}
                           syncedWith={syncedWith(v)} />
                       ))}
                       {fitting.length === 0 ? <p className="text-sm text-muted-foreground">No library of the policy fits this title; pick one below.</p> : null}
@@ -317,7 +316,7 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
                         {showOther ? (
                           <div className="mt-2 border-t border-[var(--line)]">
                             {other.map((v) => (
-                              <LibraryRow key={v.key} v={v} checked={isShown(v)} disabled={syncedWith(v) !== undefined} admin={perms.admin} household={!perms.admin && !perms.manage} onChange={(c) => setPicked((p) => ({ ...p, [v.key]: c }))} note={v.anime ? "For anime titles" : "Not for anime titles"}
+                              <LibraryRow key={v.key} v={v} checked={isShown(v)} disabled={syncedWith(v) !== undefined} admin={perms.admin} onChange={(c) => setPicked((p) => ({ ...p, [v.key]: c }))} note={v.anime ? "For anime titles" : "Not for anime titles"}
                                 syncedWith={syncedWith(v)} />
                             ))}
                           </div>

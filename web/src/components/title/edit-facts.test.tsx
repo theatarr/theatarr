@@ -66,3 +66,16 @@ it("names every revision: 3 and higher are later Propers or Repacks, kept as num
   expect(await within(dialog).findByText("Saved")).toBeTruthy();
   expect((api.calls("PATCH", "/links/9/facts")[0].body as { revision: number }).revision).toBe(3);
 });
+
+it("shows a see-files account without manage Downloads are paused in the episode window, without the environment's name", async () => {
+  const locked = { paused: true, pause_forced: true, will_grab: false };
+  const controlled = { ...detail, versions: [{ ...detail.versions[0], control: { ...managed, can_search: false, grab_state: locked } }] };
+  mockFetch([me(["see_files"]), { method: "GET", path: "/titles/1/episodes", reply: episodes }, { method: "GET", path: "/titles/1/episodes/201", reply: controlled }]);
+  renderPage(<Seasons id="1" anime={false} />, "/title/1?episode=201");
+  const drawer = await screen.findByRole("dialog");
+  await within(drawer).findByTestId("episode-file");
+  const user = userEvent.setup();
+  await user.click(await within(drawer).findByRole("button", { name: /^Why .+\?$|^Why\?$/ }));
+  expect(within(drawer).getByTestId("state-why").textContent).toBe("Downloads are paused");
+  expect(document.body.textContent).not.toContain("THEATARR_FORCE_OFF");
+});

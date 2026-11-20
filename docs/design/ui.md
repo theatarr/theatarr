@@ -117,8 +117,9 @@ download gate stays visible while the search loop is off. Until `/status` answer
 verdict when nothing would be searched. While Pause is on, a page says so once at the top (`DownloadsOffNotice`,
 from any row's `grab_state`) and the rows keep only their own verdict; the top-bar pill stays. The library table's
 phone cards say it once above the list, not in each card's actions (a row's own reason, such as "Nothing is searched
-now", stays in its card). A household account (neither manage nor admin) reads "Downloads are paused" there and in a
-request's library chips, with no environment name or switch to turn. Controls are named
+now", stays in its card). A household account (neither manage nor admin) reads "Downloads are paused" wherever the library
+state or the Pause notice shows (`VersionStatus` and `DownloadsOffNotice` read the account themselves), with no
+environment name or switch to turn. Controls are named
 **Pause**, **Send notifications** and, in the add drawer, **Add to these libraries**. The add drawer shows one row per library: a checkbox, then the name, key and
 kind on one wrapping row and its state on the next, with a footer "n libraries · m will download" (ticked
 libraries whose `will_grab` is true).
