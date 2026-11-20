@@ -110,38 +110,30 @@ export function ReleaseCheck() {
   const [q, setQ] = useState("");
   const dq = useDebounced(q, 250);
   const search = useSearch(dq, "library", 12);
-  const [title, setTitle] = useState<LibraryHit>();
-  const [version, setVersion] = useState("");
   const [release, setRelease] = useState("");
   const [size, setSize] = useState("");
   const [hash, setHash] = useState("");
   const sizeBad = parseCheckSize(size) === false;
   const hits = search.data?.library ?? [];
-  const options = title && !hits.some((h) => h.id === title.id) ? [title, ...hits] : hits;
   const check = useMutation({
     mutationFn: (body: DecideRequest) => api<Decision>("/decide", { method: "POST", body }).then((d) => ({ d, sent: body })),
   });
-  // One way to choose a title, by hand or for you: auto marks a pick made for you, which goes when the text changes.
-  const [auto, setAuto] = useState(false);
-  const choose = (t: LibraryHit | undefined, picked: boolean) => {
-    setTitle(t);
-    setAuto(!!t && picked);
-    setVersion(t?.versions?.length === 1 ? t.versions[0].key ?? "" : "");
-    // While rendering (a pick made for you) no result is reset: it went with the earlier pick when the text changed.
-    if (!picked) check.reset();
+  // The title is worked out, not stored twice: a title picked by hand stays while the text changes; choosing none by
+  // hand holds for the text it was chosen at; otherwise the sole match of the search for the text as typed (trimmed),
+  // once that search has answered (the list keeps the previous answer while a new one loads).
+  const text = q.trim();
+  const [hand, setHand] = useState<{ title?: LibraryHit; at: string } | null>(null);
+  const settled = !!text && dq.trim() === text && search.isSuccess && !search.isFetching && !search.isPlaceholderData;
+  const sole = settled && hits.length === 1 ? hits[0] : undefined;
+  const title = hand?.title ?? (hand && hand.at === text ? undefined : sole);
+  const options = title && !hits.some((h) => h.id === title.id) ? [title, ...hits] : hits;
+  // The library chosen for this title; a title with one library has it chosen.
+  const [chosen, setVersion] = useState<{ id?: number; key: string }>({ key: "" });
+  const version = chosen.id === title?.id && title ? chosen.key : title?.versions?.length === 1 ? title.versions[0].key ?? "" : "";
+  const pick = (id: string) => {
+    setHand({ title: options.find((h) => String(h.id) === id), at: text });
+    check.reset();
   };
-  const type = (text: string) => {
-    setQ(text);
-    if (auto) choose(undefined, false);
-  };
-  // A sole match is chosen for you once the search for the text as it is now has answered (the list keeps the
-  // previous answer while a new one loads), once per text, so clearing the choice sticks.
-  const [autoFor, setAutoFor] = useState("");
-  if (q === dq && dq.trim() && search.isSuccess && !search.isFetching && !search.isPlaceholderData && autoFor !== dq) {
-    setAutoFor(dq);
-    if (hits.length === 1 && !title) choose(hits[0], true);
-  }
-  const pick = (id: string) => choose(options.find((h) => String(h.id) === id), false);
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!title?.id || !version || !release.trim()) return;
@@ -157,7 +149,7 @@ export function ReleaseCheck() {
     <Card>
       <form onSubmit={submit} className="grid gap-3 sm:grid-cols-2" aria-label="Check a release">
         <label className="flex min-w-0 flex-col gap-1 text-sm">Find a title
-          <Input value={q} onChange={(e) => type(e.target.value)} placeholder="Name in your library" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name in your library" />
         </label>
         <label className="flex min-w-0 flex-col gap-1 text-sm">Title
           <select className={SELECT_CLASS} value={title?.id ?? ""} onChange={(e) => pick(e.target.value)}>
@@ -166,7 +158,7 @@ export function ReleaseCheck() {
           </select>
         </label>
         <label className="flex min-w-0 flex-col gap-1 text-sm">Library
-          <select className={SELECT_CLASS} value={version} disabled={!title} onChange={(e) => { setVersion(e.target.value); check.reset(); }}>
+          <select className={SELECT_CLASS} value={version} disabled={!title} onChange={(e) => { setVersion({ id: title?.id, key: e.target.value }); check.reset(); }}>
             <option value="">{title && !title.versions?.length ? "This title is in no library" : "Choose a library"}</option>
             {(title?.versions ?? []).map((v) => <option key={v.key} value={v.key}>{v.label || nameOf(v.key ?? "")}{v.has_file ? "" : " · no file"}</option>)}
           </select>
@@ -184,6 +176,7 @@ export function ReleaseCheck() {
       </form>
     </Card>
     {check.error ? <p role="alert" className="text-sm text-[var(--bad-ink)]">{check.error instanceof Error ? check.error.message : String(check.error)}</p> : null}
-    {check.data ? <Result d={check.data.d} sent={check.data.sent} library={title?.versions?.find((v) => v.key === check.data.d.version)?.label || nameOf(check.data.d.version ?? "")} /> : null}
+    {/* A result shows only for the title it was checked for. */}
+    {check.data && check.data.sent.title_id === title?.id ? <Result d={check.data.d} sent={check.data.sent} library={title?.versions?.find((v) => v.key === check.data.d.version)?.label || nameOf(check.data.d.version ?? "")} /> : null}
   </div>;
 }

@@ -94,6 +94,25 @@ describe("Release check", () => {
     expect(fetch.calls("POST", "/decide")[0].body).toMatchObject({ title_id: 9, version: "movie-remux" });
   });
 
+  it("keeps the pick made for you when the text comes back within the wait, or only gains a trailing space", async () => {
+    mockFetch([{ method: "GET", path: "/search", reply: (r: { search: string }) => new URLSearchParams(r.search).get("q") === "dune" ? searchReply : { ...searchReply, library: [] } }]);
+    const user = userEvent.setup();
+    renderPage(<ReleaseCheck />, "/admin/settings/profiles/check");
+    const box = screen.getByRole("textbox", { name: "Find a title" });
+    const title = screen.getByRole("combobox", { name: "Title" }) as HTMLSelectElement;
+    await user.type(box, "dune");
+    await waitFor(() => expect(title.value).toBe("7"));
+    // "dunes", then back to "dune" before the search waited out its pause.
+    await user.type(box, "s{Backspace}");
+    await waitFor(() => expect(title.value).toBe("7"));
+    await new Promise((r) => setTimeout(r, 400));
+    expect(title.value).toBe("7");
+    // A trailing space does not change what is searched.
+    await user.type(box, " ");
+    await new Promise((r) => setTimeout(r, 400));
+    expect(title.value).toBe("7");
+  });
+
   it("keeps a title chosen by hand while the search text changes", async () => {
     const two = { ...searchReply, library: [dune, { ...dune, id: 8, name: "Dune", year: 2021 }], library_total: 2 };
     mockFetch([{ method: "GET", path: "/search", reply: (r: { search: string }) => new URLSearchParams(r.search).get("q") === "dune" ? two : { ...searchReply, library: [] } }]);
