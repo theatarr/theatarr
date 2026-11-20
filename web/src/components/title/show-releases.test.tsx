@@ -133,6 +133,8 @@ it("says what the shown search did and picks out the followed release", async ()
   expect(screen.getByTestId("releases-facts").textContent).toBe("12 releases returned by the indexers, 2 accepted");
   expect(screen.getByTestId("releases-notes").textContent).toBe("Indexers: seadex: dropped 1 entry: private tracker; dropped 1 single-file entry; dropped 1 recent entry not filed under one of our titles; dropped 2 entries with an excluded tag");
   expect(screen.queryByText("the last search Theatarr decided for each library")).toBeNull();
+  // The stored list is a sample of the 12: it says how many it shows.
+  expect(screen.getByTestId("releases-stored-count").textContent).toBe("Showing 2 stored results.");
 });
 
 it("says when the followed release is not in the stored list", async () => {
@@ -163,6 +165,8 @@ it("a stored list has no Grab buttons and offers Interactive search", async () =
   ]);
   renderPage(<ShowReleases titleId={7} defaultOpen initialVersion="movie-web" />);
   await screen.findByTestId("releases-table");
+  // Every result is shown: nothing to say about a sample.
+  expect(screen.queryByTestId("releases-stored-count")).toBeNull();
   expect(screen.queryByTestId("release-grab")).toBeNull();
   fireEvent.click(screen.getByTestId("interactive-search-open"));
   expect(await screen.findByTestId("interactive-waiting")).toBeTruthy();

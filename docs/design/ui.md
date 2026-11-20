@@ -610,7 +610,9 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   the blocklist note and Try again), and every rejection reason and language is listed, wrapping, where the table keeps
   one line, two reasons or languages and a tooltip), Peers is the copy with the most seeders and Cached on the union; the
   Indexer filter and the text filter match any of its indexers. A live answer counts rows; a stored one keeps its
-  search's own count ("N releases returned by the indexers"); in the episode window a stored season, series or RSS
+  search's own count ("N releases returned by the indexers"), and since it keeps only a sample (the best accepted, then
+  the best-scored rejected) a list shorter than that count says "Showing N stored results." with its row count
+  (the Last search page and the episode window); in the episode window a stored season, series or RSS
   search counts the stored candidates for the episode, "N stored candidates for this episode", and its "Nothing
   grabbed" line names the count as the search's: "no accepted release among N results of the season search" (or "of
   the series search"), built from the run's count (`storedGrabbed`'s scope; the search's notes stay in the panel's own
