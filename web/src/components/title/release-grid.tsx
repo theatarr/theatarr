@@ -317,28 +317,24 @@ export function GrabCell({ c, target, o, sentFrom, onSent, card }: { c: Candidat
       </span>
     );
   }
+  // On a card the reason and the provider answers are the Outcome's (said once); only the retry note stays here.
   const failure = fresh?.outcome === "failed" ? (
-    <span className="flex min-w-0 max-w-[18rem] flex-col">
-      {card ? (
-        // The phone: the reason and the note in full, no tooltip.
-        <span className="text-xs font-medium text-[var(--bad-ink)] [overflow-wrap:anywhere]" data-testid="release-failed">
-          Failed{fresh.reason ? ` · ${fresh.reason}` : ""}{note ? `. ${note}` : ""}
-        </span>
-      ) : (
+    card ? (
+      <span className="flex min-w-0 flex-col">
+        {note ? <span className="text-xs text-[var(--ink-2)] [overflow-wrap:anywhere]" data-testid="release-failed-note">{note}</span> : null}
+      </span>
+    ) : (
+      <span className="flex min-w-0 max-w-[18rem] flex-col">
         <span className="text-xs font-medium text-[var(--bad-ink)]" title={[fresh.reason, answers?.full, note].filter(Boolean).join("\n") || undefined} data-testid="release-failed">
           Failed
         </span>
-      )}
-      {answers?.line ? (
-        card ? (
-          <ProviderAnswers full={answers.full} testid="release-grab-answers-open" />
-        ) : (
+        {answers?.line ? (
           <span className="truncate text-[11px] text-[var(--ink-3)]" title={answers.full} data-testid="release-answers">
             {answers.line}
           </span>
-        )
-      ) : null}
-    </span>
+        ) : null}
+      </span>
+    )
   ) : null;
   const button = (
     <Button

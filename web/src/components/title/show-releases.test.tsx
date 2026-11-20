@@ -84,6 +84,18 @@ it("words a failed release in full on a phone card and opens its provider answer
   expect(row.getAttribute("title")).toContain(reason);
 });
 
+it("says a failure once on a phone card with Grab: the reason and answers in the outcome, only the note and Try again beside Grab", () => {
+  mockFetch([ME]);
+  const reason = "Not cached on RD, AD and TB";
+  const outcomes = { aaa: { outcome: "failed", provider: "rd", reason, blocklisted: true, attempts: [{ provider: "RD", outcome: "miss", code: "not_cached", message: "" }] } };
+  renderPage(<ReleaseGrid kind="movie" items={[cand(1, "aaa")]} outcomes={outcomes as never} grab={{ titleId: 7, version: "movie-web", sent: new Map(), onSent: () => {} }} />);
+  const card = within(screen.getByTestId("releases-list")).getAllByRole("listitem")[0];
+  expect(card.textContent?.split(reason)).toHaveLength(2);
+  expect(within(card).getAllByTestId("release-answers-open")).toHaveLength(1);
+  expect(within(card).getByTestId("release-failed-note").textContent).toBe("On the blocklist: a grab by hand takes it off");
+  expect(within(card).getByTestId("release-grab").textContent).toContain("Try again");
+});
+
 it("says what the shown search did and picks out the followed release", async () => {
   mockFetch([
     { method: "GET", path: "/auth/me", reply: { permissions: ["browse", "see_files", "manage"] } },
