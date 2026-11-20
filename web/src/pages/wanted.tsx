@@ -258,7 +258,8 @@ export function WantedPage() {
   const titleLink = (row: WantedRow) => <Link className="font-semibold text-[var(--ink)] hover:text-[var(--accent-ink)] [overflow-wrap:anywhere]" to={`/title/${row.title_id}`}>{name(row)}</Link>;
   const cells: Record<Column, DataColumn<WantedRow>> = {
     library: { id: "library", label: "Library", cell: row => <VersionTag k={row.version} label={d?.libraries[row.version]} /> },
-    what: { id: "what", label: "What", cellClassName: "max-w-[22rem]", cell: row => <WhatCell row={row} /> },
+    // On a phone under the actions: an opened season's episode list would push the dates and buttons far down.
+    what: { id: "what", label: "What", cellClassName: "max-w-[22rem]", card: "foot", cell: row => <WhatCell row={row} /> },
     date: { id: "date", label: "Released", sortable: true, cell: row => !row.date ? "—" : row.date_estimate ? `~${fmtDay(row.date)} (estimate)` : fmtDay(row.date) },
     next: { id: "next", label: "Next search", cell: row => <NextSearch row={row} state={states.get(row.version)} off={off} admin={perms.admin} /> },
     // The decision behind the last search sits with it, so the row's actions keep their place.

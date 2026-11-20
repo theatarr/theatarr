@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { WantedPage, searchNowWords, searchResult, targetWords, whatWords } from "./wanted";
 import { mockFetch, renderPage } from "@/test/page";
 import type { Schemas } from "@/api/client";
@@ -462,6 +462,24 @@ it("opens a Cutoff unmet season row to its episodes, each with the quality it ho
   await user.click(within(cell).getByText("S01, 2 episodes"));
   expect(within(cell).getAllByTestId("wanted-episode").map(li => li.textContent)).toEqual(["S01E01 · Pilot · WEBDL-1080p", "S01E02 · HDTV-720p"]);
   expect(within(cell).getByText("Cutoff: WEBDL-2160p")).toBeTruthy();
+});
+
+it("keeps a phone card's dates and actions above an opened season's episode list", async () => {
+  vi.stubGlobal("matchMedia", (q: string) => ({ matches: !q.includes("min-width"), media: q, addEventListener() {}, removeEventListener() {} }));
+  const user = userEvent.setup();
+  const season: Row = { title_id: 2, version: "tv-2160p", targets: ["s01"], reason: "missing", waiting: "due", next_at: "2026-11-01T00:00:00Z",
+    last_run: null, decision_id: null, season: 1, episodes: 2, date: "2020-01-08",
+    episode_list: [{ episode_id: 11, season: 1, number: 1, name: "Pilot", air_date: "2020-01-01" }, { episode_id: 12, season: 1, number: 2 }] };
+  mockFetch([admin, { method: "GET", path: "/wanted", reply: { ...page, items: [season], titles: { "2": "Beta" }, libraries: { "tv-2160p": "4K TV" } } }, status]);
+  renderPage(<WantedPage />, "/wanted");
+  const cell = await screen.findByTestId("wanted-episodes");
+  await user.click(within(cell).getByText("S01, 2 episodes"));
+  const list = within(cell).getAllByTestId("wanted-episode")[0];
+  const card = cell.closest("li") as HTMLElement;
+  const before = (el: Element) => !!(el.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING);
+  // Released, Next search and Last search.
+  for (const column of ["date", "next", "last"]) expect(before(card.querySelector(`[data-column="${column}"]`)!)).toBe(true);
+  expect(before(within(card).getByRole("button", { name: "Search now" }))).toBe(true);
 });
 
 it("opens a Missing season row to its episodes, each with Search and Unmonitor in the row's library", async () => {

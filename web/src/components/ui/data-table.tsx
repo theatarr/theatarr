@@ -1,9 +1,9 @@
 // The shared table (docs/design/ui.md "Library views"): rows under a dense sticky header, the page's chosen columns in
 // order, sortable headers (SortHead), an optional select column (RowSelection), row actions at the end and an optional
 // panel under a row (Details). Below the phone width there is no table: each row is a card with the head the page
-// draws, then each column as a "Label value" line, the actions and the panel. Built for the index, Activity and the
-// title page's Libraries table, not as a general table framework: the page keeps the sort, the selection and which
-// row is open.
+// draws, then each column as a "Label value" line, the actions, any "foot" lines and the panel. Built for the index,
+// Activity and the title page's Libraries table, not as a general table framework: the page keeps the sort, the
+// selection and which row is open.
 // The table clips while it fits its frame, so the header can stick, and scrolls sideways inside its frame when it does
 // not (useFitsFrame).
 import { Fragment, useEffect, useState, type ReactNode } from "react";
@@ -26,8 +26,9 @@ export type DataColumn<T> = {
   sortable?: boolean;
   headClassName?: string;
   cellClassName?: string;
-  /** On a phone: a "Label value" line (default), the value alone on its own line, or nothing (cardHead shows it). */
-  card?: "line" | "full" | "none";
+  /** On a phone: a "Label value" line (default), the value alone on its own line, nothing (cardHead shows it), or a
+   *  "Label value" line under the actions (a value that can open long, such as a season's episode list). */
+  card?: "line" | "full" | "none" | "foot";
 };
 
 /** Attributes the page puts on each row (the table row, or the card on a phone): a test id, data-*, a class. */
@@ -131,7 +132,14 @@ export function DataTable<T, K extends string | number>({
           {rows.map((r) => {
             const k = rowKey(r);
             const { className, ...attrs } = rowProps?.(r) ?? {};
-            const lines = columns.filter((c) => (c.card ?? "line") !== "none");
+            const lines = columns.filter((c) => (c.card ?? "line") !== "none" && c.card !== "foot");
+            const foot = columns.filter((c) => c.card === "foot");
+            const line = (c: DataColumn<T>) => (
+              <div key={c.id} className="flex min-w-0 gap-2" data-column={c.id}>
+                {c.card === "full" ? null : <dt className="shrink-0 text-[var(--ink-3)]">{c.label}</dt>}
+                <dd className="min-w-0 [overflow-wrap:anywhere]">{c.cell(r)}</dd>
+              </div>
+            );
             const panel = expanded?.(r);
             return (
               <li key={k} {...attrs} className={className}>
@@ -142,18 +150,12 @@ export function DataTable<T, K extends string | number>({
                     <div className="min-w-0 flex-1 space-y-1.5">
                       {cardHead?.(r)}
                       {lines.length ? (
-                        <dl className="space-y-0.5 text-xs">
-                          {lines.map((c) => (
-                            <div key={c.id} className="flex min-w-0 gap-2" data-column={c.id}>
-                              {c.card === "full" ? null : <dt className="shrink-0 text-[var(--ink-3)]">{c.label}</dt>}
-                              <dd className="min-w-0 [overflow-wrap:anywhere]">{c.cell(r)}</dd>
-                            </div>
-                          ))}
-                        </dl>
+                        <dl className="space-y-0.5 text-xs">{lines.map(line)}</dl>
                       ) : null}
                     </div>
                   </div>
                   {actions ? <div className="flex flex-wrap items-center gap-2">{actions(r)}</div> : null}
+                  {foot.length ? <dl className="space-y-0.5 text-xs">{foot.map(line)}</dl> : null}
                   {panel ? <div className="border-t border-[var(--line)] pt-2">{panel}</div> : null}
                 </Card>
               </li>
