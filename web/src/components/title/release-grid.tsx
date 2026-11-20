@@ -130,7 +130,8 @@ const signed = (n: number) => (n > 0 ? `+${fmtNumber(n)}` : fmtNumber(n));
  *  why that file is bettered. */
 const fillsOnly = (c: Candidate) => !!c.upgrade_reason?.startsWith("fills ");
 
-function Status({ c }: { c: Candidate }) {
+/** The verdict; on a card (the phone, no tooltip) every rejection reason, wrapping. */
+function Status({ c, card }: { c: Candidate; card?: boolean }) {
   if (c.accepted) {
     return (
       <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--ok-ink)]">
@@ -139,15 +140,16 @@ function Status({ c }: { c: Candidate }) {
     );
   }
   const all = (c.rejections ?? []).map((r) => r.message || r.reason || "").filter(Boolean);
+  const shown = card ? all : all.slice(0, 2);
   return (
-    <span className="flex flex-col gap-0.5" title={all.join("\n")} data-testid="release-status">
-      {all.slice(0, 2).map((m, i) => (
+    <span className="flex flex-col gap-0.5" title={card ? undefined : all.join("\n")} data-testid="release-status">
+      {shown.map((m, i) => (
         <span key={i} className="inline-flex items-start gap-1 text-xs text-[var(--bad-ink)]">
           <XCircle className="mt-0.5 size-3 shrink-0" />
           <span className="[overflow-wrap:anywhere]">{m}</span>
         </span>
       ))}
-      {all.length > 2 ? <span className="pl-4 text-[11px] text-[var(--ink-3)]">+{all.length - 2} more</span> : null}
+      {!card && all.length > 2 ? <span className="pl-4 text-[11px] text-[var(--ink-3)]">+{all.length - 2} more</span> : null}
       {all.length === 0 ? <span className="text-xs text-[var(--bad-ink)]">Rejected</span> : null}
     </span>
   );
@@ -212,9 +214,11 @@ function Quality({ c }: { c: Candidate }) {
   );
 }
 
-function Languages({ c }: { c: Candidate }) {
+/** The release's languages: two and "+N" with the rest in the tooltip; on a card (the phone) all of them. */
+function Languages({ c, card }: { c: Candidate; card?: boolean }) {
   const ls = c.languages ?? [];
   if (ls.length === 0) return <span className="text-[var(--ink-3)]">—</span>;
+  if (card) return <span className="[overflow-wrap:anywhere]" data-testid="release-languages">{ls.join(", ")}</span>;
   return <span title={ls.join(", ")}>{ls.slice(0, 2).join(", ")}{ls.length > 2 ? ` +${ls.length - 2}` : ""}</span>;
 }
 
@@ -605,12 +609,12 @@ export function ReleaseGrid({
                 {c.cached_on?.length || c.languages?.length || c.flags?.length ? (
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-[var(--ink-2)]">
                     {c.cached_on?.length ? <Cached c={c} /> : null}
-                    {c.languages?.length ? <Languages c={c} /> : null}
+                    {c.languages?.length ? <Languages c={c} card /> : null}
                     {c.flags?.length ? <Cell id="flags" c={c} /> : null}
                   </div>
                 ) : null}
                 <div className="mt-1.5 flex flex-col items-start gap-1">
-                  <Status c={c} />
+                  <Status c={c} card />
                   <Outcome o={outcomeOf(c, outcomes)} card />
                 </div>
                 {grab ? <div className="mt-2"><GrabCell c={c} target={grab} o={outcomeOf(c, outcomes)} sentFrom={sentFrom(c)} onSent={markSent(c)} card /></div> : null}

@@ -96,6 +96,21 @@ it("says a failure once on a phone card with Grab: the reason and answers in the
   expect(within(card).getByTestId("release-grab").textContent).toContain("Try again");
 });
 
+it("lists every rejection reason and language on a phone card; the table keeps two and the tooltip", () => {
+  mockFetch([ME]);
+  const rejections = ["one", "two", "three", "four"].map((r) => ({ reason: r, message: `Reason ${r}` }));
+  const c = { ...cand(1, "aaa", false), rejections, languages: ["English", "French", "German"] };
+  renderPage(<ReleaseGrid kind="movie" items={[c]} />);
+  const card = within(screen.getByTestId("releases-list")).getAllByRole("listitem")[0];
+  const status = within(card).getByTestId("release-status");
+  expect(status.textContent).toBe("Reason oneReason twoReason threeReason four");
+  expect(status.getAttribute("title")).toBeNull();
+  expect(within(card).getByTestId("release-languages").textContent).toBe("English, French, German");
+  const row = within(screen.getByTestId("releases-table")).getByTestId("release-status");
+  expect(row.textContent).toContain("+2 more");
+  expect(row.getAttribute("title")).toBe("Reason one\nReason two\nReason three\nReason four");
+});
+
 it("says what the shown search did and picks out the followed release", async () => {
   mockFetch([
     { method: "GET", path: "/auth/me", reply: { permissions: ["browse", "see_files", "manage"] } },
