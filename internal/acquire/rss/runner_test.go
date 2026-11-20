@@ -270,8 +270,12 @@ func TestFilmIndexWithoutRSS(t *testing.T) {
 			known := func(m movieDef) bool { return e.eng.Library().ByIMDb(m.imdb) != nil }
 			waitUntil(t, "index loaded at start", func() bool { return known(dune) })
 			e.seed(t, alien)
-			e.advance(e.r.set.RSSInterval)
-			waitUntil(t, "film added after start known after the tick", func() bool { return known(alien) })
+			// The clock moves on at every poll, not once: the schedule reads its first deadline after loading the
+			// index, so a single step taken before that is the tick it skips because the index is fresh.
+			waitUntil(t, "film added after start known after the tick", func() bool {
+				e.advance(e.r.set.RSSInterval)
+				return known(alien)
+			})
 			if n := one[int](t, e.st, `SELECT COUNT(*) FROM task WHERE key = ? AND last_started IS NOT NULL`, KindRSS); n != 0 {
 				t.Errorf("%d RSS reads", n)
 			}
