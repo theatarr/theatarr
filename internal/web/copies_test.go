@@ -472,8 +472,22 @@ func TestListRowFacts(t *testing.T) {
 	e.call("GET", APIBase+"/titles?limit=100", nil, 200, &limitedPage)
 	var limited TitleDetail
 	e.call("GET", fmt.Sprintf("%s/titles/%d", APIBase, 38), nil, 200, &limited)
-	if lr := rowOf(t, limitedPage, 38); lr.Status != "released" || limited.Status != "released" || limited.InCinemas != "2026-10-01" {
-		t.Errorf("Limited's status: list %q, About %q, in cinemas %s", lr.Status, limited.Status, limited.InCinemas)
+	if lr := rowOf(t, limitedPage, 38); lr.Status != "released" || limited.Meta == nil || limited.Meta.Status != "released" ||
+		limited.InCinemas != "2026-10-01" {
+		t.Errorf("Limited's status: list %q, About %+v, in cinemas %s", lr.Status, limited.Meta, limited.InCinemas)
+	}
+	// Listed: added from a list, no status stored before its first refresh; in cinemas since Oct 1.
+	e.exec(`INSERT INTO title (id, kind, name, year, tmdb_id, created_at, updated_at) VALUES
+		(39, 'movie', 'Listed', 2026, 539, ?, ?)`, now, now)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
+		(39, 39, 'movie-web', 1, 'wanted', ?, ?)`, now, now)
+	e.exec(`INSERT INTO title_meta (title_id, attempted_at, refresh_after) VALUES (39, 1, 1)`)
+	e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES (39, 'tmdb', '', 'theatrical', '2026-10-01')`)
+	e.call("GET", APIBase+"/titles?limit=100", nil, 200, &limitedPage)
+	var listed TitleDetail
+	e.call("GET", fmt.Sprintf("%s/titles/%d", APIBase, 39), nil, 200, &listed)
+	if lr := rowOf(t, limitedPage, 39); lr.Status != "inCinemas" || listed.Meta == nil || listed.Meta.Status != "inCinemas" {
+		t.Errorf("Listed's status: list %q, About %+v", lr.Status, listed.Meta)
 	}
 	if c := rowOf(t, limitedPage, 30); c.Status != "inCinemas" {
 		t.Errorf("Cinema's status %q", c.Status)

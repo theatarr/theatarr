@@ -323,6 +323,7 @@ func (w *Web) fillNext(ctx context.Context, db *sql.DB, items []TitleRow, tids, 
 		}
 	}
 	if len(movieIDs) > 0 {
+		now := w.now()
 		dates, err := activity.ReadMovieDates(ctx, db, movieIDs)
 		if err != nil {
 			return err
@@ -353,7 +354,7 @@ func (w *Web) fillNext(ctx context.Context, db *sql.DB, items []TitleRow, tids, 
 				it.Next = &NextUp{Date: it.ReleaseDate}
 			}
 			it.HomeRelease = day(availability.HomeRelease(dates[it.ID].Canonical))
-			it.Status = movieStatus(it.Status, dates[it.ID].Canonical, w.now())
+			it.Status = movieStatus(it.Status, dates[it.ID].Canonical, now)
 			it.InCinemas, it.DigitalRelease, it.PhysicalRelease = fr["theatrical"], fr["digital"], fr["physical"]
 			for j := range it.Versions {
 				it.Versions[j].MinimumAvailability = rules[it.Versions[j].ID].Minimum
@@ -365,11 +366,12 @@ func (w *Web) fillNext(ctx context.Context, db *sql.DB, items []TitleRow, tids, 
 
 // movieStatus is a movie's release status shown (the lists' Status, About > Status): availability.Status over the
 // dates the loader read, so it agrees with the compatible views at once, not only after the next metadata refresh;
-// a stored status that is not one of its words (an arr's tba, TMDb's before a refresh) or a movie without dates keeps
-// the stored one.
+// a movie with no stored status yet (added from a list or collection, before its first refresh) gets one from its
+// dates too. Any other stored status (an arr's tba, TMDb's words before a refresh) or a movie without dates keeps the
+// stored one.
 func movieStatus(stored string, dates map[string]time.Time, now time.Time) string {
 	switch stored {
-	case "announced", "inCinemas", "released":
+	case "", "announced", "inCinemas", "released":
 		if len(dates) > 0 {
 			return availability.Status(dates, now)
 		}

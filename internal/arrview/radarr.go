@@ -73,8 +73,8 @@ type movieStatistics struct {
 // availability's cinema date), the one calculation the title pages and lists show too.
 func movieStatus(d map[string]time.Time, now time.Time) string { return availability.Status(d, now) }
 
-// releaseDate ports Movie.GetReleaseDate; the estimated home release counts from availability's cinema date
-// (availability.Cinema), as availability.HomeRelease does.
+// releaseDate ports Movie.GetReleaseDate; its fallback is the home release (availability.HomeRelease, the estimate
+// counting from availability's cinema date).
 func releaseDate(minAvail string, d map[string]time.Time) *arrTime {
 	pick := func(types ...string) *arrTime {
 		var best time.Time
@@ -91,11 +91,8 @@ func releaseDate(minAvail string, d map[string]time.Time) *arrTime {
 	case minAvail == "inCinemas" && !d["theatrical"].IsZero():
 		return pick("theatrical")
 	}
-	if r := pick("digital", "physical"); r != nil {
-		return r
-	}
-	if c := availability.Cinema(d); !c.IsZero() {
-		return atPtr(c.AddDate(0, 0, 90))
+	if h := availability.HomeRelease(d); !h.IsZero() {
+		return atPtr(h)
 	}
 	return nil
 }

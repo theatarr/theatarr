@@ -234,6 +234,9 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail, seeFiles bool) er
 			d.HomeRelease = h.Format(time.DateOnly)
 		}
 		d.Status = movieStatus(d.Status, dates[d.ID].Canonical, w.now())
+		if d.Meta != nil { // what About › Status reads
+			d.Meta.Status = movieStatus(d.Meta.Status, dates[d.ID].Canonical, w.now())
+		}
 		// The dates the About facts show: the release-date choice Home, the calendar and the lists use.
 		fr := dates[d.ID].First
 		d.InCinemas, d.DigitalRelease, d.PhysicalRelease = fr["theatrical"], fr["digital"], fr["physical"]

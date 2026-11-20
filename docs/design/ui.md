@@ -309,7 +309,8 @@ existing redaction applies). Household accounts get none of it.
   after the first cinema run anywhere (`availability.HomeRelease`): `home_release`, Wanted's date and its sort, Home's
   Missing row and the compatible `releaseDate` read it, still marked "(estimate)" wherever they were, and the lists'
   Status, About › Status and the compatible status are one calculation (`availability.Status`) from the same run,
-  worked out from the dates the page reads, so they agree before the next metadata refresh. The canonical cinema, digital and physical dates, the
+  worked out from the dates the page reads (also for a film with no stored status yet, added from a list or
+  collection), so they agree before the next metadata refresh. The canonical cinema, digital and physical dates, the
   calendar, the Released column, In cinemas and Details › Release dates stay as they were (the general release day
   leaves availability's first cinema date out).
 - **Added and Latest file**: **Added** is the day the title was added to Theatarr (lists' Added column and sort,
