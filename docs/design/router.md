@@ -58,10 +58,10 @@ router has.
 **Before a route opens a download**: a candidate every usable provider would skip anyway (a recorded
 cache miss, uncached under `cached_only`, or a release Real-Debrid refuses) is skipped with step `known_miss` and
 opens no download row (`TestKnownMissOpensNoDownload`). So is one whose library's newest download of the hash
-ended on a failed copy on an account (`held_error`, below) less than `miss_ttl` ago, when no other usable provider
-can take it: step `held_error`, nothing blocklisted and no miss cached, so RSS does not open a new failed download
+ended on a failed copy on an account (`held_error`, below) less than `miss_ttl` ago, while the registry still holds
+that errored entry (deleted under Torrents, the route asks the provider again), when no other usable provider can take it: step `held_error`, nothing blocklisted and no miss cached, so RSS does not open a new failed download
 at every sync; a provider with cached evidence still takes it (`TestFailedCopyOpensNoDownloadAutomatically`,
-`TestFailedCopyShortcutLeavesOtherProviders`).
+`TestFailedCopyShortcutLeavesOtherProviders`, `TestFailedCopySkipEndsWhenEntryDeleted`).
 
 **A grab by hand asks the providers again** (owner, 2026-11-16: "if i am manually doing it then i should be able to
 force it to try again on providers"). The Interactive search grab and its Try again, Add by magnet or hash,

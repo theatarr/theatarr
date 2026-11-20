@@ -1023,16 +1023,19 @@ func (r *Router) knownMiss(ctx context.Context, s *routeState, c *Candidate, has
 }
 
 // failedCopy gives the providers that held hash only as a failed copy (held_error attempts) on this library's newest
-// download of it, when that download ended on the failed copy (FailedCopyOnAccount) less than miss_ttl ago; nil
-// otherwise. That end caches no miss and blocklists nothing, so without this an automatic route would open a new
+// download of it, when that download ended on the failed copy (FailedCopyOnAccount) less than miss_ttl ago and the
+// registry still holds an errored entry of the hash on that provider (once an admin deletes it under Torrents, or
+// the registry never had it, the route asks the provider again); nil otherwise. That end caches no miss and blocklists nothing, so without this an automatic route would open a new
 // failed download at every try while the entry stays on the account.
 func (r *Router) failedCopy(ctx context.Context, req Request, hash string, now time.Time) (map[string]bool, error) {
 	var out map[string]bool
 	rows, err := r.st.Writer().QueryContext(ctx, `SELECT a.provider FROM download_attempt a
-		WHERE a.code = ? AND a.download_id = (SELECT d.id FROM download d WHERE d.title_id = ? AND d.version_key = ?
+		WHERE a.code = ? AND EXISTS (SELECT 1 FROM provider_torrent p WHERE p.provider = a.provider
+			AND p.info_hash = ? AND p.state = '`+string(provider.StateError)+`')
+		AND a.download_id = (SELECT d.id FROM download d WHERE d.title_id = ? AND d.version_key = ?
 			AND d.info_hash = ? AND d.state = 'failed' AND d.error GLOB ? AND d.updated_at > ?
 			AND d.id = (SELECT MAX(x.id) FROM download x WHERE x.title_id = d.title_id AND x.version_key = d.version_key
-				AND x.info_hash = d.info_hash))`, codeHeldError, req.TitleID, req.Version, hash,
+				AND x.info_hash = d.info_hash))`, codeHeldError, hash, req.TitleID, req.Version, hash,
 		FailedCopyOnAccount+"*", store.Millis(now.Add(-r.set.MissTTL)))
 	if err != nil {
 		return nil, fmt.Errorf("router: failed copy: %w", err)

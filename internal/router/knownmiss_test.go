@@ -233,7 +233,7 @@ func TestFailedCopyOpensNoDownloadAutomatically(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true)
 	e.pol.Versions["movie"].Providers = []string{"rd"}
-	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('rd', 'HELD', ?)`, h("a"))
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash, state) VALUES ('rd', 'HELD', ?, 'error')`, h("a"))
 	e.pr["rd"].set("HELD", provider.Torrent{Hash: h("a"), Status: "magnet_error", State: provider.StateError})
 	c := cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")
 	rows := func() int { return e.count(`SELECT COUNT(*) FROM download WHERE info_hash = ?`, h("a")) }
@@ -267,6 +267,38 @@ func TestFailedCopyOpensNoDownloadAutomatically(t *testing.T) {
 	}
 }
 
+// The failed-copy skip lasts only while the registry holds the errored entry: once an admin deletes it under
+// Torrents (the record row goes), the next automatic route opens a download and asks the provider again.
+func TestFailedCopySkipEndsWhenEntryDeleted(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.pol.Versions["movie"].Providers = []string{"rd"}
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash, state) VALUES ('rd', 'HELD', ?, 'error')`, h("a"))
+	e.pr["rd"].set("HELD", provider.Torrent{Hash: h("a"), Status: "magnet_error", State: provider.StateError})
+	c := cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")
+	rows := func() int { return e.count(`SELECT COUNT(*) FROM download WHERE info_hash = ?`, h("a")) }
+	if res, err := e.r.Route(e.ctx, movieReq(c)); err != nil || !hasStep(res, "held_error") || rows() != 1 {
+		t.Fatalf("first route: %+v %v", res, err)
+	}
+	e.clock = e.clock.Add(15 * time.Minute)
+	if res, err := e.r.Route(e.ctx, movieReq(c)); err != nil || res.DownloadID != 0 || rows() != 1 {
+		t.Fatalf("automatic route with the entry on the account: %+v %v: %s", res, err, steps(res))
+	}
+	// The admin deletes the failed entry: the record row and the account's entry go.
+	e.exec(`DELETE FROM provider_torrent WHERE provider = 'rd' AND torrent_id = 'HELD'`)
+	e.pr["rd"].mu.Lock()
+	delete(e.pr["rd"].torrents, "HELD")
+	e.pr["rd"].mu.Unlock()
+	e.clock = e.clock.Add(15 * time.Minute)
+	res, err := e.r.Route(e.ctx, movieReq(c))
+	e.ad["rd"].mu.Lock()
+	adds := len(e.ad["rd"].adds)
+	e.ad["rd"].mu.Unlock()
+	if err != nil || res.DownloadID == 0 || rows() != 2 || adds != 1 {
+		t.Fatalf("automatic route after the delete: %+v %v: %s; %d rows, %d rd adds", res, err, steps(res), rows(), adds)
+	}
+}
+
 // The failed-copy shortcut skips only when no other provider of the library can take the release: RD holds the
 // failed copy and AD missed it, so the first route fails; once AD has it cached the next automatic route grabs on AD
 // as before.
@@ -274,7 +306,7 @@ func TestFailedCopyShortcutLeavesOtherProviders(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true)
 	e.pol.Versions["movie"].Providers = []string{"rd", "ad"}
-	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('rd', 'HELD', ?)`, h("a"))
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash, state) VALUES ('rd', 'HELD', ?, 'error')`, h("a"))
 	e.pr["rd"].set("HELD", provider.Torrent{Hash: h("a"), Status: "magnet_error", State: provider.StateError})
 	e.ad["ad"].add = refuse(adder.CodeNotCached)
 	c := cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")
