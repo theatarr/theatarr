@@ -19,7 +19,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { useAddOptions, type AddTarget } from "@/api/add";
 import { ApiError } from "@/api/client";
-import { usePerms, useTitle, type TitleDetail, type Version } from "@/api/library";
+import { usePendingLate, usePerms, useTitle, type TitleDetail, type Version } from "@/api/library";
 import { PRODUCT_NAME } from "@/brand";
 import { Empty, ErrorState, Loading } from "@/components/page";
 import { useSearchUI } from "@/components/search/search-context";
@@ -194,6 +194,8 @@ function TitleHistory({ d }: { d: TitleDetail }) {
 export function TitlePage() {
   const { id = "" } = useParams();
   const q = useTitle(id);
+  // Past the polling's two minutes the page stops saying "Loading" (the refresh is late, not under way here).
+  const late = usePendingLate(id, !!q.data?.metadata_pending);
   const perms = usePerms();
   const [params, setParams] = useSearchParams();
   const d = q.data;
@@ -238,7 +240,7 @@ export function TitlePage() {
   const anyHeld = versions.some((v) => v.has_file);
   // A new series whose first metadata refresh is still to come: its episodes are on their way, not missing.
   const loadingEpisodes = series && !gone && !!d.metadata_pending && !anyHeld && !versions.some((v) => (v.episodes?.total ?? 0) > 0);
-  const ready = gone ? { label: "Not in the library", tone: "neutral" as const } : acquiring && !anyHeld ? { label: acquiring, tone: "partial" as const } : loadingEpisodes ? { label: "Loading episodes…", tone: "neutral" as const } : perms.seeFiles ? titleStatus(d, versions) : watch;
+  const ready = gone ? { label: "Not in the library", tone: "neutral" as const } : acquiring && !anyHeld ? { label: acquiring, tone: "partial" as const } : loadingEpisodes ? { label: late ? "Episodes not loaded yet" : "Loading episodes…", tone: "neutral" as const } : perms.seeFiles ? titleStatus(d, versions) : watch;
   const stageBeside = acquiring && anyHeld ? acquiring : undefined;
   // Each library's latest relevant event, under the status (see files).
   const events = perms.seeFiles && !gone ? versions.flatMap((v) => {
@@ -365,7 +367,7 @@ export function TitlePage() {
               <RequestMoreSeasons target={target} />
             </div>
           ) : null}
-          <Seasons id={id} anime={!!d.anime} franchises={franchises} history={Object.fromEntries(all.map((v) => [v.key ?? "", v.history]))} pending={!!d.metadata_pending} />
+          <Seasons id={id} anime={!!d.anime} franchises={franchises} history={Object.fromEntries(all.map((v) => [v.key ?? "", v.history]))} pending={d.metadata_pending ? (late ? "late" : "loading") : undefined} />
         </>
       ) : null}
       {tab === "order" ? <AnimeOrder franchises={franchises} admin={perms.admin} /> : null}

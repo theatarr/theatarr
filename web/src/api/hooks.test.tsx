@@ -5,7 +5,7 @@ import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockFetch } from "@/test/page";
 import { useLogFiles, useLogLevel, useLogs, useSetLogLevel, type Logs } from "./hooks";
-import { useEpisodes, useTitle } from "./library";
+import { PENDING_FOR, useEpisodes, usePendingLate, useTitle } from "./library";
 import { useRequest } from "./requests";
 
 function provider() {
@@ -156,7 +156,9 @@ describe("a title's first metadata refresh", () => {
       { method: "GET", path: "/titles/7", reply: () => ({ id: 7, kind: "series", name: "New", versions: [], metadata_pending: pending }) },
       { method: "GET", path: "/titles/7/episodes", reply: { versions: [], seasons: [], episodes: [] } },
     ]);
-    const wrapper = provider();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+    client.setQueryData(["add-options", "series", "", "7", ""], { episodes_known: false });
+    const wrapper = ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client }, children);
     renderHook(() => { useTitle("7"); useEpisodes("7"); }, { wrapper });
     await tick();
     expect(fetch.calls("GET", "/titles/7")).toHaveLength(1);
@@ -166,8 +168,10 @@ describe("a title's first metadata refresh", () => {
     pending = false;
     await tick(3_000);
     expect(fetch.calls("GET", "/titles/7")).toHaveLength(3);
-    // Settled: the episodes are read again, and the title is no longer polled.
+    // Settled: the episodes are read again, the add options (Search now, the sheet's seasons) are stale, and the title
+    // is no longer polled.
     expect(fetch.calls("GET", "/titles/7/episodes")).toHaveLength(2);
+    expect(client.getQueryState(["add-options", "series", "", "7", ""])?.isInvalidated).toBe(true);
     await tick(10_000);
     expect(fetch.calls("GET", "/titles/7")).toHaveLength(3);
   });
@@ -184,6 +188,16 @@ describe("a title's first metadata refresh", () => {
     expect(n).toBeLessThanOrEqual(42);
     await tick(60_000);
     expect(fetch.calls("GET", "/titles/8")).toHaveLength(n);
+  });
+
+  it("says a title still pending is late once the polling stopped, not before", async () => {
+    const { result, rerender } = renderHook(({ pending }) => usePendingLate("8", pending), { initialProps: { pending: true } });
+    await tick(PENDING_FOR - 1_000);
+    expect(result.current).toBe(false);
+    await tick(1_000);
+    expect(result.current).toBe(true);
+    rerender({ pending: false });
+    expect(result.current).toBe(false);
   });
 
   it("never polls a settled title", async () => {

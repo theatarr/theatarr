@@ -980,8 +980,9 @@ export function newestFirst<T extends { season: number }>(seasons: readonly T[])
 }
 
 /** The series' episodes by season. pending: its first metadata refresh is still to come (the title's
- *  metadata_pending), so an empty list says the episodes are on their way rather than that none are known. */
-export function Seasons({ id, anime, franchises = [], history, pending = false }: { id: string; anime: boolean; franchises?: { slug: string; name: string }[]; history?: Histories; pending?: boolean }) {
+ *  metadata_pending), so an empty list says the episodes are on their way ("loading", while the page polls) or come
+ *  with the next refresh ("late", once the polling stopped) rather than that none are known. */
+export function Seasons({ id, anime, franchises = [], history, pending }: { id: string; anime: boolean; franchises?: { slug: string; name: string }[]; history?: Histories; pending?: "loading" | "late" }) {
   const list = useEpisodes(id);
   const perms = usePerms();
   const wide = useWide();
@@ -1007,8 +1008,10 @@ export function Seasons({ id, anime, franchises = [], history, pending = false }
   if (l.seasons.length === 0) {
     return (
       <Card>
-        {pending ? (
+        {pending === "loading" ? (
           <p className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="episodes-loading"><Loader2 className="size-4 animate-spin" /> Loading episodes…</p>
+        ) : pending === "late" ? (
+          <p className="text-sm text-muted-foreground" data-testid="episodes-late">Episodes are not loaded yet. They arrive with the next metadata refresh.</p>
         ) : (
           <p className="text-sm text-muted-foreground">No episodes are known for this series yet.</p>
         )}

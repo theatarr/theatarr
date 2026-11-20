@@ -1,7 +1,7 @@
 // Library reads (docs/design/ui.md): the grids (GET /titles, paged), their facet counts, the title page,
 // a series' episodes and the Home rows. Types come from the generated schema.
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "./auth";
 import { api, qs, type Schemas } from "./client";
 import type { Get } from "./hooks";
@@ -97,16 +97,30 @@ export function useTitle(id: string, enabled = true) {
       return now - since.current.at < PENDING_FOR ? PENDING_EVERY : false;
     },
   });
-  // The refresh landed: the series' episodes (and seasons) arrived with it.
+  // The refresh landed: the series' episodes (and seasons) arrived with it, and the add options (Search now, the add
+  // sheet's seasons) know them now.
   const pending = q.data?.metadata_pending === true;
   const was = useRef({ id, pending });
   useEffect(() => {
     if (was.current.id === id && was.current.pending && !pending) {
       void qc.invalidateQueries({ queryKey: [...qk.title(id), "episodes"] });
+      void qc.invalidateQueries({ queryKey: qk.addOptions.all });
     }
     was.current = { id, pending };
   }, [id, pending, qc]);
   return q;
+}
+
+/** Whether a title still pending (metadata_pending) has outlived the polling (PENDING_FOR since this page first saw it
+ *  pending): its page then says the metadata comes with the next refresh instead of "Loading…". */
+export function usePendingLate(id: string, pending: boolean): boolean {
+  const [late, setLate] = useState<string | null>(null);
+  useEffect(() => {
+    if (!pending) return;
+    const t = setTimeout(() => setLate(id), PENDING_FOR);
+    return () => clearTimeout(t);
+  }, [id, pending]);
+  return pending && late === id;
 }
 
 export function useEpisodes(id: string, season?: number, enabled = true) {
