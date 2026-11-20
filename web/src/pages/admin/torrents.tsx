@@ -148,6 +148,8 @@ export function TorrentsPage() {
   };
   const closeDelete = () => {
     seq.current++;
+    // A failed preview's error does not stay above the table once the dialog is closed.
+    actions.deletePreview.reset();
     setPlan(null);
     if (done) setSelected({});
     setDone(null);

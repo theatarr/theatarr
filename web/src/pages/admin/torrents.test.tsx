@@ -425,6 +425,25 @@ describe("torrents page", () => {
     expect((screen.getByTestId("confirm-ok") as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it("clears a failed preview's error when the dialog closes", async () => {
+    let n = 0;
+    mockFetch([
+      { method: "GET", path: "/torrents/report", reply: report },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+      { method: "POST", path: "/torrents/delete/preview", reply: () => (++n === 1 ? plan(false) : { status: 502, body: { error: "rd: gateway: backing off" } }) },
+    ]);
+    renderPage(<TorrentsPage />);
+    await screen.findByText("Used.Movie");
+    fireEvent.click(screen.getByLabelText("Select all shown"));
+    fireEvent.click(screen.getByTestId("delete-selected"));
+    await screen.findByRole("heading", { name: /Delete 1 torrent/ });
+    fireEvent.click(screen.getByTestId("override"));
+    await screen.findByTestId("confirm-error");
+    fireEvent.click(screen.getByTestId("confirm-cancel"));
+    await waitFor(() => expect(screen.queryByTestId("torrent-delete")).toBeNull());
+    expect(screen.queryByText(/backing off/)).toBeNull();
+  });
+
   it("drops a tick whose copy that stays is gone by the next preview, and previews again without it", async () => {
     let n = 0;
     const api = mockFetch([
