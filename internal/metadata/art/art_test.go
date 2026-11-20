@@ -43,6 +43,8 @@ type fakeTMDb struct {
 	png  []byte
 	// noIMDb blanks the movie fixture's IMDb id, as TMDb does for a film it has none for.
 	noIMDb bool
+	// noLanguage blanks the movie fixture's original_language.
+	noLanguage bool
 }
 
 func (f *fakeTMDb) count(prefix string) int {
@@ -99,12 +101,18 @@ func (f *fakeTMDb) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "want append_to_response", http.StatusBadRequest)
 			return
 		}
-		if f.noIMDb {
+		if f.noIMDb || f.noLanguage {
 			b, err := os.ReadFile(filepath.Join("testdata", "movie_603.json"))
 			if err != nil {
 				f.t.Fatal(err)
 			}
-			w.Write(bytes.ReplaceAll(b, []byte(`"imdb_id": "tt0133093"`), []byte(`"imdb_id": ""`)))
+			if f.noIMDb {
+				b = bytes.ReplaceAll(b, []byte(`"imdb_id": "tt0133093"`), []byte(`"imdb_id": ""`))
+			}
+			if f.noLanguage {
+				b = bytes.ReplaceAll(b, []byte(`"original_language": "en"`), []byte(`"original_language": ""`))
+			}
+			w.Write(b)
 			return
 		}
 		fixture("movie_603.json")
@@ -511,6 +519,27 @@ func TestMovieIdentityRefresh(t *testing.T) {
 	}
 	if name != "The Matrix" || sortName != "the matrix" || year != 1999 || runtime != 136 || language != "en" || monitored {
 		t.Fatalf("identity %q %q %d %d %q monitored=%v", name, sortName, year, runtime, language, monitored)
+	}
+}
+
+// A refresh whose answer has no original language keeps the stored one (an add stored TMDb's code, an arr import
+// a name); a non-empty answer still updates it.
+func TestMovieRefreshKeepsLanguage(t *testing.T) {
+	e := newTestEnv(t)
+	e.seed(t)
+	e.fake.mu.Lock()
+	e.fake.noLanguage = true
+	e.fake.mu.Unlock()
+	e.exec(t, `UPDATE title SET original_language = 'fr' WHERE id = 1`)
+	if err := e.svc.FillTitle(context.Background(), 1); err != nil {
+		t.Fatal(err)
+	}
+	var got string
+	if err := e.st.Reader().QueryRow(`SELECT COALESCE(original_language, '') FROM title WHERE id = 1`).Scan(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got != "fr" {
+		t.Fatalf("blank answer: original_language = %q, want fr kept", got)
 	}
 }
 

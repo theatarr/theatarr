@@ -275,6 +275,22 @@ func (s *Service) decideAnime(ctx context.Context, v *View, in *titleIn, ext int
 	return anime, animeFromTMDb, lang
 }
 
+// movieLanguage is TMDb's original_language of movie id, "" without a TMDb client or on any error (the add goes on
+// without it, as before).
+func (s *Service) movieLanguage(ctx context.Context, id int64) string {
+	if s.tmdb == nil {
+		return ""
+	}
+	tctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	m, err := s.tmdb.Movie(tctx, int(id))
+	if err != nil {
+		s.log.Warn("original language from TMDb failed; the artwork refresh fills it", "id", id, "err", err)
+		return ""
+	}
+	return m.OriginalLanguage
+}
+
 // reclassify asks again about a title whose anime check could not reach TMDb (anime_source unknown in this view's
 // record). Once TMDb answers, every unknown record of the title takes the answer; an anime answer flags
 // the title anime and turns on the view's versions for it (chooseVersions with the record's profile and root),
@@ -701,6 +717,13 @@ func (s *Service) addTitle(w http.ResponseWriter, r *request) {
 		var a bool
 		if a, source, lang = s.decideAnime(ctx, v, &in, ext); a {
 			anime = &a
+		}
+	}
+	// A new film's original language, read before its first search (catalog.Input.OriginalLanguage): from the details
+	// decideAnime read, else (the request or the mapping data decided anime, so no details were read) from one read here.
+	if v.Flavour == Radarr && lang == "" && (source == animeFromRequest || source == animeFromMapping) {
+		if h, err := s.holds(ctx, v, &in, ext); err == nil && !h {
+			lang = s.movieLanguage(ctx, ext)
 		}
 	}
 	// A movie's minimum availability is stored per library, never on the view's record.

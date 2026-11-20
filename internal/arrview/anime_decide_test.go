@@ -2,7 +2,6 @@ package arrview
 
 import (
 	"strconv"
-	"strings"
 	"testing"
 )
 
@@ -66,12 +65,11 @@ func TestAddDecidesAnime(t *testing.T) {
 	}
 	// Seerr's single Radarr server: Rules default and the non-anime root. TMDb: Japanese animation.
 	check("TMDb anime", addMovie(149, def, "/media/movies"), true, "tmdb", "anime-movie")
-	// The mapping data wins over TMDb, and TMDb is not asked.
-	check("mapped", addMovie(150, def, "/media/movies"), true, "mapping", "anime-movie")
-	for _, r := range f.requests() {
-		if strings.Contains(r, "/movie/150") {
-			t.Errorf("TMDb asked about a mapped movie: %v", r)
-		}
+	// The mapping data wins over TMDb (which says not anime here): TMDb is read only for the new film's language.
+	mapped := addMovie(150, def, "/media/movies")
+	check("mapped", mapped, true, "mapping", "anime-movie")
+	if l := e.str(`SELECT COALESCE(original_language, '') FROM title WHERE id = ?`, mapped); l != "en" {
+		t.Errorf("mapped new movie: original language %q, want en", l)
 	}
 	// Not anime by TMDb: the profile's non-anime versions.
 	plain := addMovie(555, def, "/media/movies")
@@ -82,7 +80,11 @@ func TestAddDecidesAnime(t *testing.T) {
 		t.Errorf("connected app's new movie: original language %q, want en", l)
 	}
 	// What the client says wins: the Anime profile.
-	check("client anime", addMovie(556, e.profileID("radarr", "Anime"), ""), true, "request", "anime-movie")
+	byClient := addMovie(556, e.profileID("radarr", "Anime"), "")
+	check("client anime", byClient, true, "request", "anime-movie")
+	if l := e.str(`SELECT COALESCE(original_language, '') FROM title WHERE id = ?`, byClient); l != "en" {
+		t.Errorf("new movie the client called anime: original language %q, want en", l)
+	}
 	// No profile but a root folder: the root's versions, whatever Theatarr decides.
 	check("root wins", addMovie(558, 0, "/media/movies"), true, "tmdb", "movie-remux")
 	// A title we already hold keeps its flag; TMDb is not asked.
