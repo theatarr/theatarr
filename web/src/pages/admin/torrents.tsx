@@ -263,7 +263,7 @@ export function TorrentsPage() {
             setOverride={setOverride}
             allowRecent={allowRecent}
             setAllowRecent={(v) => { setAllowRecent(v); preview(overrides, v); }}
-            outside={chosen.filter((t) => !shown.has(keyOf(t))).length}
+            outside={chosen.filter((t) => !shown.has(keyOf(t)))}
             done={!!done}
           />
           {done ? (
@@ -280,7 +280,7 @@ export function TorrentsPage() {
 }
 
 /** The delete dialog's choices (none once done): "Also delete … recent" (only while a chosen torrent needs it, or it
- *  is ticked), how many chosen torrents the filter hides, "Tick all that have another complete copy on the same account",
+ *  is ticked), the chosen torrents the filter hides (three named, then how many more), "Tick all that have another complete copy on the same account",
  *  then each refused torrent, and each one whose override is ticked, with its override checkbox, the copy that stays
  *  and a short preview of its references. */
 function DeleteChoices({ plan, codes, names, overrides, setOverride, allowRecent, setAllowRecent, outside, done }: {
@@ -291,7 +291,7 @@ function DeleteChoices({ plan, codes, names, overrides, setOverride, allowRecent
   setOverride: (tokens: Record<string, string | undefined>) => void;
   allowRecent: boolean;
   setAllowRecent: (v: boolean) => void;
-  outside: number;
+  outside: Torrent[];
   done: boolean;
 }) {
   // A row with an override to tick: needed now, or ticked already (overridden items carry their token too).
@@ -308,7 +308,13 @@ function DeleteChoices({ plan, codes, names, overrides, setOverride, allowRecent
           Also delete chosen torrents added in the last 24 hours or still downloading
         </Choice>
       ) : null}
-      {outside > 0 ? <p className="text-xs text-muted-foreground" data-testid="chosen-outside">{outside === 1 ? "1 chosen torrent is" : `${fmtNumber(outside)} chosen torrents are`} outside the current filter.</p> : null}
+      {outside.length > 0 ? (
+        <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="chosen-outside">
+          {outside.length === 1 ? "1 chosen torrent is" : `${fmtNumber(outside.length)} chosen torrents are`} outside the current filter:{" "}
+          {outside.slice(0, 3).map((t) => `${providerLabel(codes[t.provider] ?? t.provider)} ${t.name}`).join(", ")}
+          {outside.length > 3 ? ` and ${fmtNumber(outside.length - 3)} more` : ""}.
+        </p>
+      ) : null}
       {withCopy.length > 0 ? (
         <Choice
           checked={allCopies}

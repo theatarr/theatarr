@@ -451,9 +451,10 @@ describe("torrents page", () => {
     expect((api.calls("POST", "/torrents/delete/preview")[2].body as { items: { override?: boolean }[] }).items.some((i) => i.override)).toBe(false);
   });
 
-  it("says how many chosen torrents the filter hides", async () => {
+  it("names the chosen torrents the filter hides", async () => {
     mockFetch([
-      { method: "GET", path: "/torrents/report", reply: report },
+      { method: "GET", path: "/torrents/report", reply: { ...report, providers: [{ ...report.providers[0], torrents: [...report.providers[0].torrents,
+        ...[1, 2, 3, 4, 5].map((i) => torrent(String(i + 2), String(i + 2).repeat(40), `Also.${i}`, "used"))] }] } },
       { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
       { method: "POST", path: "/torrents/delete/preview", reply: plan(false) },
     ]);
@@ -462,7 +463,8 @@ describe("torrents page", () => {
     fireEvent.click(screen.getByLabelText("Select all shown"));
     fireEvent.click(screen.getByTestId("group-unused"));
     fireEvent.click(screen.getByTestId("delete-selected"));
-    expect((await screen.findByTestId("chosen-outside")).textContent).toBe("1 chosen torrent is outside the current filter.");
+    // Named, with their account: the first three, then how many more.
+    expect((await screen.findByTestId("chosen-outside")).textContent).toBe("6 chosen torrents are outside the current filter: RD Used.Movie, RD Also.1, RD Also.2 and 3 more.");
   });
 
   it("names a refused torrent by its selected name when the provider could not be listed", async () => {
