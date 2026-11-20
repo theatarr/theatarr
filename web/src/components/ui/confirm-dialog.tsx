@@ -141,10 +141,11 @@ export function ConfirmDialog({
         ) : null}
       </div> : null}
       <div className="flex justify-end gap-2 border-t sm:rounded-b-[8px] border-[var(--line)] bg-[var(--bg)] p-3">
+        {/* Done, or nothing to confirm (an empty confirm word): only Close. */}
         <Button ref={cancel} variant="ghost" size="sm" onClick={onClose} data-testid="confirm-cancel">
-          {done ? "Close" : "Cancel"}
+          {done || !scope.confirm ? "Close" : "Cancel"}
         </Button>
-        {done ? null : (
+        {done || !scope.confirm ? null : (
           <Button
             variant={danger ? "destructive" : "default"}
             size="sm"

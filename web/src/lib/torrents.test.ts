@@ -131,9 +131,12 @@ describe("delete", () => {
     expect(s.title).toContain("2 torrents");
     // One backup sentence, saying what is guaranteed.
     expect(s.does.filter((l) => /backup/i.test(l ?? ""))).toEqual(["A backup is taken first. If a torrent due for deletion can't be backed up, nothing is deleted."]);
-    expect(s.keeps[0]).toMatch(/1 chosen torrent is refused/);
-    expect(s.blocked).toBeUndefined();
-    expect(deleteScope({ ...plan, count: 0 }).blocked).toBe("Nothing chosen can be deleted as it is.");
+    expect(s.keeps[0]).toMatch(/1 chosen torrent is left out and kept/);
+    expect(s.confirm).toBe("Delete 2");
+    // Nothing deletable (corrected in phase Z: was "Delete 0 torrents" with the This will list): "Nothing to delete",
+    // no This will list, no confirm word (only Close).
+    const none = deleteScope({ ...plan, count: 0 });
+    expect([none.title, none.does, none.confirm]).toEqual(["Nothing to delete", [], ""]);
   });
   it("restore preview actions in words", () => {
     expect(restoreActionWords("readd")).toBe("Re-add");

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/provider"
@@ -89,9 +90,21 @@ type DeletePlan struct {
 	BackupID string `json:"backup_id,omitempty"`
 	Deleted  int    `json:"deleted"`
 	Failed   int    `json:"failed"`
+	// Unread names each account that could not be listed (its chosen torrents are refused with RefusalUnread and
+	// kept), once, with the earliest time the gateway lets the list through again when it gave one.
+	Unread []DeleteUnread `json:"unread,omitempty"`
 
 	lists map[string][]provider.Torrent
 }
+
+// DeleteUnread is an account a delete plan could not list.
+type DeleteUnread struct {
+	Provider string    `json:"provider"`
+	RetryAt  time.Time `json:"retry_at,omitzero"`
+}
+
+// RefusalUnread refuses a chosen torrent of an account that could not be listed; the error itself goes to the log.
+const RefusalUnread = "its account could not be read just now"
 
 // DeleteWarning is the plan's warning.
 const DeleteWarning = "A backup is taken first. If a torrent due for deletion can't be backed up, nothing is deleted."
@@ -141,6 +154,13 @@ func (m *Manager) planDelete(ctx context.Context, sel []DeleteSelection, lists m
 			}
 			if lerr != nil {
 				listErr[s.Provider] = lerr
+				m.log().Warn("torrents: delete plan: account not listed", "provider", s.Provider, "err", lerr)
+				u := DeleteUnread{Provider: s.Provider}
+				var refused *gateway.Refused
+				if errors.As(lerr, &refused) {
+					u.RetryAt = refused.RetryAt
+				}
+				plan.Unread = append(plan.Unread, u)
 			} else {
 				plan.lists[s.Provider] = list
 				surv.add(s.Provider, list)
@@ -155,7 +175,7 @@ func (m *Manager) planDelete(ctx context.Context, sel []DeleteSelection, lists m
 		case seen[key]:
 			it.Refusal = "selected twice"
 		case listErr[s.Provider] != nil:
-			it.Refusal = "the provider could not be listed: " + listErr[s.Provider].Error()
+			it.Refusal = RefusalUnread
 		case !found:
 			it.Refusal = "no longer on the provider"
 		case indexer.NormalizeHash(t.Hash) == "" || indexer.NormalizeHash(t.Hash) != indexer.NormalizeHash(it.Hash):

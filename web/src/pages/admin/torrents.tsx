@@ -26,6 +26,7 @@ import {
   BY_HASH,
   GROUPS,
   deleteScope,
+  unreadWords,
   deleteSelection,
   filterTorrents,
   groupCounts,
@@ -329,7 +330,10 @@ function DeleteChoices({ plan, codes, names, overrides, setOverride, allowRecent
 }) {
   // A row with an override to tick: needed now, or ticked already (overridden items carry their token too).
   const overridable = (it: DeleteItem) => !!it.expected_override_token && (!!it.needs_override || !!it.override);
-  const rows = plan.items.filter((it) => it.action === "refuse" || (it.override && overridable(it)));
+  // An account that could not be listed is said once, with its torrents under it, not as a refused row each.
+  const unread = new Map((plan.unread ?? []).map((u) => [u.provider, u.retry_at]));
+  const unreadOf = (p: string) => plan.items.filter((it) => it.action === "refuse" && it.provider === p);
+  const rows = plan.items.filter((it) => (it.action === "refuse" && !unread.has(it.provider)) || (it.override && overridable(it)));
   const withCopy = rows.filter((it) => overridable(it) && it.surviving_copy);
   const allCopies = withCopy.length > 0 && withCopy.every((it) => overrides[keyOf(it)] === it.expected_override_token);
   // Once done, the outcome below says what happened: the choices go, so it is in view on a phone.
@@ -357,6 +361,15 @@ function DeleteChoices({ plan, codes, names, overrides, setOverride, allowRecent
           Tick all that have another complete copy on the same account
         </Choice>
       ) : null}
+      {[...unread].map(([p, retryAt]) => {
+        const items = unreadOf(p);
+        return items.length ? (
+          <div key={p} className="rounded-md border border-[var(--line)] p-2 text-[13px]" data-testid="unread-account">
+            <p data-testid="unread-words">{unreadWords(providerLabel(codes[p] ?? p), items.length, retryAt)}</p>
+            <ul className="mt-1 list-disc pl-5 text-xs text-muted-foreground">{items.map((it) => <li key={keyOf(it)} className="[overflow-wrap:anywhere]">{it.name || names[keyOf(it)]?.name || it.id}</li>)}</ul>
+          </div>
+        ) : null;
+      })}
       {rows.map((it) => {
         const label = providerLabel(codes[it.provider] ?? it.provider);
         const list = it.ref_list ?? [];

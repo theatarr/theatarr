@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/decide/parser/sonarr"
+	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/provider/adder"
@@ -1603,5 +1604,41 @@ func TestReportServedBy(t *testing.T) {
 	}
 	if got := find(r, "tb", "10").ServedBy; got != nil {
 		t.Errorf("a complete copy is not failed: served by %v", got)
+	}
+}
+
+// An account that cannot be listed is said once, plainly, with the time the gateway gives for a retry; its torrents
+// are kept, each refused with the same short words, and the raw error chain stays out of the plan.
+func TestDeletePlanSaysAnUnreadAccountOnce(t *testing.T) {
+	t.Parallel()
+	e := deleteFixture(t)
+	ctx := context.Background()
+	retry := e.now.Add(7 * time.Minute)
+	e.tb.listErr = fmt.Errorf("tb: %w", &gateway.Refused{Reason: gateway.ReasonBackoff, Target: "provider:tb",
+		Detail: "5 failures in a row, last: transport error", RetryAt: retry})
+	sel := []DeleteSelection{{Provider: "rd", ID: "6", Hash: hF}, {Provider: "tb", ID: "90", Hash: hF}, {Provider: "tb", ID: "91", Hash: hF}}
+	plan, err := e.m.PlanDelete(ctx, sel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Count != 1 || plan.Refused != 2 {
+		t.Fatalf("plan: count %d refused %d", plan.Count, plan.Refused)
+	}
+	if len(plan.Unread) != 1 || plan.Unread[0].Provider != "tb" || !plan.Unread[0].RetryAt.Equal(retry) {
+		t.Fatalf("unread: %+v, want tb retry at %v", plan.Unread, retry)
+	}
+	for _, it := range plan.Items[1:] {
+		if it.Refusal != RefusalUnread {
+			t.Errorf("refusal %q, want %q", it.Refusal, RefusalUnread)
+		}
+	}
+	// Without a gateway time the account is still said, with no time.
+	e.tb.listErr = errors.New("tb down")
+	plan, err = e.m.PlanDelete(ctx, sel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Unread) != 1 || plan.Unread[0].Provider != "tb" || !plan.Unread[0].RetryAt.IsZero() {
+		t.Fatalf("unread without a time: %+v", plan.Unread)
 	}
 }

@@ -8,6 +8,7 @@ import schema from "@/components/settings/testdata/schema.json";
 import { TorrentsPage } from "./torrents";
 import { SettingsPage } from "./settings/pages";
 import { overview } from "@/components/settings/fixtures";
+import { fmtTime } from "@/lib/format";
 
 function Where() { return <output data-testid="where">{useLocation().search}</output>; }
 const h1 = "1".repeat(40);
@@ -396,7 +397,7 @@ describe("torrents page", () => {
     await screen.findByText("Lone.Movie");
     fireEvent.click(screen.getByLabelText("Select all shown"));
     fireEvent.click(screen.getByTestId("delete-selected"));
-    await screen.findByRole("heading", { name: /Delete 0 torrents/ });
+    await screen.findByRole("heading", { name: "Nothing to delete" });
     expect(screen.getAllByTestId("surviving-copy").map((x) => x.textContent)).toEqual(["Another complete copy stays on RD.", "Another complete copy stays on RD."]);
     // The used and recent torrent: its override and the recent choice both show.
     expect(screen.getByTestId("allow-recent")).toBeTruthy();
@@ -411,9 +412,10 @@ describe("torrents page", () => {
     expect((screen.getByTestId("override-all-copies") as HTMLInputElement).checked).toBe(true);
     expect(screen.getAllByTestId("override").map((x) => (x as HTMLInputElement).checked)).toEqual([true, true, false]);
     fireEvent.click(screen.getByTestId("override-all-copies"));
-    await screen.findByRole("heading", { name: /Delete 0 torrents/ });
+    await screen.findByRole("heading", { name: "Nothing to delete" });
     expect(last().items.filter((i) => i.override)).toEqual([]);
-    expect(screen.getByTestId("confirm-blocked").textContent).toBe("Nothing chosen can be deleted as it is.");
+    // Nothing deletable: only Close (corrected in phase Z: was the blocked line under "Delete 0 torrents").
+    expect(screen.queryByTestId("confirm-ok")).toBeNull();
   });
 
   it("previews again when the selection changes while a preview loads: Confirm never sends a torrent no longer chosen", async () => {
@@ -609,9 +611,12 @@ describe("torrents page", () => {
     expect((await screen.findByTestId("chosen-outside")).textContent).toBe("6 chosen torrents are outside the current filter: RD Used.Movie, RD Also.1, RD Also.2 and 3 more.");
   });
 
-  it("names a refused torrent by its selected name when the provider could not be listed", async () => {
-    const refusal = { items: [{ provider: "rd", id: "2", hash: h2, name: "", bytes: 0, action: "refuse", refusal: "the provider could not be listed: rd: gateway: backing off" }],
-      count: 0, bytes: 0, refused: 1, digest: "d", confirmation_token: "d0", warning: "", deleted: 0, failed: 0 };
+  it("says once, plainly, that an account could not be read, names its torrents, and offers only Close when nothing can go", async () => {
+    // The raw error chain stays in the log: the plan carries a short refusal and the account with its retry time.
+    const retry = "2026-11-20T02:12:42Z";
+    const refusal = { items: [{ provider: "rd", id: "2", hash: h2, name: "", bytes: 0, action: "refuse", refusal: "its account could not be read just now" },
+      { provider: "rd", id: "1", hash: h1, name: "", bytes: 0, action: "refuse", refusal: "its account could not be read just now" }],
+      count: 0, bytes: 0, refused: 2, digest: "d", confirmation_token: "d0", warning: "", deleted: 0, failed: 0, unread: [{ provider: "rd", retry_at: retry }] };
     mockFetch([
       { method: "GET", path: "/torrents/report", reply: report },
       { method: "GET", path: "/torrents/backups", reply: { backups: [], every_s: 0, keep: 30 } },
@@ -623,9 +628,40 @@ describe("torrents page", () => {
     fireEvent.click(screen.getByTestId("group-all"));
     fireEvent.click(screen.getByLabelText("Select all shown"));
     fireEvent.click(screen.getByTestId("delete-selected"));
-    const item = await screen.findByTestId("refused-item");
-    expect(item.textContent).toContain("Used.Movie: the provider could not be listed: rd: gateway: backing off");
-    expect(item.textContent).not.toContain(" 2:");
+    const unread = await screen.findByTestId("unread-account");
+    expect(within(unread).getByTestId("unread-words").textContent).toBe(`RD could not be read just now, so these 2 torrents were not checked and are kept. Try again after ${fmtTime(retry)}.`);
+    // Named by their selected names (the plan has none), not their ids, and not again as refused rows.
+    expect([...unread.querySelectorAll("li")].map((li) => li.textContent).sort()).toEqual(["Unused.Movie", "Used.Movie"]);
+    expect(screen.queryByTestId("refused-item")).toBeNull();
+    // Nothing would be deleted: no "This will" list, no backup line, only Close.
+    const dialog = screen.getByTestId("torrent-delete");
+    expect(within(dialog).getByRole("heading").textContent).toBe("Nothing to delete");
+    expect(within(dialog).queryByTestId("confirm-does")).toBeNull();
+    expect(within(dialog).queryByTestId("confirm-ok")).toBeNull();
+    expect(within(dialog).getByTestId("confirm-cancel").textContent).toBe("Close");
+    expect(within(dialog).getByTestId("confirm-keeps").textContent).toContain("2 chosen torrents are left out and kept (see below)");
+  });
+
+  it("says an unread account without a retry time as a try in a few minutes, beside a delete that can still go", async () => {
+    const refusal = { items: [{ provider: "rd", id: "1", hash: h1, name: "Unused.Movie", bytes: 1024, usage: "unused", action: "delete" },
+      { provider: "tb", id: "9", hash: "9".repeat(40), name: "", bytes: 0, action: "refuse", refusal: "its account could not be read just now" }],
+      count: 1, bytes: 1024, refused: 1, digest: "d", confirmation_token: "d1", warning: "", deleted: 0, failed: 0, unread: [{ provider: "tb" }] };
+    mockFetch([
+      { method: "GET", path: "/torrents/report", reply: report },
+      { method: "GET", path: "/torrents/backups", reply: { backups: [], every_s: 0, keep: 30 } },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+      { method: "POST", path: "/torrents/delete/preview", reply: refusal },
+    ]);
+    renderPage(<TorrentsPage />);
+    expect(await screen.findByText("Used.Movie")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("group-all"));
+    fireEvent.click(screen.getByLabelText("Select all shown"));
+    fireEvent.click(screen.getByTestId("delete-selected"));
+    expect((await screen.findByTestId("unread-words")).textContent).toBe("TB could not be read just now, so this torrent was not checked and is kept. Try again in a few minutes.");
+    const dialog = screen.getByTestId("torrent-delete");
+    expect(within(dialog).getByTestId("confirm-does")).toBeTruthy();
+    expect(within(dialog).getByTestId("confirm-ok").textContent).toBe("Delete 1");
+    expect(within(dialog).getByTestId("confirm-keeps").textContent).toContain("1 chosen torrent is left out and kept (see below)");
   });
 
   it("shows each account's Provider tag under All providers, takes ?q= into the filter, and links a used torrent's titles", async () => {

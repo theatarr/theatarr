@@ -205,22 +205,29 @@ export function deleteSelection(chosen: Torrent[], overrides: Record<string, str
  *  hold every torrent due for deletion with its file selection, or nothing is deleted. */
 export const BACKUP_FIRST = "A backup is taken first. If a torrent due for deletion can't be backed up, nothing is deleted.";
 
-/** The delete confirmation: count, size, the backup it takes first, and what is refused. */
+/** The delete confirmation: count, size, the backup it takes first, and what is left out. With nothing to delete it
+ *  is "Nothing to delete" with no "This will" list and no confirm button (the dialog offers only Close). */
 export function deleteScope(p: DeletePlan): Scope {
   const n = p.count;
   return {
-    title: `Delete ${fmtNumber(n)} torrent${n === 1 ? "" : "s"} (${fmtBytes(p.bytes)})`,
-    does: [
+    title: n === 0 ? "Nothing to delete" : `Delete ${fmtNumber(n)} torrent${n === 1 ? "" : "s"} (${fmtBytes(p.bytes)})`,
+    does: n === 0 ? [] : [
       BACKUP_FIRST,
       `Delete ${fmtNumber(n)} torrent${n === 1 ? "" : "s"} from the provider, one by one, each written to the torrent journal`,
     ],
     keeps: [
-      p.refused > 0 ? `${fmtNumber(p.refused)} chosen torrent${p.refused === 1 ? " is" : "s are"} refused and kept (see below)` : "Every torrent you did not choose",
+      p.refused > 0 ? `${fmtNumber(p.refused)} chosen torrent${p.refused === 1 ? " is" : "s are"} left out and kept (see below)` : "Every torrent you did not choose",
       "Library links: nothing in the library is touched",
     ],
-    confirm: `Delete ${fmtNumber(n)}`,
-    blocked: n === 0 ? "Nothing chosen can be deleted as it is." : undefined,
+    confirm: n === 0 ? "" : `Delete ${fmtNumber(n)}`,
   };
+}
+
+/** An account the delete could not list, said once: "AD could not be read just now, so these 3 torrents were not
+ *  checked and are kept. Try again after <local time>." (in a few minutes when the server gave no time). */
+export function unreadWords(label: string, n: number, retryAt?: string): string {
+  const these = n === 1 ? "this torrent was not checked and is kept" : `these ${fmtNumber(n)} torrents were not checked and are kept`;
+  return `${label} could not be read just now, so ${these}. Try again ${retryAt ? `after ${fmtTime(retryAt)}` : "in a few minutes"}.`;
 }
 
 const RESTORE_ACTIONS: Record<string, string> = { readd: "Re-add", resume: "Finish the selection", skip_invalid: "Not a valid hash", skip_target: "Skipped", present: "Already there" };

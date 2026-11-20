@@ -537,9 +537,14 @@ tooltip), a failed torrent with `served_by` one muted line under its status, whi
 line opens the expanded row), one
 table at every width (below 640 px Added, Status and the Size column hide; the size leads the name's second line),
 multi-select and **Delete selected**: the preview opens a
-confirmation with the count, size and the backup it takes first; refused torrents are
-listed by name (the selected row's name when the refusal has none, as when the provider could not be listed) with
-why, and used or unknown ones with a checkbox naming their references to override, the first three references
+confirmation with the count, size and the backup it takes first; "Stays as it is" says "N chosen torrents are left
+out and kept (see below)". An account the plan could not list is said once, above the other refusals, with its
+torrents named under it (the selected row's name when the plan has none): "AD could not be read just now, so these
+3 torrents were not checked and are kept. Try again after <local time>." (the plan's `unread[]`, one per account,
+with `retry_at` when the list was refused by the gateway with a retry time, `gateway.Refused.RetryAt`; without one:
+"Try again in a few minutes."). The items' refusal is the short "its account could not be read just now"; the error
+itself goes to the log only. With nothing deletable the dialog is "Nothing to delete": no "This will" list (no
+backup line) and only Close. Other refused torrents are listed by name with why, and used or unknown ones with a checkbox naming their references to override, the first three references
 beside it and the rest folded ("and N more"; past the 20 references the server lists, "and 105 more: 17 listed, 88
 not listed"), and "Another complete copy stays on RD." when the item carries
 `surviving_copy`. A row whose override is ticked stays listed with its checkbox, so it can be read and unticked.
