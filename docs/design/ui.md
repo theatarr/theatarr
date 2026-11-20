@@ -603,8 +603,9 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   best-ranked copy stands for it, the Indexer cell names every indexer that returned it (the first two, then "+N"; the
   tooltip gives each copy's indexer and name; a narrow card lists them all; with copies the indexers are a button, in
   the table and on a card, that opens a row listing each copy's indexer and name, so a phone reaches them by a tap; on
-  a card a failed release's reason wraps in full and its provider answers open by a tap, where the table keeps one line
-  with a tooltip), Peers is the copy with the most seeders and Cached on the union; the
+  a card a failed release's reason wraps in full and its provider answers open by a tap, said once (beside Grab only
+  the blocklist note and Try again), and every rejection reason and language is listed, wrapping, where the table keeps
+  one line, two reasons or languages and a tooltip), Peers is the copy with the most seeders and Cached on the union; the
   Indexer filter and the text filter match any of its indexers. A live answer counts rows; a stored one keeps its
   search's own count ("N releases returned by the indexers"); in the episode window a stored season, series or RSS
   search counts the stored candidates for the episode, "N stored candidates for this episode", and its "Nothing

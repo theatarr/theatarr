@@ -545,17 +545,24 @@ func (w *Web) upgradesWith(ctx context.Context, db *sql.DB, vs []upgradeVersion,
 	if s.failed, err = loadFailedHashes(ctx, db, judged); err != nil {
 		return nil, err
 	}
-	pol := w.pol
+	// The eligible cache codes, worked out once per library and indexer for this read.
+	pol, codes := w.pol, map[[2]string]map[string]bool{}
 	s.cachedOK = func(library, ix, code string) bool {
 		if pol == nil {
 			return false
 		}
-		for _, p := range pol.ReleaseProviders(pol.Versions[library], ix) {
-			if pp := pol.Providers[p]; pp != nil && indexer.CacheCode(pp.Kind) == code {
-				return true
+		k := [2]string{library, ix}
+		set, ok := codes[k]
+		if !ok {
+			set = map[string]bool{}
+			for _, p := range pol.ReleaseProviders(pol.Versions[library], ix) {
+				if pp := pol.Providers[p]; pp != nil {
+					set[indexer.CacheCode(pp.Kind)] = true
+				}
 			}
+			codes[k] = set
 		}
-		return false
+		return set[code]
 	}
 	if cutoffs {
 		s.cutoffs = w.loadCutoffs(vs)
