@@ -47,7 +47,8 @@ type fakeProvider struct {
 	detail    map[string]*provider.Torrent
 	detailErr error
 	reads     int
-	lists     int // list calls
+	readIDs   []string // the ids of the detail reads, in order
+	lists     int      // list calls
 	// listErrAfter, when set, fails every list call after that many.
 	listErrAfter int
 	onDetail     func() // runs on each detail read
@@ -72,6 +73,7 @@ func (f *fakeProvider) Torrents(context.Context) ([]provider.Torrent, error) {
 
 func (f *fakeProvider) Torrent(_ context.Context, id string) (*provider.Torrent, error) {
 	f.reads++
+	f.readIDs = append(f.readIDs, id)
 	if f.onDetail != nil {
 		f.onDetail()
 	}
@@ -1129,6 +1131,66 @@ func TestDeleteOverrideWithTwoSurvivors(t *testing.T) {
 	done, err := e.m.Delete(ctx, sel, plan.Token, "admin")
 	if err != nil || done.Deleted != 1 || done.Items[0].SurvivingCopy != "26" {
 		t.Fatalf("another copy still stays: %v %+v", err, done)
+	}
+}
+
+// The survivor check reads at most survivorReads uncached details per preview; what it read is remembered (Details),
+// so the next preview continues where it stopped and reads no id again. A remembered selection costs nothing.
+func TestDeleteSurvivorReadsBounded(t *testing.T) {
+	t.Parallel()
+	e := deleteFixture(t)
+	e.m.Details = &DetailCache{}
+	ctx := context.Background()
+	old := e.now.Add(-72 * time.Hour)
+	var sel []DeleteSelection
+	for i := range MaxDelete {
+		h := fmt.Sprintf("%040x", 0xa000+i)
+		e.rd.list = append(e.rd.list, tor(fmt.Sprintf("p%d", i), h, "Pack", 100, old, provider.StateDownloaded),
+			tor(fmt.Sprintf("q%d", i), h, "Pack", 100, old, provider.StateDownloaded))
+		sel = append(sel, DeleteSelection{Provider: "rd", ID: fmt.Sprintf("p%d", i), Hash: h})
+	}
+	survivors := func(p *DeletePlan) int {
+		n := 0
+		for _, it := range p.Items {
+			if it.SurvivingCopy != "" {
+				n++
+			}
+		}
+		return n
+	}
+	e.rd.readIDs = nil
+	first, err := e.m.PlanDelete(ctx, sel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := len(e.rd.readIDs); n == 0 || n > survivorReads {
+		t.Fatalf("first preview: %d detail reads", n)
+	}
+	if got := survivors(first); got == 0 || got*2 > survivorReads {
+		t.Errorf("first preview: %d survivors", got)
+	}
+	read := len(e.rd.readIDs)
+	second, err := e.m.PlanDelete(ctx, sel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := len(e.rd.readIDs) - read; n == 0 || n > survivorReads {
+		t.Errorf("second preview: %d detail reads", n)
+	}
+	seen := map[string]bool{}
+	for _, id := range e.rd.readIDs {
+		if seen[id] {
+			t.Fatalf("%s read twice", id)
+		}
+		seen[id] = true
+	}
+	if survivors(second) <= survivors(first) {
+		t.Errorf("the second preview continues: %d then %d", survivors(first), survivors(second))
+	}
+	// The verified pairs cost nothing now.
+	before := len(e.rd.readIDs)
+	if _, err := e.m.PlanDelete(ctx, sel[:5]); err != nil || len(e.rd.readIDs) != before {
+		t.Errorf("remembered selections read again: %d, %v", len(e.rd.readIDs)-before, err)
 	}
 }
 

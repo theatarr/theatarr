@@ -387,8 +387,11 @@ or an admin's API key, which confirms like a session, as with settings; the toke
    same hash on the same account, outside the selection, of the same size and with the same selected files, both
    selections known. Only an entry that matches on account, hash, completeness and size has its selection read: from
    the list when it gives files (TorBox), else from the files the backups recorded, else from the torrent's detail
-   (once per id per preview, paced like every provider call; Real-Debrid lists no files, and two entries of one pack
-   can select different files of the same total). A selection that cannot be read, one the provider still awaits or
+   (paced like every provider call; Real-Debrid lists no files, and two entries of one pack can select different
+   files of the same total). A downloaded torrent's detail is remembered for the process (`Manager.Details`, shared by
+   every settings generation; the original-name read of the usage check uses it too), so a later preview reads no id
+   again; at most 50 uncached details are read per preview for this check, and a candidate past that budget is not
+   verified (no field, like a failed read) until a later preview reaches it. A selection that cannot be read, one the provider still awaits or
    an empty one gives no field: never a guess. A copy on another account never counts. It is shown ("Another complete copy
    stays on RD."); the override is still needed, and its token also says that a copy stays (not which one; the
    reply names the lowest id): an override ticked while a copy stayed holds while any qualifying copy does, is refused

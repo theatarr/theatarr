@@ -217,7 +217,12 @@ type survivors struct {
 	cands  map[string]map[string][]provider.Torrent // provider -> hash -> complete entries outside the selection
 	sels   map[string][]string                      // provider \x00 id -> selected paths, sorted; nil: not known
 	cache  map[string][]BackupFile                  // fileCache, read on first need
+	reads  int                                      // the details read this preview (at most survivorReads)
 }
+
+// survivorReads bounds the details one preview reads for the survivor check: past it, a candidate is not verified
+// (no surviving_copy), and the next preview continues from what was remembered.
+const survivorReads = 50
 
 func (m *Manager) newSurvivors(sel []DeleteSelection) *survivors {
 	s := &survivors{m: m, chosen: map[string]bool{}, cands: map[string]map[string][]provider.Torrent{},
@@ -260,8 +265,9 @@ func (s *survivors) of(ctx context.Context, prov string, t provider.Torrent) str
 	return best
 }
 
-// selection is t's selected file paths, sorted: from the list when it gives files (TorBox), else from the files the
-// backups recorded (fileCache), else from the torrent's detail (Real-Debrid lists no files). nil when it cannot be
+// selection is t's selected file paths, sorted: from the list when it gives files (TorBox), else from a remembered
+// detail (Details), else from the files the backups recorded (fileCache), else from the torrent's detail (Real-Debrid
+// lists no files; at most survivorReads per preview). nil when it cannot be
 // established: the read failed, the provider awaits a selection, or nothing is selected.
 func (s *survivors) selection(ctx context.Context, prov string, t provider.Torrent) []string {
 	key := prov + "\x00" + t.ID
@@ -274,12 +280,16 @@ func (s *survivors) selection(ctx context.Context, prov string, t provider.Torre
 		if s.cache == nil {
 			s.cache = s.m.fileCache()
 		}
-		if c, ok := s.cache[key+"\x00"+strings.ToLower(t.Hash)]; ok {
+		if d, ok := s.m.Details.get(prov, t); ok {
+			files = d.Files
+		} else if c, ok := s.cache[key+"\x00"+strings.ToLower(t.Hash)]; ok {
 			for _, f := range c {
 				paths = append(paths, f.Path)
 			}
-		} else if p := s.m.Providers[prov]; p != nil {
-			if d, err := p.Torrent(ctx, t.ID); err == nil && !awaitingSelection(d.Status) {
+		} else if s.reads < survivorReads {
+			// Read once, remembered (Details); past the budget the selection stays unknown this preview.
+			s.reads++
+			if d, err := s.m.detail(ctx, prov, t); err == nil && !awaitingSelection(d.Status) {
 				files = d.Files
 			}
 		}

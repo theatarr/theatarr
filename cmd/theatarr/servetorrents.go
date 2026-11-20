@@ -34,6 +34,8 @@ type serveTorrents struct {
 	addLock sync.Locker
 	// backupLock is every generation's Manager.BackupLock.
 	backupLock sync.Mutex
+	// details is every generation's Manager.Details: a downloaded torrent's detail is read once per process.
+	details torrents.DetailCache
 	// usage works out the record's usage again after a delete (Manager.UsageStale); nil does nothing.
 	usage *torrentUsageWorker
 }
@@ -95,7 +97,7 @@ func (s *serveTorrents) Manager(ctx context.Context) (*torrents.Manager, error) 
 	}
 	adders, _ := router.BuildAddersWithKeys(pol, gw, keys, s.log)
 	m := &torrents.Manager{Store: s.st, Policy: pol, Providers: provs, Adders: adders, Dir: s.dir, Queue: s.q,
-		Log: s.log, AddLock: s.addLock, BackupLock: &s.backupLock, Syncer: syncer, UsageStale: s.usage.Signal}
+		Log: s.log, AddLock: s.addLock, BackupLock: &s.backupLock, Details: &s.details, Syncer: syncer, UsageStale: s.usage.Signal}
 	if lib != nil && lib.lib != nil {
 		// The library's own decypharr client (library.mount.decypharr), so its index is read once for both.
 		m.Decypharr = lib.lib.Decypharr()

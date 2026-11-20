@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -56,6 +57,59 @@ type Manager struct {
 	// UsageStale asks for the record's usage to be worked out again (serve's usage worker) after a delete dropped a
 	// hash's stored usage; nil does nothing.
 	UsageStale func()
+	// Details remembers the details read of downloaded torrents (their selected files and original name do not
+	// change), shared by the managers of every settings generation; nil remembers nothing.
+	Details *DetailCache
+}
+
+// DetailCache holds a downloaded torrent's detail by provider, id and hash: a delete preview's survivor check and the
+// original-name read of the usage check read it once, not on every preview.
+type DetailCache struct {
+	mu sync.Mutex
+	m  map[string]provider.Torrent
+}
+
+func detailKey(prov string, t provider.Torrent) string {
+	return prov + "\x00" + t.ID + "\x00" + strings.ToLower(t.Hash)
+}
+
+func (c *DetailCache) get(prov string, t provider.Torrent) (provider.Torrent, bool) {
+	if c == nil {
+		return provider.Torrent{}, false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	d, ok := c.m[detailKey(prov, t)]
+	return d, ok
+}
+
+func (c *DetailCache) put(prov string, t, d provider.Torrent) {
+	if c == nil || d.State != provider.StateDownloaded || awaitingSelection(d.Status) {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.m == nil {
+		c.m = map[string]provider.Torrent{}
+	}
+	c.m[detailKey(prov, t)] = d
+}
+
+// detail is t's detail (provider prov): remembered (Details), else read and remembered when it is settled.
+func (m *Manager) detail(ctx context.Context, prov string, t provider.Torrent) (provider.Torrent, error) {
+	if d, ok := m.Details.get(prov, t); ok {
+		return d, nil
+	}
+	p := m.Providers[prov]
+	if p == nil {
+		return provider.Torrent{}, fmt.Errorf("%s: %w", prov, ErrNoClient)
+	}
+	d, err := p.Torrent(ctx, t.ID)
+	if err != nil {
+		return provider.Torrent{}, err
+	}
+	m.Details.put(prov, t, *d)
+	return *d, nil
 }
 
 // opMu keeps restores and deletes from running at the same time in this process: each reads a provider's list and
