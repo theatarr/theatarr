@@ -1524,8 +1524,8 @@ func TestStatusWords(t *testing.T) {
 }
 
 // TestEpisodeScoreEvidence: an episode's score shows only when the link stored scoring evidence: formats (an empty
-// list too, so a calculated 0 stays 0), a non-zero score, or (an older import) its download's stored formats; a stored
-// 0 without any shows none, in the Episodes list and the episode window.
+// list too, so a calculated 0 stays 0) or a non-zero score; a stored 0 without formats shows none (an older import's
+// download formats do not count), in the Episodes list and the episode window.
 func TestEpisodeScoreEvidence(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
@@ -1535,7 +1535,8 @@ func TestEpisodeScoreEvidence(t *testing.T) {
 		(45, 4, 1, 4, 'Four', '2026-01-22', 0, 0), (46, 4, 1, 5, 'Five', '2026-01-29', 0, 0), (47, 4, 1, 6, 'Six', '2026-02-05', 0, 0)`)
 	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, state, updated_at) VALUES (4, 45, 'filled', 0), (4, 46, 'filled', 0),
 		(4, 47, 'filled', 0), (4, 43, 'filled', 0) ON CONFLICT DO UPDATE SET state = 'filled'`)
-	// An older scored import stored no empty list: its download's stored formats are the evidence.
+	// An older scored import stored no empty list: its download's stored formats are no evidence (it keeps the dash, as
+	// on main; the upgrade reader reads the same).
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, formats,
 		score, created_at, updated_at) VALUES (981, 4, 4, 'anime-tv', 'h981', 'Delta.S01E06', 'idx', 'imported', '[]', 0, 0, 0)`)
 	e.exec(`INSERT INTO link (id, path, target, title_id, download_id, release_title, quality, score, file_metadata, state,
@@ -1549,7 +1550,7 @@ func TestEpisodeScoreEvidence(t *testing.T) {
 		(73, '/a/S01E05.mkv', '/m/5', 4, 'Delta.S01E05', 'WEBDL-1080p', 250, '{"Formats":[{"name":"x","score":250}]}', 'active', 0, 0)`)
 	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (71, 4), (72, 4), (73, 4)`)
 	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (71, 43), (72, 45), (73, 46)`)
-	want := map[int64]string{43: "0", 45: "none", 46: "250", 47: "0"}
+	want := map[int64]string{43: "0", 45: "none", 46: "250", 47: "none"}
 	score := func(s *int64) string {
 		if s == nil {
 			return "none"
@@ -1574,6 +1575,14 @@ func TestEpisodeScoreEvidence(t *testing.T) {
 		if !d.Versions[0].LibraryMonitored {
 			t.Errorf("episode %d window: library monitored false", ep.ID)
 		}
+	}
+	// The upgrade reader takes the same evidence: the older import has no score.
+	files, err := loadItemFiles(context.Background(), e.st.Reader(), []any{int64(4)}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f, ok := files[4][47]; !ok || f.score != nil {
+		t.Errorf("upgrade reader: episode 47 file %+v (found %v), want no score", f, ok)
 	}
 }
 

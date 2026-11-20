@@ -665,13 +665,11 @@ const grabbedAtSQL = `CASE WHEN event IN ('imported', 'deleted', 'failed') AND r
 const manualImportIndexer = "import"
 
 // adoptedUnscoredSQL is whether an adopted row's score of 0 was never recorded: its file's link has no scoring
-// evidence (stored formats or a non-zero score in its file metadata, or its download's stored formats, as the
-// Libraries table's linkScoreSQL reads it).
+// evidence (stored formats or a non-zero score in its file metadata, as the Libraries table's linkScoreSQL reads it).
 const adoptedUnscoredSQL = `(event = 'adopted' AND COALESCE(score, 0) = 0 AND EXISTS (SELECT 1 FROM library_action la
 	JOIN link l ON l.id = la.link_id WHERE la.id = CAST(substr(history.ref, 5) AS INTEGER)
 	AND NOT COALESCE(json_valid(l.file_metadata) AND (json_type(l.file_metadata, '$.Formats') = 'array'
-		OR (json_type(l.file_metadata, '$.Score') IN ('integer', 'real') AND json_extract(l.file_metadata, '$.Score') <> 0)
-		OR EXISTS (SELECT 1 FROM download sd WHERE sd.id = l.download_id AND sd.formats IS NOT NULL)), 0)))`
+		OR (json_type(l.file_metadata, '$.Score') IN ('integer', 'real') AND json_extract(l.file_metadata, '$.Score') <> 0)), 0)))`
 
 // The upgrade row (deleted, alias p) of an import (history): the same download and library.
 const upgradeOfImportSQL = `p.event = 'deleted' AND p.download_id = history.download_id
