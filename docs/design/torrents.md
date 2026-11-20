@@ -564,7 +564,11 @@ sentence (the plan's warning). The filter
 **Not used by Theatarr** (the unused group) has a line beside the filters: it checks Theatarr's libraries and the
 **Other libraries' folders** (`torrents.scan_roots`), which are edited in Settings › Download clients › Torrents
 (`#scan-roots`, linked there); other apps on the same accounts are not seen. The provider tab, filter, text and sort
-are in the URL. The torrent journal is below the list; a **Journal** link beside the filters jumps there. It names who ran each row as Activity does (an API key `key:<name>` as "<name> (API key)"); a
+are in the URL. The torrent journal is below the list; a **Journal** link beside the filters jumps there. It names who ran each row as Activity does (an API key `key:<name>` as "<name> (API key)"; the decision journal
+names the actor of a removal the same way); a delete allowed for recent or downloading torrents writes no clause for
+that choice on its Deleted lines (lines written before keep theirs); the line under the filters saying what "Not used
+by Theatarr" checks shows only with that filter; the backups' "Restore or import to" picker names each account by
+its RD/AD/TB tag (the key too only when two accounts share a tag); a
 backup's count reads "1 torrent", "2,946 torrents" (the server writes it so; older rows are read the same way). A
 finished delete says "Backup taken (System › Backup). Deleted N, failed N.", the backup linked, its id as tooltip.
 

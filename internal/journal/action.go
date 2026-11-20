@@ -213,7 +213,7 @@ func (b *builder) actionEntry(e *Entry, rest string) error {
 		head += " " + what
 	}
 	e.Label = words[0]
-	e.Summary = join(head, "by "+orDash(a.By), actionDetail(a, b.full))
+	e.Summary = join(head, "by "+orDash(actorWords(a.By)), actionDetail(a, b.full))
 	return nil
 }
 

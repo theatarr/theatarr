@@ -1642,3 +1642,16 @@ func TestDeletePlanSaysAnUnreadAccountOnce(t *testing.T) {
 		t.Fatalf("unread without a time: %+v", plan.Unread)
 	}
 }
+
+// A delete allowed for recent or downloading torrents journals no clause for it: the Deleted line says only what
+// happened (an override, an error, a note).
+func TestDeleteDetailLeavesOutTheRecentChoice(t *testing.T) {
+	t.Parallel()
+	if got := deleteDetail(&DeleteItem{DeleteSelection: DeleteSelection{AllowRecent: true}}); got != "" {
+		t.Errorf("detail %q, want none", got)
+	}
+	it := &DeleteItem{DeleteSelection: DeleteSelection{AllowRecent: true}, Error: "provider said no"}
+	if got := deleteDetail(it); got != "provider said no" {
+		t.Errorf("detail %q, want the error alone", got)
+	}
+}

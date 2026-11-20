@@ -240,7 +240,8 @@ export function TorrentsPage() {
             {/* The journal sits below every row: a jump there. */}
             <a href="#journal" className="px-1 text-sm text-primary hover:underline" onClick={(e) => { e.preventDefault(); document.getElementById("journal")?.scrollIntoView?.(); }}>Journal</a>
           </div>
-          <UnusedSummary />
+          {/* What Not used checks, said only with that filter. */}
+          {group === "unused" ? <UnusedSummary /> : null}
           <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
             <span className="text-muted-foreground">{fmtNumber(rows.length)} shown · {fmtNumber(chosen.length)} selected ({fmtBytes(chosen.reduce((n, t) => n + t.bytes, 0))})</span>
             <Button size="sm" variant="destructive" disabled={chosen.length === 0 || actions.deletePreview.isPending} onClick={openDelete} data-testid="delete-selected">

@@ -914,8 +914,9 @@ func TestListFollowUps(t *testing.T) {
 		"dl:3":  {"Failed", "Grabbed Gamma.S01.2160p-C · failed: library: rejected by the sample guard"},
 		"dl:4":  {"Grabbed", "Grabbed Alpha.2020.REMUX-D · dry run, nothing linked"},
 		"lib:2": {"Missing", "Missing Alpha.W.mkv"},
-		"lib:3": {"Removed", "Removed Alpha.X.mkv · by key:auto · moved to the trash"},
-		"act:1": {"Removed", "Removed from the library · by key:auto · files moved to the trash"},
+		// An API key in words, as History and Torrents name it (corrected in phase Z: "by key:auto" before).
+		"lib:3": {"Removed", "Removed Alpha.X.mkv · by auto (API key) · moved to the trash"},
+		"act:1": {"Removed", "Removed from the library · by auto (API key) · files moved to the trash"},
 		"run:5": {"Search after a failure", "Search again after every release tried failed (season): nothing grabbed · no accepted release left"},
 	} {
 		if g := byID[id]; g == nil || g.Label != w[0] || g.Summary != w[1] {

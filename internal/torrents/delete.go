@@ -622,9 +622,6 @@ func deleteDetail(it *DeleteItem) string {
 	if it.Override {
 		parts = append(parts, "override: "+string(it.Usage)+", "+describe(it.Refs, it.Reasons))
 	}
-	if it.AllowRecent {
-		parts = append(parts, "recent or downloading allowed")
-	}
 	if it.Error != "" {
 		parts = append(parts, it.Error)
 	}

@@ -72,7 +72,11 @@ export function TorrentBackups() {
         <div className="flex flex-wrap items-center gap-2">
           <select className="h-8 rounded-md border border-border bg-transparent px-2 text-sm" value={target} onChange={(e) => setTarget(e.target.value)} aria-label="Restore or import to">
             <option value="">Same provider</option>
-            {providers.map((p) => <option key={p} value={p}>to {p}</option>)}
+            {/* Each account by its RD/AD/TB tag; the key too only when two accounts share a tag. */}
+            {providers.map((p) => {
+              const tag = providerLabel(code(p));
+              return <option key={p} value={p}>{providers.filter((o) => providerLabel(code(o)) === tag).length > 1 ? `${tag} (${p})` : tag}</option>;
+            })}
           </select>
           <Button size="sm" variant="outline" onClick={() => file.current?.click()} disabled={actions.importBackup.isPending}>Import…</Button>
           <input ref={file} type="file" accept="application/json,.json" className="hidden" onChange={onFile} data-testid="import-file" />

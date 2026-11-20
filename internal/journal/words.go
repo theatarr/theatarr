@@ -233,8 +233,17 @@ var missingHash = regexp.MustCompile(`(?i)^missing [0-9a-f]{8,}$`)
 func byWhom(why string) string {
 	for _, p := range []string{"copy removed by ", "title removed by ", "unlinked by "} {
 		if who, ok := strings.CutPrefix(why, p); ok {
-			return "by " + who
+			return "by " + actorWords(who)
 		}
 	}
 	return why
+}
+
+// actorWords names who did something (ops.go actor) as History and Torrents do: an API key "key:<name>" is
+// "<name> (API key)", a user their name.
+func actorWords(who string) string {
+	if key, ok := strings.CutPrefix(who, "key:"); ok {
+		return key + " (API key)"
+	}
+	return who
 }

@@ -196,7 +196,12 @@ describe("torrents page", () => {
       { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
       { method: "GET", path: "/settings/sections", reply: { source: "db", generation: 4, sections: [{ key: "torrents", config: { scan_roots: ["/other/movies", "/other/tv"] }, secrets: [] }] } },
     ]);
-    renderPage(<TorrentsPage />, "/admin/torrents");
+    // Only with the Not used filter (corrected in phase Z: it showed under every filter before).
+    const first = renderPage(<TorrentsPage />, "/admin/torrents");
+    await screen.findByText("Used.Movie");
+    expect(screen.queryByTestId("unused-summary")).toBeNull();
+    first.unmount();
+    renderPage(<TorrentsPage />, "/admin/torrents?group=unused");
     const line = await screen.findByTestId("unused-summary");
     await waitFor(() => expect(line.textContent).toContain("any of the 2 folders of other libraries listed in settings"));
     expect(screen.getByTestId("scan-roots-link").getAttribute("href")).toBe("/admin/settings/downloads/torrents#scan-roots");
@@ -757,4 +762,15 @@ it("saving the schedule in Settings refreshes what System › Backup says, and k
  fireEvent.click(within(folders).getByRole("button", { name: "Save" }));
  await waitFor(() => expect(api.calls("PUT", "/settings/sections/torrents")).toHaveLength(2));
  expect(api.calls("PUT", "/settings/sections/torrents")[1].body).toEqual({ generation: 1, config: { scan_roots: ["/other/films"], backup: { every: "6h0m0s", keep: 30 } } });
+});
+
+it("names the restore target accounts by their RD/AD/TB tags, not their keys", async () => {
+  mockFetch([
+    { method: "GET", path: "/torrents/report", reply: report },
+    { method: "GET", path: "/torrents/backups", reply: { backups: [], every_s: 0, keep: 30 } },
+  ]);
+  renderPage(<TorrentBackups />);
+  const pick = await screen.findByLabelText("Restore or import to");
+  await waitFor(() => expect(pick.querySelectorAll("option")).toHaveLength(2));
+  expect([...pick.querySelectorAll("option")].map((o) => [o.textContent, o.getAttribute("value")])).toEqual([["Same provider", ""], ["RD", "rd"]]);
 });
