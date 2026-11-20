@@ -643,3 +643,30 @@ func TestClearRecord(t *testing.T) {
 		t.Fatalf("after clearing rd: %q", got)
 	}
 }
+
+// A verified import finishes the record's row: a TorBox entry the sync stored at 100% while its files were not yet
+// present (kept downloading) reads downloaded after the import linked from it; a row already downloaded stays as the
+// sync wrote it.
+func TestRecordImportFinishesRow(t *testing.T) {
+	t.Parallel()
+	e := newSyncEnv(t)
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash, name, state, progress) VALUES
+		('tb', '1', ?, 'Synced', 'downloading', 100), ('tb', '2', ?, 'Synced', 'downloaded', 100)`, h("a"), h("b"))
+	if err := e.st.WriteTx(context.Background(), func(tx *sql.Tx) error {
+		if err := RecordImport(context.Background(), tx, "tb", "1", h("a"), "Imported", 1); err != nil {
+			return err
+		}
+		return RecordImport(context.Background(), tx, "tb", "2", h("b"), "Imported", 1)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var state, name string
+	if err := e.st.Reader().QueryRow(`SELECT state FROM provider_torrent WHERE provider = 'tb' AND torrent_id = '1'`).
+		Scan(&state); err != nil || state != "downloaded" {
+		t.Errorf("finishing row: %q %v", state, err)
+	}
+	if err := e.st.Reader().QueryRow(`SELECT name FROM provider_torrent WHERE provider = 'tb' AND torrent_id = '2'`).
+		Scan(&name); err != nil || name != "Synced" {
+		t.Errorf("downloaded row: %q %v", name, err)
+	}
+}
