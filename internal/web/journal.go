@@ -1,7 +1,9 @@
 package web
 
 import (
+	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -94,16 +96,52 @@ func (w *Web) apiJournal(rw http.ResponseWriter, r *http.Request) {
 		w.internal(rw, err)
 		return
 	}
+	providers, err := w.unblockProviders(r.Context(), page.Items...)
+	if err != nil {
+		w.internal(rw, err)
+		return
+	}
 	for _, e := range page.Items {
-		w.unblockWords(e)
+		w.unblockWords(e, providers)
 	}
 	writeJSON(rw, http.StatusOK, page)
+}
+
+// unblockProviders reads, in one query, the provider of each unblocked download the entries name (the action
+// records the download id), so an unblock's line names it as the Blocklist does.
+func (w *Web) unblockProviders(ctx context.Context, es ...*journal.Entry) (map[int64]string, error) {
+	var ids []int64
+	for _, e := range es {
+		if e != nil && e.Action != nil && e.Action.Action == journal.ActUnblock && e.Action.DownloadID > 0 {
+			ids = append(ids, e.Action.DownloadID)
+		}
+	}
+	out := map[int64]string{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	b, _ := json.Marshal(ids)
+	rows, err := w.st.Reader().QueryContext(ctx, `SELECT id, COALESCE(provider, '') FROM download
+		WHERE id IN (SELECT value FROM json_each(?))`, string(b))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var p string
+		if err := rows.Scan(&id, &p); err != nil {
+			return nil, err
+		}
+		out[id] = p
+	}
+	return out, rows.Err()
 }
 
 // unblockWords says, on an unblock's line, why the release was blocked in the Blocklist's words (History's Blocked
 // row: blockWords and blockedReasonWords) instead of the stored raw reason ("was blocked by library: no file passed
 // the sample guard"). Read at display time, so rows stored before say it too.
-func (w *Web) unblockWords(e *journal.Entry) {
+func (w *Web) unblockWords(e *journal.Entry, providers map[int64]string) {
 	if e == nil || e.Action == nil || e.Action.Action != journal.ActUnblock {
 		return
 	}
@@ -115,7 +153,7 @@ func (w *Web) unblockWords(e *journal.Entry) {
 	source, reason, _ := strings.Cut(rest, ": ")
 	reason, byHand := strings.CutSuffix(reason, "; taken off by a grab by hand")
 	words := blockWords(source)
-	if r := blockedReasonWords(source, reason, "", w.providerTag); r != "" {
+	if r := blockedReasonWords(source, reason, providers[e.Action.DownloadID], w.providerTag); r != "" {
 		words += ": " + r
 	}
 	if byHand {
@@ -149,6 +187,11 @@ func (w *Web) apiJournalEntry(rw http.ResponseWriter, r *http.Request) {
 		w.internal(rw, err)
 		return
 	}
-	w.unblockWords(e)
+	providers, err := w.unblockProviders(r.Context(), e)
+	if err != nil {
+		w.internal(rw, err)
+		return
+	}
+	w.unblockWords(e, providers)
 	writeJSON(rw, http.StatusOK, e)
 }

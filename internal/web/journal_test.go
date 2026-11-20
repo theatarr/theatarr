@@ -97,3 +97,29 @@ func TestJournalUnblockWords(t *testing.T) {
 		t.Errorf("entry: %d %q", code, en.Summary)
 	}
 }
+
+// TestJournalUnblockProvider: an unblock of a provider's block names the provider, as the Blocklist does, read from
+// the unblocked download the action records.
+func TestJournalUnblockProvider(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	key := e.apiKey()
+	now := store.Millis(testNow)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
+		state, error, created_at, updated_at) VALUES (4, 1, 2, 'movie-web', ?1, 'Alpha.Release', 'dmm', 'rd', 'failed',
+		'provider status error', ?2, ?2)`, hashA, now)
+	err := e.st.WriteTx(context.Background(), func(tx *sql.Tx) error {
+		_, err := journal.RecordAction(context.Background(), tx, journal.Action{Action: journal.ActUnblock, TitleID: 1,
+			Version: "movie-web", InfoHash: hashA, Release: "Alpha.Release", Target: hashA, DownloadID: 4,
+			Detail: "was blocked by provider: provider status error", By: "admin", At: testNow})
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var page journal.Page
+	if code := e.getKey(APIBase+"/journal?kind=action", key, &page); code != 200 || len(page.Items) != 1 ||
+		!strings.Contains(page.Items[0].Summary, "was blocked: Failed at the provider: RD reported an error") {
+		t.Fatalf("list: %d %+v", code, page.Items)
+	}
+}
