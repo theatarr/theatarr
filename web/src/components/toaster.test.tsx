@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { afterEach, expect, it, vi } from "vitest";
-import { dismiss, toast, Toaster } from "./toaster";
+import { dismiss, headerBottom, toast, Toaster } from "./toaster";
 import { Modal } from "./ui/modal";
 
 afterEach(() => vi.useRealTimers());
@@ -110,4 +110,28 @@ it("moves the toasts to the top of the screen while a modal is open, off a dialo
   expect(screen.getByTestId("toasts").className).not.toContain("bottom-");
   dialog.unmount();
   expect(screen.getByTestId("toasts").dataset.placement).toBe("bottom");
+});
+
+it("puts the toasts just below the open modal's header row on a phone, so its Close stays reachable", () => {
+  vi.useFakeTimers();
+  fresh();
+  act(() => {
+    toast({ tone: "ok", title: "saved" });
+  });
+  const dialog = render(
+    <Modal label="Add" onClose={() => {}}>
+      <div data-testid="head"><h2>Add Alpha</h2><button type="button" aria-label="Close">x</button></div>
+      <div><button type="button">Add</button></div>
+    </Modal>,
+  );
+  vi.spyOn(screen.getByTestId("head"), "getBoundingClientRect").mockReturnValue({ bottom: 140 } as DOMRect);
+  expect(headerBottom()).toBe(140);
+  // Measured again once a sliding sheet has settled.
+  act(() => {
+    vi.advanceTimersByTime(400);
+  });
+  const stack = screen.getByTestId("toasts");
+  expect(stack.className).toContain("top-[var(--toast-top,1rem)]");
+  expect(stack.style.getPropertyValue("--toast-top")).toBe("148px");
+  dialog.unmount();
 });

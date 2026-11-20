@@ -2,9 +2,9 @@
 // store outside React, so the event stream can push without a context; the Toaster renders the queue. No portal,
 // no inline style: a fixed stack in the corner, above the phone tab bar.
 import { CheckCircle2, Info, TriangleAlert, X, XCircle } from "lucide-react";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Link } from "react-router";
-import { modalOpen, subscribeModals } from "@/lib/modal-stack";
+import { modalOpen, subscribeModals, topModal } from "@/lib/modal-stack";
 import { cn } from "@/lib/utils";
 
 export type ToastTone = "ok" | "info" | "warn" | "bad";
@@ -110,20 +110,38 @@ function ToastCard({ t }: { t: Toast }) {
 /** The toasts, above every dialog and sheet (z-[70] to z-[85], with their scrims) and below the skip link
  *  (z-[100]); the stack lets clicks through, each toast takes its own. While a modal is open the stack sits at the top
  *  of the screen (centred from sm up, clear of a side sheet), so it never covers a dialog's or sheet's buttons at the
- *  bottom. */
+ *  bottom; on a phone it sits just below the top modal's header row (the row with its Close), measured
+ *  (headerBottom), so Close stays reachable. */
 export function Toaster() {
   const list = useSyncExternalStore(subscribe, () => toasts, () => toasts);
   const top = useSyncExternalStore(subscribeModals, modalOpen, () => false);
-  if (list.length === 0) return null;
+  const stack = useRef<HTMLDivElement>(null);
+  const shown = list.length > 0;
+  useLayoutEffect(() => {
+    const el = stack.current;
+    if (!el || !top) return;
+    // A custom property set through the CSSOM (the CSP refuses style attributes, not this).
+    const place = () => el.style.setProperty("--toast-top", `${Math.max(headerBottom() + 8, 16)}px`);
+    place();
+    // Again once a sliding sheet has settled.
+    const t = setTimeout(place, 350);
+    window.addEventListener("resize", place);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("resize", place);
+    };
+  }, [top, shown]);
+  if (!shown) return null;
   return (
     <div
+      ref={stack}
       aria-live="polite"
       data-placement={top ? "top" : "bottom"}
       data-testid="toasts"
       className={cn(
         "pointer-events-none fixed z-[95] flex flex-col items-stretch gap-2",
         top
-          ? "inset-x-4 top-[calc(1rem+env(safe-area-inset-top))] sm:inset-x-auto sm:left-1/2 sm:w-[360px] sm:-translate-x-1/2"
+          ? "inset-x-4 top-[var(--toast-top,1rem)] sm:inset-x-auto sm:top-[calc(1rem+env(safe-area-inset-top))] sm:left-1/2 sm:w-[360px] sm:-translate-x-1/2"
           : "inset-x-4 bottom-20 sm:inset-x-auto sm:right-5 sm:bottom-5 sm:w-[360px] md:bottom-5",
       )}
     >
@@ -132,4 +150,14 @@ export function Toaster() {
       ))}
     </div>
   );
+}
+
+/** The bottom edge (px from the viewport top) of the top modal's header row: the row holding its Close button, else
+ *  the panel's first child; 0 when there is none. */
+export function headerBottom(): number {
+  const root = topModal() as unknown as Element | undefined;
+  const panel = root?.querySelector?.('[aria-modal="true"]');
+  if (!panel) return 0;
+  const head = panel.querySelector('[aria-label="Close"]')?.parentElement ?? panel.firstElementChild;
+  return head ? Math.round(head.getBoundingClientRect().bottom) : 0;
 }
