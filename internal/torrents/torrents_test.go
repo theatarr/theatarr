@@ -1194,6 +1194,78 @@ func TestDeleteSurvivorReadsBounded(t *testing.T) {
 	}
 }
 
+// The usage check reads a torrent's original name afresh every time, whatever the survivor check remembered: a read
+// that fails leaves the torrent unknown (fail closed), as without the cache.
+func TestDeleteUsageReadsDetailFresh(t *testing.T) {
+	t.Parallel()
+	e := deleteFixture(t)
+	e.m.Details = &DetailCache{}
+	ctx := context.Background()
+	sel := []DeleteSelection{{Provider: "rd", ID: "6", Hash: hF}}
+	if _, err := e.m.PlanDelete(ctx, sel); err != nil {
+		t.Fatal(err)
+	}
+	// Warm the cache with the torrent's own detail, as a survivor check would.
+	for _, x := range e.rd.list {
+		if x.ID == "6" {
+			if _, err := e.m.detail(ctx, "rd", x); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	e.rd.detailErr = errors.New("rd is down")
+	plan, err := e.m.PlanDelete(ctx, sel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if it := plan.Items[0]; it.Usage != Unknown || it.Action != ActRefuse {
+		t.Errorf("a failed original-name read is unknown, cache or not: %+v", it)
+	}
+}
+
+// The cache holds a detail only with its selection known, keyed by the torrent instance (account, id, hash and added
+// time), and a plan drops the entries of torrents no longer in the account's listing.
+func TestDetailCacheInstances(t *testing.T) {
+	t.Parallel()
+	e := deleteFixture(t)
+	e.m.Details = &DetailCache{}
+	ctx := context.Background()
+	old := e.now.Add(-72 * time.Hour)
+	x := tor("31", hA, "Movie.A.2020.1080p.WEB-DL", 100, old, provider.StateDownloaded)
+	read := func() int {
+		n := len(e.rd.readIDs)
+		if _, err := e.m.detail(ctx, "rd", x); err != nil {
+			t.Fatal(err)
+		}
+		return len(e.rd.readIDs) - n
+	}
+	// A ready answer without its file tree is not kept.
+	bare := x
+	bare.Files = nil
+	e.rd.detail = map[string]*provider.Torrent{"31": &bare}
+	if read() != 1 || read() != 1 {
+		t.Error("an answer without files is read again")
+	}
+	e.rd.detail = nil
+	e.rd.list = append(e.rd.list, x)
+	if read() != 1 || read() != 0 {
+		t.Error("a complete answer is kept")
+	}
+	// Same id and hash, added again: read afresh.
+	x.Added = old.Add(time.Hour)
+	if read() != 1 {
+		t.Error("a re-added torrent is read afresh")
+	}
+	// The torrent leaves the listing: a plan drops its entry.
+	e.rd.list = slices.DeleteFunc(e.rd.list, func(y provider.Torrent) bool { return y.ID == "31" })
+	if _, err := e.m.PlanDelete(ctx, []DeleteSelection{{Provider: "rd", ID: "6", Hash: hF}}); err != nil {
+		t.Fatal(err)
+	}
+	if n := e.m.Details.size(); n != 0 {
+		t.Errorf("entries left after the torrent left the listing: %d", n)
+	}
+}
+
 // A used torrent added in the last day needs both the override and allow_recent, and says so at once.
 func TestDeleteUsedAndRecent(t *testing.T) {
 	t.Parallel()

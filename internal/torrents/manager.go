@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -57,20 +59,21 @@ type Manager struct {
 	// UsageStale asks for the record's usage to be worked out again (serve's usage worker) after a delete dropped a
 	// hash's stored usage; nil does nothing.
 	UsageStale func()
-	// Details remembers the details read of downloaded torrents (their selected files and original name do not
-	// change), shared by the managers of every settings generation; nil remembers nothing.
+	// Details remembers the selected files the delete preview's survivor check read, shared by the managers of every
+	// settings generation; nil remembers nothing. Nothing else reads it: the usage check reads afresh.
 	Details *DetailCache
 }
 
-// DetailCache holds a downloaded torrent's detail by provider, id and hash: a delete preview's survivor check and the
-// original-name read of the usage check read it once, not on every preview.
+// DetailCache holds the details the survivor check read (delete.go survivors), by torrent instance: account, id, hash
+// and the listing's added time. Only a downloaded torrent's detail with its selection known is kept (that selection
+// does not change), and each plan drops the entries of an account's torrents its fresh listing no longer holds.
 type DetailCache struct {
 	mu sync.Mutex
 	m  map[string]provider.Torrent
 }
 
 func detailKey(prov string, t provider.Torrent) string {
-	return prov + "\x00" + t.ID + "\x00" + strings.ToLower(t.Hash)
+	return prov + "\x00" + t.ID + "\x00" + strings.ToLower(t.Hash) + "\x00" + strconv.FormatInt(t.Added.UnixMilli(), 10)
 }
 
 func (c *DetailCache) get(prov string, t provider.Torrent) (provider.Torrent, bool) {
@@ -83,8 +86,11 @@ func (c *DetailCache) get(prov string, t provider.Torrent) (provider.Torrent, bo
 	return d, ok
 }
 
+// put keeps d (t's detail) when its selection is known: downloaded, not awaiting a selection, with files and one of
+// them selected.
 func (c *DetailCache) put(prov string, t, d provider.Torrent) {
-	if c == nil || d.State != provider.StateDownloaded || awaitingSelection(d.Status) {
+	if c == nil || d.State != provider.StateDownloaded || awaitingSelection(d.Status) ||
+		!slices.ContainsFunc(d.Files, func(f provider.File) bool { return f.Selected }) {
 		return
 	}
 	c.mu.Lock()
@@ -95,7 +101,31 @@ func (c *DetailCache) put(prov string, t, d provider.Torrent) {
 	c.m[detailKey(prov, t)] = d
 }
 
-// detail is t's detail (provider prov): remembered (Details), else read and remembered when it is settled.
+// keep drops prov's entries whose torrent is not in list, the account's complete fresh listing.
+func (c *DetailCache) keep(prov string, list []provider.Torrent) {
+	if c == nil {
+		return
+	}
+	in := make(map[string]bool, len(list))
+	for _, t := range list {
+		in[detailKey(prov, t)] = true
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for k := range c.m {
+		if strings.HasPrefix(k, prov+"\x00") && !in[k] {
+			delete(c.m, k)
+		}
+	}
+}
+
+func (c *DetailCache) size() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.m)
+}
+
+// detail is t's detail for the survivor check: remembered (Details), else read and remembered when complete.
 func (m *Manager) detail(ctx context.Context, prov string, t provider.Torrent) (provider.Torrent, error) {
 	if d, ok := m.Details.get(prov, t); ok {
 		return d, nil

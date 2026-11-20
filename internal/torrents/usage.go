@@ -167,10 +167,11 @@ func (m *Manager) deleteUsage(ctx context.Context, key string, t provider.Torren
 		u, refs, list, reasons, _ := ix.usage(key, t)
 		return u, refs, list, reasons, nil
 	}
-	if m.Providers[key] == nil {
+	p := m.Providers[key]
+	if p == nil {
 		return Unknown, nil, nil, []string{reasonNoOriginal}, nil
 	}
-	d, err := m.detail(ctx, key, t)
+	d, err := p.Torrent(ctx, t.ID)
 	if err != nil {
 		return Unknown, nil, nil, []string{reasonNoOriginal}, nil
 	}

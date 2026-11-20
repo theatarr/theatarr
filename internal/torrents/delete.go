@@ -242,6 +242,7 @@ func (s *survivors) add(prov string, list []provider.Torrent) {
 		}
 	}
 	s.cands[prov] = by
+	s.m.Details.keep(prov, list)
 }
 
 // of is the id of another complete entry of t's hash on its account, outside the selection, of the same size and with
@@ -277,10 +278,11 @@ func (s *survivors) selection(ctx context.Context, prov string, t provider.Torre
 	var paths []string
 	files := t.Files
 	if files == nil {
-		if s.cache == nil {
-			s.cache = s.m.fileCache()
+		d, cached := s.m.Details.get(prov, t)
+		if !cached && s.cache == nil {
+			s.cache = s.m.fileCache() // the backups' file index, only on a miss in memory
 		}
-		if d, ok := s.m.Details.get(prov, t); ok {
+		if cached {
 			files = d.Files
 		} else if c, ok := s.cache[key+"\x00"+strings.ToLower(t.Hash)]; ok {
 			for _, f := range c {
