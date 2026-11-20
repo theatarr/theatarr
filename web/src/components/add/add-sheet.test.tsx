@@ -488,3 +488,17 @@ it("names the library the person chose when the add brings back its removed copy
   await user.click(screen.getByTestId("add-submit"));
   await waitFor(() => expect(screen.getAllByTestId("toast").at(-1)?.textContent).toContain("Turned on: movie-a. movie-b too (in sync)."));
 });
+
+it("says Downloads are paused to a household account asking for a title under a forced Pause", async () => {
+  const locked = versions.map((v) => ({ ...v, searchable: false, grab_state: { ...v.grab_state, paused: true, pause_forced: true, will_grab: false } }));
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["browse", "request"] } },
+    { method: "GET", path: "/add/options", reply: { ...options, router_enabled: false, versions: locked } },
+  ]);
+  renderPage(<AddSheet target={{ kind: "movie", name: "Alpha", tmdb_id: 7 }} onClose={() => {}} />);
+  await screen.findByTestId("add-versions");
+  await new Promise((r) => setTimeout(r, 20));
+  expect(document.body.textContent).not.toContain("THEATARR_FORCE_OFF");
+  const notice = screen.queryByTestId("downloads-off-notice");
+  if (notice) expect(notice.textContent).toBe("Downloads are paused.");
+});

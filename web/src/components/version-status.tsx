@@ -28,7 +28,8 @@ export function VersionStatus({ state, words = false, settingsKey, canManage = f
   const hideOn = quiet && !!state && verdict(state).word === "Downloads on";
   if (!state) return words ? <Badge tone="neutral" data-testid="state-words">{stateWords(undefined).text}</Badge> : null;
   const v = verdict(state);
-  const gates = household ? closedGates(state, settingsKey).map((g) => (/^Paused/.test(g.text) ? { text: HOUSEHOLD_PAUSED } : g)) : closedGates(state, settingsKey);
+  // A household account: Pause (forced or not) in its own sentence; the other gates as everyone reads them.
+  const gates = household && (state.paused || state.pause_forced) ? [{ text: HOUSEHOLD_PAUSED }] : closedGates(state, settingsKey);
   const items = gates.map((g) => (
     <li key={g.text} className="[overflow-wrap:anywhere]">
       {g.text}

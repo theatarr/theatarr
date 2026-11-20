@@ -175,6 +175,24 @@ describe("Title page", () => {
     }
   });
 
+  it("never names the environment to a household account on a title page under a forced Pause", async () => {
+    const household = { id: 8, username: "demo-limited", permissions: ["browse", "request"], csrf_token: "t" };
+    const locked = { paused: true, pause_forced: true, will_grab: false };
+    const web = { id: 6, key: "movie-web", label: "4K", state: "wanted", monitored: true, has_file: false, control: { can_edit: false, can_search: false, live_releases: false, grab_state: locked } };
+    mockFetch([
+      { method: "GET", path: "/auth/me", reply: household },
+      { method: "GET", path: "/titles/70", reply: { ...title, versions: [web] } },
+      { method: "GET", path: "/add/options", reply: { kind: "movie", anime: false, title_id: 70, router_enabled: false, episodes_known: false, can_search: false, seasons: [],
+        versions: [{ key: "movie-web", label: "4K", kind: "movie", enable: "", fits: true, default: false, on: true, searchable: false, grab_state: locked }] } },
+      { method: "GET", path: "/requests", reply: { items: [], total: 0, counts: {} } },
+    ]);
+    renderPage(<SearchProvider><Routes><Route path="/title/:id" element={<TitlePage />} /></Routes></SearchProvider>, "/title/70");
+    // The page's Pause notice sits with the toolbar, which only accounts that see files get.
+    await screen.findByTestId("title-readiness");
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    expect(document.body.textContent).not.toContain("THEATARR_FORCE_OFF");
+  });
+
   it("names the libraries in the Request box when its answer differs from the top line", async () => {
     const household = { id: 8, username: "demo-limited", permissions: ["browse", "request"], request_versions: ["movie-web"], csrf_token: "t" };
     const off = { paused: true, pause_forced: false, will_grab: false };
