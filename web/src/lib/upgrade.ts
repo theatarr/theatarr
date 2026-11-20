@@ -139,9 +139,10 @@ export function reasonWords(r: string): string {
  * The better release seen, why it is better (the reason stored with the search that saw it, about the file it was
  * judged against) and what came of it, or that none was seen: "Better release found 4 d ago: <release> (WEBDL-2160p,
  * score 6,200): better format score, 6,200 over 4,500."; for a
- * pack that keeps some episodes' files (one comparison for the whole pack) "Better pack found for some episodes 4 d ago: …"; when the library's history (given) has a failed download of
- * it, "… Tried Nov 12: not cached on RD, AD and TB. Your file is unchanged." (the failure as the history row says it,
- * failureWords). The history on the page is capped, so a missing attempt is not read as "not downloaded".
+ * pack that keeps some episodes' files (one comparison for the whole pack) "Better pack found for some episodes 4 d ago: …"; when
+ * the server says it was tried (next.tried, at tried_at), "… Tried Nov 12: not cached on RD, AD and TB. Your file is
+ * unchanged." (the failure in the words of its history row on the page, when the capped history has it,
+ * failureWords). The history never decides whether it was tried.
  * "No better release seen yet (last search 2 d ago)." otherwise. "" for a copy that reads Preferred quality met
  * (scoreOnly); Why? still says it (whyLines).
  */
@@ -158,10 +159,12 @@ function foundLine(u: UpgradeInfo | undefined | null, now: Date, history?: reado
     // A pack that keeps some episodes' files: it upgrades this episode's file, or on a copy-level line some of its
     // episodes (see mixedPack).
     const found = mixedPack(u) ? "Better pack found for some episodes" : "Better release found";
-    const last = history ? releaseOutcome(history, n.release) : undefined;
-    if (last?.event === "failed") {
-      const why = failureWords(last);
-      return `${found} ${dayWords(n.seen_at, now)}: ${what}. Tried ${dayWords(last.date, now)}${why ? `: ${why}` : ""}. Your file is unchanged.`;
+    // Tried is the server's decision (the badge's too); the history row on the page only words the failure.
+    if (n.tried) {
+      const last = history ? releaseOutcome(history, n.release) : undefined;
+      const why = last?.event === "failed" ? failureWords(last) : "";
+      const when = n.tried_at ? ` ${dayWords(n.tried_at, now)}` : "";
+      return `${found} ${dayWords(n.seen_at, now)}: ${what}. Tried${when}${why ? `: ${why}` : ""}. Your file is unchanged.`;
     }
     return `${found} ${fmtAgo(n.seen_at, now)}: ${what}.`;
   }

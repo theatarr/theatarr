@@ -70,7 +70,9 @@ Per item below cutoff (a movie version's file, or one episode's file):
    tried whenever the feed lists it again, unless the listing carries evidence newer than the failure: its
    publication time (the candidate's `published`, not when it was read) is after the failure, or the failure was a
    cache miss ("miss on every provider") and the candidate is now listed cached (`cached_on`) on a provider the
-   library uses. Display only: nothing is written or deleted, and what is searched or grabbed is unchanged.
+   library sends a release of that indexer to (`policy.ReleaseProviders`). The answer's `next` carries the decision
+   (`tried`, `tried_at`); Why? says "Tried …" from it alone and only words the failure from the history row on the
+   page when it has one. Display only: nothing is written or deleted, and what is searched or grabbed is unchanged.
 6. The best counted release (score, then newest) is what Theatarr would take next, with the engine's reason.
 
 Hydration reads decision timestamps and coverage first, then fetches and decodes candidate blobs only for the

@@ -388,8 +388,9 @@ describe("Library files (J5)", () => {
     const release = "Alpha.2020.2160p.WEB-DL-BETTER";
     const v = {
       ...web, current: { ...web.current, info_hash: "ab".repeat(20) },
+      // The server's decision: tried (Why? no longer guesses it from the history).
       upgrade: { state: "upgrade_available", quality: "WEBDL-2160p", score: 4500, quality_met: true, cutoff: { quality: "WEBDL-2160p", score: 10000, upgrades: true },
-        next: { release, quality: "WEBDL-2160p", score: 6200, reason: "better format score: 6200 over 4500", source: "search", seen_at: seen } },
+        next: { release, quality: "WEBDL-2160p", score: 6200, reason: "better format score: 6200 over 4500", source: "search", seen_at: seen, tried: true, tried_at: seen } },
       history: [{ event: "failed", date: seen, release_title: release, reason: "Not cached on RD, AD and TB", missed_on: ["rd", "ad", "tb"], upgrade: true }],
     };
     renderPage(<LibraryRows title={title as never} versions={[v] as never} />);

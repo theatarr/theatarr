@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -139,9 +140,11 @@ func TestUpgradeFoundClearsAfterAFailedTry(t *testing.T) {
 func TestUpgradeFoundStaysTriedAfterAnRSSResighting(t *testing.T) {
 	t.Parallel()
 	const best = `"release":"Best","info_hash":"aaaa","accepted":true,"upgrade":true,"score":9000`
+	var next *UpgradeNext
 	state := func(t *testing.T, why string, later ...string) string {
 		t.Helper()
-		e := newManageEnv(t, nil)
+		// An indexer whose releases go to RD only.
+		e := newManageEnv(t, func(p *policy.Policy) { p.Indexers["rd-only"] = &policy.Indexer{Providers: []string{"rd"}} })
 		e.exec(`INSERT INTO journal_decision (source,title_id,version_key,target,created_at,candidates) VALUES
 			('search',1,'movie-remux','movie',2500,'[{` + best + `}]')`)
 		e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, state, error,
@@ -156,7 +159,9 @@ func TestUpgradeFoundStaysTriedAfterAnRSSResighting(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return s.explain(v, 0).State
+		u := s.explain(v, 0)
+		next = u.Next
+		return u.State
 	}
 	const miss, other = "miss on every provider", "provider status error"
 	for _, c := range []struct {
@@ -172,10 +177,18 @@ func TestUpgradeFoundStaysTriedAfterAnRSSResighting(t *testing.T) {
 		{"cached elsewhere after a miss", miss, []string{`R[{` + best + `,"cached_on":["pm"]}]`}, "below_cutoff"},
 		{"cached after another failure", other, []string{`R[{` + best + `,"cached_on":["rd"]}]`}, "below_cutoff"},
 		{"a new covering search", miss, []string{`S[{` + best + `}]`}, "upgrade_available"},
+		// Cache evidence counts only for a provider the release's indexer may go to.
+		{"RD-only indexer cached on AD", miss, []string{`R[{` + best + `,"indexer":"rd-only","cached_on":["ad"]}]`}, "below_cutoff"},
+		{"RD-only indexer cached on RD", miss, []string{`R[{` + best + `,"indexer":"rd-only","cached_on":["rd"]}]`}, "upgrade_available"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			if got := state(t, c.why, c.later...); got != c.want {
 				t.Errorf("%s, want %s", got, c.want)
+			}
+			// Why? is told the server's decision: tried, and when it failed.
+			tried := c.want == "below_cutoff"
+			if next == nil || next.Tried != tried || (next.TriedAt != nil) != tried || tried && next.TriedAt.UnixMilli() != 2600 {
+				t.Errorf("next %+v, want tried %v at 2600", next, tried)
 			}
 		})
 	}

@@ -40,7 +40,8 @@ import (
 //     tried one is still said (Why?'s "Tried …") without being found;
 //   - an RSS sighting of a release that failed since the current file is tried whenever it was seen (a feed lists the
 //     same release again and again), unless the listing is newer than the failure: published after it, or, after a
-//     cache miss, now listed as cached on a provider the library uses; a new covering search keeps the rule above;
+//     cache miss, now listed as cached on a provider the library uses for that release's indexer (ReleaseProviders);
+//     a new covering search keeps the rule above;
 //   - the best counted release (highest score, then newest) is what Theatarr would take next, with the engine's reason.
 
 // Cutoff is what a version's file is measured against: the profile that decides its state.
@@ -68,9 +69,10 @@ type UpgradeNext struct {
 	Source   string    `json:"source"`
 	SeenAt   time.Time `json:"seen_at"`
 	Episodes []string  `json:"episodes,omitempty"`
-	// tried: the release has a failed download of the title and library newer than the sighting (judgeUpgrade). It
-	// is said (Why?: "Tried …") but is not found: the state stays below_cutoff.
-	tried bool
+	// Tried: the release counts as tried and failed (judgeUpgrade), at TriedAt (its newest failure). It is said (Why?:
+	// "Tried …") but is not found: the state stays below_cutoff. Why? renders this decision, not its own guess.
+	Tried   bool       `json:"tried,omitempty"`
+	TriedAt *time.Time `json:"tried_at,omitempty"`
 }
 
 // UpgradeInfo explains a version's (or one episode's) state against its cutoff.
@@ -217,10 +219,11 @@ func upgradeEvidencePool(it evItem, recs []evRecord) ([]*evRecord, int64) {
 }
 
 // judgeUpgrade applies the rule above to one item. failed is the newest failed try per hash (lower case) of the
-// item's title and library; cached the cache codes of the library's providers. It returns the best release seen (nil
+// item's title and library; cachedOK says whether a cache code is one of the providers the library sends a release of
+// that indexer to (nil: none). It returns the best release seen (nil
 // when none; tried when every one was tried after it was seen) and the time of the newest search that covered the
 // item (0 when none).
-func judgeUpgrade(it evItem, recs []evRecord, failed map[string]failedTry, cached map[string]bool) (*UpgradeNext, int64) {
+func judgeUpgrade(it evItem, recs []evRecord, failed map[string]failedTry, cachedOK func(indexer, code string) bool) (*UpgradeNext, int64) {
 	pool, lastSearch := upgradeEvidencePool(it, recs)
 	var best *UpgradeNext
 	for _, r := range pool {
@@ -234,22 +237,35 @@ func judgeUpgrade(it evItem, recs []evRecord, failed map[string]failedTry, cache
 			if !tried && !r.search && c.InfoHash != "" && ok && f.at >= it.fileAt {
 				// The feed listing a release again that failed since the file is no news, unless the listing is.
 				newer := c.Published != nil && c.Published.UnixMilli() > f.at
-				recached := f.miss && slices.ContainsFunc(c.CachedOn, func(code string) bool { return cached[code] })
+				recached := f.miss && cachedOK != nil &&
+					slices.ContainsFunc(c.CachedOn, func(code string) bool { return cachedOK(c.Indexer, code) })
 				tried = !newer && !recached
 			}
-			better := best == nil || (best.tried && !tried) ||
-				(best.tried == tried && (c.Score > best.Score || (c.Score == best.Score && r.at > best.SeenAt.UnixMilli())))
+			better := best == nil || (best.Tried && !tried) ||
+				(best.Tried == tried && (c.Score > best.Score || (c.Score == best.Score && r.at > best.SeenAt.UnixMilli())))
 			if better {
 				best = &UpgradeNext{Release: c.Release, Indexer: c.Indexer, Quality: c.Quality, Score: c.Score,
-					Reason: c.UpgradeWhy, Source: r.source, SeenAt: ts(r.at), Episodes: c.Episodes, tried: tried}
+					Reason: c.UpgradeWhy, Source: r.source, SeenAt: ts(r.at), Episodes: c.Episodes, Tried: tried}
+				if tried {
+					at := ts(f.at)
+					best.TriedAt = &at
+				}
 			}
 		}
 	}
 	return best, lastSearch
 }
 
+// cachedFor is cachedOK for one library (nil when the set has none).
+func (s *upgradeSet) cachedFor(library string) func(indexer, code string) bool {
+	if s.cachedOK == nil {
+		return nil
+	}
+	return func(ix, code string) bool { return s.cachedOK(library, ix, code) }
+}
+
 // found reports whether a judged release counts as an upgrade found: seen and not tried since.
-func (n *UpgradeNext) found() bool { return n != nil && !n.tried }
+func (n *UpgradeNext) found() bool { return n != nil && !n.Tried }
 
 // failedTry is a hash's newest failed try: when it failed, and whether it was a miss on every provider (not cached).
 type failedTry struct {
@@ -433,11 +449,11 @@ type upgradeSet struct {
 	files    map[int64]map[int64]itemFile
 	episodes map[int64][]upgradeEpisode
 	evidence map[titleKey][]evRecord
-	// failed is the newest failed try per hash of each title and library (loadFailedHashes); cached the cache codes
-	// of each library's providers.
-	failed  map[titleKey]map[string]failedTry
-	cached  map[string]map[string]bool
-	cutoffs map[int64]*Cutoff
+	// failed is the newest failed try per hash of each title and library (loadFailedHashes); cachedOK says whether a
+	// cache code is a provider the library sends a release of the indexer to (policy ReleaseProviders).
+	failed   map[titleKey]map[string]failedTry
+	cachedOK func(library, indexer, code string) bool
+	cutoffs  map[int64]*Cutoff
 	// With cutoffs: the versions whose quality-cutoff flags are stored (not prefer-SeaDex, a cutoff known), and a
 	// movie version's flag (version.below_quality_cutoff).
 	qualityJudged map[int64]bool
@@ -529,18 +545,17 @@ func (w *Web) upgradesWith(ctx context.Context, db *sql.DB, vs []upgradeVersion,
 	if s.failed, err = loadFailedHashes(ctx, db, judged); err != nil {
 		return nil, err
 	}
-	s.cached = map[string]map[string]bool{}
-	for k := range s.evidence {
-		if _, ok := s.cached[k.key]; ok || w.pol == nil || w.pol.Versions[k.key] == nil {
-			continue
+	pol := w.pol
+	s.cachedOK = func(library, ix, code string) bool {
+		if pol == nil {
+			return false
 		}
-		codes := map[string]bool{}
-		for _, p := range w.pol.Versions[k.key].Providers {
-			if pp := w.pol.Providers[p]; pp != nil {
-				codes[indexer.CacheCode(pp.Kind)] = true
+		for _, p := range pol.ReleaseProviders(pol.Versions[library], ix) {
+			if pp := pol.Providers[p]; pp != nil && indexer.CacheCode(pp.Kind) == code {
+				return true
 			}
 		}
-		s.cached[k.key] = codes
+		return false
 	}
 	if cutoffs {
 		s.cutoffs = w.loadCutoffs(vs)
@@ -595,7 +610,7 @@ func (s *upgradeSet) explain(v upgradeVersion, episode int64) *UpgradeInfo {
 	// A found release wins over a tried one, then the higher score.
 	note := func(next *UpgradeNext, at int64) {
 		lastSearch = max(lastSearch, at)
-		if next != nil && (u.Next == nil || (u.Next.tried && !next.tried) || (u.Next.tried == next.tried && next.Score > u.Next.Score)) {
+		if next != nil && (u.Next == nil || (u.Next.Tried && !next.Tried) || (u.Next.Tried == next.Tried && next.Score > u.Next.Score)) {
 			u.Next = next
 		}
 	}
@@ -611,7 +626,7 @@ func (s *upgradeSet) explain(v upgradeVersion, episode int64) *UpgradeInfo {
 		case "filled":
 			u.State = "below_cutoff"
 			belowQuality = s.belowQuality[v.id]
-			next, at := judgeUpgrade(fileItem(f, nil), recs, failed, s.cached[v.key])
+			next, at := judgeUpgrade(fileItem(f, nil), recs, failed, s.cachedFor(v.key))
 			note(next, at)
 		}
 	} else {
@@ -646,7 +661,7 @@ func (s *upgradeSet) explain(v upgradeVersion, episode int64) *UpgradeInfo {
 			if counts[k] > counts[best] {
 				best = k
 			}
-			next, at := judgeUpgrade(fileItem(f, &e), recs, failed, s.cached[v.key])
+			next, at := judgeUpgrade(fileItem(f, &e), recs, failed, s.cachedFor(v.key))
 			if next.found() {
 				u.Seen++
 			}
@@ -709,7 +724,7 @@ func (s *upgradeSet) episodeSeen(v upgradeVersion) map[int64]bool {
 		if !ok || e.state != "filled" {
 			continue
 		}
-		if next, _ := judgeUpgrade(fileItem(f, &e), recs, failed, s.cached[v.key]); next.found() {
+		if next, _ := judgeUpgrade(fileItem(f, &e), recs, failed, s.cachedFor(v.key)); next.found() {
 			out[e.id] = true
 		}
 	}

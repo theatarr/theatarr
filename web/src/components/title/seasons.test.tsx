@@ -763,7 +763,7 @@ describe("One status vocabulary", () => {
   it("says in the season's Why? that the season pack found was tried, from the library's history", async () => {
     const release = "Tsukikage.Signal.S01.2160p.WEB-DL-GRP";
     const seen = new Date(Date.now() - 2 * 86400000).toISOString();
-    const found = { ...below, state: "upgrade_available", next: { release, quality: "WEBDL-2160p", score: 6200, seen_at: seen } };
+    const found = { ...below, state: "below_cutoff", next: { release, quality: "WEBDL-2160p", score: 6200, seen_at: seen, tried: true, tried_at: seen } };
     const pack = { ...words, seasons: [{ ...words.seasons[0], versions: { ...words.seasons[0].versions, "anime-web": { ...words.seasons[0].versions["anime-web"], upgrade: found } } }] };
     mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: pack }]);
     const user = userEvent.setup();

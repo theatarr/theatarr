@@ -116,8 +116,16 @@ describe("upgrade words", () => {
     expect(nextLine(u, now, [])).not.toContain("9,000");
     const failed = { event: "failed" as const, date: "2026-11-12T09:00:00Z", release_title: "Conclave.2024.2160p.WEB-DL", reason: "Not cached on RD, AD and TB", missed_on: ["rd", "ad", "tb"] };
     const grabbed = { event: "grabbed" as const, date: "2026-11-12T08:00:00Z", release_title: "Conclave.2024.2160p.WEB-DL" };
-    expect(nextLine(u, now, [failed, grabbed])).toBe(
+    // Tried is the server's decision: with it the history row words the failure; without it a failed row on the page
+    // claims nothing (the badge says Upgrade found).
+    const tried = { ...u, state: "below_cutoff" as const, next: { ...u.next, tried: true, tried_at: "2026-11-12T09:00:00Z" } };
+    expect(nextLine(tried, now, [failed, grabbed])).toBe(
       "Better release found Nov 11: Conclave.2024.2160p.WEB-DL (WEBDL-2160p, score 6,200): better format score, 6,200 over 4,500. Tried Nov 12: not cached on RD, AD and TB. Your file is unchanged.",
+    );
+    expect(nextLine(u, now, [failed, grabbed])).toBe(found);
+    // Tried with its failure beyond the capped history: still said, with its day.
+    expect(nextLine(tried, now, [])).toBe(
+      "Better release found Nov 11: Conclave.2024.2160p.WEB-DL (WEBDL-2160p, score 6,200): better format score, 6,200 over 4,500. Tried Nov 12. Your file is unchanged.",
     );
     // A download in hand for it: nothing said about downloading; without the history neither.
     expect(nextLine(u, now, [grabbed])).toBe(found);
