@@ -414,14 +414,16 @@ func WriteRecord(ctx context.Context, tx *sql.Tx, key string, list []Torrent, no
 
 // RecordImport puts the torrent id of hash that an import linked from in provider key's record at once, complete
 // (progress 100), with the download's name and size, so the readers of what the accounts hold need not wait for the
-// next listing; a row the sync wrote stays unless it was unfinished (below 100%, or not yet downloaded: a TorBox entry
-// at 100% before its files were present, which the import has now shown are there). Its usage reads "not worked out" until the
-// usage is worked out again (the caller signals that); the next listing replaces the row.
-func RecordImport(ctx context.Context, tx *sql.Tx, key, id, hash, name string, size int64) error {
+// next listing; a row the sync wrote stays unless it was unfinished: below 100%, or, on TorBox (kind), at 100% and
+// still downloading (its files were not yet present, which the import has now shown they are). An errored row at 100%
+// stays errored. Its usage reads "not worked out" until the usage is worked out again (the caller signals that); the
+// next listing replaces the row.
+func RecordImport(ctx context.Context, tx *sql.Tx, key, kind, id, hash, name string, size int64) error {
 	_, err := tx.ExecContext(ctx, `INSERT INTO provider_torrent (provider, torrent_id, info_hash, name, size_bytes,
 		state, progress) VALUES (?, ?, lower(?), ?, ?, 'downloaded', 100)
 		ON CONFLICT (provider, torrent_id) DO UPDATE SET state = 'downloaded', progress = 100
-		WHERE provider_torrent.progress < 100 OR provider_torrent.state <> 'downloaded'`, key, id, hash, name, size)
+		WHERE provider_torrent.progress < 100 OR (? = '`+KindTorBox+`' AND provider_torrent.state = '`+
+		string(StateDownloading)+`')`, key, id, hash, name, size, kind)
 	return err
 }
 

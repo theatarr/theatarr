@@ -296,7 +296,7 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 		// arr import) the provider's next listing finds it: one sync of that provider is asked for now.
 		if contentID != 0 && len(linked) > 0 && l.pol.Providers[d.Provider] != nil {
 			if d.TorrentID != "" {
-				if err := provider.RecordImport(ctx, tx, d.Provider, d.TorrentID, d.InfoHash, d.Name, d.Size); err != nil {
+				if err := provider.RecordImport(ctx, tx, d.Provider, l.pol.Providers[d.Provider].Kind, d.TorrentID, d.InfoHash, d.Name, d.Size); err != nil {
 					return err
 				}
 				recorded = true

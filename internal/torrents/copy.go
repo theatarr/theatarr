@@ -415,7 +415,7 @@ func (m *Manager) recordHeld(ctx context.Context, key, id, hash, name string, si
 		if unconfirmed {
 			return provider.RecordAccepted(ctx, tx, key, id, hash, name, size)
 		}
-		return provider.RecordImport(ctx, tx, key, id, hash, name, size)
+		return provider.RecordImport(ctx, tx, key, m.kind(key), id, hash, name, size)
 	}); err != nil {
 		m.log().Warn("torrents: copy: recording the torrent", "provider", key, "hash", hash, "err", err)
 		return

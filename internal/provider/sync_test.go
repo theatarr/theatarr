@@ -645,28 +645,50 @@ func TestClearRecord(t *testing.T) {
 }
 
 // A verified import finishes the record's row: a TorBox entry the sync stored at 100% while its files were not yet
-// present (kept downloading) reads downloaded after the import linked from it; a row already downloaded stays as the
-// sync wrote it.
+// present (kept downloading) reads downloaded after the import linked from it. Nothing else changes from main's rule
+// (only a row below 100% is rewritten): an errored entry at 100% stays errored on every provider, an RD or AD row at
+// 100% still downloading stays as the sync wrote it, and a row already downloaded keeps its name.
 func TestRecordImportFinishesRow(t *testing.T) {
 	t.Parallel()
 	e := newSyncEnv(t)
-	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash, name, state, progress) VALUES
-		('tb', '1', ?, 'Synced', 'downloading', 100), ('tb', '2', ?, 'Synced', 'downloaded', 100)`, h("a"), h("b"))
+	type row struct {
+		prov, kind, id, state string
+		progress              float64
+		want                  string
+	}
+	rows := []row{
+		{"tb", KindTorBox, "1", "downloading", 100, "downloaded"},
+		{"tb", KindTorBox, "2", "downloaded", 100, "downloaded"},
+		{"tb", KindTorBox, "3", "error", 100, "error"},
+		{"rd", KindRealDebrid, "4", "error", 100, "error"},
+		{"ad", KindAllDebrid, "5", "error", 100, "error"},
+		{"rd", KindRealDebrid, "6", "downloading", 100, "downloading"},
+		{"ad", KindAllDebrid, "7", "downloading", 100, "downloading"},
+		{"rd", KindRealDebrid, "8", "downloading", 40, "downloaded"},
+		{"tb", KindTorBox, "9", "error", 40, "downloaded"},
+	}
+	for i, r := range rows {
+		e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash, name, state, progress) VALUES (?, ?, ?, 'Synced', ?, ?)`,
+			r.prov, r.id, h(fmt.Sprint(i+1)), r.state, r.progress)
+	}
 	if err := e.st.WriteTx(context.Background(), func(tx *sql.Tx) error {
-		if err := RecordImport(context.Background(), tx, "tb", "1", h("a"), "Imported", 1); err != nil {
-			return err
+		for i, r := range rows {
+			if err := RecordImport(context.Background(), tx, r.prov, r.kind, r.id, h(fmt.Sprint(i+1)), "Imported", 1); err != nil {
+				return err
+			}
 		}
-		return RecordImport(context.Background(), tx, "tb", "2", h("b"), "Imported", 1)
+		return nil
 	}); err != nil {
 		t.Fatal(err)
 	}
-	var state, name string
-	if err := e.st.Reader().QueryRow(`SELECT state FROM provider_torrent WHERE provider = 'tb' AND torrent_id = '1'`).
-		Scan(&state); err != nil || state != "downloaded" {
-		t.Errorf("finishing row: %q %v", state, err)
-	}
-	if err := e.st.Reader().QueryRow(`SELECT name FROM provider_torrent WHERE provider = 'tb' AND torrent_id = '2'`).
-		Scan(&name); err != nil || name != "Synced" {
-		t.Errorf("downloaded row: %q %v", name, err)
+	for _, r := range rows {
+		var state, name string
+		if err := e.st.Reader().QueryRow(`SELECT state, name FROM provider_torrent WHERE provider = ? AND torrent_id = ?`,
+			r.prov, r.id).Scan(&state, &name); err != nil || state != r.want {
+			t.Errorf("%s %s (%s at %v): %q %v, want %q", r.prov, r.id, r.state, r.progress, state, err, r.want)
+		}
+		if r.id == "2" && name != "Synced" {
+			t.Errorf("downloaded row renamed: %q", name)
+		}
 	}
 }
