@@ -1243,7 +1243,8 @@ func TestDetailCacheInstances(t *testing.T) {
 	bare := x
 	bare.Files = nil
 	e.rd.detail = map[string]*provider.Torrent{"31": &bare}
-	if read() != 1 || read() != 1 {
+	first, again := read(), read()
+	if first != 1 || again != 1 {
 		t.Error("an answer without files is read again")
 	}
 	e.rd.detail = nil
