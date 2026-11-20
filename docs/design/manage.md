@@ -62,11 +62,14 @@ Per item below cutoff (a movie version's file, or one episode's file):
    episodes …").
 5. A release with a download of the same title and library that failed at or after its sighting (the candidate's
    hash against `download.info_hash`; the failure's time is its History row's, else `updated_at`) was tried and
-   failed: it is not found. A download never started (Pause was on) or ended by a removal is no try, as History and
+   failed: it is not found. For a search's sighting any failed try of the hash counts, older or newer than the search
+   and the current file: the search's own route ran right after it and skipped the known miss, and a real retry
+   writes a newer download row, whose result then decides (while that retry is in flight the old failure still
+   reads tried). A download never started (Pause was on) or ended by a removal is no try, as History and
    Why? say. The best of the others is chosen; when
    every counted release was tried, the best tried one is still the answer's `next` (Why?: "Better release found …
    Tried …: not cached … Your file is unchanged.") while the state stays `below_cutoff`. A newer covering search
-   that lists it again counts it again. An RSS sighting does not: a release that failed since the current file stays
+   that lists it again does not count it again. Nor does an RSS sighting: a release that failed since the current file stays
    tried whenever the feed lists it again, unless the listing carries evidence newer than the failure: its
    publication time (the candidate's `published`, not when it was read) is after the failure, or the failure was a
    cache miss ("miss on every provider") and the candidate is now listed cached (`cached_on`) on a provider the

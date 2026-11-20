@@ -35,13 +35,16 @@ import (
 //     (its reason starts "fills ", decide's episodes.go) is not an upgrade of a held file, and a pack accepted for
 //     other episodes is not an upgrade of an episode whose file it keeps (the candidate's kept; a candidate stored
 //     before kept was recorded has none and counts as before);
-//   - a release with a failed download of the title and library newer than the sighting (by its hash) was tried and
-//     failed: it is not found, so the best of the others is chosen; when every counted release was tried, the best
-//     tried one is still said (Why?'s "Tried …") without being found;
-//   - an RSS sighting of a release that failed since the current file is tried whenever it was seen (a feed lists the
-//     same release again and again), unless the listing is newer than the failure: published after it, or, after a
-//     cache miss, now listed as cached on a provider the library uses for that release's indexer (ReleaseProviders);
-//     a new covering search keeps the rule above;
+//   - a release seen by a search that has a failed download of the title and library (by its hash) was tried and
+//     failed, whether that failure is older or newer than the search or the current file: the search's own route ran
+//     right after it and skipped the known miss, and a real retry writes a newer download row, whose result decides.
+//     A tried release is not found, so the best of the others is chosen; when every counted release was tried, the
+//     best tried one is still said (Why?'s "Tried …", at its newest failure) without being found. While a retry's
+//     download is in flight the old failure still reads tried;
+//   - an RSS sighting of a release is tried when it failed after the sighting, or when it failed since the current
+//     file (a feed lists the same release again and again), unless the listing is newer than the failure: published
+//     after it, or, after a cache miss, now listed as cached on a provider the library uses for that release's
+//     indexer (ReleaseProviders);
 //   - the best counted release (highest score, then newest) is what Theatarr would take next, with the engine's reason.
 
 // Cutoff is what a version's file is measured against: the profile that decides its state.
@@ -233,7 +236,9 @@ func judgeUpgrade(it evItem, recs []evRecord, failed map[string]failedTry, cache
 				continue
 			}
 			f, ok := failed[strings.ToLower(c.InfoHash)]
-			tried := c.InfoHash != "" && ok && f.at >= r.at
+			// A search lists a release that already failed again: its own route skipped the known miss, and a real
+			// retry writes a newer download row. So any failed try of the hash makes it tried.
+			tried := c.InfoHash != "" && ok && (r.search || f.at >= r.at)
 			if !tried && !r.search && c.InfoHash != "" && ok && f.at >= it.fileAt {
 				// The feed listing a release again that failed since the file is no news, unless the listing is.
 				newer := c.Published != nil && c.Published.UnixMilli() > f.at

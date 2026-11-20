@@ -112,9 +112,10 @@ func TestUpgradeFoundClearsAfterAFailedTry(t *testing.T) {
 		}
 		return s.explain(v, 0)
 	}
-	// A failure before the sighting does not count: the release may be cached since.
+	// A failure before the search's sighting counts too (corrected in phase Z: the search's own route skipped the
+	// known miss, so the search is no news): the other release is found.
 	fail("aaaa", 1500)
-	if u := explain(); u.State != "upgrade_available" || u.Next.Release != "Best" {
+	if u := explain(); u.State != "upgrade_available" || u.Next.Release != "Second" {
 		t.Fatalf("older failure: %+v", u)
 	}
 	// Tried after the sighting (the hash in any case): the other release is found instead.
@@ -136,7 +137,8 @@ func TestUpgradeFoundClearsAfterAFailedTry(t *testing.T) {
 
 // An RSS sighting does not revive a release that failed since the current file: the feed listing it again keeps it
 // tried, whenever it was read. A listing published after the failure, or one now cached on a library provider after
-// a cache miss, shows it again; a new covering search keeps the rule that only a failure after it counts.
+// a cache miss, shows it again. A new covering search keeps it tried too (a search's failed release is tried whenever
+// it failed: TestUpgradeFoundStaysTriedForASearchThatSawAFailedRelease).
 func TestUpgradeFoundStaysTriedAfterAnRSSResighting(t *testing.T) {
 	t.Parallel()
 	const best = `"release":"Best","info_hash":"aaaa","accepted":true,"upgrade":true,"score":9000`
@@ -176,7 +178,7 @@ func TestUpgradeFoundStaysTriedAfterAnRSSResighting(t *testing.T) {
 		{"cached on a library provider after a miss", miss, []string{`R[{` + best + `,"cached_on":["rd"]}]`}, "upgrade_available"},
 		{"cached elsewhere after a miss", miss, []string{`R[{` + best + `,"cached_on":["pm"]}]`}, "below_cutoff"},
 		{"cached after another failure", other, []string{`R[{` + best + `,"cached_on":["rd"]}]`}, "below_cutoff"},
-		{"a new covering search", miss, []string{`S[{` + best + `}]`}, "upgrade_available"},
+		{"a new covering search", miss, []string{`S[{` + best + `}]`}, "below_cutoff"},
 		// Cache evidence counts only for a provider the release's indexer may go to.
 		{"RD-only indexer cached on AD", miss, []string{`R[{` + best + `,"indexer":"rd-only","cached_on":["ad"]}]`}, "below_cutoff"},
 		{"RD-only indexer cached on RD", miss, []string{`R[{` + best + `,"indexer":"rd-only","cached_on":["rd"]}]`}, "upgrade_available"},
@@ -227,16 +229,62 @@ func TestUpgradeFoundCountsOnlyARealTryWhenItFailed(t *testing.T) {
 	if got := state(); got != "upgrade_available" {
 		t.Fatalf("not started and removal-ended: %s, want upgrade_available", got)
 	}
-	// Failed before the sighting; a later touch of the row (updated_at) does not make it a try since.
+	// Failed before the search's sighting: tried too (corrected in phase Z: a search's failed release is tried
+	// whenever it failed), timed by its History row, so a later touch of the row (updated_at) does not move it.
 	id := fail("miss on every provider", 2000, 2400)
 	e.exec(`UPDATE download SET updated_at = 3000 WHERE id = ?`, id)
-	if got := state(); got != "upgrade_available" {
-		t.Fatalf("failed before the sighting: %s, want upgrade_available", got)
+	s, err := e.web.loadUpgrades(context.Background(), e.st.Reader(), []upgradeVersion{v}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u := s.explain(v, 0); u.State != "below_cutoff" || u.Next == nil || u.Next.TriedAt == nil || u.Next.TriedAt.UnixMilli() != 2400 {
+		t.Fatalf("failed before the sighting: %+v, want below_cutoff tried at 2400", u)
 	}
 	// Started before the sighting, failed after it: tried.
 	fail("miss on every provider", 2400, 2600)
 	if got := state(); got != "below_cutoff" {
 		t.Fatalf("failed after the sighting: %s, want below_cutoff", got)
+	}
+}
+
+// A search that lists a release which already failed for the title and library is no news: the search's own route
+// ran right after it and skipped the known miss; a real retry writes a newer download row, whose result then decides.
+// So for a search record a release with a failed try is tried, at that failure, whether it failed before or after the
+// search and before or after the current file (Conclave: the release failed 56 s before the current file was
+// imported). A release with no failure is found; a candidate without a hash is never tried; an RSS record keeps its
+// own rule (TestUpgradeFoundStaysTriedAfterAnRSSResighting).
+func TestUpgradeFoundStaysTriedForASearchThatSawAFailedRelease(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	// Alpha's current file is from 1000; a search at 2500 sees Best again, no download after it.
+	e.exec(`INSERT INTO journal_decision (source,title_id,version_key,target,created_at,candidates) VALUES
+		('search',1,'movie-remux','movie',2500,'[{"release":"Best","info_hash":"aaaa","accepted":true,"upgrade":true,"score":9000}]')`)
+	v := upgradeVersion{id: 1, titleID: 1, key: "movie-remux", kind: "movie", state: "filled"}
+	explain := func() *UpgradeInfo {
+		t.Helper()
+		s, err := e.web.loadUpgrades(context.Background(), e.st.Reader(), []upgradeVersion{v}, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s.explain(v, 0)
+	}
+	if u := explain(); u.State != "upgrade_available" || u.Next == nil || u.Next.Tried {
+		t.Fatalf("no failure: %+v, want upgrade_available", u)
+	}
+	// Failed before the current file was imported (and so before the search).
+	e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, state, error,
+		created_at, updated_at) VALUES (1, 1, 'movie-remux', 'AAAA', 'r', 'x', 'failed', 'miss on every provider', 900, 944)`)
+	u := explain()
+	if u.State != "below_cutoff" || u.Next == nil || !u.Next.Tried || u.Next.TriedAt == nil || u.Next.TriedAt.UnixMilli() != 944 {
+		t.Fatalf("failed before the file: %+v (next %+v), want below_cutoff, tried at 944", u, u.Next)
+	}
+
+	// A candidate without a hash is never tried, even against a failure stored under an empty key.
+	it := evItem{fileAt: 1000}
+	recs := []evRecord{{at: 2500, search: true, source: "search", target: "movie",
+		cands: []evCand{{Release: "NoHash", Accepted: true, Upgrade: true, Score: 9000}}}}
+	if next, _ := judgeUpgrade(it, recs, map[string]failedTry{"": {at: 900, miss: true}}, nil); next == nil || next.Tried {
+		t.Fatalf("no hash: %+v, want found", next)
 	}
 }
 
