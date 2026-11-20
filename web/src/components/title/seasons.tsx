@@ -602,7 +602,7 @@ function EpisodeRows({ episodes, copies, merged, anime, manage, seeFiles, select
               {manage ? <Check checked={selected.has(e.id)} onChange={(v) => onSelect([e.id], v)} label={`Select episode ${e.number}`} /> : null}
               {/* The name has the first line to itself; number, date, status and quality share the second. */}
               <div className="min-w-0 flex-1">
-                <div className={cn("truncate text-sm font-medium", manage && !e.monitored && "text-muted-foreground")} data-testid="episode-name">{e.name || `Episode ${e.number}`}</div>
+                <div className={cn("text-sm font-medium [overflow-wrap:anywhere] sm:truncate", manage && !e.monitored && "text-muted-foreground")} data-testid="episode-name">{e.name || `Episode ${e.number}`}</div>
                 <RemovedNote e={e} />
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
                   <span className="whitespace-nowrap">

@@ -262,6 +262,17 @@ it("names phone library radios distinctly", async () => {
   expect(screen.getByRole("radio", { name: "Anime" }).getAttribute("aria-checked")).toBe("true");
 });
 
+// T3: text that matters is not cut on a phone: no line clamp or ellipsis below the sm width (desktop keeps it).
+const cutOnPhone = (el: Element) => el.className.split(/\s+/).some((c) => c === "truncate" || /^line-clamp-\d/.test(c));
+
+it("wraps a long episode name in full in the phone list", async () => {
+  vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: episodes }]);
+  renderPage(<Seasons id="1" anime />, "/title/1");
+  const names = await screen.findAllByTestId("episode-name");
+  expect(names.filter(cutOnPhone)).toEqual([]);
+});
+
 it("leaves season settings destinations as text for non-admin managers", async () => {
   mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: { ...episodes, versions: [{ ...episodes.versions[1], control: { ...managed, can_search: false } }] } }]);
   renderPage(<Seasons id="1" anime />, "/title/1");

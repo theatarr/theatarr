@@ -43,6 +43,18 @@ const routes = (permissions: string[]) => [
   { method: "GET", path: "/calendar", reply: { from: day(1), to: day(28), items } },
 ];
 
+// T3: text that matters is not cut on a phone: no line clamp or ellipsis below the sm width (desktop keeps it).
+const cutOnPhone = (el: Element) => el.className.split(/\s+/).some((c) => c === "truncate" || /^line-clamp-\d/.test(c));
+
+it("wraps an agenda line's title, episode and time in full on a phone", async () => {
+  mockFetch(routes(["manage", "see_files"]));
+  renderPage(<CalendarPageView />, "/calendar");
+  await screen.findByText("Gamma");
+  const lines = screen.getAllByTestId("agenda-item").flatMap((a) => [...a.querySelectorAll("div")]);
+  expect(lines.length).toBeGreaterThan(0);
+  expect(lines.filter(cutOnPhone)).toEqual([]);
+});
+
 it("links an episode to its episode window, colours by status and shows the legend", async () => {
   mockFetch(routes(["manage", "see_files"]));
   renderPage(<CalendarPageView />, "/calendar");

@@ -52,6 +52,24 @@ describe("torrents page", () => {
     expect(screen.getByTestId("usage-as-of").textContent).not.toMatch(/same time/);
   });
 
+  it("on a phone shows each row's name and second line in full, and the whole hash, so two copies can be told apart", async () => {
+    mockFetch([
+      { method: "GET", path: "/torrents/report", reply: report },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+      { method: "GET", path: "/status", reply: { versions: [] } },
+    ]);
+    renderPage(<TorrentsPage />);
+    await screen.findByText("Used.Movie");
+    const cut = (el: Element) => el.className.split(/\s+/).some((c) => c === "truncate" || /^line-clamp-\d/.test(c));
+    for (const row of screen.getAllByTestId("torrent-row")) {
+      const second = within(row).getByTestId("torrent-second-line");
+      expect(cut(second)).toBe(false);
+      expect(cut(within(row).getByText(/\.Movie$/))).toBe(false);
+    }
+    // The phone's hash is whole (desktop keeps the 12-character one with the whole as tooltip).
+    expect(screen.getAllByTestId("torrent-hash-full").map((h) => h.textContent).sort()).toEqual([h1, h2]);
+  });
+
   it("a failed copy with a complete copy elsewhere says so under its status and first in the usage hover", async () => {
     const failed = torrent("2", h2, "Used.Movie", "used", { state: "error", status: "error", progress: 0, refs: { link: 1 }, served_by: ["tb"] });
     mockFetch([

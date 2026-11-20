@@ -256,3 +256,25 @@ it("links Grabbed <time> to the grab's journal entry for admins, in the row and 
     cleanup();
   }
 });
+
+// T3: titles and episode ranges are not cut on a phone: no line clamp or ellipsis below the sm width (desktop keeps it).
+const cutOnPhone = (el: Element) => el.className.split(/\s+/).some((c) => c === "truncate" || /^line-clamp-\d/.test(c));
+
+it("wraps a row's title and episodes in full on a phone, in the admin rows and the simple ones", async () => {
+  const series = { id: 2, name: "Saltmarsh Rangers and the Very Long Subtitle of the Northern Coast", year: 2020, kind: "series" };
+  const row = { ...grab, title: series, episodes: ["S02E01", "S02E02", "S02E03", "S02E05", "S02E07", "S02E09"] };
+  for (const as of [undefined, "user" as const]) {
+    mockFetch([
+      { method: "GET", path: "/auth/me", reply: me },
+      { method: "GET", path: "/titles/facets", reply: {} },
+      { method: "GET", path: "/activity", reply: { state: "history", admin: true, history: [row] } },
+    ]);
+    renderPage(<HistoryTab admin as={as} />, "/activity/history");
+    const [got] = await screen.findAllByTestId("history-row");
+    const name = within(got).getAllByText(/Saltmarsh Rangers/)[0];
+    const episodes = got.querySelector('[data-testid="history-episodes"]');
+    expect(episodes).toBeTruthy();
+    expect([name, episodes!].filter(cutOnPhone)).toEqual([]);
+    cleanup();
+  }
+});

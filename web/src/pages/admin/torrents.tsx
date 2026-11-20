@@ -419,12 +419,13 @@ function TorrentRow({ t, checked, onToggle, code }: { t: Torrent; checked: boole
           <TableCell className="px-1 sm:px-3" title={t.provider} data-testid="torrent-provider"><ProviderPills codes={[code]} /></TableCell>
         )}
         <TableCell className="max-w-[32rem] text-[13px]">
-          <div className="line-clamp-2 [overflow-wrap:anywhere]" title={t.raw_name ? `The provider's name: ${t.raw_name}` : t.name}>{t.name}</div>
-          {/* Two lines at most: a parsed list of 291 episodes would make the row a page tall; the whole is the tooltip. */}
-          <div className="line-clamp-2 text-xs text-muted-foreground [overflow-wrap:anywhere]" title={t.parsed || undefined} data-testid="torrent-second-line">
+          <div className="[overflow-wrap:anywhere] sm:line-clamp-2" title={t.raw_name ? `The provider's name: ${t.raw_name}` : t.name}>{t.name}</div>
+          {/* From 640 px two lines at most: a parsed list of 291 episodes would make the row a page tall; the whole is the
+              tooltip. On a phone (no hover) name and line wrap in full, with the whole hash, so two copies differ. */}
+          <div className="text-xs text-muted-foreground [overflow-wrap:anywhere] sm:line-clamp-2" title={t.parsed || undefined} data-testid="torrent-second-line">
             {/* Below 640 px the size sits here, not in its column, so the table fits a phone. */}
             <span className="sm:hidden">{fmtBytes(t.bytes)} · </span>
-            {t.parsed ? `${t.parsed}${t.quality ? ` · ${t.quality}` : ""} · ` : ""}<span className="font-mono text-[12.5px]" title={t.hash} data-testid="torrent-hash">{t.hash.slice(0, 12)}</span>
+            {t.parsed ? `${t.parsed}${t.quality ? ` · ${t.quality}` : ""} · ` : ""}<span className="font-mono text-[12.5px] break-all sm:hidden" data-testid="torrent-hash-full">{t.hash}</span><span className="hidden font-mono text-[12.5px] sm:inline" title={t.hash} data-testid="torrent-hash">{t.hash.slice(0, 12)}</span>
             {t.files >= 0 ? ` · ${t.files} file${t.files === 1 ? "" : "s"}` : ""}
             {t.added_by_theatarr ? " · added by Theatarr" : ""}
           </div>

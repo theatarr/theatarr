@@ -57,7 +57,7 @@ const FILE_EVENTS = new Set(["adopted", "deleted", "removed", "missing"]);
 /** A row's episodes in short, the full list on hover; none when they are only the episode the window is about. */
 function Episodes({ e, except }: { e: ActivityEvent; except?: string }) {
   if (!e.episodes?.length || (except && e.episodes.length === 1 && e.episodes[0] === except)) return null;
-  return <p className="truncate text-xs text-muted-foreground" title={e.episodes.join(" ")} data-testid="history-episodes">{episodesWords(e.episodes)}</p>;
+  return <p className="text-xs text-muted-foreground [overflow-wrap:anywhere] sm:truncate" title={e.episodes.join(" ")} data-testid="history-episodes">{episodesWords(e.episodes)}</p>;
 }
 
 /** A simple row, for household accounts and "View as a user". */
@@ -81,8 +81,8 @@ function EventRow({ e }: { e: ActivityEvent }) {
         </div>
         <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted-foreground">
           {e.title.id ? (
-            <Link to={`/title/${e.title.id}`} className="truncate text-foreground hover:text-primary">{titleName(e)}</Link>
-          ) : <span className="truncate text-foreground">{titleName(e)}</span>}
+            <Link to={`/title/${e.title.id}`} className="text-foreground [overflow-wrap:anywhere] hover:text-primary sm:truncate">{titleName(e)}</Link>
+          ) : <span className="text-foreground [overflow-wrap:anywhere] sm:truncate">{titleName(e)}</span>}
         </div>
         <Episodes e={e} />
       </div>
@@ -221,8 +221,8 @@ function TitleCell({ e }: { e: ActivityEvent }) {
   return (
     <div className="min-w-0">
       {e.title.id ? (
-        <Link to={`/title/${e.title.id}`} className="block truncate font-medium text-[var(--ink)] hover:text-primary">{titleName(e)}</Link>
-      ) : <span className="block truncate font-medium text-[var(--ink)]">{titleName(e)}</span>}
+        <Link to={`/title/${e.title.id}`} className="block font-medium text-[var(--ink)] [overflow-wrap:anywhere] hover:text-primary sm:truncate">{titleName(e)}</Link>
+      ) : <span className="block font-medium text-[var(--ink)] [overflow-wrap:anywhere] sm:truncate">{titleName(e)}</span>}
       <Episodes e={e} />
     </div>
   );

@@ -135,8 +135,9 @@ function AgendaItem({ slot, plain, now }: { slot: Entry[]; plain: boolean; now: 
       <Link to={calendarHref(e)} data-tone={s.tone} className={cn("flex items-center gap-3 px-3 py-2.5 hover:bg-[var(--hover)] sm:px-4", slot.every((x) => !x.monitored) && "opacity-60")} data-testid="agenda-item">
         <img src={e.title.poster} alt="" loading="lazy" decoding="async" className="aspect-[2/3] w-9 shrink-0 rounded-[4px] object-cover ring-1 ring-[var(--line)]" />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-medium text-[var(--ink)]">{e.title.name}</div>
-          <div className="truncate text-xs text-muted-foreground">
+          {/* On a phone the lines wrap in full; from 640 px they end in an ellipsis. */}
+          <div className="text-sm font-medium text-[var(--ink)] [overflow-wrap:anywhere] sm:truncate">{e.title.name}</div>
+          <div className="text-xs text-muted-foreground [overflow-wrap:anywhere] sm:truncate">
             {slot.length > 1 ? foldCode(slot) : e.kind === "episode" ? `${episodeCode(e.season, e.number)}${e.episode ? ` · ${e.episode}` : ""}` : releasesOf(e)}
             {time ? ` · ${time}` : ""}
           </div>
