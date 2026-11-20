@@ -197,7 +197,7 @@ func (w *Web) listTitles(ctx context.Context, f TitleFilter) (TitlePage, error) 
 	}
 	page := TitlePage{Limit: f.Limit, Offset: f.Offset, Items: []TitleRow{}}
 	if f.Provider != "" {
-		f.providerKeys = w.providerKeys(f.Provider)
+		f.providerKeys, f.holds = w.providerKeys(f.Provider), w.providerHolds()
 	}
 	f.withoutKind = w.libraryKind(f.Without)
 	f.clock = newAirClock(w.now())
@@ -324,7 +324,7 @@ func (w *Web) titleRows(ctx context.Context, db *sql.DB, q string, args []any) (
 			vids = append(vids, v.ID)
 		}
 	}
-	vf, err := readVersionFiles(ctx, db, vids)
+	vf, err := w.readVersionFiles(ctx, db, vids)
 	if err != nil {
 		return items, err
 	}

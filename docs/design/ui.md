@@ -474,7 +474,7 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   Added and Last search. The switch column is headed **Monitored**. Quality is the technical name ("WEBDL-2160p").
   Score shows with the matched formats as its tooltip; a file whose score was never recorded (an adopted file
   Theatarr did not score) shows "—" (tooltip "Not scored"), as History does; a recorded 0 stays "0". **Held on** (until 0.4.5.6 "Cached on"; tooltip "Complete torrents on your accounts, as last checked; not necessarily the one playback uses."; release lists keep **Cached on**, what a provider has in its cache) has a
-  pill per debrid provider that holds the file complete now and not failed (RD, AD, TB), adopted files included (found through the
+  pill per debrid provider that holds the file complete now and not failed (RD, AD, TB; TorBox only once downloaded, not at 100% before its files are present), adopted files included (found through the
   hash their link records, else the hash its mount folder points to: torrents.md "Folder hash", display only),
   "—" when none does. For admins a small **Torrent** link beside it (and beside the hash in
   Details) opens Admin › Torrents filtered to the file's torrent (`?q=` the hash's first 12) when the row has one file

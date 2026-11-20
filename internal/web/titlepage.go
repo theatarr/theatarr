@@ -242,7 +242,7 @@ func (w *Web) enrichTitle(ctx context.Context, d *TitleDetail, seeFiles bool) er
 		d.InCinemas, d.DigitalRelease, d.PhysicalRelease = fr["theatrical"], fr["digital"], fr["physical"]
 	}
 	if len(ids) > 0 {
-		vf, err := readVersionFiles(ctx, db, ids)
+		vf, err := w.readVersionFiles(ctx, db, ids)
 		if err != nil {
 			return err
 		}

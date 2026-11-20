@@ -1071,7 +1071,7 @@ func (w *Web) episodeFile(ctx context.Context, db *sql.DB, versionID, eid int64,
 	}
 	f.LinkID, f.Score, f.SizeBytes, f.NoDownload = linkID, nullInt(score), nullInt(size), adopted
 	f.Media = linkMedia(pr, am, adopted, f.ReleaseTitle, true, true)
-	held, err := heldByHash(ctx, db, f.InfoHash)
+	held, err := w.heldByHash(ctx, db, f.InfoHash)
 	if err != nil {
 		return nil, err
 	}

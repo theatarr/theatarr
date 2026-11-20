@@ -256,7 +256,7 @@ func (w *Web) titleFacets(ctx context.Context, f TitleFilter, seeFiles bool) (Ti
 		titles := map[string]map[int64]bool{}
 		err := scanAll(ctx, db, `SELECT DISTINCT cp.provider AS p, t.id AS tid`+titleFrom+` JOIN link l ON l.title_id = t.id
 				JOIN `+heldJoin+
-			andWhere(where, "l.state = 'active' AND "+liveLink+" AND "+providerHolds), args, func(r *sql.Rows) error {
+			andWhere(where, "l.state = 'active' AND "+liveLink+" AND "+w.providerHolds()), args, func(r *sql.Rows) error {
 			var p string
 			var tid int64
 			if err := r.Scan(&p, &tid); err != nil {

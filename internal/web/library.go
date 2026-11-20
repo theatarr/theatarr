@@ -65,6 +65,9 @@ type TitleGridFilter struct {
 	// providerKeys are the provider keys Provider stands for (providerKeys: a cache code's keys); listTitles sets
 	// them. Empty: Provider itself.
 	providerKeys []string
+	// holds is the condition that a provider holds a file's content now (Web.providerHolds); listTitles sets it with
+	// providerKeys.
+	holds string
 }
 
 var (
@@ -115,7 +118,25 @@ const linkScoreSQL = `CASE WHEN json_valid(l.file_metadata) AND (json_type(l.fil
 // and downloaded there (progress 100; the provider sync stores every provider's progress as 0-100) and not in the
 // error state (a failed copy can keep progress 100; the Torrents page counts it failed too, torrents.Report servedBy).
 // A torrent still downloading or never finished is not counted; a row with an empty state counts by its progress.
-const providerHolds = `(cp.progress >= 100 AND cp.state <> '` + string(provider.StateError) + `')`
+// A TorBox account counts only in the downloaded state: TorBox can report 100% before its files are present
+// (download_present false, which provider.tbState keeps as downloading).
+func (w *Web) providerHolds() string {
+	cond := `(cp.progress >= 100 AND cp.state <> '` + string(provider.StateError) + `'`
+	var tb []string
+	if w.pol != nil {
+		for k, p := range w.pol.Providers {
+			if p != nil && p.Kind == provider.KindTorBox {
+				tb = append(tb, `'`+strings.ReplaceAll(k, `'`, `''`)+`'`)
+			}
+		}
+	}
+	if len(tb) > 0 {
+		slices.Sort(tb)
+		cond += ` AND (cp.state = '` + string(provider.StateDownloaded) + `' OR cp.provider NOT IN (` +
+			strings.Join(tb, ", ") + `))`
+	}
+	return cond + `)`
+}
 
 // heldJoin joins link l to the torrents of its hash (linkShownHashSQL, as linkHashSQL: with the folder hash) in the
 // record as cp (providerHolds).
@@ -398,14 +419,14 @@ func qualityCond(match string) string {
 		` AND l.quality ` + match + `)`
 }
 
-// hasProvider is the same for a debrid provider holding the file's content now (providerHolds), with n provider
+// hasProvider is the same for a debrid provider holding the file's content now (holds: Web.providerHolds), with n provider
 // keys as arguments, over the versions in the library. An active link's torrent is its hash (heldJoin), as
 // currentFiles and the provider facet read it.
-func hasProvider(n int) string {
+func hasProvider(n int, holds string) string {
 	in := store.Placeholders(n)
 	// CROSS JOIN keeps the title's links as the outer loop: without statistics SQLite would otherwise scan the
 	// provider's rows for every title.
-	return `EXISTS (SELECT 1 FROM link l CROSS JOIN ` + heldJoin + ` WHERE l.title_id = t.id AND l.state = 'active' AND ` + liveLink + ` AND ` + providerHolds + `
+	return `EXISTS (SELECT 1 FROM link l CROSS JOIN ` + heldJoin + ` WHERE l.title_id = t.id AND l.state = 'active' AND ` + liveLink + ` AND ` + holds + `
 		AND cp.provider IN (` + in + `))`
 }
 
@@ -447,7 +468,7 @@ func (g TitleGridFilter) where(conds []string, args []any) ([]string, []any) {
 		if len(keys) == 0 {
 			keys = []string{g.Provider}
 		}
-		conds = append(conds, hasProvider(len(keys)))
+		conds = append(conds, hasProvider(len(keys), g.holds))
 		for _, k := range keys {
 			args = append(args, k)
 		}
@@ -861,7 +882,7 @@ type versionFiles struct {
 
 // readVersionFiles reads the current files of versions ids: their active links, the links' episodes and the
 // providers that hold the links' torrents now (heldByHash; a link's torrent is its hash, linkHashSQL).
-func readVersionFiles(ctx context.Context, db *sql.DB, ids []any) (*versionFiles, error) {
+func (w *Web) readVersionFiles(ctx context.Context, db *sql.DB, ids []any) (*versionFiles, error) {
 	vf := &versionFiles{aggs: map[int64][]fileAgg{}, provs: map[int64][]string{}, items: map[int64]map[int64]itemFile{},
 		held: map[[2]int64]bool{}}
 	if len(ids) == 0 {
@@ -911,7 +932,7 @@ func readVersionFiles(ctx context.Context, db *sql.DB, ids []any) (*versionFiles
 			return nil, err
 		}
 	}
-	holders, err := heldByHash(ctx, db, hashes...)
+	holders, err := w.heldByHash(ctx, db, hashes...)
 	if err != nil {
 		return nil, err
 	}
@@ -960,7 +981,7 @@ func readVersionFiles(ctx context.Context, db *sql.DB, ids []any) (*versionFiles
 
 // heldByHash lists, by lower-case hash, the providers that hold each torrent complete now (providerHolds): Cached on
 // of a file whose hash is resolved (linkHashSQL).
-func heldByHash(ctx context.Context, db *sql.DB, hashes ...string) (map[string][]string, error) {
+func (w *Web) heldByHash(ctx context.Context, db *sql.DB, hashes ...string) (map[string][]string, error) {
 	out := map[string][]string{}
 	var args []any
 	seen := map[string]bool{}
@@ -974,7 +995,7 @@ func heldByHash(ctx context.Context, db *sql.DB, hashes ...string) (map[string][
 		return out, nil
 	}
 	err := scanAll(ctx, db, `SELECT DISTINCT cp.info_hash, cp.provider FROM provider_torrent cp
-		WHERE cp.info_hash IN (`+store.Placeholders(len(args))+`) AND `+providerHolds+` ORDER BY 1, 2`, args,
+		WHERE cp.info_hash IN (`+store.Placeholders(len(args))+`) AND `+w.providerHolds()+` ORDER BY 1, 2`, args,
 		func(r *sql.Rows) error {
 			var h, p string
 			if err := r.Scan(&h, &p); err != nil {

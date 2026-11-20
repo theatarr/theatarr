@@ -148,7 +148,7 @@ references, also those past the listed 20, read with the references themselves (
 - **failed** (the provider's error states), **stalled** (queued or downloading for over a day), **largest** (25).
 
 A failed torrent that library links reference carries `served_by`: the cache codes (rd, ad, tb) of the other torrents
-of its hash (compared lower case) in the report that are complete (progress 100 and not in an error state, as Cached on counts a provider). It
+of its hash (compared lower case) in the report that are complete (progress 100 and not in an error state, and on TorBox downloaded, as Cached on counts a provider; TorBox can report 100% before its files are present). It
 says only what the record shows, not which copy the mount plays; a torrent that matches only by folder name gets
 none. Usage, groups, delete rules and override tokens do not change.
 
@@ -356,7 +356,7 @@ download client), right after the import's commit, the library tells the torrent
 in `cmd/theatarr/serve.go`; `internal/torrents` imports `internal/library`, so it is a hook). `Manager.QueueAutoCopy`
 queues job `torrents.copy` (`auto`, by `auto`, key `torrents.copy.auto/<hash>`) for exactly the other providers with a
 key and the switch on that have live cached evidence for the hash (`provider_cache` state `cached`, not expired: DMM's
-lists and availability, TorBox's check, an earlier add) and do not hold it complete in the record. No evidence, nothing
+lists and availability, TorBox's check, an earlier add) and do not hold it complete in the record (on TorBox: downloaded, not only at 100%). No evidence, nothing
 queued: the automatic path never tries an add of something not known cached; the button is there for that. Nothing is
 queued while Pause is on (or the router is off), and a queued one that runs while paused ends `skipped` ("paused"). The
 job is the button's, but an account at the torrent-limit warning share of its limit (`TorrentLimitWarnPercent` of

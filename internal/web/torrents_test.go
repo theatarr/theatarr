@@ -269,6 +269,27 @@ func TestTorrentCopyAPI(t *testing.T) {
 			t.Errorf("movie-remux: cached_on %v add_to %v", v.CachedOn, v.AddTo)
 		}
 	}
+	// TorBox at 100% without its files present (download_present false: the record keeps it downloading) holds no
+	// complete copy: not Held on TB, not under the TB provider filter, and TB is still a place to add it.
+	e.exec(`UPDATE provider_torrent SET state = 'downloading' WHERE provider = 'tb'`)
+	title.Versions = nil
+	if code := e.getKey(APIBase+"/titles/1", key, &title); code != 200 {
+		t.Fatalf("title: %d", code)
+	}
+	for _, v := range title.Versions {
+		if v.Key == "movie-remux" && (len(v.CachedOn) != 0 || strings.Join(v.AddTo, ",") != "rd,tb") {
+			t.Errorf("movie-remux, tb not downloaded: cached_on %v add_to %v", v.CachedOn, v.AddTo)
+		}
+	}
+	var onTB TitlePage
+	if code := e.getKey(APIBase+"/titles?provider=tb", key, &onTB); code != 200 || len(onTB.Items) != 0 {
+		t.Errorf("provider filter, tb not downloaded: %d %s", code, names(onTB))
+	}
+	e.exec(`UPDATE provider_torrent SET state = 'downloaded' WHERE provider = 'tb'`)
+	onTB = TitlePage{}
+	if code := e.getKey(APIBase+"/titles?provider=tb", key, &onTB); code != 200 || names(onTB) != "Alpha" {
+		t.Errorf("provider filter, tb downloaded: %d %s", code, names(onTB))
+	}
 	mgr, _, err := e.auth.CreateKey(context.Background(), "copy-manager",
 		e.account("copy-manager", auth.RoleManager, auth.StatusActive, false))
 	if err != nil {

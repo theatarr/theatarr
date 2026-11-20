@@ -249,7 +249,7 @@ func seriesUpgrades(t *testing.T, e *manageEnv) (map[int64]bool, int) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	vf, err := readVersionFiles(context.Background(), e.st.Reader(), []any{int64(10)})
+	vf, err := e.web.readVersionFiles(context.Background(), e.st.Reader(), []any{int64(10)})
 	if err != nil {
 		t.Fatal(err)
 	}

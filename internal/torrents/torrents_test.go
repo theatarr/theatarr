@@ -1564,11 +1564,16 @@ func TestReportServedBy(t *testing.T) {
 	failedFull := tor("13", hD, "Movie.D.2018.1080p", 100, old, provider.StateError)
 	failedFull.Progress = 100
 	e.rd.list = append(e.rd.list, tor("4", hD, "Movie.D.2018.1080p", 100, old, provider.StateError))
-	e.tb.list = []provider.Torrent{complete, incomplete, cC, failedFull}
-	for _, h := range []string{hA, hB, hD} {
+	// rd 5's other copy is TorBox at 100% without its files present (download_present false, kept downloading): not
+	// a complete copy.
+	notPresent := tor("14", hE, "Movie.E.2017.1080p", 100, old, provider.StateDownloading)
+	notPresent.Progress = 100
+	e.rd.list = append(e.rd.list, tor("5", hE, "Movie.E.2017.1080p", 100, old, provider.StateError))
+	e.tb.list = []provider.Torrent{complete, incomplete, cC, failedFull, notPresent}
+	for _, h := range []string{hA, hB, hD, hE} {
 		e.content(h, 1)
 	}
-	for _, h := range []string{hA, hB, hD} {
+	for _, h := range []string{hA, hB, hD, hE} {
 		var file int64
 		if err := e.st.Reader().QueryRow(`SELECT f.id FROM content_file f JOIN content c ON c.id = f.content_id
 			WHERE c.info_hash = ?`, h).Scan(&file); err != nil {
@@ -1592,6 +1597,9 @@ func TestReportServedBy(t *testing.T) {
 	}
 	if got := find(r, "rd", "4").ServedBy; got != nil {
 		t.Errorf("rd 4's other copy is failed: served by %v", got)
+	}
+	if got := find(r, "rd", "5").ServedBy; got != nil {
+		t.Errorf("rd 5's other copy is on TorBox without its files: served by %v", got)
 	}
 	if got := find(r, "tb", "10").ServedBy; got != nil {
 		t.Errorf("a complete copy is not failed: served by %v", got)

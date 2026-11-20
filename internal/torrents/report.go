@@ -202,7 +202,7 @@ func (m *Manager) Report(ctx context.Context) (*Report, error) {
 		pr.NearLimit = policy.NearTorrentLimit(pr.AccountTorrents, pr.Limit)
 		r.Providers = append(r.Providers, pr)
 	}
-	r.servedBy(m.cacheCode)
+	r.servedBy(m.cacheCode, m.complete)
 	m.addTo(r)
 	r.group()
 	return r, nil
@@ -216,13 +216,21 @@ func (m *Manager) cacheCode(key string) string {
 	return key
 }
 
+// complete reports whether provider account key holds a torrent of this progress and state complete: progress 100
+// and not failed, and on TorBox downloaded (TorBox can report 100% before its files are present, download_present
+// false, which provider.tbState keeps as downloading).
+func (m *Manager) complete(key string, progress float64, state provider.State) bool {
+	return progress >= 100 && state != provider.StateError &&
+		(state == provider.StateDownloaded || m.kind(key) != provider.KindTorBox)
+}
+
 // addTo sets AddTo on each torrent with a v1 hash: the codes of CopyTargets for the providers that hold its hash
-// complete (progress 100, not failed) in the record.
+// complete (complete: progress 100, not failed, on TorBox downloaded) in the record.
 func (m *Manager) addTo(r *Report) {
 	held := map[string][]string{}
 	for _, pr := range r.Providers {
 		for _, t := range pr.Torrents {
-			if t.Progress >= 100 && t.State != provider.StateError && !slices.Contains(held[t.Hash], pr.Provider) {
+			if m.complete(pr.Provider, t.Progress, t.State) && !slices.Contains(held[t.Hash], pr.Provider) {
 				held[t.Hash] = append(held[t.Hash], pr.Provider)
 			}
 		}
@@ -247,14 +255,14 @@ func (m *Manager) addTo(r *Report) {
 }
 
 // servedBy sets ServedBy on each failed torrent with library-link references: the codes (code) of the other
-// torrents of its hash that are complete: progress 100 and not in an error state.
-func (r *Report) servedBy(code func(key string) string) {
+// torrents of its hash that are complete (complete: progress 100, not in an error state, on TorBox downloaded).
+func (r *Report) servedBy(code func(key string) string, complete func(key string, progress float64, state provider.State) bool) {
 	type at struct{ p, i int }
-	complete := map[string][]at{}
+	full := map[string][]at{}
 	for p := range r.Providers {
 		for i, t := range r.Providers[p].Torrents {
-			if t.Progress >= 100 && t.State != provider.StateError {
-				complete[t.Hash] = append(complete[t.Hash], at{p, i})
+			if complete(r.Providers[p].Provider, t.Progress, t.State) {
+				full[t.Hash] = append(full[t.Hash], at{p, i})
 			}
 		}
 	}
@@ -266,7 +274,7 @@ func (r *Report) servedBy(code func(key string) string) {
 				continue
 			}
 			var codes []string
-			for _, x := range complete[t.Hash] {
+			for _, x := range full[t.Hash] {
 				if x == (at{p, i}) {
 					continue
 				}
