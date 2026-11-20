@@ -62,7 +62,7 @@ export function undatedUpcoming(t: (Pick<TitleRow, "kind" | "release_date" | "ho
 }
 
 /** The day a status shows (upcomingRelease's): "Mar 18, 2027", or "~Mar 18, 2027 (estimate)" when it is the home
- *  release worked out as the cinema date plus 90 days (no digital or disc date known). */
+ *  release worked out as the first cinema run anywhere plus 90 days (no digital or disc date known). */
 export function statusDay(t: Pick<TitleRow, "kind" | "home_release"> & Partial<Pick<TitleRow, "digital_release" | "physical_release">>, d: string): string {
   const estimate = t.kind === "movie" && !!t.home_release && t.home_release.slice(0, 10) === d.slice(0, 10) && !t.digital_release && !t.physical_release;
   return estimate ? `~${fmtDay(d)} (estimate)` : fmtDay(d);

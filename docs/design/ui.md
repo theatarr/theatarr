@@ -72,7 +72,7 @@ calls them. The UI shares two things with them (§3, §6): the add path (`catalo
   switch to Plex Sans). The primitives (button, input, select, switch, checkbox, chip, tag, table, dialog, sheet,
   tabs, toast, skeleton, empty state) live in `web/src/components/ui`. Toasts stack above every dialog and sheet (z-[95]; dialogs and sheets are z-[70] to z-[85],
   the skip link z-[100]), so a grab's "Grab started" or "Not sent" shows over Interactive search; the stack
-  lets clicks through and each toast takes its own. While any modal is open (`lib/modal-stack.ts` modalOpen) the stack
+  lets clicks through and each toast takes its own. While any modal is open (`lib/modal-stack.ts` `topModal`) the stack
   moves to the top of the screen (centred from sm up, clear of a side sheet). On a phone (`toastTop`, measured) it sits
   above the top modal, over the backdrop, when the stack and its margins fit there (a short, bottom-aligned
   confirmation), else just below the modal's header row (the row with its Close), so no toast lies over a dialog's
@@ -441,7 +441,7 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   episodes ready"; "Not available yet", or "Getting ready" without See files while a download is in hand; a movie
   missing one of its copies is still ready), audio languages, a
   synopsis cut to three lines with More, and the primary action beside the title: **Add to another library** (add;
-  **Monitor again** when every library that fits has the title, some not monitored; no action at all
+  **Monitor** when every library that fits has the title, some not monitored; no action at all
   when every library that fits has it monitored, nor while the add options load), else **Request** / **View
   request** (request). On phones that action also sticks above the bottom tabs; with no action nothing is pinned
   there.
@@ -479,7 +479,7 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   "—" when none does. For admins a small **Torrent** link beside it (and beside the hash in
   Details) opens Admin › Torrents filtered to the file's torrent (`?q=` the hash's first 12) when the row has one file
   with a known hash; a series row of several files has none (the episode window has it per episode). A fact the file does not have is blank, never 0.
-  **Status:** a download in hand and no file reads its stage ("Downloading · 37%", "Waiting for mount", "Blocked"),
+  **Status:** a download in hand and no file reads its stage ("Downloading · 37%", "Waiting for the mount", "Blocked"),
   linked to Activity; a movie without a file "Not monitored", "Upcoming · home release Jan 14" ("home release" only when the
   home release supplied the day, not TMDb's date standing in; not out at home yet, the posters'
   rule) or "Missing"; a held movie "Available" with the quality word beside it (Upgrade found, Preferred quality not
@@ -775,7 +775,7 @@ TMDb id. Global search reads "Search movies, series and anime"; below the `sm` w
 `internal/web/copies.go`). A library holds one rendition of a title; its monitoring
 can be changed. Its **coverage** is the episodes it holds against those aired (a
 movie copy is held or not), and its **acquisition** is one summary of the downloads in hand for it, in stages:
-Queued, Starting, Downloading N %, Download complete, Waiting for mount, Linking, Blocked ("Upgrade …" when the
+Queued, Starting, Downloading N %, Download complete, Waiting for the mount, Linking, Blocked ("Upgrade …" when the
 copy keeps a file meanwhile). Every stage links to Activity (`?show=downloading`, `waiting`, `attention` for Blocked).
 
 **Library names**: one rule, on the server (`internal/policy/names.go` `LibraryNames`), for every account and screen. A

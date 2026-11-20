@@ -100,16 +100,17 @@ func lastAttempts(ctx context.Context, db *sql.DB, ids []int64) (map[int64][]jou
 // maxReason caps a failure's headline when it is the stored text itself (failureWords' last rule), in characters.
 const maxReason = 120
 
-// shortReason is a download's failure in plain words (failureWords' headline) from its stored error alone, with the
-// provider named by its key in upper case: "miss on every provider" reads "No provider accepted this release".
-func shortReason(err, provider string) string {
-	return failureHeadline(err, provider, nil)
+// shortReason is a download's failure in plain words (failureWords' headline) from its stored error alone, with a
+// provider named by tag (Web.providerTag: RD, AD, TB): "miss on every provider" reads "No provider accepted this
+// release".
+func shortReason(err, provider string, tag func(string) string) string {
+	return failureHeadline(err, provider, nil, tag)
 }
 
 // failureHeadline is shortReason with the cache codes of the providers the download's attempts found it not cached
 // on: "Not cached on RD, AD and TB".
-func failureHeadline(err, provider string, missed []string) string {
-	h, _ := failureWords(failureFacts{Err: err, Provider: provider, MissedOn: missed}, strings.ToUpper)
+func failureHeadline(err, provider string, missed []string, tag func(string) string) string {
+	h, _ := failureWords(failureFacts{Err: err, Provider: provider, MissedOn: missed}, tag)
 	return h
 }
 
@@ -748,7 +749,7 @@ func (w *Web) releaseOutcomesCurrent(ctx context.Context, db *sql.DB, titleID in
 		case d.state == "failed":
 			// The newest attempt's failure, over an older import's replacement.
 			as := answers[d.id]
-			o.Outcome, o.Reason = "failed", failureHeadline(d.err, d.provider, w.attemptMisses(as))
+			o.Outcome, o.Reason = "failed", failureHeadline(d.err, d.provider, w.attemptMisses(as), w.providerTag)
 			for _, a := range as {
 				o.Attempts = append(o.Attempts, ReleaseAttempt{Provider: w.providerTag(a.Provider), Outcome: a.Outcome, Code: a.Code,
 					Message: a.Message})
@@ -919,7 +920,7 @@ func searchSummary(dls []runDownload, pick int, current map[int64]bool, cands []
 		}
 	case "failed":
 		s += " → failed"
-		if r := shortReason(d.err, d.provider); r != "" {
+		if r := shortReason(d.err, d.provider, provider); r != "" {
 			s += " (" + r + ")"
 		}
 	}

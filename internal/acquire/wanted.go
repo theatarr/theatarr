@@ -85,8 +85,8 @@ type WantedRow struct {
 	// Date is the row's air or release date, YYYY-MM-DD: the newest stored air date of its episodes, a film's home
 	// release (availability.HomeRelease); absent when unknown. Episodes counts a season row's episodes.
 	Date string `json:"date,omitempty"`
-	// DateEstimate: a film's Date is its home release worked out as the cinema date plus 90 days (no digital or disc
-	// date known), as the title pages mark it.
+	// DateEstimate: a film's Date is its home release worked out as the first cinema run anywhere plus 90 days (no
+	// digital or disc date known), as the title pages mark it.
 	DateEstimate bool       `json:"date_estimate,omitempty"`
 	Episodes     int        `json:"episodes,omitempty"`
 	NextAt       *time.Time `json:"next_at"`

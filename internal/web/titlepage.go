@@ -126,9 +126,9 @@ const redownloadSQL = `(EXISTS (SELECT 1 FROM history x, json_each(COALESCE(x.re
 
 // downloadEvents appends a Theatarr download's events: grabbed, then imported or failed; a download that was never
 // tried (notStarted, notStartedCol) ends with not_started and Activity's words as the reason, not failed. h carries
-// the release fields; run is the acquire run of an acquire:<run> source.
+// the release fields; run is the acquire run of an acquire:<run> source; tag names a provider (Web.providerTag).
 func downloadEvents(out []HistoryEvent, h HistoryEvent, state string, created, done int64, source, errText string,
-	notStarted bool, run *runOrigin) []HistoryEvent {
+	notStarted bool, run *runOrigin, tag func(string) string) []HistoryEvent {
 	h.Provider = h.Source
 	if h.Source == "" {
 		h.Source = "theatarr"
@@ -151,7 +151,7 @@ func downloadEvents(out []HistoryEvent, h HistoryEvent, state string, created, d
 		if r := activity.NotStarted(errText); notStarted && r != "" {
 			h.Event, h.Date, h.Reason = "not_started", ts(done), activity.NotStartedHistory(r)
 		} else {
-			h.Event, h.Date, h.Reason, h.MissedOn, h.Upgrade = "failed", ts(done), failureHeadline(errText, h.Provider, missed), missed, upgrade
+			h.Event, h.Date, h.Reason, h.MissedOn, h.Upgrade = "failed", ts(done), failureHeadline(errText, h.Provider, missed, tag), missed, upgrade
 		}
 		out = append(out, h)
 	}
@@ -422,7 +422,7 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 				}
 			}
 			h.Score, h.DownloadID, h.Upgrade = &score, dlID, upgrade
-			v.History = downloadEvents(v.History, h, state, created, done, source, errText, notStarted, run)
+			v.History = downloadEvents(v.History, h, state, created, done, source, errText, notStarted, run, w.providerTag)
 			if last := &v.History[len(v.History)-1]; last.Event == "upgraded" {
 				last.Redownload = redownload
 			}

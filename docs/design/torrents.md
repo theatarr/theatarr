@@ -32,7 +32,7 @@ what the accounts hold (K9: Saved inventory and its per-hash table were merged i
   read time in the same commit that clears its registry rows, so the new account reads "never read" until a sync
   lists it.
 - **Read by** everything that asks what an account holds: the router's ownership guards (cached-only delete, the
-  stall delete, the restore's retry) and torrent reuse, Cached on pills, filters and facets, Now playing's
+  stall delete, the restore's retry) and torrent reuse, Held on pills, filters and facets, Now playing's
   providers, mount relinking by folder name, the import's folder names and the content states of the provider sync.
 - **Never read** (`never_read`, no `as_of`): the account has had no successful complete listing since the record
   exists (on an upgrade, until the first sync after it). That is not an empty account, which has an `as_of` and no
@@ -75,7 +75,7 @@ configured (and a link is known only by its folder), decypharr's index on decyph
 nothing (an unread account could hold a second hash for the folder). Only rows whose value changes are written, in
 the usage's transaction; a relinked or re-adopted file is corrected by the next pass. A folder match is an inference,
 not proof (folder names are aliases), so the folder hash is for display only: the screens' hash readers (`linkHashSQL`,
-`heldJoin` in `internal/web`: Cached on, the provider pills, the provider filter and facet, the file's hash and its
+`heldJoin` in `internal/web`: Held on, the provider pills, the provider filter and facet, the file's hash and its
 **Torrent** link) use it as their last fallback. The usage index, removal (which torrents a Remove deletes or keeps),
 `router.HoldsHash` and every other reader of `router.LinkStoredHashSQL` never read it.
 
@@ -148,7 +148,7 @@ references, also those past the listed 20, read with the references themselves (
 - **failed** (the provider's error states), **stalled** (queued or downloading for over a day), **largest** (25).
 
 A failed torrent that library links reference carries `served_by`: the cache codes (rd, ad, tb) of the other torrents
-of its hash (compared lower case) in the report that are complete (progress 100 and not in an error state, and on TorBox downloaded, as Cached on counts a provider; TorBox can report 100% before its files are present). It
+of its hash (compared lower case) in the report that are complete (progress 100 and not in an error state, and on TorBox downloaded, as Held on counts a provider; TorBox can report 100% before its files are present). It
 says only what the record shows, not which copy the mount plays; a torrent that matches only by folder name gets
 none. Usage, groups, delete rules and override tokens do not change.
 

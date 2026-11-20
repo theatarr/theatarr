@@ -23,7 +23,7 @@ func TestShortReason(t *testing.T) {
 		{"library: no file passed the sample guard", "rd", "Not imported: no file passed the library's checks"},
 		{"", "rd", ""},
 	} {
-		if got := shortReason(c.err, c.provider); got != c.want {
+		if got := shortReason(c.err, c.provider, strings.ToUpper); got != c.want {
 			t.Errorf("shortReason(%q, %q) = %q, want %q", c.err, c.provider, got, c.want)
 		}
 	}
@@ -851,9 +851,27 @@ func TestEpisodePendingManualChoice(t *testing.T) {
 func TestTitlePageMissReason(t *testing.T) {
 	t.Parallel()
 	evs := downloadEvents(nil, HistoryEvent{Source: "rd", MissedOn: []string{"rd", "tb"}}, "failed", 0, 0, "wanted",
-		"miss on every provider", false, nil)
+		"miss on every provider", false, nil, strings.ToUpper)
 	if last := evs[len(evs)-1]; last.Event != "failed" || last.Reason != "Not cached on RD and TB" {
 		t.Errorf("title page failure %+v", last)
+	}
+}
+
+// TestFailureNamesProviderByTag: a failure names a provider account by its tag (Web.providerTag: rd_main, a
+// Real-Debrid account, reads RD), in Last search as in Activity, not by its key in upper case.
+func TestFailureNamesProviderByTag(t *testing.T) {
+	t.Parallel()
+	tag := func(k string) string {
+		if k == "rd_main" {
+			return "RD"
+		}
+		return strings.ToUpper(k)
+	}
+	dls := []runDownload{{id: 1, hash: "aa", release: "Alpha.2020.1080p.WEB-GRP", provider: "rd_main", state: "failed",
+		err: "a failed copy is on the account (rd_main); an admin can delete it under Torrents"}}
+	if got := searchSummary(dls, 0, nil, nil, nil, "done", "", tag); !strings.HasSuffix(got,
+		" via RD → failed (A failed copy is on RD)") {
+		t.Errorf("summary %q", got)
 	}
 }
 
