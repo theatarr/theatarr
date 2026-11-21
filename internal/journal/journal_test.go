@@ -1173,3 +1173,61 @@ func TestMergedSearchWhy(t *testing.T) {
 		t.Fatalf("root without a stored search: %+v", g.Reasoning)
 	}
 }
+
+// Anime packs of several seasons (C17): a stored named claim is read by its seasons, so neither of its name forms is
+// flagged unparseable or as the wrong season; the size check and the median spread a download's bytes over the pack's
+// full claimed episodes, not the episodes it was narrowed to; a recognised pack without a claim (its full coverage
+// unknown) is left out of both.
+func TestPackChecks(t *testing.T) {
+	e := newEnv(t)
+	base := testNow.Add(-40 * 24 * time.Hour)
+	for i := range 20 {
+		e.dlEvent(int64(1000+i), "imported", base.Add(time.Duration(i)*time.Hour), 2, 4, "movie-remux",
+			fmt.Sprintf("%040d", i), "Beta.Story.2021.2160p.WEB-DL-G", "WEBDL-2160p", 1000, 20<<30, nil, "")
+	}
+	now := msOf(testNow)
+	e.exec(`INSERT INTO title (id, kind, name, year, tvdb_id, series_type, runtime_minutes, original_language,
+		created_at, updated_at) VALUES (5, 'series', 'Kaiju Tale', 2019, 505, 'anime', 50, 'Japanese', ?, ?)`, now, now)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (5, 5, 'tv-2160p', ?, ?)`, now, now)
+	var all []int64
+	for s := 1; s <= 2; s++ {
+		for n := 1; n <= 9; n++ {
+			id := int64(5000 + s*100 + n)
+			all = append(all, id)
+			e.exec(`INSERT INTO episode (id, title_id, season, number, runtime_minutes, created_at, updated_at)
+				VALUES (?, 5, ?, ?, 50, ?, ?)`, id, s, n, now, now)
+		}
+	}
+	claim, _ := json.Marshal(decide.EpisodeMap{Pack: &decide.PackClaim{Mode: decide.PackSeasons, Seasons: []int{1, 2}, Episodes: all}})
+	// 18 episodes of 50 min at about 170 MB/min: an ordinary size for the whole pack, narrowed to two episodes.
+	size := int64(18 * 50 * 170 << 20)
+	for i, name := range []string{"[G] Kaiju Tale (Season 1+2) [BD 2160p]", "[G] Kaiju Tale Seasons 1-2 [WEB-DL 2160p]"} {
+		id := int64(70 + i)
+		e.dlEvent(id, "added", base.Add(time.Duration(30+i)*time.Hour), 5, 5, "tv-2160p", fmt.Sprintf("%040d", id), name,
+			"WEBDL-2160p", 100, size, []int64{5201, 5202}, "")
+		e.exec(`UPDATE download SET episode_map = ? WHERE id = ?`, string(claim), id)
+	}
+	// A standard pack of two seasons narrowed to two episodes, no claim: left out.
+	e.dlEvent(80, "added", base.Add(40*time.Hour), 3, 3, "tv-2160p", fmt.Sprintf("%040d", 80),
+		"Gamma.S01-S02.2160p.WEB-DL-X", "WEBDL-2160p", 100, 40<<30, []int64{201, 202}, "")
+	for _, id := range []string{"dl:70", "dl:71", "dl:80"} {
+		en := e.get(id)
+		for _, code := range []string{CheckUnparsed, CheckEpisodes, CheckSize} {
+			if f := hasFlag(en, code); f != nil {
+				t.Errorf("%s (%s): flagged %s: %s", id, en.Release.Title, code, f.Reason)
+			}
+		}
+	}
+	stats, err := e.j.computeSizes(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range stats.byQuality["webdl-2160p"] {
+		if v < 160 || v > 180 {
+			t.Errorf("median input %.1f MB/min: a narrowed pack counted by its narrowed episodes", v)
+		}
+	}
+	if n := len(stats.byQuality["webdl-2160p"]); n != 22 {
+		t.Errorf("median inputs %d, want 22 (20 grabs and the two claimed packs)", n)
+	}
+}

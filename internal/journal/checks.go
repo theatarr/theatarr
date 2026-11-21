@@ -126,6 +126,9 @@ func (b *builder) checkSeriesName(e *Entry, ti *titleInfo, name string) {
 	var p *sonarr.ParsedEpisodeInfo
 	if ti.t.SeriesType == "anime" {
 		p = sonarr.ParseTitle(name)
+		if named, _, _, ok := indexer.AnimePackSeasons(name); ok && e.f.pack != nil && e.f.pack.Mode == decide.PackSeasons {
+			p = sonarr.ParseTitle(named) // a stored named claim: the span phrase read as its first season, as decided
+		}
 	} else {
 		p = decide.ParseSeriesRelease(context.Background(), name) // with the complete-series reading
 	}
@@ -274,6 +277,12 @@ func (b *builder) checkSize(e *Entry, ti *titleInfo) error {
 		return nil
 	}
 	eps := e.f.episodeIDs
+	if ti.t.Kind == "series" && len(eps) > 0 {
+		var ok bool
+		if eps, ok = packCoverage(r.Title, eps, e.f.pack); !ok {
+			return nil
+		}
+	}
 	minutes := ti.runtimeMinutes(eps)
 	if ti.t.Kind == "series" && len(eps) == 0 {
 		minutes = 0
@@ -310,6 +319,23 @@ func (b *builder) checkSize(e *Entry, ti *titleInfo) error {
 		e.flag(CheckSize, SevWarn, "large: %s", what)
 	}
 	return nil
+}
+
+// packCoverage is the episodes a series download's bytes are spread over: a stored pack claim's full episode list
+// (the download may have been narrowed to some of them), else the episodes it was filed under. ok is false for a
+// recognised pack without a claim (a season pack, a span or a complete-series name): its download may be narrowed
+// and its full coverage is unknown, so the size check and the median leave it out.
+func packCoverage(release string, eps []int64, claim *decide.PackClaim) ([]int64, bool) {
+	if claim != nil && len(claim.Episodes) > 0 {
+		return claim.Episodes, true
+	}
+	if _, _, _, ok := indexer.AnimePackSeasons(release); ok || indexer.HoldsSeasons(release) {
+		return nil, false
+	}
+	if p := decide.ParseSeriesRelease(context.Background(), release); p != nil && p.FullSeason {
+		return nil, false
+	}
+	return eps, true
 }
 
 // expectedLanguages is what the version wants: the profile's language (original: the title's), else English and
@@ -583,19 +609,30 @@ func (j *Journal) computeSizes(ctx context.Context) (*sizeStats, error) {
 		k := strings.ToLower(quality)
 		s.byQuality[k] = append(s.byQuality[k], float64(size)/(1<<20)/float64(minutes))
 	}
-	rows, err = db.QueryContext(ctx, `SELECT title_id, quality, COALESCE(size_bytes, 0), episodes FROM download`)
+	rows, err = db.QueryContext(ctx, `SELECT title_id, quality, COALESCE(size_bytes, 0), episodes, release_title,
+		COALESCE(episode_map, '') FROM download`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var title, size int64
-		var q, eps string
-		if err := rows.Scan(&title, &q, &size, &eps); err != nil {
+		var q, eps, release, mapping string
+		if err := rows.Scan(&title, &q, &size, &eps, &release, &mapping); err != nil {
 			return nil, err
 		}
 		var ids []int64
 		_ = json.Unmarshal([]byte(eps), &ids)
+		if _, movie := movies[title]; !movie && len(ids) > 0 {
+			var m decide.EpisodeMap
+			if mapping != "" {
+				_ = json.Unmarshal([]byte(mapping), &m)
+			}
+			var ok bool
+			if ids, ok = packCoverage(release, ids, m.Pack); !ok {
+				continue
+			}
+		}
 		add(title, q, size, max(len(ids), 1))
 	}
 	for k := range s.byQuality {
