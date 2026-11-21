@@ -305,6 +305,12 @@ func TestWholeSeriesPlainQueryByIMDbOnly(t *testing.T) {
 	if crit := p.forKind("torznab")[0].query; crit.Title != title.Name || crit.Criteria != indexer.CriteriaSeries {
 		t.Fatalf("criteria query %+v", crit)
 	}
+	// Without an IMDb id DMM and Zilean are not asked the query without a season.
+	q.IMDb = ""
+	if p := planWhole(&title, &decide.SeriesSearch{Kind: profile.SearchSeries}, q); len(p.forKind("zilean")) != 0 ||
+		len(p.forKind("dmm")) != 0 || len(p.forKind("torznab")) != 1 {
+		t.Fatalf("without an IMDb id: zilean %v dmm %v", describe(p.forKind("zilean")), describe(p.forKind("dmm")))
+	}
 }
 
 // The bounded cache checks of a merged search ask each member's best season pack first, then the packs of several

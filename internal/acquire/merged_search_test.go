@@ -12,6 +12,7 @@ import (
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/decide/profile"
 	"github.com/theatarr/theatarr/internal/indexer"
+	"github.com/theatarr/theatarr/internal/journal/snapshot"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
@@ -58,7 +59,7 @@ func (f *mergedFake) search(_ context.Context, t decide.Title, targets []router.
 		s := &router.Searched{Releases: map[*decide.Decision]indexer.Release{}}
 		s.Request = router.Request{TitleID: t.ID, VersionID: tg.Version.ID, Version: tg.Version.Key, Merged: len(tg.Members) > 0}
 		for _, m := range tg.Members {
-			rel := indexer.Release{Indexer: "pub", Kind: "torznab", Title: fmt.Sprintf("%s.S%02d.2160p.WEB-DL-GRP", t.Name, m.Season),
+			rel := indexer.Release{Indexer: "pub", Kind: "torznab", Title: fmt.Sprintf("%s.S%02d.2160p.WEB.H265-GRP", t.Name, m.Season),
 				InfoHash: h(string(rune('a' + m.Season))), Privacy: policy.PrivacyPublic, Size: 10 << 30}
 			d := &decide.Decision{Release: rel.Title, Version: tg.Version.Key, Accepted: f.accept[m.Season], EpisodeIDs: m.Episodes}
 			if !d.Accepted {
@@ -72,8 +73,17 @@ func (f *mergedFake) search(_ context.Context, t decide.Title, targets []router.
 					Episodes: m.Episodes})
 			}
 		}
+		if len(tg.Members) == 0 && tg.Series != nil && f.accept[tg.Series.Season] {
+			// An ordinary season search: that season's pack.
+			rel := indexer.Release{Indexer: "pub", Kind: "torznab", Title: fmt.Sprintf("%s.S%02d.2160p.WEB.H265-GRP", t.Name,
+				tg.Series.Season), InfoHash: h(string(rune('a' + tg.Series.Season))), Privacy: policy.PrivacyPublic, Size: 10 << 30}
+			d := &decide.Decision{Release: rel.Title, Version: tg.Version.Key, Accepted: true, EpisodeIDs: tg.Series.Episodes}
+			s.Ranked, s.Releases[d] = append(s.Ranked, d), rel
+			s.Request.Candidates = append(s.Request.Candidates, router.Candidate{Release: rel, Quality: "WEBDL-2160p",
+				Episodes: tg.Series.Episodes})
+		}
 		if f.span && len(tg.Members) > 0 {
-			rel := indexer.Release{Indexer: "pub", Kind: "torznab", Title: t.Name + ".S01-S02.2160p.WEB-DL-GRP",
+			rel := indexer.Release{Indexer: "pub", Kind: "torznab", Title: t.Name + ".S01-S02.2160p.WEB.H265-GRP",
 				InfoHash: h("f"), Privacy: policy.PrivacyPublic, Size: 20 << 30}
 			s.Request.Candidates = append(s.Request.Candidates, router.Candidate{Release: rel, Quality: "WEBDL-2160p",
 				Episodes: tg.Series.Episodes})
@@ -354,22 +364,46 @@ func TestMergedSearchRoutesWhenMembersFail(t *testing.T) {
 	}
 }
 
-// A merged group with one member left (the other's download in flight) is that member's ordinary search.
+// A merged group with one member left (the other's download in flight) is that member's ordinary search, recorded
+// under the group's route source so the readers find its search and download: the surviving child (the root busy)
+// and the surviving root (the child busy) alike.
 func TestMergedSearchOneMemberLeft(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, nil)
-	e.addSeries(40, 401, 2)
-	f := &mergedFake{}
-	e.a.searchBatch = f.search
-	if _, _, err := e.a.Submit(e.ctx, 0, Selection{Versions: []string{"series"}, TitleIDs: []int64{40}}); err != nil {
-		t.Fatal(err)
-	}
-	e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, episodes, state,
-		created_at, updated_at) VALUES (40, 401, 'series', ?, 'x', 'pub', '[4021,4022]', 'downloading', 0, 0)`, h("e"))
-	e.drain()
-	c := f.calls()
-	if len(c) != 1 || len(c[0]) != 1 || len(c[0][0].Members) != 0 || c[0][0].Series.Season != 1 {
-		t.Fatalf("searches %+v", c)
+	for _, busy := range []int{1, 2} {
+		e := newEnv(t, true, nil)
+		e.addSeries(40, 401, 2)
+		left := 3 - busy
+		f := &mergedFake{accept: map[int]bool{left: true}}
+		e.a.searchBatch = f.search
+		e.exec(`INSERT INTO arrview_command (id, view, name, status, queued_at) VALUES (9, 'sonarr', 'SeriesSearch', 'queued', 0)`)
+		if _, _, err := e.a.Submit(e.ctx, 9, Selection{Versions: []string{"series"}, TitleIDs: []int64{40}}); err != nil {
+			t.Fatal(err)
+		}
+		e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, episodes, state,
+			created_at, updated_at) VALUES (40, 401, 'series', ?, 'x', 'pub', ?, 'downloading', 0, 0)`, h("e"),
+			fmt.Sprintf("[%d,%d]", 4000+10*busy+1, 4000+10*busy+2))
+		e.drain()
+		c := f.calls()
+		if len(c) != 1 || len(c[0]) != 1 || len(c[0][0].Members) != 0 || c[0][0].Series.Season != left {
+			t.Fatalf("busy %d: searches %+v", busy, c)
+		}
+		var run, root int64
+		if err := e.st.Reader().QueryRow(`SELECT id, COALESCE(search_run, id) FROM acquire_run WHERE title_id = 40 AND season = ?`,
+			left).Scan(&run, &root); err != nil {
+			t.Fatal(err)
+		}
+		// The readers' join (status, History, Last search, Why) finds the download and the stored search.
+		if n := e.count(`SELECT COUNT(*) FROM download JOIN acquire_run r ON r.id = ? WHERE `+snapshot.RunDownloadsSQL("download", "r")+
+			` AND download.info_hash = ?`, run, h(string(rune('a'+left)))); n != 1 {
+			t.Fatalf("busy %d: the survivor's download is not found by its run", busy)
+		}
+		if n := e.count(`SELECT COUNT(*) FROM journal_decision WHERE run_id = ? AND source = ?`, run, Source(root)); n != 1 {
+			t.Fatalf("busy %d: the survivor's stored search is not under the route source", busy)
+		}
+		st, err := LoadCommandStatus(e.ctx, e.st.Reader(), 9)
+		if err != nil || !strings.Contains(st.Message, "added") {
+			t.Fatalf("busy %d: command status %+v %v", busy, st, err)
+		}
 	}
 }
 

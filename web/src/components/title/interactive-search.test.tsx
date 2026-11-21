@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, expect, it } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
 import { mockFetch, renderPage, type Route } from "@/test/page";
 import { InteractiveSearchButton } from "./interactive-search";
 import { LibraryNamesProvider } from "@/lib/library-names";
@@ -600,4 +600,35 @@ it("searches a whole series for packs of several seasons and says what was left 
   open();
   expect((await screen.findByTestId("interactive-empty")).textContent).toBe("No pack of several seasons found.");
   expect(screen.getByTestId("interactive-left-out").textContent).toBe("1 other result is not shown. Search a season for those.");
+});
+
+// On a phone (below 768 px) the whole-series window's texts are whole: the subject, a pack's seasons, the left-out
+// note and the empty state wrap rather than being cut.
+it("shows the whole-series window's texts whole on a phone", async () => {
+  vi.stubGlobal("matchMedia", (q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} }));
+  try {
+    const series: Route = { ...TITLE, reply: { ...(TITLE.reply as object), kind: "series", series_type: "standard" } };
+    const span = { ...accepted, release: "Alpha.S01-S03.2160p.WEB.H265-GRP", episodes: ["S01E01", "S02E01", "S03E01"] };
+    const whole = (el: HTMLElement, text: string) => {
+      expect(el.textContent).toBe(text);
+      for (let n: HTMLElement | null = el; n && n !== document.body; n = n.parentElement) {
+        expect(n.className).not.toMatch(/\btruncate\b|line-clamp|text-ellipsis/);
+      }
+    };
+    mockFetch([ME, series, CURRENT, { method: "GET", path: "/titles/7/releases", reply: answer("movie-web", { candidates: [span], left_out: 3 }) }]);
+    const { unmount } = renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
+    open();
+    const list = await screen.findByTestId("releases-list");
+    whole(screen.getByTestId("interactive-subject"), "Alpha (2020)Whole series");
+    whole(within(list).getByTestId("release-card-episodes"), "Seasons 1 to 3");
+    whole(screen.getByTestId("interactive-left-out"), "3 other results are not shown. Search a season for those.");
+    unmount();
+    mockFetch([ME, series, CURRENT, { method: "GET", path: "/titles/7/releases", reply: answer("movie-web", { candidates: [], results: 0, accepted: 0, rejections: {}, left_out: 0 }) }]);
+    renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
+    open();
+    whole(await screen.findByTestId("interactive-empty"), "No pack of several seasons found.");
+    expect(screen.queryByTestId("interactive-left-out")).toBeNull();
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });

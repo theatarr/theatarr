@@ -691,8 +691,8 @@ func TestSeriesSearchScopeNeedsASearchedEpisode(t *testing.T) {
 	member := &SeriesSearch{Kind: profile.SearchSeason, Season: 1, Episodes: []int64{511, 512}, MonitoredOnly: true, Seasons: []int{1, 2}}
 	pack := rel("The.Show.Complete.Series.2160p.WEB-DL.DDP5.1.H.265-GRP", "public", 40*gb)
 	d, err := e.DecideSearch(context.Background(), pack, tt, v, member)
-	if err != nil || d.Accepted {
-		t.Fatalf("accepted for unsearched seasons only: %v %s %v", d.Accepted, reasons(d), err)
+	if err != nil || d.Accepted || d.Upgrade {
+		t.Fatalf("accepted for unsearched seasons only: %v %s upgrade %v %v", d.Accepted, reasons(d), d.Upgrade, err)
 	}
 	member.Seasons = nil
 	if d, _ := e.DecideSearch(context.Background(), pack, tt, v, member); !d.Accepted {

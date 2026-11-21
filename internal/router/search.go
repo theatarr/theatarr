@@ -480,18 +480,16 @@ func SearchRequests(ctx context.Context, eng SearchEngine, svc *indexer.Service,
 
 // planWhole plans the query without a season of a whole-series search: for Prowlarr's feeds and keyword sources the
 // SearchSeries criteria (by id, the title only where an id search falls back), for DMM and Zilean the plain query
-// without a season, by IMDb id only when there is one (Torrentio and SeaDex need a season and are not asked). Every answer is judged with ss.
+// without a season, by IMDb id only and only with one (Torrentio and SeaDex need a season and are not asked). Every answer is judged with ss.
 func planWhole(t *decide.Title, ss *decide.SeriesSearch, q indexer.Query) *seriesPlan {
 	q.Season, q.Episode = 0, 0
 	c := q
 	c.Criteria = indexer.CriteriaSeries
-	if q.IMDb != "" {
-		// The plain sources are asked by IMDb id only (Zilean would add a title query, whose failure makes a clean
-		// answer partial).
-		q.Title, q.Aliases = "", nil
-	}
+	// The plain sources are asked by IMDb id only (Zilean would add a title query, whose failure makes a clean answer
+	// partial); without one they are not asked.
+	q.Title, q.Aliases = "", nil
 	return &seriesPlan{base: seriesQuery{query: q}, criteria: []seriesQuery{{query: c, search: ss}},
-		plain: []*decide.SeriesSearch{ss}}
+		plain: []*decide.SeriesSearch{ss}, noPlain: q.IMDb == ""}
 }
 
 // holdsSeasons reports whether a decision maps episodes of two or more seasons above 0.
@@ -518,16 +516,20 @@ func mergedCheckOrder(t *decide.Title, ranked []*decide.Decision, ms []*decide.S
 			out = append(out, d)
 		}
 	}
+	spans := make(map[*decide.Decision]bool, len(ranked))
+	for _, d := range ranked {
+		spans[d] = d.Accepted && holdsSeasons(t, d)
+	}
 	for _, m := range ms {
 		for _, d := range ranked {
-			if d.Accepted && !holdsSeasons(t, d) && overlaps(d.DownloadEpisodes(), m.Episodes) {
+			if d.Accepted && !spans[d] && overlaps(d.DownloadEpisodes(), m.Episodes) {
 				take(d)
 				break
 			}
 		}
 	}
 	for _, d := range ranked {
-		if d.Accepted && holdsSeasons(t, d) {
+		if spans[d] {
 			take(d)
 		}
 	}
@@ -575,6 +577,8 @@ type seriesPlan struct {
 	criteria []seriesQuery
 	anilist  []int
 	plain    []*decide.SeriesSearch
+	// noPlain: the plain query is not asked (a whole-series query of a title without an IMDb id).
+	noPlain bool
 }
 
 // planSeries plans a target's queries; q is the plain query (TVDB numbering). A movie has the plain query only.
@@ -607,6 +611,9 @@ var seriesQueriesByKind = map[string]seriesQueryKind{
 
 // forKind is the queries for a source of this kind.
 func (p *seriesPlan) forKind(kind string) []seriesQuery {
+	if p.noPlain && seriesQueriesByKind[kind] == queryPlain {
+		return nil
+	}
 	switch seriesQueriesByKind[kind] {
 	case queryCriteria, queryKeywords:
 		if len(p.criteria) == 0 {

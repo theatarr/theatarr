@@ -1413,6 +1413,11 @@ func (a *Acquirer) runFanout(ctx context.Context, rootID int64, claim, rootState
 		}
 		req := searched.Request
 		req.Source = Source(item.id)
+		if mergedGroup(ts) {
+			// The lone member left of a merged group (searched alone) keeps the group's route source: the readers find
+			// a merged member's search and downloads under the root's source and its episodes.
+			req.Source = Source(rootID)
+		}
 		if err := snapshot.Record(ctx, a.st.Writer(), snapshot.Search{Policy: a.pol,
 			Source: req.Source, RunID: item.id, TitleID: item.titleID, Version: item.key, Target: item.name,
 			Ranked: searched.Ranked, Releases: searched.Releases, Notes: searched.Notes, CreatedAt: a.now()}); err != nil {

@@ -246,16 +246,8 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 			d.UpgradeReason += fmt.Sprintf("; %d episode(s) keep their file", len(kept))
 		}
 	}
-	scopeSeasons(d, search, r, func(id int64) bool {
-		for _, ep := range episodes {
-			if ep.ID != id {
-				continue
-			}
-			f := ep.File
-			return f == nil || !slices.Contains(d.KeptEpisodeIDs, id) && p.Engine.CutoffNotMet(p.Profile, f.Quality, f.Formats, &qm) &&
-				p.Engine.IsUpgradable(p.Profile, f.Quality, f.Formats, qm, matched) == profile.UpgradeNone
-		}
-		return false
+	scopeSeasons(d, search, r, episodes, func(ep *profile.Episode) bool {
+		return ep.File == nil || upgradesFile(p, ep, qm, matched, d.KeptEpisodeIDs)
 	})
 	return nil
 }
@@ -263,26 +255,34 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 // scopeSeasons limits a pack of several seasons found by a merged search to the searched seasons
 // (Decision.UnsearchedIDs); the whole release stays what it was judged on. One that fills or upgrades no episode of
 // those seasons (usable: the episode has no file, or the release upgrades its file) is rejected: it was accepted
-// only for a season nobody searched, and is no grab for this search.
-func scopeSeasons(d *Decision, search *SeriesSearch, r *remoteEpisode, usable func(id int64) bool) {
+// only for a season nobody searched, and is no grab for this search (nor an upgrade).
+func scopeSeasons(d *Decision, search *SeriesSearch, r *remoteEpisode, episodes []*profile.Episode,
+	usable func(*profile.Episode) bool) {
 	if search == nil || len(search.Seasons) == 0 || len(r.seasons) < 2 {
 		return
 	}
-	for _, ep := range r.episodes {
-		if !slices.Contains(search.Seasons, ep.Season) {
+	needed := false
+	for _, ep := range episodes {
+		if !slices.Contains(search.Seasons, ep.SeasonNumber) {
 			d.UnsearchedIDs = append(d.UnsearchedIDs, ep.ID)
+		} else if !needed && usable(ep) {
+			needed = true
 		}
 	}
-	if len(d.UnsearchedIDs) == 0 || len(d.Rejections) > 0 {
+	if len(d.UnsearchedIDs) == 0 || len(d.Rejections) > 0 || needed {
 		return
-	}
-	for _, id := range d.EpisodeIDs {
-		if !slices.Contains(d.UnsearchedIDs, id) && usable(id) {
-			return
-		}
 	}
 	d.Rejections = append(d.Rejections, Rejection{Reason: string(profile.ReasonWrongSeason),
 		Message: "Nothing to download for the searched seasons"})
+	d.Upgrade, d.UpgradeReason = false, ""
+}
+
+// upgradesFile says whether the release upgrades episode ep's file: not kept by rule, cutoff not met and an upgrade,
+// as UpgradeDisk judges each file.
+func upgradesFile(p *Profile, ep *profile.Episode, qm profile.QualityModel, formats []*format.Format, keptByRule []int64) bool {
+	f := ep.File
+	return f != nil && !slices.Contains(keptByRule, ep.ID) && p.Engine.CutoffNotMet(p.Profile, f.Quality, f.Formats, &qm) &&
+		p.Engine.IsUpgradable(p.Profile, f.Quality, f.Formats, qm, formats) == profile.UpgradeNone
 }
 
 // firstUpgraded is the first episode file the release upgrades (not kept by rule, cutoff not met and an upgrade,
@@ -297,9 +297,7 @@ func firstUpgraded(p *Profile, episodes []*profile.Episode, qm profile.QualityMo
 		if f == nil {
 			continue
 		}
-		if !slices.Contains(keptByRule, ep.ID) &&
-			p.Engine.CutoffNotMet(p.Profile, f.Quality, f.Formats, &qm) &&
-			p.Engine.IsUpgradable(p.Profile, f.Quality, f.Formats, qm, formats) == profile.UpgradeNone {
+		if upgradesFile(p, ep, qm, formats, keptByRule) {
 			if first == nil {
 				first = f
 			}
