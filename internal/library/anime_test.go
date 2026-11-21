@@ -629,7 +629,7 @@ func TestAnimePackExtras(t *testing.T) {
 		"[GRP] Kaiju Tale - 05 - Special Training [BD 1080p].mkv": true, "Kaiju.Tale.S01E05.Special.1080p.mkv": true,
 		"[GRP] Kaiju Tale - S01E05 - Preview [1080p].mkv": true, "Extras/NCED.mkv": true, "NCOP1.mkv": true} {
 		stem := strings.TrimSuffix(filepath.Base(name), filepath.Ext(name))
-		if got := packExtra(name, sonarr.ParseTitle(stem), "Kaiju Tale"); got != want {
+		if got := packExtra(name, sonarr.ParseTitle(stem), indexer.NewTitleMatcher("Kaiju Tale")); got != want {
 			t.Errorf("%s: extra %v, want %v", name, got, want)
 		}
 	}
@@ -1068,11 +1068,82 @@ func TestAnimePackExtraNames(t *testing.T) {
 		{"Mob Psycho 100", "Mob Psycho 100 - 05.mkv", false},
 		{"Show", "Season 2/Show - 05.mkv", false},
 		{"Show", "Show - 05v2 (Uncensored).mkv", false},
+		{"Show", "[Grp] Show - 05 [SPA][ENG].mkv", false}, {"Show", "Show - 05 - Spy Games.mkv", false}, {"Show", "Show - 05 - PvP.mkv", false},
 	} {
-		title, _ := proofTitle(c.series, decide.PackSeasons)
+		m := indexer.NewTitleMatcher(c.series)
 		stem := strings.TrimSuffix(filepath.Base(c.rel), filepath.Ext(c.rel))
-		if got := packExtra(c.rel, parseFile(stem, title), title.Name); got != c.extra {
+		p, _ := parseFile(stem, m)
+		if got := packExtra(c.rel, p, m); got != c.extra {
 			t.Errorf("%s (%s): extra %v, want %v", c.rel, c.series, got, c.extra)
+		}
+	}
+}
+
+// Layouts whose title or claim differs from the plain two-season "Show" (the closing round's rows): a scene name that
+// carries a season is never dropped, a folder marker sets its files aside, numbers split by a title separator are no
+// multi-episode file, and the guards a removed check would let through.
+func TestAnimePackLayoutsByTitle(t *testing.T) {
+	t.Parallel()
+	no := map[int]bool{}
+	sf := func(pat string) func(int, int) string {
+		return func(s, n int) string { return fmt.Sprintf(pat, s, n) }
+	}
+	ip := func(n int) *int { return &n }
+	scene := func(name string, season int) func(*decide.Title, *decide.PackClaim) {
+		return func(t *decide.Title, _ *decide.PackClaim) {
+			t.SceneMappings = append(t.SceneMappings, decide.SceneMapping{Title: name, SeasonNumber: ip(season)})
+		}
+	}
+	for _, c := range []struct {
+		name, series, mode string
+		mod                func(*decide.Title, *decide.PackClaim)
+		ok                 bool
+		files              []string
+		watch              string
+		at                 int64
+	}{
+		{"scene title with season under an absolute claim", "Show", decide.PackAbsolute, scene("Show 2nd Season", 2), false,
+			append(absFiles(map[int]bool{1: true}, "Show - %02d.mkv"), "Show 2nd Season - 01.mkv"), "", 0},
+		{"ordinal titles against their folders", "Show", decide.PackSeasons, scene("Show 2nd Season", 2), false,
+			proofFiles(no, func(s, n int) string {
+				return fmt.Sprintf("Season %d/Show %s Season - %02d.mkv", s, map[int]string{1: "2nd", 2: "1st"}[s], n)
+			}), "", 0},
+		{"a folder marked OVA", "Show", decide.PackSeasons, nil, false,
+			append(proofFiles(map[int]bool{101: true}, sf("Show S%02dE%02d.mkv")), "Season 1 [OVA]/Show - 01.mkv"), "", 0},
+		{"numbers split by a title separator", "Brave Ten", decide.PackAbsolute, func(_ *decide.Title, c *decide.PackClaim) {
+			c.Episodes, c.Numbers = []int64{110, 111, 112, 201}, []decide.PackNumber{{N: 10, Episode: 110}, {N: 11, Episode: 111},
+				{N: 12, Episode: 112}, {N: 13, Episode: 201}}
+		}, false, []string{"Brave 10 - 13.mkv"}, "", 0},
+		{"flat pack with a scene title of season 2", "Isekai Story", decide.PackSeasons, scene("Isekai Story S2", 2), true,
+			proofFiles(no, sf("[Grp] Isekai Story S%d - %02d.mkv")), "[Grp] Isekai Story S2 - 05.mkv", 205},
+		{"title punctuation", "Show: 10", decide.PackAbsolute, nil, true, absFiles(nil, "Show 10 - %02d.mkv"), "Show 10 - 15.mkv", 203},
+		{"a season of its own under an absolute claim", "Show", decide.PackAbsolute, nil, false,
+			append(absFiles(map[int]bool{17: true}, "Show - %02d.mkv"), "[Grp] Show S2 - 05.mkv"), "", 0},
+		{"a third season outside the claim", "Show", decide.PackSeasons, func(t *decide.Title, _ *decide.PackClaim) {
+			t.Episodes = append(t.Episodes, decide.Episode{ID: 301, Season: 3, Number: 1, Absolute: 25})
+		}, false, append(proofFiles(no, sf("Show S%02dE%02d.mkv")), "Show S03E01.mkv"), "", 0},
+		{"season 1's file alone in a season 2 folder", "Show", decide.PackSeasons, nil, false,
+			append(proofFiles(map[int]bool{101: true}, func(s, n int) string { return fmt.Sprintf("Season %d/Show S%02dE%02d.mkv", s, s, n) }),
+				"Season 2/Show S01E01.mkv"), "", 0},
+	} {
+		title, claim := proofTitle(c.series, c.mode)
+		if c.mod != nil {
+			c.mod(title, claim)
+		}
+		var files []PlannedFile
+		for _, f := range c.files {
+			files = append(files, PlannedFile{Rel: f})
+		}
+		proof, why := provePack(title, claim, files)
+		if (why == "") != c.ok {
+			t.Errorf("%s: proof holds %v (%s), want %v", c.name, why == "", why, c.ok)
+			continue
+		}
+		if c.ok && !slices.Equal(proof.files[c.watch], []int64{c.at}) {
+			t.Errorf("%s: %s placed on %v, want [%d]", c.name, c.watch, proof.files[c.watch], c.at)
+		}
+		if !c.ok {
+			t.Logf("%s: %s", c.name, why)
 		}
 	}
 }

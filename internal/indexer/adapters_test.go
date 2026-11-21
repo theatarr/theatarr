@@ -761,9 +761,11 @@ func TestExtraEpisodeToken(t *testing.T) {
 		{"[GRP] Show - 05 [BD 1080p AAC 5.1].mkv", "Show", false}, {"Special.Forces.S01E05.1080p.DDP5.1.mkv", "Special Forces", false},
 		{"[GRP] Special Forces - 05 [BD].mkv", "Special Forces", false}, {"[GRP] Special Forces - 05 [BD].mkv", "Show", true},
 		{"[NC-Raws] Show - 05.mkv", "Show", false}, {"Show - 05 - Ed and Al.mkv", "Show", false}, {"[GRP] Show - 05.mkv", "Show", false},
-		{"Shows OVA - 05.mkv", "Show", true}, {"Show - 05 [OPUS].mkv", "Show", false},
+		{"Shows OVA - 05.mkv", "Show", true}, {"Show - 05 [OPUS].mkv", "Show", false}, {"Show - 01 NCOP1a.mkv", "Show", true},
+		{"[Grp] Show - 05 [SPA][ENG].mkv", "Show", false}, {"Show - 05 - Spy Games.mkv", "Show", false}, {"Show - 05 - PvP.mkv", "Show", false},
+		{"Season 1 [OVA]", "Show", true}, {"Show 10 - 05.mkv", "Show: 10", false}, {"OVA Girls - 03.mkv", "OVA Girls", false},
 	} {
-		if got := ExtraEpisodeToken(c.name, c.title); got != c.want {
+		if got := ExtraEpisodeToken(c.name, NewTitleMatcher(c.title)); got != c.want {
 			t.Errorf("%q (%s): %v, want %v", c.name, c.title, got, c.want)
 		}
 	}

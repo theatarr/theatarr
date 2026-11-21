@@ -245,9 +245,11 @@ numbers in the claim's convention: bare absolute numbers under a batch's claim (
 n; a season folder is allowed only when it is that episode's season, so "Season 2/Show - 13" passes and numbers
 restarting per folder fail); under a named claim a season from the file's own name ("S02E05", "S2 - 05", "Show
 2nd Season - 05") or one season folder ("Season 2/Show - 05.mkv", "Show 2nd Season/"; a folder and a name that
-disagree fail; a folder that names a range, "Show S01-S02", names no season). A file's name is read with the series'
-own name (or a scene name) dropped first, so a number in the title is never an episode ("Brave 10 - 11" is episode
-11). Extras follow one rule that can only fail closed: a marker word (OVA, NCOP, creditless, recap, preview,
+disagree fail; a folder that names a range, "Show S01-S02", names no season). A file's name is read with the library's
+own title dropped first (never a scene name, which can carry a season), so a number in the title is never an
+episode ("Brave 10 - 11" is episode 11); a file holds several episodes only when its name joins them ("S01E01-E02",
+"01-02"), never across a title separator ("Brave 10 - 13"). Folder names follow the same marker rule as file names
+before a season is read from them ("Season 1 [OVA]" is a folder of extras). Extras follow one rule that can only fail closed: a marker word (OVA, NCOP, creditless, recap, preview,
 opening, ending, OP or ED in capitals, and the like) anywhere in the name after the series' name sets the file
 aside, and nothing un-marks it. An episode whose title holds such a word ("S01E05 - Special Training") is set aside
 too; its episode then has no file and the pack is rejected. No episode may be claimed by two files, and the files'

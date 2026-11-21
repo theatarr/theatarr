@@ -59,12 +59,14 @@ var (
 // packExtra says whether a file of a pack is an extra: below an extras folder ("Extras", "Specials", "Bonus", "NC",
 // "Season 0", "S00"), with a marker word anywhere in its name after the library title (indexer.ExtraEpisodeToken: a
 // marker only ever sets a file aside), or parsed as a special or on season 0.
-func packExtra(rel string, p *sonarr.ParsedEpisodeInfo, title string) bool {
+func packExtra(rel string, p *sonarr.ParsedEpisodeInfo, title *indexer.TitleMatcher) bool {
 	if isExtraFile(rel) {
 		return true
 	}
 	for dir := filepath.Dir(rel); dir != "." && dir != "/" && dir != ""; dir = filepath.Dir(dir) {
-		if packExtraFolderRE.MatchString(strings.TrimSpace(filepath.Base(dir))) {
+		// A folder follows the same marker rule as a file name, before anything is read from it ("Season 1 [OVA]").
+		name := strings.TrimSpace(filepath.Base(dir))
+		if packExtraFolderRE.MatchString(name) || indexer.ExtraEpisodeToken(name, title) {
 			return true
 		}
 	}
@@ -111,10 +113,14 @@ func folderSeason(rel string) (int, bool) {
 }
 
 // proveFile reads one regular file of the pack under the claim: its episodes, or why the numbering cannot be trusted.
-func proveFile(rel string, p *sonarr.ParsedEpisodeInfo, claim *decide.PackClaim, byNumber map[[2]int]int64,
+func proveFile(rel string, p *sonarr.ParsedEpisodeInfo, read string, claim *decide.PackClaim, byNumber map[[2]int]int64,
 	numbers map[int]int64, seasonOf map[int64]int, claimedIDs map[int64]bool) ([]int64, string) {
 	if p == nil || len(p.EpisodeNumbers) == 0 && len(p.AbsoluteEpisodeNumbers) == 0 {
 		return nil, "a file reads as no episode: " + rel
+	}
+	if (len(p.EpisodeNumbers) > 1 || len(p.AbsoluteEpisodeNumbers) > 1) && !packJoinedRE.MatchString(read) {
+		// Several episodes only from a joined token: "Brave 10 - 13" is no file of episodes 10 to 13.
+		return nil, "a file reads as several numbers across a title separator: " + rel
 	}
 	folder, ok := folderSeason(rel)
 	if !ok {
@@ -178,27 +184,21 @@ func (p *packProof) places(allowed map[int64]episodeInfo) bool {
 	return false
 }
 
-// parseFile parses a pack file's name with the known title dropped first: when the name (after a leading group
-// bracket) starts with the library title or a scene name of a season above 0, word boundary after it, the longest
-// such title is dropped and the rest is parsed after a neutral name, so a number in the title is never read as an
-// episode ("Brave 10 - 11" is episode 11, "Mob Psycho 100 - 05" episode 5). Otherwise the name is parsed as it is.
-func parseFile(stem string, t *decide.Title) *sonarr.ParsedEpisodeInfo {
-	titles := []string{t.Name}
-	for _, m := range t.SceneMappings {
-		if m.SeasonNumber == nil || *m.SeasonNumber > 0 {
-			titles = append(titles, m.Title)
-		}
-	}
-	if rest, ok := indexer.StripTitle(stem, titles...); ok {
+// parseFile parses a pack file's name with the library title dropped first (never a scene name: it can carry the
+// season, "Show 2nd Season"): when the name (after a leading group bracket) starts with title, word boundary after
+// it, the rest is parsed after a neutral name, so a number in the title is never read as an episode ("Brave 10 - 11"
+// is episode 11). Otherwise the name is parsed as it is. rest is what was read for numbers.
+func parseFile(stem string, title *indexer.TitleMatcher) (p *sonarr.ParsedEpisodeInfo, rest string) {
+	if rest, ok := title.Strip(stem); ok {
 		// The group bracket stays: the parser reads "[Grp] Series S1 - 01" as season 1's episode 1.
-		group := ""
-		if m := leadingGroupRE.FindString(stem); m != "" {
-			group = m
-		}
-		return sonarr.ParseTitle(group + "Series" + rest)
+		return sonarr.ParseTitle(leadingGroupRE.FindString(stem) + "Series" + rest), rest
 	}
-	return sonarr.ParseTitle(stem)
+	return sonarr.ParseTitle(stem), stem
 }
+
+// packJoinedRE is a name's token that joins several episodes with no title separator: S01E01-E02, S01E01E02, 01-02,
+// 01+02, 01 & 02, 01~02.
+var packJoinedRE = regexp.MustCompile(`(?i)S\d{1,2}E\d{1,4}(?:-?(?:S\d{1,2})?E\d{1,4})+|\d{1,4}(?:-|\s*[+&~]\s*)\d{1,4}`)
 
 func cmpOr(a, b int) int {
 	if a != 0 {
@@ -227,15 +227,16 @@ func provePack(t *decide.Title, claim *decide.PackClaim, files []PlannedFile) (*
 		numbers[x.N] = x.Episode
 	}
 	proof := &packProof{files: map[string][]int64{}, extras: map[string]bool{}}
+	title := indexer.NewTitleMatcher(t.Name)
 	holder := map[int64]string{}
 	for _, f := range files {
 		stem := strings.TrimSuffix(filepath.Base(f.Rel), filepath.Ext(f.Rel))
-		p := parseFile(stem, t)
-		if packExtra(f.Rel, p, t.Name) {
+		p, read := parseFile(stem, title)
+		if packExtra(f.Rel, p, title) {
 			proof.extras[f.Rel] = true
 			continue
 		}
-		ids, why := proveFile(f.Rel, p, claim, byNumber, numbers, seasonOf, claimedIDs)
+		ids, why := proveFile(f.Rel, p, read, claim, byNumber, numbers, seasonOf, claimedIDs)
 		if why != "" {
 			return nil, why
 		}
