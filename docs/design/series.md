@@ -85,9 +85,15 @@ from ordinary matching loads.
   specifications apply over the whole span: every episode aired, every episode monitored on RSS and automatic
   searches, at least one missing or upgradable episode, size by the summed runtime; a single-season pack still ranks
   first at equal quality and score. Anime series keep the rule: no span, no complete-series reading. A season pack, or any multi-episode release, is taken when it fills or
-  upgrades at least one episode (the actuallyevan fork's `ACCEPT_RELEASE_ANY_UPGRADABLE`); episodes that already have
-  a better file keep it: the import upgrade check (library.md) leaves their files in place. The decision's upgrade
-  reason ends `; N episode(s) keep their file`.
+  upgrades at least one usable episode (the actuallyevan fork's `ACCEPT_RELEASE_ANY_UPGRADABLE`, extended past both
+  Sonarr and the fork): episodes that already have a better file keep it (`UpgradeDisk`), and episodes whose held
+  file fails `UpgradeAllowed`, `Repack`, `Proper` or `AnimeVersionUpgrade` are kept by rule instead of refusing the
+  whole release whenever another episode is missing or upgradable and passes all four checks (with none usable, each
+  check rejects as before). Episodes kept by rule join `Decision.Kept`, are never quoted as upgraded, and are left
+  out of download episodes (`Decision.DownloadEpisodes`), so the import leaves their held files in place as out of
+  scope; a single-file multi-episode release (`S01E01E02`) with one episode kept by rule and one usable is accepted
+  and held for review on import ("no file matched the download's episodes"), as when one episode is plainly kept. The
+  decision's upgrade reason ends `; N episode(s) keep their file`.
 
 ### RSS for series
 

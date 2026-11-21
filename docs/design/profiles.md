@@ -42,10 +42,10 @@ scores) and adds the quality part.
   | `MaximumSize` | yes | yes | the global indexer setting |
   | `NotSample` | yes | yes | |
   | `RawDisk` | yes | yes | |
-  | `Repack` | yes | yes | |
+  | `Repack` | yes | yes | under Sonarr `AcceptReleaseAnyUpgradable`, a failing held file is kept by rule while another episode is usable |
   | `Language` | yes | n/a | the profile language, Any or Original |
-  | `AnimeVersionUpgrade` | n/a | yes | |
-  | `UpgradeAllowed`, `UpgradeDisk` | yes | yes | over `UpgradableSpecification`: `IsUpgradable`, `QualityCutoffNotMet`, `CutoffNotMet`, `IsRevisionUpgrade`, `IsUpgradeAllowed` |
+  | `AnimeVersionUpgrade` | n/a | yes | under Sonarr `AcceptReleaseAnyUpgradable`, a failing held file is kept by rule while another episode is usable |
+  | `UpgradeAllowed`, `UpgradeDisk` | yes | yes | over `UpgradableSpecification`: `IsUpgradable`, `QualityCutoffNotMet`, `CutoffNotMet`, `IsRevisionUpgrade`, `IsUpgradeAllowed`; under Sonarr `AcceptReleaseAnyUpgradable`, a held file failing `UpgradeAllowed` is kept by rule while another episode is usable |
 
 - **Ranking.** `Engine.Compare` and `Engine.Prioritize` port `DownloadDecisionComparer`.
   - Radarr order: quality and revision, format score, preferred protocol, indexer priority, indexer flags (when
@@ -141,7 +141,7 @@ with its facts on `Subject` or on the `Engine`.
 | Protocol, RssSync/Delay, Pending | Delay profiles; the pending-release store | policy delay profiles; a pending table |
 | ReleaseRestrictions | Release profiles (required and ignored terms) | policy, reusing netregex |
 | HardcodeSubs (Radarr) | Parsed hardcoded subs and the allow setting | parser adapter field plus a policy flag |
-| RssSync/Proper, RssSync/IndexerTag, RssSync/Monitored, RssSync/Availability (Radarr) | File dates, tags, monitored and availability state | version state ([overview.md](overview.md)) |
+| RssSync/Proper, RssSync/IndexerTag, RssSync/Monitored, RssSync/Availability (Radarr) | File dates, tags, monitored and availability state | version state ([overview.md](overview.md)); under Sonarr `AcceptReleaseAnyUpgradable`, a held file failing `Proper` is kept by rule while another episode is usable |
 | Search/* (Movie, Series, Season and episode matching), FullSeason, MultiSeason, SeasonPackOnly, SplitEpisode, SameEpisodes(Grab), SceneMapping | Episode mapping and search criteria | the metadata engine's EpisodeNumber resolution ([tv-metadata.md](tv-metadata.md)); MultiSeason rejects only a multi-season release whose span is not read, and anime ([series.md](series.md)) |
 
 The comparer's protocol step needs delay profiles too; the caller sets `Config.PreferredProtocol` instead.
