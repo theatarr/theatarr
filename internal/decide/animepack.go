@@ -95,8 +95,9 @@ func (ss *SeriesSearch) severalSeasons() bool {
 
 // animeSpanSeasons is the span an anime pack's name states (indexer.AnimePackSeasons) when the library has it:
 // every season from first to last has regular episodes, none of them is numbered differently by the scene (a
-// scene season or number, or a scene mapping's season offset) and none sits in a franchise entry marked as
-// conflicting. A tracker season that is not the library's season is where a wrong link comes from. nil otherwise.
+// scene season or number, or a scene mapping's season offset), no regular episode of another season is numbered by
+// the scene into it, and none sits in a franchise entry marked as conflicting. A tracker season that is not the
+// library's season is where a wrong link comes from. nil otherwise.
 func (s *series) animeSpanSeasons(title, seriesTitle string) []int {
 	_, first, last, ok := indexer.AnimePackSeasons(title)
 	if !ok {
@@ -105,6 +106,9 @@ func (s *series) animeSpanSeasons(title, seriesTitle string) []int {
 	regular := map[int]bool{}
 	for _, e := range s.episodes() {
 		if e.Season < first || e.Season > last {
+			if e.Season > 0 && e.SceneSeason != nil && *e.SceneSeason >= first && *e.SceneSeason <= last {
+				return nil
+			}
 			continue
 		}
 		if e.SceneSeason != nil && *e.SceneSeason != e.Season || e.SceneNumber != nil && *e.SceneNumber != e.Number {
@@ -193,24 +197,45 @@ func (s *series) absoluteClaim(p *sonarr.ParsedEpisodeInfo, byNumber [][]*Episod
 	return claim
 }
 
-// claimPack sets an anime release's pack claim (Decision.Pack) from its mapping: a named span (r.seasons, kept only
-// while its episodes still hold each of its seasons), else an absolute batch placed by the plain numbering (not by
-// a franchise entry, an alternate cut or a SeaDex mapping; nor a SeaDex feed result), whose span sets r.seasons
-// under a search of several seasons.
+// spanEpisodes maps an anime named span by TVDB season (animeSpanSeasons proved that the scene numbers none of its
+// episodes differently): every regular episode of each of its seasons.
+func (s *series) spanEpisodes(seasons []int) []*Episode {
+	var out []*Episode
+	for _, e := range s.episodes() {
+		if e.Season > 0 && slices.Contains(seasons, e.Season) {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// exactSpan says whether an anime named span's final episodes (after the anime mapping) are exactly its seasons'
+// regular episodes. When they are not (another engine placed the release elsewhere), the release keeps no
+// episodes: the empty-episode refusal then covers every caller, an override grab too, so it is never routed
+// without the proof.
+func (s *series) exactSpan(r *remoteEpisode) bool {
+	want := s.spanEpisodes(r.seasons)
+	if len(r.episodes) != len(want) {
+		return false
+	}
+	ids := map[int64]bool{}
+	for _, e := range r.episodes {
+		ids[e.ID] = true
+	}
+	return !slices.ContainsFunc(want, func(e *Episode) bool { return !ids[e.ID] })
+}
+
+// claimPack sets an anime release's pack claim (Decision.Pack) from its mapping: a named span (r.seasons, whose
+// episodes exactSpan already proved to be exactly its seasons'), else an absolute batch placed by the plain
+// numbering (not by a franchise entry, an alternate cut or a SeaDex mapping; nor a SeaDex feed result), whose span
+// sets r.seasons under a search of several seasons.
 func (s *series) claimPack(d *Decision, p *sonarr.ParsedEpisodeInfo, rel indexer.Release, r *remoteEpisode,
 	search *SeriesSearch) {
-	if rel.Kind == "seadex" {
-		r.seasons = nil
+	if len(r.seasons) >= 2 {
+		d.Pack = seasonsClaim(r.seasons, r.episodes)
 		return
 	}
-	if len(r.seasons) >= 2 {
-		for _, n := range r.seasons {
-			if !slices.ContainsFunc(r.episodes, func(e *Episode) bool { return e.Season == n }) {
-				r.seasons = nil // another engine placed it elsewhere: no span
-				return
-			}
-		}
-		d.Pack = seasonsClaim(r.seasons, r.episodes)
+	if rel.Kind == "seadex" {
 		return
 	}
 	if d.AnimeMapping != "" && d.AnimeMapping != AnimeMapSonarr {

@@ -482,7 +482,11 @@ func (s *series) mapRelease(p *sonarr.ParsedEpisodeInfo, tvdbID int, imdbID stri
 	r.matched, r.matchType = s.findSeries(p, tvdbID, imdbID, sm, search)
 	if r.matched && sonarr.ValidateForSeriesType(p, s.typ) {
 		if r.seasons = s.packSeasons(p, search); r.seasons != nil {
-			r.episodes = s.packEpisodes(p, r.seasons, search)
+			if s.typ == sonarr.SeriesTypeAnime {
+				r.episodes = s.spanEpisodes(r.seasons) // a named span: by TVDB season
+			} else {
+				r.episodes = s.packEpisodes(p, r.seasons, search)
+			}
 			return r, nil
 		}
 		var eps []*Episode

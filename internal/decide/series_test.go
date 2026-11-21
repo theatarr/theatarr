@@ -889,6 +889,51 @@ func TestAnimeSpans(t *testing.T) {
 			}
 		}
 	}
+	// Scene numbering maps an episode from outside the span into it. A regular episode (a fourth season's first,
+	// numbered by the scene as season 2's fourth) refuses the span under every search of several seasons; a special
+	// mapped there is no part of it: the span takes exactly its seasons' episodes by TVDB season, with its claim.
+	outside := func(season int) func(*Title) {
+		return func(t *Title) {
+			t.UseSceneNumbering = true
+			t.Episodes = append(t.Episodes, Episode{ID: int64(600 + 10*season + 9), Season: season, Number: 1, Absolute: 99,
+				Title: "Episode", Runtime: 24, Monitored: true, SceneSeason: ip(2), SceneNumber: ip(4)})
+		}
+	}
+	for _, ss := range []*SeriesSearch{whole, kaijuMerged(0, 1, 2), kaijuMerged(1, 1, 2), kaijuMerged(2, 1, 2)} {
+		tt := kaiju()
+		outside(4)(&tt)
+		d, err := e.DecideSearch(ctx, rel("[G] Kaiju Tale S01-S03 [BD 1080p]", "public", 20*gb), tt, v, ss)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if d.Accepted || slices.Contains(d.EpisodeIDs, 649) || slices.ContainsFunc(d.Episodes, func(s string) bool { return s[:3] != "S01" }) {
+			t.Errorf("an outside regular episode scene-mapped into the span (search %v): accepted %v, episodes %v, claim %+v",
+				ss.Seasons, d.Accepted, d.Episodes, d.Pack)
+		}
+	}
+	tt := kaiju()
+	outside(0)(&tt)
+	d, err := e.DecideSearch(ctx, rel("[G] Kaiju Tale S01-S03 [BD 1080p]", "public", 20*gb), tt, v, whole)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(d.Episodes, ","); !d.Accepted || got != all || !d.Pack.Span() || len(d.Pack.Episodes) != 10 {
+		t.Errorf("a special scene-mapped into the span: accepted %v (%v), episodes %s, claim %+v", d.Accepted, d.Rejections, got, d.Pack)
+	}
+	// The anime mapping places the span's name on other episodes (a SeaDex row of season 1's AniList entry): the
+	// release keeps no episodes, so no override can route it without the proof.
+	tt, _ = kaijuSeaDex(nil)
+	sd := rel("[G] Kaiju Tale S01-S03 [BD 1080p]", "public", 20*gb)
+	sd.Kind, sd.Extras = "seadex", map[string]string{"anilist": "1"}
+	for _, ss := range []*SeriesSearch{whole, kaijuMerged(1, 1, 2)} {
+		if d, err = e.DecideSearch(ctx, sd, tt, v, ss); err != nil {
+			t.Fatal(err)
+		}
+		if d.Accepted || len(d.EpisodeIDs) > 0 || d.Pack != nil {
+			t.Errorf("a span placed elsewhere by the anime mapping (search %v): accepted %v, episodes %v, claim %+v (%s)",
+				ss.Seasons, d.Accepted, d.Episodes, d.Pack, d.AnimeMapping)
+		}
+	}
 }
 
 // Every name shape of the anime reader through decide, under the query without a season: the span names are packs

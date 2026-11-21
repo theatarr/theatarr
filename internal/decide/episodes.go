@@ -89,6 +89,9 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 		d.Rejections = append(e.ourRules(rel, v), Rejection{Reason: "Error", Message: "Unexpected error processing release"})
 		return nil
 	}
+	if s.typ == sonarr.SeriesTypeAnime && rel.Manual == nil && len(r.seasons) >= 2 && !s.exactSpan(r) {
+		r.episodes = nil // an anime named span placed elsewhere by the anime mapping: refused, no routable episodes
+	}
 	if len(r.episodes) == 0 {
 		d.Rejections = append(e.ourRules(rel, v), Rejection{Reason: string(profile.ReasonUnknownEpisode),
 			Message: "Unable to identify correct episode(s) using release name and scene mappings"})

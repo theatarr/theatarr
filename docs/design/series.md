@@ -225,8 +225,11 @@ before ("Multi-season releases are not supported" stays there). Two shapes read 
   "S2 - 01-12", "S1 - 02", "Season 2 - 05" (a spaced dash before a bare number is an episode), "S01+S03", "S03-S01",
   "S01E12-S02E01", bare "Complete" or "Batch", and "Complete Series" (unread for anime). The phrase is read as
   "S<first>" for the parser, so "Seasons 1-3" is not absolute 1 to 3. The library must have every season of the span,
-  none numbered differently by the scene (a scene season or number, or a scene mapping's offset) and none in a
-  franchise entry marked as conflicting; then it claims every regular episode of those seasons.
+  none numbered differently by the scene (a scene season or number, or a scene mapping's offset), no regular episode
+  of another season numbered by the scene into the span, and none in a franchise entry marked as conflicting; then
+  it is mapped by TVDB season (as Sonarr maps a multi-season pack) and claims every regular episode of those seasons.
+  When the episodes the anime mapping leaves are not exactly those, the release keeps no episodes and is refused
+  ("Unable to identify correct episode(s)"), so not even a grab by override routes it without its claim.
 - an absolute batch (two or more numbers, not a special, no season marker) placed by the plain numbering (not by a
   franchise entry, an alternative cut or a SeaDex mapping; not a SeaDex feed result) whose numbers each map to one
   regular episode, those being every episode of two or more whole seasons. "001-030", "13-30" and "- 12-13" across a
