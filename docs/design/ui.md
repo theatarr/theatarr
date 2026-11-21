@@ -509,7 +509,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   **Last search results** then opens the same run, so the row gives one answer (a row that shows no such line, such
   as an available or unmonitored series, keeps the library's Last search there). That page heads it as that search,
   not the last one ("the search of Season 2 on Nov 12 that the Libraries row reports", "the search of S02E05 on Nov 8 …" for an episode run, which links without a season; `at=` carries the day and `episode=` the episode, for the heading only), while
-  the linked library's tab is open; another library's tab is headed as its own Last search.
+  the linked library's tab is open; another library's tab is headed as its own Last search. The page keeps the picked tab above the collapsible panel,
+  so closing and opening the panel keeps the heading and the rows on the same library.
   **Row actions:** **Search now** (icon, managers; disabled with the reason; when other libraries want the
   title, its tooltip says they may use the results too), **Interactive search** (icon, a movie's library) and
   **Details**, which opens a panel under the row: path, edition, a series' episode counts, one **Upgrade** line (the

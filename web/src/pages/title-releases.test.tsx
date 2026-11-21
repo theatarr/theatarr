@@ -106,6 +106,33 @@ for (const px of [400, 1440]) {
     expect(link.getAttribute("href")).toBe("/title/7/releases?version=tv");
   });
 
+  it(`keeps the heading and the rows on the same library when the panel is closed and opened again, at ${px} px`, async () => {
+    width(px);
+    const two = { ...show, versions: [...show.versions, { id: 2, key: "tv4k", label: "TV 4K", control: { can_edit: true, can_search: true, live_releases: true } }] };
+    const api = mockFetch([
+      { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["browse", "see_files", "manage"] } },
+      { method: "GET", path: "/titles/7", reply: two },
+      { method: "GET", path: "/titles/7/releases", reply: (r: { search: string }) => ({ ...none, versions: ["tv", "tv4k"], version: new URLSearchParams(r.search).get("version") ?? "tv" }) },
+      { method: "GET", path: "/titles/7/release-outcomes", reply: { outcomes: {} } },
+      { method: "GET", path: "/add/options", reply: { kind: "series", anime: false, title_id: 7, router_enabled: true, episodes_known: true, can_search: true, seasons: [], versions: [] } },
+    ]);
+    renderPage(<SearchProvider><Routes><Route path="/title/:id/releases" element={<TitleReleasesPage />} /></Routes></SearchProvider>, "/title/7/releases?version=tv&run=162&season=2&at=2025-11-12");
+    await screen.findByText("This search stored no release list for TV.");
+    const user = userEvent.setup();
+    await user.click(screen.getAllByRole("tab")[1]);
+    await waitFor(() => expect(screen.getAllByRole("tab")[1].getAttribute("aria-selected")).toBe("true"));
+    const toggle = screen.getByRole("button", { name: /Last search/ });
+    await user.click(toggle);
+    expect(screen.queryAllByRole("tab")).toHaveLength(0);
+    await user.click(toggle);
+    // Still the other library: its own Last search, in the heading and the rows.
+    await waitFor(() => expect(screen.getAllByRole("tab")[1].getAttribute("aria-selected")).toBe("true"));
+    expect(screen.queryByText(/that the Libraries row reports/)).toBeNull();
+    expect(screen.getByText(/Show \(2020\), Season 2: the last search of this season Theatarr decided for each library\./)).toBeTruthy();
+    const last = new URLSearchParams(api.calls("GET", "/titles/7/releases").at(-1)!.search);
+    expect([last.get("version"), last.has("run")]).toEqual(["tv4k", false]);
+  });
+
   it(`asks without a season when the link names none, and says what the whole-series search lists, at ${px} px`, async () => {
     width(px);
     const api = open("/title/7/releases?version=tv", stored);

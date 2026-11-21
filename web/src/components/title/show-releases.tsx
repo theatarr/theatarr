@@ -154,6 +154,7 @@ export function ShowReleases({
   labels,
   season,
   run,
+  version,
   onVersion,
 }: {
   titleId: number;
@@ -167,6 +168,9 @@ export function ShowReleases({
   run?: number;
   /** Library names by settings key (from the title), for the tabs. */
   labels?: Record<string, string>;
+  /** The library tab shown, kept by the page (above this collapsible panel) so its heading and the rows read the same
+   *  one; unset: the panel keeps its own, from initialVersion. */
+  version?: string;
   /** Told the library tab picked, so the page can head a pinned run only in its own library. */
   onVersion?: (key: string) => void;
 }) {
@@ -185,15 +189,16 @@ export function ShowReleases({
         {defaultOpen ? null : <span className="hidden text-xs text-muted-foreground sm:inline">the last search Theatarr decided for each library</span>}
         <ChevronDown className={cn("size-4 transition-transform", !open && "-rotate-90")} />
       </button>
-      {open ? <Panel titleId={titleId} kind={kind} initialVersion={initialVersion} focus={focus} labels={labels} season={season} run={run} onVersion={onVersion} /> : null}
+      {open ? <Panel titleId={titleId} kind={kind} initialVersion={initialVersion} focus={focus} labels={labels} season={season} run={run} shown={version} onVersion={onVersion} /> : null}
     </Card>
   );
 }
 
-function Panel({ titleId, kind, initialVersion, focus, labels, season, run, onVersion }: { titleId: number; kind: "movie" | "series"; initialVersion?: string; focus?: string; labels?: Record<string, string>; season?: number; run?: number; onVersion?: (key: string) => void }) {
+function Panel({ titleId, kind, initialVersion, focus, labels, season, run, shown, onVersion }: { titleId: number; kind: "movie" | "series"; initialVersion?: string; focus?: string; labels?: Record<string, string>; season?: number; run?: number; shown?: string; onVersion?: (key: string) => void }) {
   const perms = usePerms();
   const nameOf = useLibraryName();
-  const [version, setVersion] = useState<string | undefined>(initialVersion);
+  const [own, setVersion] = useState<string | undefined>(initialVersion);
+  const version = shown ?? own;
   // The run belongs to the library it was linked from; another tab shows that library's own Last search.
   const runOf = run !== undefined && version === initialVersion ? run : undefined;
   const q = useReleases(titleId, version, season, runOf);

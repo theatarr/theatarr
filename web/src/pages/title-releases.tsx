@@ -19,7 +19,7 @@ export function TitleReleasesPage() {
   const access = titleReleaseAccess(rawID, perms.manage);
   const q = useTitle(rawID, access.kind === "page");
   const [params] = useSearchParams();
-  // The library tab picked on the page (none yet: the one the link named).
+  // The library tab picked on the page (none yet: the one the link named); the panel shows it, closed and opened again too.
   const [tab, setTab] = useState<string | undefined>();
   if (access.kind === "not-found") {
     return (
@@ -46,6 +46,8 @@ export function TitleReleasesPage() {
   const run = rawRun !== null && /^\d+$/.test(rawRun) && Number(rawRun) > 0 ? Number(rawRun) : undefined;
   // The run belongs to the library the link named; another tab is headed as that library's own Last search.
   const pinned = run !== undefined && (tab === undefined || tab === (params.get("version") ?? undefined));
+  // The tab shown, kept here above the collapsible panel so the heading and the rows read the same library.
+  const shown = tab ?? params.get("version") ?? undefined;
   // A pinned run is that search, not the library's last one (a later search may exist): its season and day.
   const rawAt = params.get("at");
   const ranOn = rawAt && /^\d{4}-\d{2}-\d{2}$/.test(rawAt) ? fmtDay(rawAt) : "";
@@ -78,7 +80,7 @@ export function TitleReleasesPage() {
       />
       <div className="space-y-5">
         <TitleToolbar titleId={id} name={name} year={t.year} kind={t.kind === "series" ? "series" : "movie"} poster={t.poster} anime={t.anime} versions={currentLibraries(t.versions ?? [])} page="releases" />
-        <ShowReleases titleId={id} kind={t.kind === "series" ? "series" : "movie"} labels={labels} defaultOpen initialVersion={params.get("version") ?? undefined} focus={params.get("hash") ?? undefined} season={season} run={run} onVersion={setTab} />
+        <ShowReleases titleId={id} kind={t.kind === "series" ? "series" : "movie"} labels={labels} defaultOpen initialVersion={params.get("version") ?? undefined} focus={params.get("hash") ?? undefined} season={season} run={run} version={shown} onVersion={setTab} />
       </div>
     </div>
   );
