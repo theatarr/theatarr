@@ -292,13 +292,14 @@ export function peersText(c: Pick<Candidate, "seeders" | "leechers">): string {
   return c.leechers !== undefined && c.leechers !== null ? `${s} / ${c.leechers}` : String(s);
 }
 
-/** The episodes a release covers: "S02E05", or "S02E01–E12 (12)" for several. */
-export function episodesText(eps: string[] | undefined): string {
+/** The episodes a release covers: "S02E05", or "S02E01–E12 (12)" for several. A release whose name reads as two or
+ *  more seasons (multiSeason, the server's multi_season) names its seasons instead. */
+export function episodesText(eps: string[] | undefined, multiSeason?: boolean): string {
   if (!eps?.length) return "—";
   if (eps.length === 1) return eps[0];
   // A pack of several seasons names its seasons: "Seasons 1 to 5" (a list when they are not in a row).
   const seasons = [...new Set(eps.map((e) => /^S(\d+)E\d+$/.exec(e)?.[1]).filter((n): n is string => n !== undefined).map(Number))].sort((a, b) => a - b);
-  if (seasons.length > 1 && seasons.length <= eps.length) {
+  if (multiSeason && seasons.length > 1) {
     const inRow = seasons.every((n, i) => i === 0 || n === seasons[i - 1] + 1);
     return inRow ? `Seasons ${seasons[0]} to ${seasons[seasons.length - 1]}` : `Seasons ${seasons.join(", ")}`;
   }

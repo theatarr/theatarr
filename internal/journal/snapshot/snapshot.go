@@ -67,6 +67,8 @@ type Candidate struct {
 	Languages  []string             `json:"languages,omitempty"`
 	CachedOn   []string             `json:"cached_on,omitempty"`
 	Episodes   []string             `json:"episodes,omitempty"`
+	// MultiSeason: the release's name reads as two or more seasons (indexer.HoldsSeasons).
+	MultiSeason bool `json:"multi_season,omitempty"`
 	// Kept is Decision.Kept: the episodes whose file the accepted pack does not upgrade.
 	Kept       []string         `json:"kept,omitempty"`
 	Existing   *decide.Existing `json:"existing,omitempty"`
@@ -152,6 +154,7 @@ func summarize(rank int, d *decide.Decision, rel indexer.Release) Candidate {
 	if c.Release == "" {
 		c.Release = rel.Title
 	}
+	c.MultiSeason = len(d.EpisodeIDs) > 0 && indexer.HoldsSeasons(c.Release)
 	if c.Indexer == "" {
 		c.Indexer = d.Indexer
 	}

@@ -273,6 +273,20 @@ it("a phone card shows the indexer, the episodes covered, languages and flags", 
   expect(card.textContent).toContain("Freeleech");
 });
 
+// A season search keeps the Packs only toggle, and a release of episodes across a season break whose name is no
+// pack of several seasons (an anime absolute batch) reads as its episodes, not as seasons.
+it("a season search keeps Packs only and an absolute batch reads as its episodes", async () => {
+  const series: Route = { ...TITLE, reply: { ...(TITLE.reply as object), kind: "series" } };
+  const batch = { ...accepted, release: "[Group] Alpha - 12-13 [1080p]", episodes: ["S01E12", "S02E01"] };
+  mockFetch([ME, series, CURRENT, { method: "GET", path: "/titles/7/releases", reply: answer("movie-web", { candidates: [batch] }) }]);
+  renderPage(<InteractiveSearchButton titleId={7} version="movie-web" season={2} />);
+  open();
+  const list = await screen.findByTestId("releases-list");
+  const card = within(list).getAllByRole("listitem").find((li) => li.dataset.releaseHash === "aaa")!;
+  expect(within(card).getByTestId("release-card-episodes").textContent).toBe("S01E12–S02E01 (2)");
+  expect(screen.getByTestId("release-packs-only")).toBeTruthy();
+});
+
 // Hundreds of releases: the first 50 render, Show more adds the next; a rejection chip keeps its releases, and the
 // "best of" line follows the filter.
 it("renders the first 50 releases, shows more on asking, and filters by a rejection chip", async () => {
@@ -584,7 +598,7 @@ it("says Grab this release and Grab started, not the router", async () => {
 // seasons, and under the list how many other results were left out; with no pack the list says so.
 it("searches a whole series for packs of several seasons and says what was left out", async () => {
   const series: Route = { ...TITLE, reply: { ...(TITLE.reply as object), kind: "series", series_type: "standard" } };
-  const span = { ...accepted, release: "Alpha.S01-S03.2160p.WEB-DL-GRP", episodes: ["S01E01", "S01E02", "S02E01", "S03E01", "S03E02"] };
+  const span = { ...accepted, release: "Alpha.S01-S03.2160p.WEB-DL-GRP", multi_season: true, episodes: ["S01E01", "S01E02", "S02E01", "S03E01", "S03E02"] };
   mockFetch([ME, series, CURRENT, { method: "GET", path: "/titles/7/releases", reply: answer("movie-web", { candidates: [span], left_out: 14, notes: "14 results of the search without a season hold one season or less: left out" }) }]);
   const { unmount } = renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
   open();
@@ -594,6 +608,8 @@ it("searches a whole series for packs of several seasons and says what was left 
   expect(within(card).getByTestId("release-card-episodes").textContent).toBe("Seasons 1 to 3");
   expect(screen.getByTestId("interactive-left-out").textContent).toBe("14 other results are not shown. Search a season for those.");
   expect(screen.getByTestId("interactive-search").textContent).not.toContain("Search incomplete");
+  // Every row is a pack: no Packs only toggle.
+  expect(screen.queryByTestId("release-packs-only")).toBeNull();
   unmount();
   mockFetch([ME, series, CURRENT, { method: "GET", path: "/titles/7/releases", reply: answer("movie-web", { candidates: [], results: 0, accepted: 0, rejections: {}, left_out: 1 }) }]);
   renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
@@ -608,7 +624,7 @@ it("shows the whole-series window's texts whole on a phone", async () => {
   vi.stubGlobal("matchMedia", (q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} }));
   try {
     const series: Route = { ...TITLE, reply: { ...(TITLE.reply as object), kind: "series", series_type: "standard" } };
-    const span = { ...accepted, release: "Alpha.S01-S03.2160p.WEB.H265-GRP", episodes: ["S01E01", "S02E01", "S03E01"] };
+    const span = { ...accepted, release: "Alpha.S01-S03.2160p.WEB.H265-GRP", multi_season: true, episodes: ["S01E01", "S02E01", "S03E01"] };
     const whole = (el: HTMLElement, text: string) => {
       expect(el.textContent).toBe(text);
       for (let n: HTMLElement | null = el; n && n !== document.body; n = n.parentElement) {
@@ -626,7 +642,7 @@ it("shows the whole-series window's texts whole on a phone", async () => {
     mockFetch([ME, series, CURRENT, { method: "GET", path: "/titles/7/releases", reply: answer("movie-web", { candidates: [], results: 0, accepted: 0, rejections: {}, left_out: 0 }) }]);
     renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
     open();
-    whole(await screen.findByTestId("interactive-empty"), "No pack of several seasons found.");
+    whole(await screen.findByTestId("interactive-empty"), "No pack of several seasons found. Search a season instead.");
     expect(screen.queryByTestId("interactive-left-out")).toBeNull();
   } finally {
     vi.unstubAllGlobals();

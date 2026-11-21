@@ -168,10 +168,10 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
                 {/* Each answer gets a fresh grid: a new search (Search again, another library) starts without filters. */}
                 {items.length === 0 ? (
                   <p className="py-4 text-center text-sm text-muted-foreground" data-testid="interactive-empty">
-                    {live && r.left_out !== undefined ? "No pack of several seasons found." : "No releases found."}
+                    {live && r.left_out !== undefined ? `No pack of several seasons found.${r.left_out ? "" : " Search a season instead."}` : "No releases found."}
                   </p>
                 ) : (
-                  <ReleaseGrid key={`${lib.key}-${q.dataUpdatedAt}`} items={items} outcomes={outcomes} kind={kind} grab={grab} capped={live && r.results > items.length ? r.results : undefined} stored={!live && storedSample(r, items.length)} reason={reason} />
+                  <ReleaseGrid key={`${lib.key}-${q.dataUpdatedAt}`} items={items} outcomes={outcomes} kind={kind} grab={grab} capped={live && r.results > items.length ? r.results : undefined} stored={!live && storedSample(r, items.length)} reason={reason} noPacksFilter={live && r.left_out !== undefined} />
                 )}
                 {live && r.left_out ? (
                   <p className="text-sm text-[var(--ink-3)]" data-testid="interactive-left-out">

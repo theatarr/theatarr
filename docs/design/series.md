@@ -86,7 +86,8 @@ from ordinary matching loads.
   searches, at least one missing or upgradable episode, size by the summed runtime; a single-season pack still ranks
   first at equal quality and score. In a merged search (below, "Seasons searched together") a pack of several seasons is
   for the searched seasons only: its download leaves out every episode of a season nobody searched (one that fills
-  or upgrades no episode of the searched seasons is rejected), and between full-season releases a known-cached one ranks first, then the one that
+  or upgrades no episode of the searched seasons is rejected; its upgrade reason, the Why's, names the searched
+  seasons' files and missing episodes, while the specifications still judge the whole pack), and between full-season releases a known-cached one ranks first, then the one that
   fills more searched episodes. Anime series keep the rule: no span, no complete-series reading. A season pack, or any multi-episode release, is taken when it fills or
   upgrades at least one episode (the actuallyevan fork's `ACCEPT_RELEASE_ANY_UPGRADABLE`, taken further than Sonarr
   and the fork). Two kinds of episode keep their file. An episode that already has a better file (`UpgradeDisk`)
@@ -175,7 +176,8 @@ loaded keeps the plain query everywhere.
 **Seasons searched together** (Theatarr's own; standard and daily series). When one series version is about to search
 two or more seasons (a newly added show, Search series, the wanted loop's due seasons), those season searches run
 together as one merged search. `acquire.mergeGroups` takes the season targets above season 0 of one version with the
-same reason and why; an episode target, a dead link's search and an anime series are never members. The merge happens
+same reason and why: seasons are searched together per library version and reason, so missing seasons and seasons
+below cutoff that come due together are two merged searches; an episode target, a dead link's search and an anime series are never members. The merge happens
 where the runs start: `Submit` before its `MaxBulk` cut, `Round` after busy and running items left and before the
 per-hour loop. Each member keeps its own run row (one root, the others its children), schedule row and stored search.
 The merged search costs one search per member of `router.wanted.per_hour` and `MaxBulk`, and starts while one is
@@ -184,16 +186,20 @@ is that member's ordinary search, recorded under the group's route source like a
 
 Each member asks exactly its own queries, plus one query without a season (criteria kind `series`): Torznab
 `tvsearch` by id, by title only where the id search falls back; Cardigann the series name, by id first; DMM and
-Zilean by IMDb id alone (not asked without one); Torrentio and SeaDex need a season and are not asked. From that query's answer only releases
+Zilean by IMDb id alone (without one their own checks refuse the query); Torrentio and SeaDex need a season and are not asked. From that query's answer only releases
 whose name reads as two or more seasons are kept (`indexer.HoldsSeasons`); how many were left out is a note on every
 member. Every result is decided with the criteria of the queries that returned it: a `series` criterion takes only a
 release of two or more seasons that maps an episode of a searched season ("Wrong season" or "Holds one season"
 otherwise). The results are ranked together and routed once, on the root's source, as a flagged request (router.md
-"Merged searches"), whatever the members' own queries did; every member with a release for one of its episodes
+"Merged searches"), whatever the members' own queries did. The bounded cache checks (TorBox asks ten) ask the best
+accepted pack of several seasons first, then each member's best release of one season, then the other packs, then
+the rest; every member with a release for one of its episodes
 carries that route job. A member is partial or unanswered only when its own queries failed (recorded beside its
 routing outcome); a failed query without a season is a note. Its stored search holds the decisions that would
 download one of its episodes (a rejected one: that map one), under the route's source. Why, Last search, the
-episode window and History find a member's downloads by that source and its episodes; pruning keeps the stored
+episode window and History find a member's downloads by that source and its episodes: a member's Why shows its own
+stored search or, with none (its season found nothing, or was skipped), only its counts; a download's Why the member
+whose list holds the grabbed release and whose season holds its episodes, else the member of its season; pruning keeps the stored
 searches while a download of the route lives. A search of one season or one episode, RSS, films and anime are
 unchanged.
 

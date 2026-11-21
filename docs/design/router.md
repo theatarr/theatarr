@@ -393,15 +393,19 @@ flagged request changes the batch, which RSS batches and single-season searches 
   download of the version holds in flight, loses every season that has such an episode and goes on with its other
   seasons (nothing is trimmed inside a season); with no season left it is skipped with the usual step
   (`episode_covered`, `in_flight`). The download is opened for the episodes left, and a step (`narrowed`,
-  `seasons_covered`) names the seasons left out. A deferred release counts as covering its seasons: a pack behind it
+  `seasons_covered`) names the seasons left out. A season left out because another download holds one of its
+  episodes counts as in flight, also when the same candidate overlaps the batch in another season. A deferred release counts as covering its seasons: a pack behind it
   is opened for the others. There is no re-ranking after narrowing.
 - **Attempts.** `max_candidates` bounds failed attempts per season, plus one more bucket of the same size shared by
   the releases of several seasons (by the release's name, whatever scope and freshness left it); a candidate whose
   bucket is used up is skipped.
-- **Seasons left without a release.** When the route ends, whatever its outcome, the seasons that had a release
-  missed on every provider (a client's cache miss too) and nothing placed, deferred or in flight get the exhausted
-  re-search an exhausted route of their own would get: one re-search for all their episodes (not for a release added
-  by hand or a dead link's search). Seasons whose releases were only skipped are not searched again.
+- **Seasons left without a release.** Each pass of a route (the first, and each continuation of a deferred
+  download), whatever its outcome, queues one re-search for the seasons that had a release missed on every provider
+  in that pass (a client's cache miss too) and nothing placed, deferred or in flight: the exhausted re-search an
+  exhausted route of their own would get, for all their episodes (not for a release added by hand or a dead link's
+  search). A route whose deferred downloads continue apart can so queue one per pass; the per-season guard of the
+  re-search (`router.wanted.again_after` since that season's last search after a failure) holds repeats. Seasons
+  whose releases were only skipped are not searched again.
 - **Continuation, resume, re-decision.** The stored candidates keep their scoped episodes and rank order; narrowing is
   worked out again on each pass from what is covered and in flight then, the resumed row left out. A re-decision decides each candidate with
   the criteria it was found with (a season pack freshness left one episode stays a season pack), ranks with

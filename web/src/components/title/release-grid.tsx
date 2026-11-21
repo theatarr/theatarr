@@ -244,7 +244,7 @@ function Cell({ id, c, outcomes }: { id: ReleaseColumnId; c: Candidate; outcomes
     case "cached":
       return <Cached c={c} />;
     case "episodes":
-      return <span className="whitespace-nowrap font-mono text-[12px]">{episodesText(c.episodes)}</span>;
+      return <span className="whitespace-nowrap font-mono text-[12px]">{episodesText(c.episodes, c.multi_season)}</span>;
     case "language":
       return <Languages c={c} />;
     case "quality":
@@ -403,6 +403,7 @@ export function ReleaseGrid({
   capped,
   stored,
   reason,
+  noPacksFilter,
 }: {
   items: Candidate[];
   outcomes?: Releases["outcomes"];
@@ -419,6 +420,8 @@ export function ReleaseGrid({
   stored?: boolean;
   /** A rejection reason picked outside the grid (interactive search's summary chips): only those rows. */
   reason?: string;
+  /** Every row is a pack (a whole-series search's answer): no Packs only toggle. */
+  noPacksFilter?: boolean;
 }) {
   const uid = useAuth().data?.id;
   const [saved, setSaved] = useState<ReleaseColumnPrefs | null>(null);
@@ -505,7 +508,7 @@ export function ReleaseGrid({
           label="Cached on" any="Cached or not" value={filter.cached} values={choices.cached.length ? [CACHED_ANY, ...choices.cached] : []}
           words={(v) => (v === CACHED_ANY ? "Cached anywhere" : `Cached on ${providerLabel(v)}`)} onChange={(v) => setFilter({ ...filter, cached: v })} testid="release-cached-on"
         />
-        {kind === "series" ? <Toggle on={filter.packs} onChange={(v) => setFilter({ ...filter, packs: v })} testid="release-packs-only">Packs only</Toggle> : null}
+        {kind === "series" && !noPacksFilter ? <Toggle on={filter.packs} onChange={(v) => setFilter({ ...filter, packs: v })} testid="release-packs-only">Packs only</Toggle> : null}
         <Choice label="Indexer" any="All indexers" value={filter.indexer} values={choices.indexer} words={indexerWords} onChange={(v) => setFilter({ ...filter, indexer: v })} testid="release-indexer" />
         <Choice label="Quality" any="All qualities" value={filter.quality} values={choices.quality} onChange={(v) => setFilter({ ...filter, quality: v })} testid="release-quality" />
         <Choice label="Language" any="All languages" value={filter.language} values={choices.language} onChange={(v) => setFilter({ ...filter, language: v })} testid="release-language" />
@@ -613,7 +616,7 @@ export function ReleaseGrid({
                   ) : null}
                 </div>
                 {copies.on ? <div className="mt-1.5"><Copies c={c} /></div> : null}
-                {kind === "series" && c.episodes?.length ? <div className="mt-1 font-mono text-[12px] text-[var(--ink-2)]" data-testid="release-card-episodes">{episodesText(c.episodes)}</div> : null}
+                {kind === "series" && c.episodes?.length ? <div className="mt-1 font-mono text-[12px] text-[var(--ink-2)]" data-testid="release-card-episodes">{episodesText(c.episodes, c.multi_season)}</div> : null}
                 {c.formats?.length ? <div className="mt-1.5" data-testid="release-card-formats"><Formats c={c} zeros /></div> : null}
                 {c.cached_on?.length || c.languages?.length || c.flags?.length ? (
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-[var(--ink-2)]">

@@ -629,8 +629,10 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   row (that library). A standard or daily series has it there too, for the whole series (titled with the series
   name and "Whole series"): only the query without a season is asked and only packs of several seasons are kept
   (accepted and rejected with their reasons, one row per torrent, at most 300); under the list "N other results are
-  not shown. Search a season for those.", and with no pack "No pack of several seasons found." A pack's row shows
-  its seasons ("Seasons 1 to 5") where an episode is shown. An anime series has it per season and per episode only,
+  not shown. Search a season for those.", and with no pack "No pack of several seasons found.", followed by "Search a season instead." when no other
+  result was left out. Every row there is a pack, so it has no Packs only filter. In every release list a release
+  whose name reads as two or more seasons (the candidate's `multi_season`) shows its seasons ("Seasons 1 to 5") where
+  an episode is shown; any other release keeps its episode range ("S01E12–S02E01 (2)"). An anime series has it per season and per episode only,
   as Sonarr does. Every series has it on each season header (season packs and that season's episodes), each episode
   row (an icon button at the row's end; it does not open the episode overview) and the episode overview (per
   library). On a series the action bar's Search now reads "Search series". Each Wanted row opens it for that library, and the row's season for a series. It is offered only when a
@@ -649,7 +651,7 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   use the same grid; the journal's stored lists, History and Activity stay plain. Every column but Episodes and Formats sorts (the columns Sonarr's sorts; Status puts the
   accepted first, History the current file first), can be hidden and reordered (Columns); the column choice is kept
   per user in this browser (`localStorage` `theatarr.library.release-columns.<user>`). Filters: text, Accepted only,
-  Packs only (a series), and selects for Cached on (anywhere, or one provider), Indexer, Quality and Language, each
+  Packs only (a series; not in the whole-series window), and selects for Cached on (anywhere, or one provider), Indexer, Quality and Language, each
   offering the values in the answer's releases and shown only when it can narrow the list. Sorting and filtering take
   every release of the answer before the 50-row paging. The sort and the filters (and a rejection chip) last while
   the window shows that answer; a new search (Search again, another library, another opening) starts unfiltered in

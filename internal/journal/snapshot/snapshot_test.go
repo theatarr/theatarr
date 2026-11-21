@@ -3,6 +3,7 @@ package snapshot
 import (
 	"encoding/json"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/decide"
@@ -80,6 +81,27 @@ func TestCandidateKeepsKept(t *testing.T) {
 	}
 	if len(back) != 1 || !slices.Equal(back[0].Kept, []string{"S01E02"}) {
 		t.Fatalf("stored %s", b)
+	}
+}
+
+// A candidate says whether its name reads as two or more seasons: a span does, a season pack and an absolute batch
+// across a season break do not (the field is left out).
+func TestCandidateMultiSeason(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		want bool
+	}{
+		{"Show.S01-S03.2160p.WEB-DL-GRP", true},
+		{"Show.Complete.Series.2160p.WEB-DL-GRP", true},
+		{"Show.S02.2160p.WEB-DL-GRP", false},
+		{"[Group] Show - 12-13 [1080p]", false},
+	} {
+		d := &decide.Decision{Release: c.name, Accepted: true, Episodes: []string{"S01E12", "S02E01"}, EpisodeIDs: []int64{112, 201}}
+		got, _ := Candidates([]*decide.Decision{d}, map[*decide.Decision]indexer.Release{d: {Title: d.Release}})
+		b, _ := json.Marshal(got[0])
+		if got[0].MultiSeason != c.want || !c.want && strings.Contains(string(b), "multi_season") {
+			t.Errorf("%s: multi_season %v, want %v: %s", c.name, got[0].MultiSeason, c.want, b)
+		}
 	}
 }
 
