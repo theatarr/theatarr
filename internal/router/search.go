@@ -40,6 +40,8 @@ type Searched struct {
 	// Dropped counts the results of the query without a season left out because their name holds one season or
 	// less (a merged or series-level search).
 	Dropped int
+	// Whole: a series-level interactive search (SearchTarget.WholeOnly) answered this.
+	Whole bool
 }
 
 // MemberSearched is one member's share of a merged search: the ranked decisions that hold its episodes (a pack of
@@ -396,6 +398,7 @@ func SearchRequests(ctx context.Context, eng SearchEngine, svc *indexer.Service,
 				"season or less: left out", searched.Dropped))
 		}
 		searched.NoAnswer = len(refs[target.ID]) > 0 && answered == 0
+		searched.Whole = target.WholeOnly
 		for i := range members {
 			members[i].NoAnswer = memberRefs[i] > 0 && memberAnswered[i] == 0
 		}

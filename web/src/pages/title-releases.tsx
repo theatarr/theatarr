@@ -50,7 +50,7 @@ export function TitleReleasesPage() {
         }
       />
       <div className="space-y-5">
-        <TitleToolbar titleId={id} name={name} year={t.year} kind={t.kind === "series" ? "series" : "movie"} poster={t.poster} anime={t.anime} versions={currentLibraries(t.versions ?? [])} page="releases" />
+        <TitleToolbar titleId={id} name={name} year={t.year} kind={t.kind === "series" ? "series" : "movie"} poster={t.poster} anime={t.anime} seriesType={t.series_type} versions={currentLibraries(t.versions ?? [])} page="releases" />
         <ShowReleases titleId={id} kind={t.kind === "series" ? "series" : "movie"} labels={labels} defaultOpen initialVersion={params.get("version") ?? undefined} focus={params.get("hash") ?? undefined} />
       </div>
     </div>

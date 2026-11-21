@@ -30,9 +30,9 @@ it("says the global state once when Pause is forced", async () => {
 });
 
 const control = (live: boolean) => ({ can_edit: true, can_search: live, live_releases: live });
-const bar = (permissions: string[], live: boolean, kind: "movie" | "series" = "movie") => {
+const bar = (permissions: string[], live: boolean, kind: "movie" | "series" = "movie", seriesType?: string) => {
   const api = mockFetch([{ method: "GET", path: "/auth/me", reply: { id: 1, permissions } }, options([])]);
-  renderPage(<SearchProvider><TitleToolbar titleId={7} name="Alpha" kind={kind} versions={[{ id: 1, key: "movie-web", label: "WEB", control: control(live) }] as never} /></SearchProvider>);
+  renderPage(<SearchProvider><TitleToolbar titleId={7} name="Alpha" kind={kind} seriesType={seriesType} versions={[{ id: 1, key: "movie-web", label: "WEB", control: control(live) }] as never} /></SearchProvider>);
   return api;
 };
 
@@ -42,15 +42,27 @@ it("offers Interactive search of a movie to a manager when a library of it searc
   expect(screen.queryByTestId("title-no-interactive")).toBeNull();
 });
 
-it("offers no whole-title Interactive search for a series or a non-manager", async () => {
+it("offers no whole-title Interactive search for an anime series or a non-manager", async () => {
   const a = bar(["add"], true);
   await waitFor(() => expect(a.calls("GET", "/auth/me").length).toBeGreaterThan(0));
   await new Promise((r) => setTimeout(r, 20));
   expect(screen.queryByTestId("interactive-search-open")).toBeNull();
-  // A series has Interactive search per season and per episode only (Sonarr's rule).
-  bar(["manage", "add"], true, "series");
+  // An anime series has Interactive search per season and per episode only.
+  bar(["manage", "add"], true, "series", "anime");
   expect(await screen.findAllByTestId("title-refresh")).toBeTruthy();
   expect(screen.queryByTestId("interactive-search-open")).toBeNull();
+});
+
+it("offers a standard or daily series' Interactive search of the whole series, and says Search series", async () => {
+  for (const type of ["standard", "daily"]) {
+    document.body.innerHTML = "";
+    bar(["manage", "add"], true, "series", type);
+    expect(await screen.findByTestId("interactive-search-open")).toBeTruthy();
+    expect((await screen.findByTestId("title-search-now")).textContent?.trim()).toBe("Search series");
+  }
+  document.body.innerHTML = "";
+  bar(["manage", "add"], true);
+  expect((await screen.findByTestId("title-search-now")).textContent?.trim()).toBe("Search now");
 });
 
 const renameBar = (preview: object) => {

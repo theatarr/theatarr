@@ -298,3 +298,28 @@ func TestMergedSearchMemberOutcomes(t *testing.T) {
 		}
 	}
 }
+
+// A series-level interactive search of a standard series asks only the query without a season, over every aired
+// episode above season 0, monitored or not; an anime series keeps today's search.
+func TestInteractiveWholeSeries(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, nil)
+	f := &mergedFake{}
+	e.a.searchBatch = f.search
+	e.exec(`UPDATE episode_version_state SET monitored = 0 WHERE episode_id = 1001`)
+	if _, err := e.a.Interactive(e.ctx, 10, "series", nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	c := f.calls()
+	if len(c) != 1 || !c[0][0].WholeOnly || c[0][0].Series.Kind != profile.SearchSeries || !c[0][0].Series.Interactive ||
+		c[0][0].Series.MonitoredOnly || fmt.Sprint(c[0][0].Series.Episodes) != "[1001 1002 1003 1004]" {
+		t.Fatalf("series-level target %+v %+v", c, c[0][0].Series)
+	}
+	e.exec(`UPDATE title SET anime = 1 WHERE id = 10`)
+	if _, err := e.a.Interactive(e.ctx, 10, "series", nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if c := f.calls(); len(c) != 2 || c[1][0].WholeOnly || c[1][0].Series.Kind == profile.SearchSeries {
+		t.Fatalf("anime: %+v", c[1][0])
+	}
+}

@@ -52,6 +52,10 @@ type fakeAcquirer struct {
 	later []string
 	// notRequested makes Submit report that no named library was queued (Selection.RequestedQueued).
 	notRequested bool
+	// whole answers a search without a season as the series-level search does (router.Searched.Whole): these
+	// decisions, and dropped results left out.
+	whole   []*decide.Decision
+	dropped int
 }
 
 func (f *fakeAcquirer) NextSearches(_ context.Context, titleID int64) ([]acquire.NextSearch, error) {
@@ -74,11 +78,18 @@ func (f *fakeAcquirer) Submit(ctx context.Context, _ int64, sel acquire.Selectio
 	return len(sel.Versions), len(sel.Versions), nil
 }
 
-func (f *fakeAcquirer) Interactive(_ context.Context, titleID int64, version string, _ *int, _ []int64) (*router.Searched,
+func (f *fakeAcquirer) Interactive(_ context.Context, titleID int64, version string, season *int, _ []int64) (*router.Searched,
 	error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.interactive = append(f.interactive, fmt.Sprintf("%d/%s", titleID, version))
+	if f.whole != nil && season == nil {
+		rels := map[*decide.Decision]indexer.Release{}
+		for i, d := range f.whole {
+			rels[d] = indexer.Release{Title: d.Release, Indexer: "dmm", InfoHash: strings.Repeat(string(rune('a'+i)), 40)}
+		}
+		return &router.Searched{Ranked: f.whole, Releases: rels, Whole: true, Dropped: f.dropped}, nil
+	}
 	if f.noAnswer {
 		return &router.Searched{NoAnswer: true, Notes: []string{"dmm: timeout"}}, nil
 	}
@@ -2391,5 +2402,33 @@ func TestTitleMetadataPending(t *testing.T) {
 	// A title added long ago (no series_meta added_at) is settled.
 	if pending(10) {
 		t.Error("an old series is pending")
+	}
+}
+
+// The series-level interactive search: the kept rows (packs of several seasons, accepted or rejected) and the count of
+// results left out; with no pack the list is empty and the count still says what was left out. A season search
+// carries no count.
+func TestReleasesWholeSeries(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, nil)
+	span := &decide.Decision{Release: "The.Show.S01-S03.2160p.WEB-DL-GRP", Accepted: true, Episodes: []string{"S01E01", "S03E02"}}
+	old := &decide.Decision{Release: "The.Show.Complete.Series.720p.HDTV-X", Rejections: []decide.Rejection{{Reason: "quality"}}}
+	e.acq.whole, e.acq.dropped = []*decide.Decision{span, old}, 12
+	var r Releases
+	e.call("GET", APIBase+"/titles/10/releases?version=tv-2160p&live=1", nil, 200, &r)
+	if r.Source != "live" || len(r.Candidates) != 2 || r.Accepted != 1 || r.Rejections["quality"] != 1 || r.LeftOut == nil ||
+		*r.LeftOut != 12 {
+		t.Fatalf("whole series: %+v", r)
+	}
+	e.acq.whole, e.acq.dropped = []*decide.Decision{}, 5
+	r = Releases{}
+	e.call("GET", APIBase+"/titles/10/releases?version=tv-2160p&live=1", nil, 200, &r)
+	if len(r.Candidates) != 0 || r.LeftOut == nil || *r.LeftOut != 5 {
+		t.Fatalf("no pack: %+v", r)
+	}
+	r = Releases{}
+	e.call("GET", APIBase+"/titles/10/releases?version=tv-2160p&live=1&season=1", nil, 200, &r)
+	if r.LeftOut != nil {
+		t.Fatalf("a season search carries no count: %+v", r)
 	}
 }

@@ -197,3 +197,7 @@ export function nextSearch(x: { at: string; why?: string } | undefined, now: Dat
   const why = nextSearchWhy(x.why);
   return why ? `${when} (${why})` : when;
 }
+
+/** A series whose whole-series interactive search is offered: standard or daily (anime has it per season only). */
+export const wholeSeriesSearch = (kind: string | undefined, anime?: boolean, seriesType?: string) =>
+  kind === "series" && !anime && seriesType !== "anime";

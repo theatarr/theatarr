@@ -1,6 +1,6 @@
 // Interactive search (docs/design/ui.md "Interactive search"): a wide window that searches the indexers the moment it
-// opens, for one library of a title (tabs for the title's libraries that may search), of the whole title, one season
-// or one episode, and shows every release in the release grid (release-grid.tsx) with Grab for managers. Each opening
+// opens, for one library of a title (tabs for the title's libraries that may search), of the whole title (for a
+// series: packs of several seasons only, the other results counted under the list), one season or one episode, and shows every release in the release grid (release-grid.tsx) with Grab for managers. Each opening
 // searches afresh; a library already answered in this opening is not searched again until Search again. Closing the
 // window or switching library cancels a search still running. A search the server refused or that failed answers with
 // the stored decision and says why: those rows cannot be grabbed. Opened by InteractiveSearchButton, which the title
@@ -68,7 +68,9 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
   const r = q.data;
   const library = lib ? lib.label || lib.key || "" : "";
   const kind = d?.kind === "series" ? "series" : "movie";
-  const scope = episode ? episode.code : season === undefined ? "" : season === 0 ? "Specials" : `Season ${season}`;
+  // A series searched as a whole (a standard or daily series' title-level search: packs of several seasons only).
+  const wholeSeries = d?.kind === "series" && season === undefined && !episode;
+  const scope = episode ? episode.code : season === undefined ? (wholeSeries ? "Whole series" : "") : season === 0 ? "Specials" : `Season ${season}`;
   const live = r?.source === "live";
   const items = r?.candidates ?? [];
   // The requested film's or episode's own file in this library, as the server reads it now (none for a season).
@@ -165,10 +167,17 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
                 ) : null}
                 {/* Each answer gets a fresh grid: a new search (Search again, another library) starts without filters. */}
                 {items.length === 0 ? (
-                  <p className="py-4 text-center text-sm text-muted-foreground">No releases found.</p>
+                  <p className="py-4 text-center text-sm text-muted-foreground" data-testid="interactive-empty">
+                    {live && r.left_out !== undefined ? "No pack of several seasons found." : "No releases found."}
+                  </p>
                 ) : (
                   <ReleaseGrid key={`${lib.key}-${q.dataUpdatedAt}`} items={items} outcomes={outcomes} kind={kind} grab={grab} capped={live && r.results > items.length ? r.results : undefined} stored={!live && storedSample(r, items.length)} reason={reason} />
                 )}
+                {live && r.left_out ? (
+                  <p className="text-sm text-[var(--ink-3)]" data-testid="interactive-left-out">
+                    {r.left_out === 1 ? "1 other result is" : `${fmtNumber(r.left_out)} other results are`} not shown. Search a season for those.
+                  </p>
+                ) : null}
               </>
             ) : null}
           </>

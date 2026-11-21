@@ -296,6 +296,12 @@ export function peersText(c: Pick<Candidate, "seeders" | "leechers">): string {
 export function episodesText(eps: string[] | undefined): string {
   if (!eps?.length) return "—";
   if (eps.length === 1) return eps[0];
+  // A pack of several seasons names its seasons: "Seasons 1 to 5" (a list when they are not in a row).
+  const seasons = [...new Set(eps.map((e) => /^S(\d+)E\d+$/.exec(e)?.[1]).filter((n): n is string => n !== undefined).map(Number))].sort((a, b) => a - b);
+  if (seasons.length > 1 && seasons.length <= eps.length) {
+    const inRow = seasons.every((n, i) => i === 0 || n === seasons[i - 1] + 1);
+    return inRow ? `Seasons ${seasons[0]} to ${seasons[seasons.length - 1]}` : `Seasons ${seasons.join(", ")}`;
+  }
   const first = eps[0];
   const last = eps[eps.length - 1];
   const sameSeason = first.slice(0, 3) === last.slice(0, 3) && /^S\d{2}E/.test(last);

@@ -55,6 +55,9 @@ type Releases struct {
 	// Current is the file the requested film or episode holds in this library now (interactive search's "Current
 	// file" line); absent for a season or a whole series.
 	Current *HeldFile `json:"current,omitempty"`
+	// LeftOut, for a live search of a whole standard or daily series (only packs of several seasons are kept),
+	// counts the results left out: a season search finds those.
+	LeftOut *int `json:"left_out,omitempty"`
 }
 
 // ReleaseRow is one row of a release list: one torrent (info hash), shown as its first copy in the list's ranked
@@ -353,6 +356,10 @@ func (w *Web) liveReleases(ctx context.Context, out *Releases, r *http.Request) 
 	}
 	rankedInto(out, sr, w.now())
 	w.keepLive(out, sr)
+	if sr.Whole {
+		n := sr.Dropped
+		out.LeftOut = &n
+	}
 	if season != nil {
 		out.Target = "s" + strconv.Itoa(100 + *season)[1:]
 	}

@@ -162,6 +162,9 @@ describe("cell words", () => {
     expect(peersText({ seeders: -1 })).toBe("—");
     expect(episodesText(["S02E05"])).toBe("S02E05");
     expect(episodesText(Array.from({ length: 12 }, (_, i) => `S02E${String(i + 1).padStart(2, "0")}`))).toBe("S02E01–E12 (12)");
+    // A pack of several seasons names its seasons.
+    expect(episodesText(["S01E01", "S01E02", "S02E01", "S03E01"])).toBe("Seasons 1 to 3");
+    expect(episodesText(["S01E01", "S01E02", "S03E01"])).toBe("Seasons 1, 3");
   });
 });
 

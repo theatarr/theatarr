@@ -1,7 +1,7 @@
 // The title page's Libraries table (docs/design/ui.md, Title page): one row per library the title is in, for a movie
 // and a series alike, on the shared DataTable. Monitored and Library always show, then the columns
 // the user chose (lib/library-rows.ts, kept per user in this browser), then the row's actions: Search now, Interactive
-// search (a movie's library) and Details, which opens a panel with what has no column: the library key, path,
+// search (a movie's library, or a standard or daily series': the whole series) and Details, which opens a panel with what has no column: the library key, path,
 // hash, edition, upgrade explanation, minimum availability, the hand-offs to Wanted, the last search's results, each
 // linked file with Unlink, and Remove from this library. Below 768 px each library is a stacked block. A library the
 // title was removed from has no row; one that still has linked files gets one line under the table. Only for callers
@@ -30,7 +30,7 @@ import { Card } from "@/components/ui/card";
 import { ColumnPicker } from "@/components/ui/column-picker";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { fmtAgo, fmtBytes, fmtNumber, fmtTime } from "@/lib/format";
-import { currentLibraries, DEFAULT_LIBRARY_COLUMNS, fileName, LIBRARY_COLUMNS, lastSearchAt, libraryColumns, libraryStatus, nextSearch, nextSearchOf, type LibraryColumn } from "@/lib/library-rows";
+import { currentLibraries, DEFAULT_LIBRARY_COLUMNS, fileName, LIBRARY_COLUMNS, lastSearchAt, libraryColumns, libraryStatus, nextSearch, nextSearchOf, type LibraryColumn, wholeSeriesSearch } from "@/lib/library-rows";
 import { leftoverLinks, unlinkable } from "@/lib/ops";
 import { useColumnPrefs } from "@/lib/prefs";
 import { belowCount, nextLine } from "@/lib/upgrade";
@@ -278,7 +278,7 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
     const key = v.key ?? "";
     const name = nameOf(v);
     const searchable = !!c?.can_search;
-    const interactiveOk = perms.manage && kind === "movie" && !!c?.live_releases;
+    const interactiveOk = perms.manage && (kind === "movie" || wholeSeriesSearch(kind, title.anime, title.series_type)) && !!c?.live_releases;
     const iconSize = wide ? "icon-sm" : "sm";
     const phone = wide ? "" : "h-9";
     return (

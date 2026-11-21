@@ -7,6 +7,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/availability"
 	"github.com/theatarr/theatarr/internal/decide"
+	"github.com/theatarr/theatarr/internal/decide/profile"
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/router"
@@ -45,7 +46,19 @@ func (a *Acquirer) InteractiveMany(ctx context.Context, titleID int64, versions 
 			return nil, err
 		}
 		var ss *decide.SeriesSearch
-		if t.Kind == policy.KindSeries {
+		whole := false
+		if t.Kind == policy.KindSeries && season == nil && len(episodes) == 0 && t.SeriesType != "anime" && !t.Anime {
+			// The whole series of a standard or daily series: the query without a season for packs of several
+			// seasons, over every aired episode above season 0 (monitored or not).
+			whole = true
+			now := a.now()
+			ss = &decide.SeriesSearch{Kind: profile.SearchSeries, Interactive: true}
+			for _, e := range t.Episodes {
+				if e.Season > 0 && e.AirDateUTC != nil && e.AirDateUTC.Before(now) {
+					ss.Episodes = append(ss.Episodes, e.ID)
+				}
+			}
+		} else if t.Kind == policy.KindSeries {
 			ss = seriesSearch(&t, target{season: season, episodes: episodes})
 			ss.Interactive, ss.MonitoredOnly = true, false
 			if season != nil && len(episodes) == 0 {
@@ -60,7 +73,7 @@ func (a *Acquirer) InteractiveMany(ctx context.Context, titleID int64, versions 
 			}
 		}
 		ls = append(ls, loaded{key: key, title: t, target: router.SearchTarget{ID: key, Title: &t, Version: v,
-			Existing: existing, Series: ss}})
+			Existing: existing, Series: ss, WholeOnly: whole}})
 	}
 	if len(ls) == 0 {
 		return map[string]*router.Searched{}, nil

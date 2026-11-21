@@ -1,6 +1,7 @@
 // The title page's action bar (docs/design/ui.md, Title page), also the header of the Last search page: Search now
-// (every monitored library that can search), Interactive search (the title page only, a movie, managers, when a
-// library of it searches live; a series has it per season and per episode only, as Sonarr does), then on the title page
+// (every monitored library that can search; "Search series" on a series), Interactive search (the title page only,
+// managers, when a library of it searches live: a movie, or the whole series of a standard or daily series, which
+// shows packs of several seasons only; an anime series has it per season and per episode only), then on the title page
 // Rename files (admins, with a file to rename: a preview first), History, Refresh metadata and Remove title; the Last
 // search page has Add to another library instead, while a library is left to add. Below 768 px the title page's other actions sit under More. The notices under the bar: Pause once for the
 // page, the Search now outcome or failure with Retry, and why nothing is searched. Search now runs only when it would
@@ -21,7 +22,7 @@ import { DownloadsOffNotice, nothingSearchedWords, searchOffWords } from "@/comp
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Modal } from "@/components/ui/modal";
-import { renameSides } from "@/lib/library-rows";
+import { renameSides, wholeSeriesSearch } from "@/lib/library-rows";
 import { renameError } from "@/lib/rename";
 import { cn } from "@/lib/utils";
 import { globalDownloadsOff } from "@/lib/version-grab";
@@ -101,13 +102,15 @@ function RenameDialog({ titleId, labels, onClose }: { titleId: number; labels: R
   );
 }
 
-export function TitleToolbar({ titleId, name, year, kind, poster, anime, versions, removed = [], onHistory, page = "title" }: {
+export function TitleToolbar({ titleId, name, year, kind, poster, anime, seriesType, versions, removed = [], onHistory, page = "title" }: {
   titleId: number;
   name: string;
   year?: number;
   kind: "movie" | "series";
   poster?: string;
   anime?: boolean;
+  /** A series' type in force (standard, daily, anime). */
+  seriesType?: string;
   /** The libraries the title is in now (not removed). */
   versions: Version[];
   /** Libraries it was removed from: their leftover links can still be renamed, under their names. */
@@ -126,9 +129,10 @@ export function TitleToolbar({ titleId, name, year, kind, poster, anime, version
   const wide = useMinWidth(768);
   const [dialog, setDialog] = useState<"interactive" | "rename" | "remove" | null>(null);
   const titlePage = page === "title";
-  // Interactive search of the whole movie for managers when a library of it searches live.
-  const movie = kind === "movie" && perms.manage;
-  const live = movie && versions.some((v) => v.control?.live_releases);
+  // Interactive search of the whole movie, or of the whole standard or daily series, for managers when a library of
+  // it searches live.
+  const whole = perms.manage && (kind === "movie" || wholeSeriesSearch(kind, anime, seriesType));
+  const live = whole && versions.some((v) => v.control?.live_releases);
   // The mutation holds the last try: its answer, its error, or nothing while a new one runs (mutate resets both).
   const outcome = searchNow.data ?? null;
   const runSearch = () => searchNow.mutate(undefined);
@@ -168,7 +172,7 @@ export function TitleToolbar({ titleId, name, year, kind, poster, anime, version
         {/* Shown disabled while the add options load, so the bar does not shift when they arrive. */}
         {perms.manage && (o || opts.isPending) ? (
           <Button size="sm" variant="outline" className={cn("max-md:h-9", o && !searchable.length && "disabled:pointer-events-auto disabled:cursor-not-allowed")} onClick={runSearch} disabled={!o || searchNow.isPending || !searchable.length} title={!o ? undefined : searchable.length ? searchTip : searchOff} data-testid="title-search-now">
-            {searchNow.isPending ? <Loader2 className="animate-spin" /> : <Search />} Search now
+            {searchNow.isPending ? <Loader2 className="animate-spin" /> : <Search />} {kind === "series" ? "Search series" : "Search now"}
           </Button>
         ) : null}
         {/* The Last search page offers it per library, in the panel. */}
