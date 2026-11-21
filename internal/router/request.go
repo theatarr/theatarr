@@ -113,6 +113,10 @@ type Request struct {
 	waitingSince time.Time
 }
 
+// resumed says whether the request continues a route that waited: it resumes a queued download, or it was deferred
+// (behind provider pacing) before one was opened.
+func (q *Request) resumed() bool { return q.DownloadID != 0 || !q.waitingSince.IsZero() }
+
 // Candidates turns ranked decisions into candidates: the accepted ones only, in order, each with its release.
 // releases maps a decision to the release it was made for (decide.Decision does not carry it); a decision with no
 // release is left out.

@@ -120,10 +120,15 @@ interactive grabs are not decided again (`TestDeferredAutomaticRouteRedecidedAft
 with (a scene/XEM mapping changed while it waited) takes the new episodes minus any whose held file the upgrade
 rules leave in place ([series.md](series.md)) and is checked for freshness again before any add
 (`TestDeferredRouteTakesNewEpisodeMapping`); otherwise any episode the new decision leaves in place is removed from
-the candidate's episodes, and a candidate left with none is skipped (`no_longer_upgrade`). A resumed series route
-that is not decided again (SeaDex preference off, same revision) still has each RSS release mapped again: on an
-accepted decision it takes the new episodes minus any left in place, or drops those left in place (`remapResumed`,
-`TestDeferredRemapWithoutSeaDex`, `TestKeptByRuleEpisodesLeftOut`).
+the candidate's episodes, and a candidate left with none is skipped (`no_longer_upgrade`). A resumed automatic series
+route that is not decided again (SeaDex preference off, same revision) still decides each release again with what it
+was found by: an RSS release as on the RSS path (no search criteria), a search release with the criteria and scope
+stored with it. A release rejected now (its episodes all held by files a Repack or version rule leaves in place, say)
+is skipped (`rejected_now`) and not added; an accepted one keeps its place in the order, takes the new episodes
+minus any left in place, or drops those left in place (`remapResumed`). A search release stored without its criteria
+and one queued by an older build keep what they were queued with; grabs by hand are never decided again. A route
+counts as resumed when it resumes a queued download or carries a waiting time (deferred behind pacing)
+(`TestDeferredRemapWithoutSeaDex`, `TestKeptByRuleEpisodesLeftOut`).
 
 A resumed queued download takes its candidate as the route refreshed it (episodes the freshness check dropped, a new
 decision's quality, score, formats, episode mapping and policy revision) in the write that resumes it, before any

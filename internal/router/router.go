@@ -513,7 +513,7 @@ func (r *Router) route(ctx context.Context, s *routeState, req Request, dry bool
 		kept[i].Release = decide.ClearSpanSeaDex(kept[i].Release, kept[i].EpisodeMap)
 	}
 	req.Candidates, s.req.Candidates = kept, kept
-	automatic, err := r.automatic(ctx, s.req.Source, s.req.DownloadID != 0)
+	automatic, err := r.automatic(ctx, s.req.Source, s.req.resumed())
 	if err != nil {
 		return s.res, err
 	}

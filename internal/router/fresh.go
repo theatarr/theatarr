@@ -223,7 +223,7 @@ func (r *Router) freshCandidates(ctx context.Context, s *routeState) ([]Candidat
 func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate) ([]Candidate, error) {
 	series := s.vp.Kind == policy.KindSeries
 	if !s.vp.PreferSeaDex && (s.req.DecisionRev == "" || s.req.DecisionRev == r.pol.Revision) {
-		if series && s.req.DownloadID != 0 {
+		if series && s.req.resumed() {
 			return r.remapResumed(ctx, s, cands)
 		}
 		return cands, nil
@@ -351,10 +351,13 @@ func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate)
 	return kept, nil
 }
 
-// remapResumed maps a resumed series route's RSS candidates to the episodes their releases map to now, when the
-// route is not decided again otherwise (prefer-off, same revision): a scene/XEM mapping may have changed while it
-// waited. Only the episodes change, and only on an accepted decision; anything else keeps the
-// candidate as queued.
+// remapResumed decides a resumed series route's candidates again when the route is not decided again otherwise
+// (prefer-off, same revision): files may have been imported and a scene/XEM mapping may have changed while it waited.
+// An RSS candidate is decided as on the RSS path (no criteria), a search candidate with the criteria it was found
+// with; a candidate rejected now is dropped, an accepted one keeps its place and takes the episodes its release maps
+// to now, without those kept by rule. A search candidate queued without its criteria and one queued by an older build
+// (no origin) are not decided again as RSS: they keep what they were queued with, an older build's accepted remap
+// aside.
 func (r *Router) remapResumed(ctx context.Context, s *routeState, cands []Candidate) ([]Candidate, error) {
 	if r.decideSeries == nil {
 		return cands, nil
@@ -362,8 +365,10 @@ func (r *Router) remapResumed(ctx context.Context, s *routeState, cands []Candid
 	var t *decide.Title
 	var v decide.Version
 	out := make([]Candidate, 0, len(cands))
+	rejected := false
 	for _, c := range cands {
-		if c.Origin == OriginSearch {
+		search := c.Origin == OriginSearch
+		if search && len(c.Criteria) == 0 {
 			out = append(out, c)
 			continue
 		}
@@ -381,9 +386,24 @@ func (r *Router) remapResumed(ctx context.Context, s *routeState, cands []Candid
 			}
 			t = &title
 		}
-		d, err := r.decideSeries(ctx, decide.Release{Release: c.Release}, *t, v, nil)
+		var d *decide.Decision
+		var err error
+		if search {
+			d, err = decideBest(ctx, r.decideSeries, c.Release, *t, v, c.Criteria, nil)
+		} else {
+			d, err = r.decideSeries(ctx, decide.Release{Release: c.Release}, *t, v, nil)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("router: remap %s: %w", c.Release.Title, err)
+		}
+		if !d.Accepted && (search || c.Origin == OriginRSS) {
+			var why []string
+			for _, rj := range d.Rejections {
+				why = append(why, rj.String())
+			}
+			r.skipFresh(s, c, "rejected_now", "rejected under the current policy: "+strings.Join(why, "; "))
+			rejected = true
+			continue
 		}
 		if d.Accepted && !r.applyDecisionEpisodes(s, &c, d) {
 			continue
@@ -391,7 +411,11 @@ func (r *Router) remapResumed(ctx context.Context, s *routeState, cands []Candid
 		out = append(out, c)
 	}
 	if len(out) == 0 {
-		return r.finishFresh(ctx, s, "no release is still wanted by this version")
+		msg := "no release is still wanted by this version"
+		if rejected {
+			msg = "no release is accepted under the current policy"
+		}
+		return r.finishFresh(ctx, s, msg)
 	}
 	return out, nil
 }
