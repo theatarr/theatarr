@@ -341,55 +341,41 @@ func (b *builder) snapshotFor(source string, titleID int64, version string, at i
 	var cj, rj, notes, target, rev string
 	var results, accepted int
 	var trimmed bool
-	type stored struct {
-		cj, rj, notes, target, rev string
-		results, accepted          int
-		trimmed                    bool
-		run                        sql.NullInt64
+	read := func(extra string, args ...any) error {
+		return b.db.QueryRowContext(b.ctx, `SELECT candidates, rejections, notes, target, results, accepted, trimmed,
+			policy_rev FROM journal_decision WHERE source = ? AND title_id = ? AND version_key = ? AND created_at <= ?`+extra+`
+			ORDER BY created_at DESC, id DESC LIMIT 1`, append([]any{source, titleID, version, at}, args...)...).Scan(&cj,
+			&rj, &notes, &target, &results, &accepted, &trimmed, &rev)
 	}
-	rows, err := b.db.QueryContext(b.ctx, `SELECT candidates, rejections, notes, target, results, accepted, trimmed,
-		policy_rev, run_id FROM journal_decision WHERE source = ? AND title_id = ? AND version_key = ? AND created_at <= ?
-		ORDER BY created_at DESC, id DESC`, source, titleID, version, at)
+	// A merged search's members share the source: the run's own, else the one whose list holds the hash and whose
+	// season holds one of the episodes; else (and for any other source) the newest.
+	var picks []func() error
+	if strings.HasPrefix(source, "acquire:") {
+		if pick.run > 0 {
+			picks = append(picks, func() error { return read(` AND run_id = ?`, pick.run) })
+		}
+		if pick.hash != "" && pick.episodes != "" {
+			picks = append(picks, func() error {
+				return read(` AND EXISTS (SELECT 1 FROM json_each(candidates) c
+					WHERE lower(json_extract(c.value, '$.info_hash')) = lower(?))
+					AND EXISTS (SELECT 1 FROM episode e JOIN json_each(?) de ON e.id = de.value
+					WHERE 's' || printf('%02d', e.season) = lower(target))`, pick.hash, pick.episodes)
+			})
+		}
+	}
+	picks = append(picks, func() error { return read(``) })
+	var err error
+	for _, p := range picks {
+		if err = p(); !errors.Is(err, sql.ErrNoRows) {
+			break
+		}
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
-	var all []stored
-	for rows.Next() {
-		var x stored
-		if err := rows.Scan(&x.cj, &x.rj, &x.notes, &x.target, &x.results, &x.accepted, &x.trimmed, &x.rev, &x.run); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		all = append(all, x)
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	if len(all) == 0 {
-		return nil, nil
-	}
-	chosen := all[0]
-	if len(all) > 1 {
-		if c, ok, err := b.pickSnapshot(pick, func(yield func(run sql.NullInt64, target, cj string) bool) {
-			for _, x := range all {
-				if !yield(x.run, x.target, x.cj) {
-					return
-				}
-			}
-		}); err != nil {
-			return nil, err
-		} else if ok {
-			for _, x := range all {
-				if x.run == c {
-					chosen = x
-					break
-				}
-			}
-		}
-	}
-	cj, rj, notes, target, rev = chosen.cj, chosen.rj, chosen.notes, chosen.target, chosen.rev
-	results, accepted, trimmed = chosen.results, chosen.accepted, chosen.trimmed
 	r := &Reasoning{Basis: "theatarr search", Results: results, Accepted: accepted, Notes: clean(notes), PolicyRev: rev}
 	if target == "rss" {
 		r.Basis = "theatarr rss"
@@ -406,63 +392,6 @@ func (b *builder) snapshotFor(source string, titleID int64, version string, at i
 		r.Missing = "candidates trimmed by retention"
 	}
 	return r, nil
-}
-
-// pickSnapshot picks one of a merged search's stored searches (snapshotPick): the run's own, else the first whose
-// candidates hold the hash and whose season (target sNN) holds one of the episodes.
-func (b *builder) pickSnapshot(pick snapshotPick,
-	each func(yield func(run sql.NullInt64, target, cj string) bool)) (sql.NullInt64, bool, error) {
-	var found sql.NullInt64
-	ok := false
-	if pick.run > 0 {
-		each(func(run sql.NullInt64, _, _ string) bool {
-			if run.Valid && run.Int64 == pick.run {
-				found, ok = run, true
-				return false
-			}
-			return true
-		})
-		if ok {
-			return found, true, nil
-		}
-	}
-	if pick.hash == "" || pick.episodes == "" {
-		return found, false, nil
-	}
-	seasons := map[int]bool{}
-	rows, err := b.db.QueryContext(b.ctx, `SELECT DISTINCT season FROM episode WHERE id IN (SELECT value FROM json_each(?))`,
-		pick.episodes)
-	if err != nil {
-		return found, false, err
-	}
-	for rows.Next() {
-		var n int
-		if err := rows.Scan(&n); err != nil {
-			rows.Close()
-			return found, false, err
-		}
-		seasons[n] = true
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return found, false, err
-	}
-	each(func(run sql.NullInt64, target, cj string) bool {
-		n, err := strconv.Atoi(strings.TrimPrefix(strings.ToLower(target), "s"))
-		if err != nil || !seasons[n] {
-			return true
-		}
-		var cands []snapshot.Candidate
-		_ = json.Unmarshal([]byte(cj), &cands)
-		for _, c := range cands {
-			if strings.EqualFold(c.InfoHash, pick.hash) {
-				found, ok = run, true
-				return false
-			}
-		}
-		return true
-	})
-	return found, ok, nil
 }
 
 // pickChosen moves the chosen candidate to Chosen: the one with hash, else the one named release, else (with

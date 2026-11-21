@@ -43,9 +43,10 @@ func MergedRunSQL(r string) string {
 // RunDownloadsSQL is true for a download (alias d) that acquire run r's search opened: one of its own route, or for
 // a member of a merged search one of the root's route that holds a member's episode.
 func RunDownloadsSQL(d, r string) string {
-	return `(CASE WHEN ` + MergedRunSQL(r) + ` THEN ` + d + `.source = 'acquire:' || COALESCE(` + r + `.search_run, ` + r +
-		`.id) AND EXISTS (SELECT 1 FROM json_each(` + d + `.episodes) de JOIN json_each(` + r + `.episodes) re
-		ON de.value = re.value) ELSE ` + d + `.source = 'acquire:' || ` + r + `.id END)`
+	// The route's source first (download.source is indexed), then a merged member's episode overlap.
+	return `(` + d + `.source = 'acquire:' || CASE WHEN ` + MergedRunSQL(r) + ` THEN COALESCE(` + r + `.search_run, ` + r +
+		`.id) ELSE ` + r + `.id END AND (NOT ` + MergedRunSQL(r) + ` OR EXISTS (SELECT 1 FROM json_each(` + d + `.episodes) de
+		JOIN json_each(` + r + `.episodes) re ON de.value = re.value)))`
 }
 
 // Candidate is one release as the decision saw it. Links (GUID, download URLs, magnets) are never kept.

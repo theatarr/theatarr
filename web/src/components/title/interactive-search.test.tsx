@@ -585,7 +585,7 @@ it("says Grab this release and Grab started, not the router", async () => {
 it("searches a whole series for packs of several seasons and says what was left out", async () => {
   const series: Route = { ...TITLE, reply: { ...(TITLE.reply as object), kind: "series", series_type: "standard" } };
   const span = { ...accepted, release: "Alpha.S01-S03.2160p.WEB-DL-GRP", episodes: ["S01E01", "S01E02", "S02E01", "S03E01", "S03E02"] };
-  mockFetch([ME, series, CURRENT, { method: "GET", path: "/titles/7/releases", reply: answer("movie-web", { candidates: [span], left_out: 14 }) }]);
+  mockFetch([ME, series, CURRENT, { method: "GET", path: "/titles/7/releases", reply: answer("movie-web", { candidates: [span], left_out: 14, notes: "14 results of the search without a season hold one season or less: left out" }) }]);
   const { unmount } = renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
   open();
   const list = await screen.findByTestId("releases-list");
@@ -593,6 +593,7 @@ it("searches a whole series for packs of several seasons and says what was left 
   const card = within(list).getAllByRole("listitem").find((li) => li.dataset.releaseHash === "aaa")!;
   expect(within(card).getByTestId("release-card-episodes").textContent).toBe("Seasons 1 to 3");
   expect(screen.getByTestId("interactive-left-out").textContent).toBe("14 other results are not shown. Search a season for those.");
+  expect(screen.getByTestId("interactive-search").textContent).not.toContain("Search incomplete");
   unmount();
   mockFetch([ME, series, CURRENT, { method: "GET", path: "/titles/7/releases", reply: answer("movie-web", { candidates: [], results: 0, accepted: 0, rejections: {}, left_out: 1 }) }]);
   renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);

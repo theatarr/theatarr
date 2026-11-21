@@ -207,6 +207,10 @@ func TestMergedRouteDeferredSeason(t *testing.T) {
 	// One add a minute: the first add (season 2's pack) is placed, the span waits. Make season 2's pack wait instead:
 	// it goes second after a placement that takes the minute's add.
 	first := episodeCandidate("b", 999)
+	q := jobs.NewQueue(e.st)
+	q.SetClock(func() time.Time { return e.clock })
+	w := jobs.NewWorker(q, jobs.WorkerOptions{})
+	e.r.RegisterJobs(w, q)
 	res, err := e.r.Route(e.ctx, mergedReq(first, pack(2), spanCand()))
 	if err != nil {
 		t.Fatal(err)
@@ -220,6 +224,23 @@ func TestMergedRouteDeferredSeason(t *testing.T) {
 	}
 	if js != "[101,102,301,302]" {
 		t.Fatalf("span download episodes %s", js)
+	}
+	// The retries: season 2's pack and the span are added for their own seasons, nothing else.
+	for i := 0; i < 6; i++ {
+		e.clock = e.clock.Add(time.Minute)
+		if _, err := w.RunOne(e.ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !slices.Equal(e.ad["rd"].adds, []string{h("b"), h("2"), h("e")}) ||
+		e.count(`SELECT COUNT(*) FROM download WHERE state = 'added'`) != 3 || e.count(`SELECT COUNT(*) FROM download`) != 3 {
+		t.Fatalf("adds %v, downloads %d", e.ad["rd"].adds, e.count(`SELECT COUNT(*) FROM download`))
+	}
+	if got := fmt.Sprint(e.storedEpisodes(h("e"))); got != "[101 102 301 302]" {
+		t.Fatalf("span episodes after the retry %s", got)
+	}
+	if got := fmt.Sprint(e.storedEpisodes(h("2"))); got != "[201 202]" {
+		t.Fatalf("season 2 pack episodes after the retry %s", got)
 	}
 }
 

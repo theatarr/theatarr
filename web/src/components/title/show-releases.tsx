@@ -33,11 +33,12 @@ function sourceWords(r: Releases): string {
 }
 
 // The notes a search stores (internal/router/search.go and the indexers' Notes) that are information, not trouble:
-// kept/dropped/added counts, the page cap, a pack-size caveat, a name-only query that did answer.
+// kept/dropped/added counts, the results a whole-series search left out, the page cap, a pack-size caveat, a name-only query that did answer.
 const INFO = [
   /^dropped \d+ /, /^ignored the expanded records/, /^title search added \d+/, /^season search: kept/, /^page_cap \d+ reached/,
   /^no episode counts for this series$/, /^pack sizes are file sizes$/, /^no AniList id maps to this title/,
   /only a plain keyword query$/, /^no episode criteria$/, /^\d+ results from \d+ indexers$/,
+  /^\d+ results of the search without a season hold one season or less: left out$/,
 ];
 // Every other note is trouble, in these words (the first that matches); anything else "had an error".
 const TROUBLE: [RegExp, string][] = [

@@ -43,6 +43,10 @@ type mergedFake struct {
 	mu      sync.Mutex
 	targets [][]router.SearchTarget
 	accept  map[int]bool
+	// noAnswer: the members of these seasons got no answer to their own queries; span: the query without a season
+	// found an accepted pack of every member's season.
+	noAnswer map[int]bool
+	span     bool
 }
 
 func (f *mergedFake) search(_ context.Context, t decide.Title, targets []router.SearchTarget) (map[string]*router.Searched, error) {
@@ -62,11 +66,17 @@ func (f *mergedFake) search(_ context.Context, t decide.Title, targets []router.
 			}
 			s.Ranked = append(s.Ranked, d)
 			s.Releases[d] = rel
-			s.Members = append(s.Members, router.MemberSearched{Ranked: []*decide.Decision{d}})
+			s.Members = append(s.Members, router.MemberSearched{Ranked: []*decide.Decision{d}, NoAnswer: f.noAnswer[m.Season]})
 			if d.Accepted {
 				s.Request.Candidates = append(s.Request.Candidates, router.Candidate{Release: rel, Quality: "WEBDL-2160p",
 					Episodes: m.Episodes})
 			}
+		}
+		if f.span && len(tg.Members) > 0 {
+			rel := indexer.Release{Indexer: "pub", Kind: "torznab", Title: t.Name + ".S01-S02.2160p.WEB-DL-GRP",
+				InfoHash: h("f"), Privacy: policy.PrivacyPublic, Size: 20 << 30}
+			s.Request.Candidates = append(s.Request.Candidates, router.Candidate{Release: rel, Quality: "WEBDL-2160p",
+				Episodes: tg.Series.Episodes})
 		}
 		out[tg.ID] = s
 	}
@@ -85,7 +95,7 @@ func TestMergeGroups(t *testing.T) {
 	t.Parallel()
 	s := func(n int) *int { return &n }
 	tg := func(version int64, name string, season int, mod func(*target)) target {
-		x := target{titleID: 1, versionID: version, key: fmt.Sprint(version), name: name, season: s(season), whole: true}
+		x := target{titleID: 1, versionID: version, key: fmt.Sprint(version), name: name, season: s(season)}
 		if mod != nil {
 			mod(&x)
 		}
@@ -115,7 +125,6 @@ func TestMergeGroups(t *testing.T) {
 			tg(1, "s02", 2, func(x *target) { x.why = router.ReasonDeadLink })}, "1:s01 1:s02"},
 		{"season 0", []target{tg(1, "s00", 0, nil), tg(1, "s01", 1, nil)}, "1:s00 1:s01"},
 		{"anime", []target{tg(1, "s01", 1, func(x *target) { x.anime = true }), tg(1, "s02", 2, func(x *target) { x.anime = true })}, "1:s01 1:s02"},
-		{"named season", []target{tg(1, "s01", 1, func(x *target) { x.whole = false }), tg(1, "s02", 2, func(x *target) { x.whole = false })}, "1:s01 1:s02"},
 		{"one missing episode", []target{tg(1, "s01", 1, nil), tg(1, "s02e01", 2, nil)}, "1:s01 1:s02e01"},
 		{"two versions", []target{tg(1, "s01", 1, nil), tg(2, "s01", 1, nil), tg(1, "s02", 2, nil), tg(2, "s02", 2, nil)},
 			"1:s01+1:s02 2:s01+2:s02"},
@@ -321,5 +330,90 @@ func TestInteractiveWholeSeries(t *testing.T) {
 	}
 	if c := f.calls(); len(c) != 2 || c[1][0].WholeOnly || c[1][0].Series.Kind == profile.SearchSeries {
 		t.Fatalf("anime: %+v", c[1][0])
+	}
+}
+
+// The one route goes whatever the members' own queries did: with every member unanswered, the pack the query
+// without a season found is routed, and each member records its failure beside the route it carries.
+func TestMergedSearchRoutesWhenMembersFail(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, nil)
+	e.addSeries(40, 401, 2)
+	f := &mergedFake{noAnswer: map[int]bool{1: true, 2: true}, span: true}
+	e.a.searchBatch = f.search
+	if _, _, err := e.a.Submit(e.ctx, 0, Selection{Versions: []string{"series"}, TitleIDs: []int64{40}}); err != nil {
+		t.Fatal(err)
+	}
+	e.drain()
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE title_id = 40 AND state = 'routed' AND route_job IS NOT NULL
+		AND infra = 1`); n != 2 {
+		t.Fatalf("routed members with their failure: %d", n)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM journal_decision WHERE title_id = 40`); n != 2 {
+		t.Fatalf("stored searches %d", n)
+	}
+}
+
+// A merged group with one member left (the other's download in flight) is that member's ordinary search.
+func TestMergedSearchOneMemberLeft(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, nil)
+	e.addSeries(40, 401, 2)
+	f := &mergedFake{}
+	e.a.searchBatch = f.search
+	if _, _, err := e.a.Submit(e.ctx, 0, Selection{Versions: []string{"series"}, TitleIDs: []int64{40}}); err != nil {
+		t.Fatal(err)
+	}
+	e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, episodes, state,
+		created_at, updated_at) VALUES (40, 401, 'series', ?, 'x', 'pub', '[4021,4022]', 'downloading', 0, 0)`, h("e"))
+	e.drain()
+	c := f.calls()
+	if len(c) != 1 || len(c[0]) != 1 || len(c[0][0].Members) != 0 || c[0][0].Series.Season != 1 {
+		t.Fatalf("searches %+v", c)
+	}
+}
+
+// Busy items leave the round before it groups: another version's same season still shares the search with the
+// season left ready.
+func TestRoundGroupsAfterBusyItemsLeave(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, &policy.Wanted{PerHour: 10})
+	e.pol.Versions["series-copy"] = &policy.VersionPolicy{Kind: policy.KindSeries, Storage: policy.StorageDebrid,
+		Indexers: []string{"pub"}, Providers: []string{"rd"}}
+	e.addSeries(40, 401, 2)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES (402, 40, 'series-copy', 'wanted', 0, 0)`)
+	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, state, updated_at) VALUES (402, 4011, 'wanted', 0),
+		(402, 4012, 'wanted', 0), (402, 4021, 'cutoff_met', 0), (402, 4022, 'cutoff_met', 0)`)
+	e.exec(`UPDATE version SET monitored = 0 WHERE id NOT IN (401, 402)`)
+	e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, episodes, state,
+		created_at, updated_at) VALUES (40, 401, 'series', ?, 'x', 'pub', '[4021,4022]', 'downloading', 0, 0)`, h("e"))
+	sum, err := e.a.Round(e.ctx, nil)
+	if err != nil || sum.Queued != 1 || sum.InFlight != 1 {
+		t.Fatalf("round %+v %v", sum, err)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE title_id = 40 AND target = 's01'`); n != 2 ||
+		e.count(`SELECT COUNT(*) FROM acquire_run WHERE title_id = 40 AND search_run IS NULL`) != 1 {
+		t.Fatalf("season 1 is not one shared search")
+	}
+}
+
+// An anime series' seasons are searched one by one, through Submit and the wanted loop alike.
+func TestAnimeSeasonsStayUnmerged(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, &policy.Wanted{PerHour: 10})
+	e.addSeries(40, 401, 2)
+	e.exec(`UPDATE title SET anime = 1 WHERE id = 40`)
+	e.exec(`UPDATE version SET monitored = 0 WHERE id <> 401`)
+	if _, err := e.a.Round(e.ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE title_id = 40 AND search_run IS NULL`); n != 2 {
+		t.Fatalf("round: %d roots", n)
+	}
+	if _, _, err := e.a.Submit(e.ctx, 0, Selection{Versions: []string{"series"}, TitleIDs: []int64{40}}); err != nil {
+		t.Fatal(err)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE title_id = 40 AND source = 'command' AND search_run IS NULL`); n != 2 {
+		t.Fatalf("submit: %d roots", n)
 	}
 }

@@ -274,6 +274,11 @@ func TestMergedSeriesSearch(t *testing.T) {
 		if s.Dropped != 2 || !strings.Contains(strings.Join(s.Notes, ";"), "2 results of the search without a season") {
 			t.Errorf("dropped %d, notes %v", s.Dropped, s.Notes)
 		}
+		for i, m := range s.Members {
+			if !strings.Contains(strings.Join(m.Notes, ";"), "2 results of the search without a season") {
+				t.Errorf("member %d's notes lack the count: %v", i, m.Notes)
+			}
+		}
 		names := func(ds []*decide.Decision) string {
 			var out []string
 			for _, d := range ds {
@@ -318,5 +323,16 @@ func TestMergedCheckOrder(t *testing.T) {
 	}
 	if strings.Join(got, ",") != "one,two,span1,span2" {
 		t.Fatalf("order %v", got)
+	}
+}
+
+// A member's share holds an accepted release only when the release would download one of its episodes: a pack that
+// keeps every file of season 2 is season 1's alone.
+func TestSplitMembersByDownloadEpisodes(t *testing.T) {
+	pack := &decide.Decision{Release: "span", Accepted: true, EpisodeIDs: []int64{11, 12, 21, 22}, KeptEpisodeIDs: []int64{21, 22}}
+	ms := []*decide.SeriesSearch{{Season: 1, Episodes: []int64{11, 12}}, {Season: 2, Episodes: []int64{21, 22}}}
+	out := splitMembers([]*decide.Decision{pack}, ms, nil, make([]MemberSearched, 2))
+	if len(out[0].Ranked) != 1 || len(out[1].Ranked) != 0 {
+		t.Fatalf("shares %d, %d", len(out[0].Ranked), len(out[1].Ranked))
 	}
 }

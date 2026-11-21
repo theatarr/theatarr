@@ -1053,3 +1053,39 @@ func TestSearchScope(t *testing.T) {
 		}
 	}
 }
+
+// A merged search's member reads the downloads of the root's route that hold one of its episodes: season 2's
+// History shows the season-2 pack, season 1's (the root) does not.
+func TestMergedSearchHistoryByEpisodes(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	key := e.apiKey()
+	now := store.Millis(testNow)
+	const h1 = "5555555555555555555555555555555555555555"
+	e.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES (30, 3, 'tv-2160p', 'wanted', ?, ?)`, now, now)
+	e.exec(`INSERT INTO episode (id, title_id, season, number, created_at, updated_at) VALUES (301, 3, 1, 1, 0, 0), (302, 3, 2, 1, 0, 0)`)
+	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, season, episodes, state, results,
+		accepted, message, search_run, created_at, updated_at) VALUES
+		(41, 'wanted', 3, 30, 'tv-2160p', 's01', 1, '[301]', 'routed', 2, 1, '1 of 2 results accepted', NULL, ?, ?),
+		(42, 'wanted', 3, 30, 'tv-2160p', 's02', 2, '[302]', 'routed', 2, 1, '1 of 2 results accepted', 41, ?, ?)`,
+		now-5000, now-5000, now-5000, now-5000)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
+		episodes, state, source, created_at, updated_at) VALUES
+		(7, 3, 30, 'tv-2160p', ?, 'Gamma.S02.2160p.WEB-GRP', 'idx', 'rd', '[302]', 'downloading', 'acquire:41', ?, ?)`,
+		h1, now-4000, now-4000)
+	var d TitleDetail
+	if code := e.getKey(APIBase+"/titles/3", key, &d); code != 200 {
+		t.Fatalf("title %d", code)
+	}
+	sums := map[int64]string{}
+	for _, v := range d.Versions {
+		for _, h := range v.History {
+			if h.Event == "searched" {
+				sums[*h.RunID] = h.Summary
+			}
+		}
+	}
+	if !strings.Contains(sums[42], "Grabbed") || strings.Contains(sums[41], "Grabbed") {
+		t.Fatalf("summaries %v", sums)
+	}
+}

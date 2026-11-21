@@ -840,6 +840,8 @@ func episodeFiles(ctx context.Context, db *sql.DB, titleID int64, version string
 type runDownload struct {
 	id                                  int64
 	hash, release, provider, state, err string
+	// episodes are the download's stored episodes (versionHistory: a merged search's member reads its own).
+	episodes []int64
 }
 
 // pickDownload is the download of a search that counted, by download id: the one supplying the current file

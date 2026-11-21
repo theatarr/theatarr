@@ -385,7 +385,7 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 			ORDER BY b.created_at DESC LIMIT 1) END,
 		CASE WHEN state = 'failed' THEN (SELECT json_group_array(json_extract(j.value, '$.reason')) FROM library_import li,
 			json_each(CASE WHEN json_valid(li.plan) THEN li.plan ELSE '{}' END, '$.rejected') j
-			WHERE li.download_id = download.id) END
+			WHERE li.download_id = download.id) END, episodes
 		FROM download WHERE title_id = ? ORDER BY created_at, id`,
 		[]any{titleID}, func(r *sql.Rows) error {
 			var dlID, vid, created, done, score int64
@@ -394,8 +394,9 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 			var missed, blocked, refusal sql.NullString
 			var upgrade, redownload bool
 			var h HistoryEvent
+			var eps string
 			if err := r.Scan(&dlID, &vid, &state, &created, &done, &h.ReleaseTitle, &h.InfoHash, &h.Source, &h.Quality,
-				&score, &source, &errText, &notStarted, &upgrade, &redownload, &missed, &blocked, &refusal); err != nil {
+				&score, &source, &errText, &notStarted, &upgrade, &redownload, &missed, &blocked, &refusal, &eps); err != nil {
 				return err
 			}
 			if missed.Valid {
@@ -415,8 +416,10 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 			}
 			var run *runOrigin
 			if id := runIDOf(source); id > 0 {
-				runDLs[id] = append(runDLs[id], runDownload{id: dlID, hash: h.InfoHash, release: h.ReleaseTitle,
-					provider: h.Source, state: state, err: errText})
+				d := runDownload{id: dlID, hash: h.InfoHash, release: h.ReleaseTitle, provider: h.Source, state: state,
+					err: errText}
+				_ = json.Unmarshal([]byte(eps), &d.episodes)
+				runDLs[id] = append(runDLs[id], d)
 				if o, ok := origins[id]; ok {
 					run = &o
 				}
@@ -464,17 +467,19 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 	}
 	outcomes := map[int64]map[string]ReleaseOutcome{}
 	currents := map[int64]map[int64]bool{}
+	// A merged search's member reads the downloads of the root's route that hold one of its episodes.
 	err = scanAll(ctx, db, `SELECT r.version_id, r.version_key, r.id, r.created_at, r.target, r.state, r.message,
-		r.results, r.accepted, d.id, COALESCE(d.candidates, '[]')
+		r.results, r.accepted, d.id, COALESCE(d.candidates, '[]'),
+		CASE WHEN `+snapshot.MergedRunSQL("r")+` THEN COALESCE(r.search_run, r.id) ELSE 0 END, r.episodes
 		FROM acquire_run r LEFT JOIN journal_decision d ON d.run_id = r.id
 		AND d.id = (SELECT MAX(j.id) FROM journal_decision j WHERE j.run_id = r.id)
 		WHERE r.title_id = ? ORDER BY r.created_at DESC, r.id DESC LIMIT 10`, []any{titleID}, func(rows *sql.Rows) error {
-		var vid, id, at int64
+		var vid, id, at, root int64
 		var results, accepted int
 		var decision sql.NullInt64
-		var key, target, state, message, cj string
+		var key, target, state, message, cj, runEps string
 		if err := rows.Scan(&vid, &key, &id, &at, &target, &state, &message, &results, &accepted, &decision,
-			&cj); err != nil {
+			&cj, &root, &runEps); err != nil {
 			return err
 		}
 		v := byID[vid]
@@ -496,6 +501,16 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 			Latest: decision.Valid && newest[key] == decision.Int64}
 		// One pick for the line and the row's release and provider.
 		dls := runDLs[id]
+		if root > 0 {
+			var mine []int64
+			_ = json.Unmarshal([]byte(runEps), &mine)
+			dls = nil
+			for _, d := range runDLs[root] {
+				if slices.ContainsFunc(d.episodes, func(e int64) bool { return slices.Contains(mine, e) }) {
+					dls = append(dls, d)
+				}
+			}
+		}
 		pick := pickDownload(dls, currents[vid])
 		h.Summary = searchSummary(dls, pick, currents[vid], cands, oc, state, message, w.providerTag)
 		if pick >= 0 {

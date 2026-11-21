@@ -365,6 +365,7 @@ it("names the indexers that did not answer fully in one line, the raw notes kept
   const notes = "therarbg: partial answer; indexer therarbg: therarbg: request failed: gateway: budget exhausted: indexer:therarbg: budget therarbg: next token in 5.786s (retry at 2026-11-14T03:22:08Z); nyaa: partial answer; indexer nyaa: nyaa: waited too long for the site's previous search to finish: context deadline exceeded; page_cap 200 reached after 2 pages; season search: kept 44 packs, dropped 42 single episodes; title search added 0, dropped 0 for another IMDb id";
   expect(searchIncomplete(notes)).toBe("Search incomplete: therarbg was rate-limited, nyaa did not answer in time.");
   expect(searchIncomplete("title search added 1, dropped 0 for another IMDb id")).toBe("");
+  expect(searchIncomplete("14 results of the search without a season hold one season or less: left out")).toBe("");
   expect(searchIncomplete("seadex: dropped 1 entries: private tracker; dropped 2 entries with an excluded tag")).toBe("");
   mockFetch([
     { method: "GET", path: "/auth/me", reply: { permissions: ["browse", "see_files", "manage"] } },

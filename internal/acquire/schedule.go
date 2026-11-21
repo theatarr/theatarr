@@ -490,41 +490,38 @@ func (a *Acquirer) Round(ctx context.Context, scope []int64) (*WantedSummary, er
 	ordered = append(ordered, byTime(early)...)
 	ordered = append(ordered, orderTargets(unscheduled, last)...)
 	ordered = append(ordered, byTime(regular)...)
-	// A merged search (mergeGroups) is never split by the budget: it starts while one search is left and draws
-	// one per member, overdrawing the hour when it must.
-	groups := mergeGroups(groupTargets(ordered))
-	for _, g := range groups {
+	for _, g := range mergeGroups(groupTargets(ordered)) {
 		sum.Due += groupCost(g)
 	}
+	// Busy and running items are left out before the searches are grouped: what is left shares and merges.
+	var ready []target
+	for _, t := range ordered {
+		busy, err := a.inFlight(ctx, t)
+		if err != nil {
+			return nil, err
+		}
+		if busy {
+			sum.InFlight++
+			continue
+		}
+		// A loop search of it already queued or running: its row stays as it is (due).
+		if running[targetKey(t)] {
+			continue
+		}
+		ready = append(ready, t)
+	}
+	// A merged search (mergeGroups) is never split by the budget: it starts while one search is left and draws
+	// one per member, overdrawing the hour when it must.
 	left := a.set.PerHour - sum.SearchedLastHour
-	for _, group := range groups {
+	for _, group := range mergeGroups(groupTargets(ready)) {
 		if left <= 0 {
 			break
 		}
-		var ready []target
-		for _, t := range group {
-			busy, err := a.inFlight(ctx, t)
-			if err != nil {
-				return nil, err
-			}
-			if busy {
-				sum.InFlight++
-				continue
-			}
-			// A loop search of it already queued or running: its row stays as it is (due).
-			if running[targetKey(t)] {
-				continue
-			}
-			ready = append(ready, t)
-		}
-		if len(ready) == 0 {
-			continue
-		}
-		if err := a.startRuns(ctx, SourceWanted, 0, ready); err != nil {
+		if err := a.startRuns(ctx, SourceWanted, 0, group); err != nil {
 			return nil, err
 		}
-		sum.Queued += groupCost(ready)
-		left -= groupCost(ready)
+		sum.Queued += groupCost(group)
+		left -= groupCost(group)
 	}
 	if sum.Due > 0 || full {
 		a.log.Info("search round", "full", full, "due", sum.Due, "queued", sum.Queued, "in_flight", sum.InFlight,

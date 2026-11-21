@@ -65,6 +65,18 @@ describe("Libraries table", () => {
     expect(within(rowOf("movie-web")).getByTestId("version-interactive-movie-web")).toBeTruthy();
   });
 
+  it("offers a standard series' library Interactive search of the whole series, and none for an anime series", async () => {
+    const tv = { ...web, key: "tv-web", episodes: { total: 4, available: 2, missing: 2 } };
+    manager();
+    renderPage(<LibraryRows title={{ id: 7, kind: "series", name: "Show", series_type: "standard" } as never} versions={[tv] as never} />);
+    await waitFor(() => expect(within(rowOf("tv-web")).getByTestId("version-interactive-tv-web")).toBeTruthy());
+    document.body.innerHTML = "";
+    manager();
+    renderPage(<LibraryRows title={{ id: 7, kind: "series", name: "Show", series_type: "anime", anime: true } as never} versions={[tv] as never} />);
+    await waitFor(() => expect(within(rowOf("tv-web")).getByTestId("version-search-tv-web")).toBeTruthy());
+    expect(within(rowOf("tv-web")).queryByTestId("version-interactive-tv-web")).toBeNull();
+  });
+
   it("has no row for a removed library and names its leftover links", async () => {
     manager([{ method: "GET", path: "/titles/7/removal", reply: { title_id: 7, name: "Alpha", title: false, copies: [], leftover: [{ key: "movie-remux", label: "Remux", links: 2, downloads: 0 }] } }]);
     const user = userEvent.setup();

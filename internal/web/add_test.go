@@ -88,7 +88,8 @@ func (f *fakeAcquirer) Interactive(_ context.Context, titleID int64, version str
 		for i, d := range f.whole {
 			rels[d] = indexer.Release{Title: d.Release, Indexer: "dmm", InfoHash: strings.Repeat(string(rune('a'+i)), 40)}
 		}
-		return &router.Searched{Ranked: f.whole, Releases: rels, Whole: true, Dropped: f.dropped}, nil
+		return &router.Searched{Ranked: f.whole, Releases: rels, Whole: true, Dropped: f.dropped,
+			Notes: []string{fmt.Sprintf("%d results of the search without a season hold one season or less: left out", f.dropped)}}, nil
 	}
 	if f.noAnswer {
 		return &router.Searched{NoAnswer: true, Notes: []string{"dmm: timeout"}}, nil
@@ -2417,7 +2418,7 @@ func TestReleasesWholeSeries(t *testing.T) {
 	var r Releases
 	e.call("GET", APIBase+"/titles/10/releases?version=tv-2160p&live=1", nil, 200, &r)
 	if r.Source != "live" || len(r.Candidates) != 2 || r.Accepted != 1 || r.Rejections["quality"] != 1 || r.LeftOut == nil ||
-		*r.LeftOut != 12 {
+		*r.LeftOut != 12 || r.Notes != "12 results of the search without a season hold one season or less: left out" {
 		t.Fatalf("whole series: %+v", r)
 	}
 	e.acq.whole, e.acq.dropped = []*decide.Decision{}, 5

@@ -44,8 +44,8 @@ type Searched struct {
 	Whole bool
 }
 
-// MemberSearched is one member's share of a merged search: the ranked decisions that hold its episodes (a pack of
-// several seasons in each member it covers; one that holds no member's episodes with the members whose queries
+// MemberSearched is one member's share of a merged search: the ranked decisions that hold its episodes (an accepted
+// one that would download one of them; a pack of several seasons in each member it covers; one that holds no member's episodes with the members whose queries
 // returned it, else the first member), and its own queries' failures. A failed query without a season is a note
 // on every member and makes none partial.
 type MemberSearched struct {
@@ -394,8 +394,12 @@ func SearchRequests(ctx context.Context, eng SearchEngine, svc *indexer.Service,
 			}
 		}
 		if searched.Dropped > 0 {
-			searched.Notes = append(searched.Notes, fmt.Sprintf("%d results of the search without a season hold one "+
-				"season or less: left out", searched.Dropped))
+			// The web's searchIncomplete (show-releases.tsx) reads this note as information: keep the words.
+			n := fmt.Sprintf("%d results of the search without a season hold one season or less: left out", searched.Dropped)
+			searched.Notes = append(searched.Notes, n)
+			for i := range members {
+				members[i].Notes = append(members[i].Notes, n)
+			}
 		}
 		searched.NoAnswer = len(refs[target.ID]) > 0 && answered == 0
 		searched.Whole = target.WholeOnly
@@ -538,8 +542,14 @@ func splitMembers(ranked []*decide.Decision, ms []*decide.SeriesSearch, returned
 	out []MemberSearched) []MemberSearched {
 	for _, d := range ranked {
 		held := false
+		// An accepted release is a member's when it would download one of its episodes; a rejected one when it maps
+		// one.
+		eps := d.EpisodeIDs
+		if d.Accepted {
+			eps = d.DownloadEpisodes()
+		}
 		for i, m := range ms {
-			if overlaps(d.EpisodeIDs, m.Episodes) {
+			if overlaps(eps, m.Episodes) {
 				out[i].Ranked = append(out[i].Ranked, d)
 				held = true
 			}
