@@ -54,6 +54,14 @@ func (l *Library) loadLinkedMetadata(ctx context.Context, d *importDownload) (*d
 	if v.Policy.PreferSeaDex {
 		// Incoming evidence must never inherit a grab-time rank. Held files use ResolveSeaDexFiles.
 		rel = decide.RefreshSeaDexRelease(ctx, rel)
+		if d.EpisodeMap != nil && d.EpisodeMap.Pack.Span() {
+			// A pack of several seasons keeps the standing it is listed for over the episodes it brings.
+			var eps [][2]int
+			for _, e := range v.Episodes {
+				eps = append(eps, [2]int{e.Season, e.Number})
+			}
+			rel = decide.SpanSeaDexRelease(ctx, rel, v.Title.ID, eps)
+		}
 	}
 	f := decide.LinkedFile(policy.Kind(v.Title.Kind), decide.Release{Release: rel}, v.Quality)
 	f.Score = &v.Score

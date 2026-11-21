@@ -325,6 +325,9 @@ func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate)
 			continue
 		}
 		c.Release = queued
+		if err := r.spanStanding(ctx, s, &c); err != nil {
+			return nil, err
+		}
 		decisions = append(decisions, d)
 		byDecision[d] = c
 	}

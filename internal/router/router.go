@@ -508,6 +508,9 @@ func (r *Router) route(ctx context.Context, s *routeState, req Request, dry bool
 	for i := range kept {
 		if vp.PreferSeaDex {
 			kept[i].Release = decide.RefreshSeaDexRelease(ctx, kept[i].Release)
+			if err := r.spanStanding(ctx, s, &kept[i]); err != nil {
+				return s.res, err
+			}
 		}
 	}
 	req.Candidates, s.req.Candidates = kept, kept
@@ -694,6 +697,42 @@ type mergedRoute struct {
 	// anime: the title is an anime series (its series type): a pack of several seasons is one whose stored claim is
 	// a span (Candidate.claimSpan), not one whose name reads so.
 	anime bool
+}
+
+// spanStanding gives a candidate whose claim is a pack of several seasons the SeaDex standing it keeps over the
+// episodes it is for (decide.SpanSeaDexRelease), wherever the route refreshes its standing by hash: a pack listed for
+// season 1 only does not carry season 1's standing into seasons 2 and 3.
+func (r *Router) spanStanding(ctx context.Context, s *routeState, c *Candidate) error {
+	if !s.vp.PreferSeaDex || !c.claimSpan() || len(c.Episodes) == 0 {
+		return nil
+	}
+	rows, err := r.st.Writer().QueryContext(ctx, `SELECT season, number FROM episode WHERE title_id = ? AND id IN (`+
+		store.Placeholders(len(c.Episodes))+`)`, append([]any{s.req.TitleID}, anySlice(c.Episodes)...)...)
+	if err != nil {
+		return fmt.Errorf("router: span standing: %w", err)
+	}
+	defer rows.Close()
+	var eps [][2]int
+	for rows.Next() {
+		var se [2]int
+		if err := rows.Scan(&se[0], &se[1]); err != nil {
+			return err
+		}
+		eps = append(eps, se)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	c.Release = decide.SpanSeaDexRelease(ctx, c.Release, s.req.TitleID, eps)
+	return nil
+}
+
+func anySlice(ids []int64) []any {
+	out := make([]any, len(ids))
+	for i, id := range ids {
+		out[i] = id
+	}
+	return out
 }
 
 // spanBucket is the attempt bucket of the releases that hold several seasons.

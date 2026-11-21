@@ -4,9 +4,9 @@ import (
 	"context"
 	"slices"
 	"sort"
-	"strconv"
 	"strings"
 
+	"github.com/theatarr/theatarr/internal/decide/format"
 	"github.com/theatarr/theatarr/internal/decide/parser/sonarr"
 	"github.com/theatarr/theatarr/internal/decide/profile"
 	"github.com/theatarr/theatarr/internal/indexer"
@@ -244,74 +244,48 @@ func seasonsClaim(seasons []int, eps []*Episode) *PackClaim {
 	return claim
 }
 
-// spanSeaDex is the SeaDex standing a span keeps (docs/design/series.md): the weakest across the episodes it is
-// downloaded for. None when any of them is not covered by an entry SeaDex actively lists the torrent under (the
-// mark is per hash, so a pack listed for season 1 only would carry season 1's standing into the others), else the
-// lowest standing among them. It never raises the release's own. The release is returned with its SeaDex flags
-// set to that standing.
-func (s *series) spanSeaDex(st seaDexState, rel indexer.Release, eps []*Episode) indexer.Release {
-	pref := indexer.SeaDexPreference(&rel)
-	if pref == 0 {
+// SpanSeaDexRelease is the SeaDex standing a pack of several seasons keeps (docs/design/series.md), wherever the
+// standing is refreshed by hash (deciding, the route, the import): the weakest across the episodes it is downloaded
+// for (eps, by season and number), each episode resolved as an incoming file of that episode alone is (the active
+// listings of the entries whose importable mapping covers it), in place of the standing of the hash as a whole (which
+// a pack listed under several entries at different ranks does not have). None when one episode has none; rank (Best)
+// and preference are tracked apart, Best only when it holds for every episode. The release comes back with its SeaDex
+// flags set to it. Only for a library that prefers SeaDex (the caller's).
+func SpanSeaDexRelease(ctx context.Context, rel indexer.Release, titleID int64, eps [][2]int) indexer.Release {
+	if len(eps) == 0 {
 		return rel
 	}
-	type standing struct{ pref int }
-	byEntry := map[int]standing{}
-	for _, m := range st.hashes[indexer.NormalizeHash(rel.InfoHash)] {
-		if m.torrent.Preference > 0 && m.torrent.MissingSince == 0 {
-			if m.torrent.Preference > byEntry[m.entry].pref {
-				byEntry[m.entry] = standing{m.torrent.Preference}
-			}
-		}
-	}
-	if len(byEntry) == 0 {
-		// No stored standing for the hash: the entries the search's own answer listed it under, at its own standing.
-		ids := indexer.SeaDexEntries(rel.Extras[indexer.ExtraSeaDexEntries])
-		if id, err := strconv.Atoi(rel.Extras["anilist"]); err == nil && id > 0 && !slices.Contains(ids, id) {
-			ids = append(ids, id)
-		}
-		for _, id := range ids {
-			byEntry[id] = standing{pref}
-		}
-	}
-	low := pref
-	for _, e := range eps {
-		var got standing
-		if am := s.t.AnimeMap; am != nil {
-			for _, en := range am.Covering(e.Season, e.Number) {
-				id, ok := anilistID(en.Key)
-				if x, listed := byEntry[id]; ok && listed && x.pref > got.pref {
-					got = x
-				}
-			}
-		}
-		if got.pref == 0 {
-			low = 0
+	state := seaDexView(ctx)
+	hash := indexer.NormalizeHash(rel.InfoHash)
+	pref, best := 3, true
+	for _, ep := range eps {
+		x := resolveStanding(state, titleID, &ExistingFile{InfoHash: hash, seaDexEpisodes: [][2]int{ep}}, resolveImport)
+		pref = min(pref, x.SeaDexPreference)
+		best = best && x.SeaDex >= format.SeaDexBest
+		if pref == 0 {
 			break
 		}
-		low = min(low, got.pref)
 	}
 	rel.Flags = slices.DeleteFunc(slices.Clone(rel.Flags), func(f string) bool {
 		return f == indexer.FlagSeaDex || f == indexer.FlagSeaDexBest || f == indexer.FlagSeaDexPreferred
 	})
-	if low > 0 {
+	if pref > 0 {
 		rel.Flags = append(rel.Flags, indexer.FlagSeaDex)
-	}
-	if low >= 2 {
-		rel.Flags = append(rel.Flags, indexer.FlagSeaDexBest)
-	}
-	if low >= 3 {
-		rel.Flags = append(rel.Flags, indexer.FlagSeaDexPreferred)
+		if best {
+			rel.Flags = append(rel.Flags, indexer.FlagSeaDexBest)
+		}
+		if pref >= 3 {
+			rel.Flags = append(rel.Flags, indexer.FlagSeaDexPreferred)
+		}
 	}
 	return rel
 }
 
-// anilistID reads a franchise entry key "al:<id>" or "al:<id>#<n>".
-func anilistID(key string) (int, bool) {
-	rest, ok := strings.CutPrefix(key, "al:")
-	if !ok {
-		return 0, false
+// spanNumbers are a span's episodes as (season, number).
+func spanNumbers(eps []*Episode) [][2]int {
+	out := make([][2]int, 0, len(eps))
+	for _, e := range eps {
+		out = append(out, [2]int{e.Season, e.Number})
 	}
-	rest, _, _ = strings.Cut(rest, "#")
-	id, err := strconv.Atoi(rest)
-	return id, err == nil && id > 0
+	return out
 }

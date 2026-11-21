@@ -3,6 +3,7 @@ package decide
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -1034,17 +1035,12 @@ func TestAnimePackClaims(t *testing.T) {
 	}
 }
 
-// A span has SeaDex standing only for what SeaDex lists it for: the weakest across the episodes it is downloaded
-// for, none when one of them is outside every entry it is actively listed under. So season 2's own pick keeps
-// season 2 in a merged search; a span listed for all its seasons keeps its standing.
-func TestAnimeSpanSeaDexStanding(t *testing.T) {
-	t.Parallel()
-	e := seriesEngine(t)
-	vp := *e.Policy.Versions["anime-tv"]
-	vp.PreferSeaDex = true
-	v := Version{ID: 9, Key: "anime-tv", Policy: &vp}
+// kaijuSeaDex is kaiju with one AniList entry per season (al:1 to al:3) and a configured prefer-on SeaDex view whose
+// catalog maps each entry to its season, over the snapshots.
+func kaijuSeaDex(snaps []indexer.SeaDexSnapshot) (Title, context.Context) {
 	tt := kaiju()
 	var entries []*animemap.Entry
+	cover := map[int]*indexer.SeaDexEntryMapping{}
 	for s := 1; s <= 3; s++ {
 		en := &animemap.Entry{Franchise: "f", Key: fmt.Sprintf("al:%d", s), Title: fmt.Sprintf("Kaiju Tale %d", s),
 			Status: animemeta.StatusAuto}
@@ -1054,85 +1050,95 @@ func TestAnimeSpanSeaDexStanding(t *testing.T) {
 			}
 		}
 		entries = append(entries, en)
+		cover[s] = &indexer.SeaDexEntryMapping{Title: 6, Series: true, Entry: s, Seasons: map[int]bool{s: true}}
 	}
 	tt.AnimeMap = animemap.New(6006, entries, nil)
+	for i := range snaps {
+		for j := range snaps[i].Torrents {
+			_ = json.Unmarshal([]byte(`{"facts":{}}`), &snaps[i].Torrents[j])
+		}
+	}
+	state := indexStanding(seaDexState{snapshots: snaps, titles: map[int64][]int{6: {1, 2, 3}}, series: map[int64]bool{6: true},
+		cover: map[int64]map[int]*indexer.SeaDexEntryMapping{6: cover}, stored: true, configured: true})
+	return tt, WithSeaDexTitle(context.WithValue(context.Background(), seaDexContext{}, state), 6)
+}
+
+// A span has SeaDex standing only for what SeaDex lists it for: the weakest across the episodes it is downloaded
+// for, none when one of them is outside every entry actively listing it, Best only when it holds for every episode.
+// So season 2's own pick keeps season 2 in a merged search; a span listed for all its seasons keeps its standing.
+func TestAnimeSpanSeaDexStanding(t *testing.T) {
+	t.Parallel()
+	e := seriesEngine(t)
+	vp := *e.Policy.Versions["anime-tv"]
+	vp.PreferSeaDex = true
+	v := Version{ID: 9, Key: "anime-tv", Policy: &vp}
 	span, pick := strings.Repeat("a", 40), strings.Repeat("b", 40)
 	whole := kaijuMerged(0, 1, 2, 3)
-	for _, c := range []struct {
-		name   string
-		listed map[int]int // entry -> the span's preference there
-		want   int
-		first  string
-	}{
-		{"listed for season 1 only", map[int]int{1: 2}, 0, pick},
-		{"listed for every season", map[int]int{1: 2, 2: 2, 3: 2}, 3, span},
-	} {
+	type listing struct {
+		pref int
+		best bool
+	}
+	decided := func(listed map[int]listing) (*Decision, *Decision) {
 		var snaps []indexer.SeaDexSnapshot
 		for s := 1; s <= 3; s++ {
 			snap := indexer.SeaDexSnapshot{AniList: s}
-			if p := c.listed[s]; p > 0 {
-				snap.Torrents = append(snap.Torrents, indexer.SeaDexStanding{InfoHash: span, IsBest: p > 1, Preference: p})
+			if l, ok := listed[s]; ok {
+				snap.Torrents = append(snap.Torrents, indexer.SeaDexStanding{InfoHash: span, IsBest: l.best, Preference: l.pref})
 			}
 			if s == 2 {
 				snap.Torrents = append(snap.Torrents, indexer.SeaDexStanding{InfoHash: pick, IsBest: true, Preference: 2})
 			}
 			snaps = append(snaps, snap)
 		}
-		ctx := configuredState(snaps, map[int64][]int{6: {1, 2, 3}}, 6)
+		tt, ctx := kaijuSeaDex(snaps)
 		r := rel("[G] Kaiju Tale S01-S03 [BD 1080p]", "public", 20*gb)
 		r.InfoHash = span
 		d, err := e.DecideSearch(ctx, r, tt, v, whole)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !d.Accepted || d.SeaDexPreference() != c.want {
-			t.Errorf("%s: accepted %v, standing %d, want %d (%v)", c.name, d.Accepted, d.SeaDexPreference(), c.want, d.Rejections)
+		if err != nil || !d.Accepted {
+			t.Fatalf("span: %v %v", err, d.Rejections)
 		}
 		r2 := rel("[G] Kaiju Tale S02 [BD 1080p]", "public", 6*gb)
 		r2.InfoHash = pick
 		d2, err := e.DecideSearch(ctx, r2, tt, v, kaijuMerged(2, 1, 2, 3))
 		if err != nil || !d2.Accepted {
-			t.Fatalf("%s: season 2's pick: %v %v", c.name, err, d2.Rejections)
+			t.Fatalf("season 2's pick: %v %v", err, d2.Rejections)
 		}
-		if got := RankMerged([]*Decision{d, d2})[0]; strings.Repeat(string(c.first[0]), 40) != got.subject.Release.InfoHash {
-			t.Errorf("%s: %s first", c.name, got.Release)
-		}
+		return d, d2
 	}
+	d, d2 := decided(map[int]listing{1: {2, true}})
+	if d.SeaDexPreference() != 0 || RankMerged([]*Decision{d, d2})[0] != d2 {
+		t.Errorf("listed for season 1 only: standing %d, %s first", d.SeaDexPreference(), RankMerged([]*Decision{d, d2})[0].Release)
+	}
+	all, d2 := decided(map[int]listing{1: {2, true}, 2: {2, true}, 3: {2, true}})
+	if all.SeaDexPreference() == 0 || RankMerged([]*Decision{all, d2})[0] != all {
+		t.Errorf("listed for every season: standing %d, %s first", all.SeaDexPreference(), RankMerged([]*Decision{all, d2})[0].Release)
+	}
+	// Mixed ranks across the seasons: TestSpanSeaDexWeakest (the configured view rescores each entry's torrents).
 }
 
-// A span's standing is the lowest among the episodes it is downloaded for (spanSeaDex over raw standing).
+// A span's standing over raw listings: the lowest among the episodes it is downloaded for (SpanSeaDexRelease).
 func TestSpanSeaDexWeakest(t *testing.T) {
 	t.Parallel()
-	tt := kaiju()
-	var entries []*animemap.Entry
-	for s := 1; s <= 3; s++ {
-		en := &animemap.Entry{Franchise: "f", Key: fmt.Sprintf("al:%d", s), Status: animemeta.StatusAuto}
-		for _, ep := range tt.Episodes {
-			if ep.Season == s {
-				en.Episodes = append(en.Episodes, animemeta.SE{ep.Season, ep.Number})
-			}
-		}
-		entries = append(entries, en)
-	}
-	tt.AnimeMap = animemap.New(6006, entries, nil)
 	hash := strings.Repeat("a", 40)
-	st := indexStanding(seaDexState{snapshots: []indexer.SeaDexSnapshot{
-		{AniList: 1, Torrents: []indexer.SeaDexStanding{{InfoHash: hash, Preference: 3}}},
+	tt, ctx := kaijuSeaDex([]indexer.SeaDexSnapshot{
+		{AniList: 1, Torrents: []indexer.SeaDexStanding{{InfoHash: hash, IsBest: true, Preference: 3}}},
 		{AniList: 2, Torrents: []indexer.SeaDexStanding{{InfoHash: hash, Preference: 1}}},
-		{AniList: 3, Torrents: []indexer.SeaDexStanding{{InfoHash: hash, Preference: 3}}}}})
-	s := newSeries(&tt)
+		{AniList: 3, Torrents: []indexer.SeaDexStanding{{InfoHash: hash, IsBest: true, Preference: 3}}}})
 	r := indexer.Release{InfoHash: hash, Flags: []string{indexer.FlagSeaDex, indexer.FlagSeaDexBest, indexer.FlagSeaDexPreferred}}
-	if got := s.spanSeaDex(st, r, s.episodes()); indexer.SeaDexPreference(&got) != 1 {
-		t.Errorf("all seasons: standing %d, want season 2's 1", indexer.SeaDexPreference(&got))
-	}
-	var s13 []*Episode
-	for _, e := range s.episodes() {
+	var eps, s13 [][2]int
+	for _, e := range tt.Episodes {
+		eps = append(eps, [2]int{e.Season, e.Number})
 		if e.Season != 2 {
-			s13 = append(s13, e)
+			s13 = append(s13, [2]int{e.Season, e.Number})
 		}
 	}
-	if got := s.spanSeaDex(st, r, s13); indexer.SeaDexPreference(&got) != 3 {
-		t.Errorf("seasons 1 and 3: standing %d, want 3", indexer.SeaDexPreference(&got))
+	got := SpanSeaDexRelease(ctx, r, 6, eps)
+	if indexer.SeaDexPreference(&got) != 1 || slices.Contains(got.Flags, indexer.FlagSeaDexBest) {
+		t.Errorf("all seasons: standing %d %v, want season 2's 1 and no Best", indexer.SeaDexPreference(&got), got.Flags)
+	}
+	got = SpanSeaDexRelease(ctx, r, 6, s13)
+	if indexer.SeaDexPreference(&got) != 3 || !slices.Contains(got.Flags, indexer.FlagSeaDexBest) {
+		t.Errorf("seasons 1 and 3: standing %d %v, want 3 and Best", indexer.SeaDexPreference(&got), got.Flags)
 	}
 }
 

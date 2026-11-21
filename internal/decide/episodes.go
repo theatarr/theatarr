@@ -98,8 +98,8 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 	if d.anime && rel.Manual == nil {
 		// What an anime pack claims, from the mapping, before the specifications: an override grab is proved too.
 		s.claimPack(d, parsed, rel.Release, r, search)
-		if len(r.seasons) >= 2 && qm.SeaDexPreference > 0 {
-			rel.Release = s.spanSeaDex(seaDexView(ctx), rel.Release, spanDownload(r, search))
+		if len(r.seasons) >= 2 && v.Policy != nil && v.Policy.PreferSeaDex {
+			rel.Release = SpanSeaDexRelease(ctx, rel.Release, t.ID, spanNumbers(spanDownload(r, search)))
 			qm.SeaDexPreference = indexer.SeaDexPreference(&rel.Release)
 		}
 	}
