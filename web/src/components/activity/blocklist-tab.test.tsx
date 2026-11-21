@@ -92,14 +92,14 @@ it("unblocks the selected releases one by one", async () => {
   ]);
 });
 
-it("says when a blocked release was searched again", async () => {
+it("says when a blocked release was retried", async () => {
   mockFetch([
     { method: "GET", path: "/auth/me", reply: me },
     { method: "GET", path: "/titles/facets", reply: {} },
     { method: "GET", path: "/activity", reply: { state: "blocked", admin: true, total: 1, blocked: [{ ...blocked(1), researched_at: new Date(Date.now() - 3 * 86_400_000).toISOString() }] } },
   ]);
   renderPage(<BlocklistTab />, "/activity/blocklist");
-  expect((await screen.findByTestId("blocked-researched")).textContent).toMatch(/^searched again 3 d(ays)? ago$/);
+  expect((await screen.findByTestId("blocked-researched")).textContent).toMatch(/^retried 3 d(ays)? ago$/);
 });
 
 it("says why a release was blocked in plain words under the source's words", async () => {

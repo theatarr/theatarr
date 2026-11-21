@@ -310,17 +310,18 @@ func (r *Router) routeStored(ctx context.Context, req Request) (*Result, error) 
 			} else if dead {
 				r.log.Info("no re-search after a dead link's search missed everywhere", "title", req.TitleID,
 					"version", req.Version)
-			} else {
-				r.research(ctx, req.TitleID, req.VersionID, req.Version, candidateEpisodes(req.Candidates),
-					ReasonExhausted, 0)
+			} else if eps := candidateEpisodes(req.Candidates); r.research(ctx, req.TitleID, req.VersionID,
+				req.Version, eps, ReasonExhausted, 0) {
+				// One re-search: the releases that failed at once are in it.
+				err = r.stampCovered(ctx, res.failed, eps, len(eps) == 0)
 			}
 		} else if err == nil && req.Merged && len(res.research) > 0 && !manualAdd(req.Candidates) {
 			// A merged search's seasons left without a release (whatever the route's outcome): the re-search an
 			// exhausted route of their own would get, one for all of them.
 			if dead, _, derr := r.deadLinkRoute(ctx, req.Source); derr != nil {
 				r.log.Warn("re-search not queued", "title", req.TitleID, "version", req.Version, "err", derr)
-			} else if !dead {
-				r.research(ctx, req.TitleID, req.VersionID, req.Version, res.research, ReasonExhausted, 0)
+			} else if !dead && r.research(ctx, req.TitleID, req.VersionID, req.Version, res.research, ReasonExhausted, 0) {
+				err = r.stampCovered(ctx, res.failed, res.research, false)
 			}
 		}
 	}
@@ -554,6 +555,10 @@ func (r *Router) route(ctx context.Context, s *routeState, req Request, dry bool
 	var chosen, deferred *Result
 	var covered []int64
 	whole := false
+	// added are the episodes of the releases added (or found in flight) in this batch; addedWhole: one of them was
+	// for the whole title.
+	var added []int64
+	addedWhole := false
 	// A merged search's request (Request.Merged) narrows by whole seasons, bounds failed attempts per season and
 	// searches again the seasons left without a release (mergedRoute).
 	var mr *mergedRoute
@@ -637,7 +642,7 @@ func (r *Router) route(ctx context.Context, s *routeState, req Request, dry bool
 			return s.res, nil
 		case vAccepted:
 			if vp.Kind != policy.KindSeries {
-				return s.res, r.stampCovered(ctx, s, nil, true)
+				return s.res, r.stampCovered(ctx, s.failedNow, nil, true)
 			}
 			if chosen == nil || (chosen.Outcome == OutcomeInFlight && s.res.Outcome != OutcomeInFlight) {
 				copy := *s.res
@@ -647,7 +652,7 @@ func (r *Router) route(ctx context.Context, s *routeState, req Request, dry bool
 			s.res.Outcome, s.res.RetryAt = OutcomeDeferred, retryAt
 			s.res.Release, s.res.Hash, s.res.Indexer = c.Release.Title, indexer.NormalizeHash(c.Release.InfoHash), c.Release.Indexer
 			if vp.Kind != policy.KindSeries {
-				return s.res, r.stampCovered(ctx, s, nil, true)
+				return s.res, nil
 			}
 			if deferred == nil {
 				copy := *s.res
@@ -669,25 +674,32 @@ func (r *Router) route(ctx context.Context, s *routeState, req Request, dry bool
 			if mr != nil {
 				mr.place(eps)
 			}
+			if out == vAccepted {
+				// Only an added release makes up for one that failed at once (stampCovered); a deferred one may
+				// still expire or be rejected when it resumes.
+				added = append(added, eps...)
+				addedWhole = addedWhole || len(eps) == 0
+			}
 		}
 		// A miss (or a release that cannot go to debrid): the next candidate, without searching again.
 	}
-	if err := r.stampCovered(ctx, s, covered, whole || vp.Kind != policy.KindSeries && chosen != nil); err != nil {
+	if err := r.stampCovered(ctx, s.failedNow, added, addedWhole); err != nil {
 		return s.res, err
 	}
 	// The existing job retry resumes at the first deferred release, keeping every later alternative and disjoint
 	// candidate. Later queued downloads are resumed by the stranded-row check; successful ones stay in flight.
 	if deferred != nil {
 		deferred.Steps = s.res.Steps
-		deferred.research = mr.left()
+		deferred.research, deferred.failed = mr.left(), s.failedNow
 		return deferred, nil
 	}
 	if chosen != nil {
 		chosen.Steps = s.res.Steps
-		chosen.research = mr.left()
+		chosen.research, chosen.failed = mr.left(), s.failedNow
 		return chosen, nil
 	}
 	s.res.research = mr.left()
+	s.res.failed = s.failedNow
 	return s.res, nil
 }
 
@@ -697,11 +709,12 @@ type failedAdd struct {
 	episodes []int64
 }
 
-// stampCovered marks the blocklist rows of the route's downloads that failed at once as searched again when a later
-// release of the same route covers what they were for (all: the whole title; otherwise each one's episodes are all
-// in covered), so the failure starts no re-search of its own (researchBlocklisted). Not in a dry run.
-func (r *Router) stampCovered(ctx context.Context, s *routeState, covered []int64, all bool) error {
-	for _, f := range s.failedNow {
+// stampCovered marks the blocklist rows of downloads that failed at once (failed) as searched again when what they
+// were for is taken care of (all: the whole title; otherwise each one's episodes are all in covered): a later
+// release of the same route was added for it, or the route queued its own re-search for it. The failure then starts
+// no re-search of its own (researchBlocklisted).
+func (r *Router) stampCovered(ctx context.Context, failed []failedAdd, covered []int64, all bool) error {
+	for _, f := range failed {
 		if !all && (len(f.episodes) == 0 || !subset(f.episodes, covered)) {
 			continue
 		}

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/decide"
+	"github.com/theatarr/theatarr/internal/decide/profile"
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/policy"
@@ -304,6 +305,164 @@ func TestKeptByRuleEpisodesLeftOut(t *testing.T) {
 		}
 		if eps != "[102,103]" {
 			t.Errorf("remapped download.episodes = %s, want [102,103]", eps)
+		}
+	})
+
+	// C2: a resumed automatic route decides its candidates again with what they were found by. An RSS pack whose
+	// episodes are all held now is rejected (Repack: another group) and dropped; a search pack is decided with its
+	// stored criteria and loses the held episode; all held, it is dropped too.
+	holdAll := func(e *env) {
+		for _, ep := range []int64{101, 102, 103} {
+			id := e.link(2, 20, ep, "WEBDL-2160p", 0, e.clock.Add(-time.Hour).UnixMilli())
+			e.exec(`UPDATE link SET release_title = 'Show.S01.2160p.WEB-DL-OLD',
+				file_metadata = '{"Revision":1,"ReleaseGroup":"OLD","SceneName":"Show.S01.2160p.WEB-DL-OLD","Languages":["English"],"Size":8000000000,"ReleaseType":"seasonPack"}'
+				WHERE id = ?`, id)
+		}
+	}
+	// mode: "rss", "search" (stored criteria), "manual" (a grab by hand) or "legacy" (a search stored without its
+	// criteria).
+	resume := func(t *testing.T, mode string, hold func(*env)) (*env, *Result) {
+		t.Helper()
+		e, _ := setupSeries(t, false)
+		for _, k := range []string{"rd", "ad", "tb"} {
+			e.exec(`INSERT INTO router_pacing (provider, backoff_until, failures, reason, updated_at)
+				VALUES (?, ?, 1, 'x', 0)`, k, e.clock.Add(time.Minute).UnixMilli())
+		}
+		c := cand(h("f"), "Show.S01.REPACK.2160p.WEB-DL-NEW")
+		c.Release.Size = 30 << 30
+		c.Release.Seeders = 10
+		c.Episodes = []int64{101, 102, 103}
+		src := "rss"
+		switch mode {
+		case "search":
+			c.Search, c.Origin, src = true, OriginSearch, "wanted"
+			c.Criteria = []*decide.SeriesSearch{{Kind: profile.SearchSeason, Season: 1, Episodes: []int64{101, 102, 103}}}
+		case "legacy":
+			c.Search, c.Origin, src = true, OriginSearch, "wanted"
+		case "manual":
+			src = "ui:grab:test"
+		}
+		res, err := e.r.Route(e.ctx, Request{TitleID: 2, VersionID: 20, Version: "series", Source: src,
+			Candidates: []Candidate{c}})
+		if err != nil || res.Outcome != OutcomeDeferred {
+			t.Fatalf("defer: %+v %v steps=%s", res, err, steps(res))
+		}
+		hold(e)
+		req, err := DownloadRequest(e.ctx, e.st.Reader(), e.pol, res.DownloadID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if mode == "search" && (req.Candidates[0].Origin != OriginSearch || len(req.Candidates[0].Criteria) != 1) {
+			t.Fatalf("resumed search candidate lost its criteria: %+v", req.Candidates[0])
+		}
+		e.clock = e.clock.Add(2 * time.Minute)
+		res, err = e.r.Route(e.ctx, *req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return e, res
+	}
+
+	t.Run("remap_resumed_drops_all_held_rss", func(t *testing.T) {
+		t.Parallel()
+		e, res := resume(t, "rss", holdAll)
+		if res.Outcome != OutcomeCancelled || !strings.Contains(steps(res), "skipped/rejected_now") || e.writes() != 0 {
+			t.Fatalf("all held RSS: outcome=%s writes=%d steps=%s", res.Outcome, e.writes(), steps(res))
+		}
+	})
+
+	t.Run("remap_resumed_search_with_criteria", func(t *testing.T) {
+		t.Parallel()
+		e, res := resume(t, "search", addHeldE01)
+		if res.Outcome != OutcomeAdded {
+			t.Fatalf("resume: %+v steps=%s", res, steps(res))
+		}
+		var eps string
+		if err := e.st.Reader().QueryRow(`SELECT episodes FROM download WHERE id = ?`, res.DownloadID).Scan(&eps); err != nil {
+			t.Fatal(err)
+		}
+		if eps != "[102,103]" {
+			t.Errorf("re-decided search download.episodes = %s, want [102,103]", eps)
+		}
+	})
+
+	t.Run("remap_resumed_drops_all_held_search", func(t *testing.T) {
+		t.Parallel()
+		e, res := resume(t, "search", holdAll)
+		if res.Outcome != OutcomeCancelled || !strings.Contains(steps(res), "skipped/rejected_now") || e.writes() != 0 {
+			t.Fatalf("all held search: outcome=%s writes=%d steps=%s", res.Outcome, e.writes(), steps(res))
+		}
+	})
+
+	// A grab by hand and a search stored without its criteria are not decided again: all held, they are still added
+	// with the episodes they were queued with.
+	for _, mode := range []string{"manual", "legacy"} {
+		t.Run("remap_resumed_keeps_"+mode, func(t *testing.T) {
+			t.Parallel()
+			e, res := resume(t, mode, holdAll)
+			if res.Outcome != OutcomeAdded || strings.Contains(steps(res), "rejected_now") {
+				t.Fatalf("%s: %+v steps=%s", mode, res, steps(res))
+			}
+			var eps string
+			if err := e.st.Reader().QueryRow(`SELECT episodes FROM download WHERE id = ?`, res.DownloadID).Scan(&eps); err != nil {
+				t.Fatal(err)
+			}
+			if eps != "[101,102,103]" {
+				t.Errorf("%s download.episodes = %s, want [101,102,103]", mode, eps)
+			}
+		})
+	}
+
+	// One release rejected now and another accepted with no wanted episode left: the route is cancelled as one whose
+	// releases are no longer wanted, not as one none of whose releases is accepted; each skip says its own reason.
+	t.Run("remap_resumed_rejected_and_all_kept", func(t *testing.T) {
+		t.Parallel()
+		e, _ := setupSeries(t, false)
+		addHeldE01(e)
+		one := cand(h("c"), "Show.S01E01.REPACK.2160p.WEB-DL-NEW")
+		one.Episodes = []int64{101}
+		pack := cand(h("d"), "Show.S01.REPACK.2160p.WEB-DL-NEW")
+		pack.Release.Size, pack.Release.Seeders = 30<<30, 10
+		pack.Episodes = []int64{101}
+		for _, c := range []*Candidate{&one, &pack} {
+			c.Identity, c.Origin = RouteIdentityVersion, OriginRSS
+		}
+		req := Request{TitleID: 2, VersionID: 20, Version: "series", Source: "rss", Candidates: []Candidate{one, pack},
+			DecisionRev: e.pol.Revision}
+		req.waitingSince = e.clock.Add(-time.Minute)
+		res, err := e.r.routeStored(e.ctx, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Outcome != OutcomeCancelled || !strings.Contains(steps(res), "cccc//skipped/rejected_now") ||
+			!strings.Contains(steps(res), "dddd//skipped/no_longer_upgrade") || e.writes() != 0 {
+			t.Fatalf("outcome=%s writes=%d steps=%s", res.Outcome, e.writes(), steps(res))
+		}
+		if last := res.Steps[len(res.Steps)-1]; last.Message != "no release is still wanted by this version" {
+			t.Errorf("cancel message = %q", last.Message)
+		}
+	})
+
+	// A route deferred behind provider pacing before a download was opened (no download id, a waiting time) is a
+	// resumed route too.
+	t.Run("paced_before_any_download_counts_as_resumed", func(t *testing.T) {
+		t.Parallel()
+		e, _ := setupSeries(t, false)
+		holdAll(e)
+		c := cand(h("g"), "Show.S01.REPACK.2160p.WEB-DL-NEW")
+		c.Release.Size = 30 << 30
+		c.Release.Seeders = 10
+		c.Episodes = []int64{101, 102, 103}
+		c.Identity, c.Origin = RouteIdentityVersion, OriginRSS
+		req := Request{TitleID: 2, VersionID: 20, Version: "series", Source: "rss", Candidates: []Candidate{c},
+			DecisionRev: e.pol.Revision}
+		req.waitingSince = e.clock.Add(-time.Minute)
+		res, err := e.r.routeStored(e.ctx, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Outcome != OutcomeCancelled || !strings.Contains(steps(res), "skipped/rejected_now") || e.writes() != 0 {
+			t.Fatalf("paced resume: outcome=%s writes=%d steps=%s", res.Outcome, e.writes(), steps(res))
 		}
 	})
 }

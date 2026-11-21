@@ -295,10 +295,13 @@ provider, caches no miss for it, counts it as one failed attempt, leaves its epi
 next ranked release. "Failed" means exactly that the download's row is `failed` after those reads; every other
 unknown (a status read that failed, files not listed yet, the write gate closed, a selection the provider answered
 with an error, a row that moved on) still waits as an add, so two releases are never added for one item. When a
-later release of the same route covers what the failed one was for (the movie, or all its episodes), the failed
-one's blocklist row is marked searched (`researched_at`) and starts no re-search of its own; otherwise its re-search
-follows as for any failure. A route whose releases all fail so ends exhausted, not added
-(`TestFailedAtOnceTriesNextRelease`, `TestSelectionErrorStillWaits`, `TestFailedAtOnceEverywhere`).
+later release of the same route is added for what the failed one was for (the movie, or all its episodes), the failed
+one's blocklist row is marked (`researched_at`, "retried" in Activity's Blocklist) and starts no re-search of its own;
+a later release that only waits (paced) still reserves those episodes in the batch but leaves the row unmarked, as it
+may expire or be rejected when it resumes. A route whose releases all fail so ends exhausted, not added; when it
+queues its own exhausted re-search, that search holds the failed releases' episodes and their rows are marked in the
+same step, so one re-search runs (`TestFailedAtOnceTriesNextRelease`, `TestSelectionErrorStillWaits`,
+`TestFailedAtOnceEverywhere`, `TestFailedAtOnceNextReleaseWaits`, `TestFailedAtOnceThenMissOneResearch`).
 
 Season targets still make one search, including when only some wanted episodes are in flight. A dry run lists
 every placement in their steps and simulate pacing between adds without writing it. A deferred batch retries from

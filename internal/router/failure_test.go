@@ -9,6 +9,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider"
+	"github.com/theatarr/theatarr/internal/provider/adder"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -441,5 +442,69 @@ func TestFailedAtOnceEverywhere(t *testing.T) {
 	}
 	if n := s.count(`SELECT COUNT(*) FROM router_blocklist WHERE info_hash = ? AND researched_at IS NULL`, h("e")); n != 1 {
 		t.Error("a failure only partly covered starts no re-search")
+	}
+}
+
+// The release that failed at once is made up for only by a release added in the same route: one that waits behind
+// pacing may still expire or be rejected when it resumes, so the failure keeps its own re-search.
+func TestFailedAtOnceNextReleaseWaits(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []string{"movie", "series"} {
+		e := newEnv(t, true)
+		for _, k := range []string{"ad", "tb"} {
+			e.exec(`INSERT INTO router_pacing (provider, backoff_until, failures, reason, updated_at)
+				VALUES (?, ?, 1, 'x', 0)`, k, e.clock.Add(time.Hour).UnixMilli())
+		}
+		e.pr["rd"].set("rd-aaaa", provider.Torrent{Hash: h("a"), Status: "magnet_error", State: provider.StateError})
+		e.ad["rd"].add = func(m adder.Magnet, _ adder.AddOptions) (*adder.Added, error) {
+			if m.Hash() == h("b") {
+				return nil, &adder.Error{Provider: "rd", Code: adder.CodeRateLimited, Status: 429}
+			}
+			return &adder.Added{ID: "rd-" + m.Hash()[:4], Hash: m.Hash()}, nil
+		}
+		a, b := cand(h("a"), "Movie.2024.2160p.WEB.H265-A"), cand(h("b"), "Movie.2024.2160p.WEB.H265-B")
+		req := grabReq(a, b)
+		if kind == "series" {
+			a.Episodes, b.Episodes = []int64{101}, []int64{101}
+			req = Request{TitleID: 2, VersionID: 20, Version: "series", Source: "test", Candidates: []Candidate{a, b}}
+		}
+		res, err := e.r.Route(e.ctx, req)
+		if err != nil || res.Outcome != OutcomeDeferred || res.Release != b.Release.Title {
+			t.Fatalf("%s route: %+v %v steps=%s", kind, res, err, steps(res))
+		}
+		if n := e.count(`SELECT COUNT(*) FROM router_blocklist WHERE info_hash = ? AND researched_at IS NULL`, h("a")); n != 1 {
+			t.Errorf("%s: a waiting release took the failure's re-search away", kind)
+		}
+	}
+}
+
+// A release that failed at once and one that then missed everywhere: the exhausted route queues one re-search, which
+// holds the failed release's episodes; the failure's blocklist row queues no second one.
+func TestFailedAtOnceThenMissOneResearch(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	withQueue(e)
+	e.r.set.CachedOnly = true
+	e.pr["rd"].set("rd-aaaa", provider.Torrent{Hash: h("a"), Status: "magnet_error", State: provider.StateError})
+	for _, k := range []string{"rd", "ad", "tb"} {
+		e.ad[k].add = func(m adder.Magnet, _ adder.AddOptions) (*adder.Added, error) {
+			if m.Hash() == h("b") {
+				return nil, &adder.Error{Provider: k, Code: adder.CodeNotCached, Status: 400}
+			}
+			return &adder.Added{ID: k + "-" + m.Hash()[:4], Hash: m.Hash()}, nil
+		}
+	}
+	a, b := cand(h("a"), "Show.S01E01.2160p.WEB.H265-A"), cand(h("b"), "Show.S01E01.2160p.WEB.H265-B")
+	a.Episodes, b.Episodes = []int64{101}, []int64{101}
+	res, err := e.r.Route(e.ctx, Request{TitleID: 2, VersionID: 20, Version: "series", Source: "test",
+		Candidates: []Candidate{a, b}})
+	if err != nil || res.Outcome != OutcomeExhausted {
+		t.Fatalf("route: %+v %v steps=%s", res, err, steps(res))
+	}
+	if n, err := e.r.researchBlocklisted(e.ctx); err != nil || n != 0 {
+		t.Fatalf("blocklist re-searches %d %v", n, err)
+	}
+	if jobs := researchJobs(e); len(jobs) != 1 || jobs[0].Reason != ReasonExhausted {
+		t.Errorf("re-searches %+v, want one exhausted", jobs)
 	}
 }
