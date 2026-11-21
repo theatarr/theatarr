@@ -44,7 +44,9 @@ export function TitleReleasesPage() {
             <TitleThumb id={id} className="w-10" />
             <span>
               {titleWithYear(name, t.year)}: the last search Theatarr decided for each library.{" "}
-              {t.kind === "series" ? "To search the indexers now, use Interactive search on a season or an episode." : "Interactive search searches the indexers now."}
+              {t.kind === "series"
+                ? "Interactive search here searches the indexers now for packs of several seasons; a season or an episode has its own on the title page."
+                : "Interactive search searches the indexers now."}
             </span>
           </span>
         }

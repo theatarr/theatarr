@@ -18,6 +18,7 @@ import { Card } from "@/components/ui/card";
 import { fmtAgo, fmtNumber, plural } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useLibraryName } from "@/lib/library-names";
+import { wholeSeriesSearch } from "@/lib/library-rows";
 import { rejectionWords } from "@/lib/rejection-words";
 
 const SOURCE: Record<string, string> = {
@@ -209,8 +210,8 @@ function Panel({ titleId, kind, initialVersion, focus, labels }: { titleId: numb
           {r ? <VersionStatus state={r.grab_state} settingsKey={r.version} canManage={perms.admin} quiet /> : null}
         </div>
         {r?.live_allowed && perms.manage ? (
-          // A series is searched per season or per episode, never as a whole.
-          kind === "movie" ? <InteractiveSearchButton titleId={titleId} version={r.version} variant="outline" /> : null
+          // A movie as a whole; a series as a whole too (its window lists packs of several seasons, wholeSeriesSearch).
+          kind === "movie" || wholeSeriesSearch(kind) ? <InteractiveSearchButton titleId={titleId} version={r.version} variant="outline" /> : null
         ) : r ? (
           <span className="text-xs text-[var(--ink-3)]" data-testid="releases-no-live">The acquirer is not running</span>
         ) : null}

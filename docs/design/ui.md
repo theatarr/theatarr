@@ -607,7 +607,9 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   download was started.". The indexers' notes are one line naming what went wrong per indexer ("Search incomplete:
   therarbg was rate-limited, nyaa did not answer in time."; nothing when every indexer answered), with the raw notes
   in a closed **Technical details**. A library that may not search live says why: "The acquirer is not running". The page's header explains the page once: the card
-  repeats no hint and the action bar has no Interactive search. The grid's filter box reads "Filter releases" (what it
+  repeats no hint and the action bar has no Interactive search. The panel offers Interactive search for the shown
+  library: a film's, or a series' whole-series window (packs of several seasons; the header says so, and that a season
+  or an episode has its own on the title page). The stored grid stays read-only. The grid's filter box reads "Filter releases" (what it
   matches in its tooltip); an indexer is shown without the "prowlarr-" prefix of a linked Prowlarr indexer's key, the
   key as tooltip. The list has one row per torrent (info hash), where Sonarr and Radarr list each indexer's copy: the
   best-ranked copy stands for it, the Indexer cell names every indexer that returned it (the first two, then "+N"; the

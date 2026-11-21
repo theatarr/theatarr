@@ -400,6 +400,22 @@ it("names a fallback note by the indexer it carries before its usual owner", () 
     "Search incomplete: my-zilean was unavailable.");
 });
 
+it("a series' stored list offers the whole-series Interactive search, and stays read-only", async () => {
+  mockFetch([
+    ME,
+    { method: "GET", path: "/titles/7/releases", reply: { ...stored([cand(1, "aaa"), cand(2, "bbb", false)]), version: "tv", versions: ["tv"] } },
+    { method: "GET", path: "/titles/7", reply: { id: 7, name: "Show", year: 2020, kind: "series", versions: [{ id: 1, key: "tv", label: "TV", control: { can_edit: true, can_search: true, live_releases: true } }] } },
+    { method: "GET", path: "/titles/7/releases", reply: () => new Promise(() => {}) },
+    { method: "GET", path: "/titles/7/removal", reply: { title_id: 7, name: "x", title: true, leftover: [], copies: [{ key: "tv", label: "tv", links: 0, downloads: 0 }] } },
+  ]);
+  renderPage(<ShowReleases titleId={7} kind="series" defaultOpen initialVersion="tv" />);
+  await screen.findByTestId("releases-table");
+  expect(screen.queryByTestId("release-grab")).toBeNull();
+  fireEvent.click(screen.getByTestId("interactive-search-open"));
+  expect(await screen.findByTestId("interactive-waiting")).toBeTruthy();
+  expect(screen.getByTestId("interactive-subject").textContent).toContain("Whole series");
+});
+
 it("names a stored RSS read as such, and says nothing about counts when nothing is stored", () => {
   mockFetch([ME]);
   const base = { title_id: 7, version: "tv", versions: ["tv"], live_allowed: false, candidates: [], rejections: {}, outcomes: {}, grab: false, grab_state: { paused: false, pause_forced: false, will_grab: false } };
