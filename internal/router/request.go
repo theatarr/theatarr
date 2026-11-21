@@ -195,4 +195,6 @@ type Result struct {
 	DownloadID int64     `json:"download_id,omitempty"`
 	RetryAt    time.Time `json:"retry_at,omitzero"`
 	Steps      []Step    `json:"steps"`
+	// research are the episodes of a merged search's seasons left without a release (Route searches them again).
+	research []int64
 }

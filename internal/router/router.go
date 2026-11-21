@@ -10,6 +10,7 @@ import (
 	"maps"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -313,6 +314,14 @@ func (r *Router) routeStored(ctx context.Context, req Request) (*Result, error) 
 				r.research(ctx, req.TitleID, req.VersionID, req.Version, candidateEpisodes(req.Candidates),
 					ReasonExhausted, 0)
 			}
+		} else if err == nil && len(res.research) > 0 && !manualAdd(req.Candidates) {
+			// A merged search's seasons left without a release: the re-search an exhausted route of their own would
+			// get, one for all of them.
+			if dead, _, derr := r.deadLinkRoute(ctx, req.Source); derr != nil {
+				r.log.Warn("re-search not queued", "title", req.TitleID, "version", req.Version, "err", derr)
+			} else if !dead {
+				r.research(ctx, req.TitleID, req.VersionID, req.Version, res.research, ReasonExhausted, 0)
+			}
 		}
 	}
 	return res, err
@@ -537,14 +546,36 @@ func (r *Router) route(ctx context.Context, s *routeState, req Request, dry bool
 	var chosen, deferred *Result
 	var covered []int64
 	whole := false
+	// A merged search's request (Request.Merged) narrows by whole seasons, bounds failed attempts per season and
+	// searches again the seasons left without a release (mergedRoute).
+	var mr *mergedRoute
+	if s.req.Merged && vp.Kind == policy.KindSeries {
+		if mr, err = r.newMergedRoute(ctx, s.req.TitleID); err != nil {
+			return s.res, err
+		}
+	}
 	for i := range cands {
-		if tried >= r.set.MaxCandidates {
+		if mr == nil && tried >= r.set.MaxCandidates {
 			break
 		}
 		c := &cands[i]
+		bucket := 0
+		if mr != nil {
+			if bucket = mr.bucket(c); mr.tries[bucket] >= r.set.MaxCandidates {
+				continue // this season's (or the packs of several seasons') attempts are used up
+			}
+		}
 		if vp.Kind == policy.KindSeries || !manualSource(s.req.Source) {
 			code, msg := "", ""
-			if vp.Kind != policy.KindSeries {
+			if mr != nil {
+				var narrowed *Candidate
+				if code, msg, narrowed, err = r.narrowMerged(ctx, s, mr, c, covered, whole, dry); err != nil {
+					return s.res, err
+				}
+				if narrowed != nil {
+					c = narrowed
+				}
+			} else if vp.Kind != policy.KindSeries {
 				// Radarr's QueueSpecification (queue.go): another release of the movie in flight for the version.
 				if id, why, err := r.movieInFlight(ctx, s, c); err != nil {
 					return s.res, err
@@ -582,6 +613,12 @@ func (r *Router) route(ctx context.Context, s *routeState, req Request, dry bool
 		// The cap bounds failed attempts: a series placement never stops the batch from filling other episodes.
 		if triedAny(s.res.Steps[n0:]) && out != vAccepted {
 			tried++
+			if mr != nil {
+				mr.tries[bucket]++
+				if out == vContent {
+					mr.failed(c, missedEverywhere(s.res.Steps[n0:]))
+				}
+			}
 		}
 		switch out {
 		case vCancelled:
@@ -617,6 +654,9 @@ func (r *Router) route(ctx context.Context, s *routeState, req Request, dry bool
 			}
 			covered = append(covered, eps...)
 			whole = len(eps) == 0
+			if mr != nil {
+				mr.place(eps)
+			}
 		}
 		// A miss (or a release that cannot go to debrid): the next candidate, without searching again.
 	}
@@ -624,13 +664,183 @@ func (r *Router) route(ctx context.Context, s *routeState, req Request, dry bool
 	// candidate. Later queued downloads are resumed by the stranded-row check; successful ones stay in flight.
 	if deferred != nil {
 		deferred.Steps = s.res.Steps
+		deferred.research = mr.left()
 		return deferred, nil
 	}
 	if chosen != nil {
 		chosen.Steps = s.res.Steps
+		chosen.research = mr.left()
 		return chosen, nil
 	}
 	return s.res, nil
+}
+
+// codeSeasonsCovered: a merged search's pack of several seasons was narrowed; the step names the seasons left out.
+const codeSeasonsCovered = "seasons_covered"
+
+// mergedRoute is what a merged search's route keeps track of: each episode's season, the failed attempts per
+// season (and per the packs of several seasons, bucket spanBucket), and the seasons with a failed attempt (missed
+// everywhere: missed) and those placed, deferred or in flight.
+type mergedRoute struct {
+	season  map[int64]int
+	tries   map[int]int
+	missed  map[int][]int64 // season: the episodes its failed attempts were for
+	covered map[int]bool
+}
+
+// spanBucket is the attempt bucket of the releases that hold several seasons.
+const spanBucket = -1 << 31
+
+func (r *Router) newMergedRoute(ctx context.Context, titleID int64) (*mergedRoute, error) {
+	m := &mergedRoute{season: map[int64]int{}, tries: map[int]int{}, missed: map[int][]int64{}, covered: map[int]bool{}}
+	rows, err := r.st.Writer().QueryContext(ctx, `SELECT id, season FROM episode WHERE title_id = ?`, titleID)
+	if err != nil {
+		return nil, fmt.Errorf("router: episodes: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var n int
+		if err := rows.Scan(&id, &n); err != nil {
+			return nil, err
+		}
+		m.season[id] = n
+	}
+	return m, rows.Err()
+}
+
+// seasonOf is an episode's season; an episode the title does not hold is a season of its own.
+func (m *mergedRoute) seasonOf(id int64) int {
+	if n, ok := m.season[id]; ok {
+		return n
+	}
+	return -1 - int(id%1_000_000_000)
+}
+
+// seasons are the seasons of eps, in order.
+func (m *mergedRoute) seasons(eps []int64) []int {
+	var out []int
+	for _, id := range eps {
+		if n := m.seasonOf(id); !slices.Contains(out, n) {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+// bucket is a candidate's attempt bucket: its season, or spanBucket for a release of several seasons.
+func (m *mergedRoute) bucket(c *Candidate) int {
+	if ss := m.seasons(c.Episodes); len(ss) == 1 {
+		return ss[0]
+	}
+	return spanBucket
+}
+
+// failed records a failed attempt for c's seasons; missed is whether it missed on every provider (the exhausted
+// re-search an exhausted route of its own would get needs one).
+func (m *mergedRoute) failed(c *Candidate, missed bool) {
+	if !missed {
+		return
+	}
+	for _, id := range c.Episodes {
+		n := m.seasonOf(id)
+		if !slices.Contains(m.missed[n], id) {
+			m.missed[n] = append(m.missed[n], id)
+		}
+	}
+}
+
+// place records the seasons of eps as placed, deferred or in flight.
+func (m *mergedRoute) place(eps []int64) {
+	for _, id := range eps {
+		m.covered[m.seasonOf(id)] = true
+	}
+}
+
+// left are the episodes of the seasons that missed everywhere and were not placed, deferred or in flight: one
+// re-search for them together. nil for a route that is not a merged search's.
+func (m *mergedRoute) left() []int64 {
+	if m == nil {
+		return nil
+	}
+	var seasons []int
+	for n := range m.missed {
+		if !m.covered[n] {
+			seasons = append(seasons, n)
+		}
+	}
+	slices.Sort(seasons)
+	var out []int64
+	for _, n := range seasons {
+		out = append(out, m.missed[n]...)
+	}
+	return out
+}
+
+// narrowMerged is the batch check of a merged search's candidate: one that overlaps what the batch covers, or
+// episodes another download holds in flight, loses every season with such an episode and goes on with the others
+// (nothing is trimmed inside a season); with no season left it is skipped with today's step. narrowed is the
+// candidate for the seasons left (nil when nothing was left out); the step names the seasons left out.
+func (r *Router) narrowMerged(ctx context.Context, s *routeState, m *mergedRoute, c *Candidate, covered []int64,
+	whole, dry bool) (code, msg string, narrowed *Candidate, err error) {
+	if whole || len(c.Episodes) == 0 && len(covered) > 0 {
+		return "episode_covered", "episodes already covered by a release in this batch", nil, nil
+	}
+	held, id, err := r.inFlightEpisodes(ctx, s.req, c, dry)
+	if err != nil {
+		return "", "", nil, err
+	}
+	if id != 0 && held == nil {
+		// A download of the whole title is in flight.
+		s.res.DownloadID = id
+		m.place(c.Episodes)
+		return "in_flight", fmt.Sprintf("download %d holds overlapping episodes already", id), nil, nil
+	}
+	drop := map[int]bool{}
+	byBatch := false
+	for _, e := range c.Episodes {
+		switch {
+		case slices.Contains(covered, e):
+			drop[m.seasonOf(e)], byBatch = true, true
+		case slices.Contains(held, e):
+			drop[m.seasonOf(e)] = true
+		}
+	}
+	if len(drop) == 0 {
+		return "", "", nil, nil
+	}
+	var keep, gone []int64
+	for _, e := range c.Episodes {
+		if drop[m.seasonOf(e)] {
+			gone = append(gone, e)
+		} else {
+			keep = append(keep, e)
+		}
+	}
+	if !byBatch {
+		m.place(gone) // in flight elsewhere: not left without a release
+	}
+	if len(keep) == 0 {
+		if byBatch {
+			return "episode_covered", "episodes already covered by a release in this batch", nil, nil
+		}
+		s.res.DownloadID = id
+		return "in_flight", fmt.Sprintf("download %d holds overlapping episodes already", id), nil, nil
+	}
+	var names []string
+	for _, n := range m.seasons(gone) {
+		names = append(names, strconv.Itoa(n))
+	}
+	word := "season "
+	if len(names) > 1 {
+		word = "seasons "
+	}
+	s.res.Steps = append(s.res.Steps, Step{Release: c.Release.Title, Hash: indexer.NormalizeHash(c.Release.InfoHash),
+		Outcome: "narrowed", Code: codeSeasonsCovered, Message: word + strings.Join(names, ", ") +
+			" left out: covered by another release or in flight; opened for the other seasons"})
+	cc := *c
+	cc.Episodes = keep
+	return "", "", &cc, nil
 }
 
 // codeNotDebrid: the version is not routed (notRouted).
@@ -648,6 +858,37 @@ func notRouted(vp *policy.VersionPolicy) string {
 // Episode overlap selection follows Sonarr src/NzbDrone.Core/Download/ProcessDownloadDecisions.cs @ cab419a.
 func overlaps(a, b []int64) bool {
 	return slices.ContainsFunc(a, func(id int64) bool { return slices.Contains(b, id) })
+}
+
+// inFlightEpisodes is episodesInFlight for a merged search: the episodes the other downloads of the version in
+// flight hold (their union), and the first such download overlapping the candidate; held is nil when one of them
+// is for the whole title (id is then that download).
+func (r *Router) inFlightEpisodes(ctx context.Context, req Request, c *Candidate, dry bool) (held []int64, id int64, err error) {
+	rows, err := r.st.Writer().QueryContext(ctx, `SELECT id, episodes FROM download
+		WHERE title_id = ? AND version_id = ? AND state IN `+inFlightStates+`
+		AND (info_hash <> ? OR ?) AND NOT (id = ? AND state = 'queued') ORDER BY id`,
+		req.TitleID, req.VersionID, indexer.NormalizeHash(c.Release.InfoHash), dry, req.DownloadID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("router: episode in-flight check: %w", err)
+	}
+	defer rows.Close()
+	held = []int64{}
+	for rows.Next() {
+		var dl int64
+		var js string
+		if err := rows.Scan(&dl, &js); err != nil {
+			return nil, 0, err
+		}
+		var eps []int64
+		if json.Unmarshal([]byte(js), &eps) != nil || len(eps) == 0 {
+			return nil, dl, rows.Err()
+		}
+		if id == 0 && overlaps(eps, c.Episodes) {
+			id = dl
+		}
+		held = append(held, eps...)
+	}
+	return held, id, rows.Err()
 }
 
 // episodesInFlight checks other releases too: a different hash may already cover any of this release's episodes.

@@ -276,6 +276,10 @@ func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate)
 		case !s.vp.PreferSeaDex && series:
 			// A prefer-off version re-decides exactly as before standing existed (only on a revision change).
 			ss := seriesSearchFor(&t, c.Episodes)
+			if ss != nil {
+				// A merged search's candidate keeps its scope: the searched seasons its criteria carry.
+				ss.Seasons = criteriaSeasons(c.Criteria)
+			}
 			d, err = decideBest(ctx, r.decideSeries, c.Release, t, v, plainCriteria(ss, criteriaQueries(&t, ss, r.now())), ss)
 		case !s.vp.PreferSeaDex:
 			d, err = r.decide(ctx, decide.Release{Release: c.Release}, t, v, existing)
@@ -332,11 +336,26 @@ func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate)
 	}
 	// Tried in the order the current decisions rank them, as a fresh search would. The queued download
 	// this route resumes records the decision it is placed under when its candidate opens it (openDownload).
-	for _, d := range decide.Rank(decisions) {
+	rank := decide.Rank
+	if s.req.Merged {
+		rank = decide.RankMerged // a merged search's order (AB1.4)
+	}
+	for _, d := range rank(decisions) {
 		kept = append(kept, byDecision[d])
 	}
 	s.redecided = true
 	return kept, nil
+}
+
+// criteriaSeasons are the searched seasons a merged search's criteria carry (decide.SeriesSearch.Seasons); nil for
+// any other search.
+func criteriaSeasons(cs []*decide.SeriesSearch) []int {
+	for _, c := range cs {
+		if c != nil && len(c.Seasons) > 0 {
+			return c.Seasons
+		}
+	}
+	return nil
 }
 
 // remapResumed maps a resumed series route's RSS candidates to the episodes their releases map to now, when the

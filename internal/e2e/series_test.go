@@ -611,3 +611,114 @@ func TestSeriesMultiSeasonPack(t *testing.T) {
 		t.Fatalf("S01E01's better file was replaced: %d -> %d", before, files["S01E01"])
 	}
 }
+
+// mergedShow serves a three-season ended series of two aired episodes a season (TVDB 434343) and adds it: its title
+// search runs once the first refresh is done.
+func (e *environment) mergedShow(t *testing.T) (int64, []tvdb.Episode) {
+	var eps []tvdb.Episode
+	for s := 1; s <= 3; s++ {
+		for n := 1; n <= 2; n++ {
+			name, aired, runtime := fmt.Sprintf("Episode %d", n), fmt.Sprintf("%d-03-%02d", 2018+s, n), 50
+			eps = append(eps, tvdb.Episode{ID: 960000 + 10*s + n, SeriesID: 434343, Name: &name, Aired: &aired,
+				Runtime: &runtime, SeasonNumber: s, Number: n})
+		}
+	}
+	e.edge.tvdb["/series/434343/extended"] = encode(t, map[string]any{"status": "success", "data": tvdb.Series{ID: 434343,
+		Name: "Merged Show", Year: "2019", OriginalLanguage: "eng", Status: tvdb.Status{Name: "Ended"}}})
+	e.edge.tvdb["/series/434343/episodes/default?page=0"] = episodeResponse(t, eps)
+	e.edge.tvdb["/series/434343/episodes/absolute?page=0"] = episodeResponse(t, eps)
+	return e.addSeries(434343, "Merged Show", "standard", 1, 2, 3), eps
+}
+
+func seasonFiles(name string, eps []tvdb.Episode, seasons ...int) []string {
+	var out []string
+	for _, ep := range eps {
+		if len(seasons) == 0 || slices.Contains(seasons, ep.SeasonNumber) {
+			out = append(out, fmt.Sprintf("%s.S%02dE%02d.%s.mkv", "Merged.Show", ep.SeasonNumber, ep.Number, name))
+		}
+	}
+	return out
+}
+
+// A title search of a three-season series is one merged search: its seasons and the query without a season are
+// asked together, and the pack of all three seasons is grabbed and imported; no season pack is downloaded besides.
+func TestSeriesMergedSearchTakesTheSpan(t *testing.T) {
+	t.Parallel()
+	e := newEnvironment(t, seriesPolicy(false))
+	id, eps := e.mergedShow(t)
+	span := release{name: "Merged.Show.S01-S03.2160p.WEB.H265-GRP", hash: fmt.Sprintf("%040x", 41), season: 2,
+		files: seasonFiles("2160p.WEB.H265-GRP", eps)}
+	one := release{name: "Merged.Show.S01.2160p.WEB.H265-GRP", hash: fmt.Sprintf("%040x", 42), season: 1,
+		files: seasonFiles("2160p.WEB.H265-GRP", eps, 1)}
+	three := release{name: "Merged.Show.S03.2160p.WEB.H265-GRP", hash: fmt.Sprintf("%040x", 43), season: 3,
+		files: seasonFiles("2160p.WEB.H265-GRP", eps, 3)}
+	e.edge.set(span, one, three)
+	for _, r := range []release{span, one, three} {
+		e.mountRelease(r)
+	}
+	e.refreshBeforeSearch(id, 6)
+	e.drain()
+	if n := e.count(`SELECT count(*) FROM acquire_run WHERE title_id=? AND search_run IS NULL`, id); n != 1 ||
+		e.count(`SELECT count(*) FROM acquire_run WHERE title_id=?`, id) != 3 {
+		t.Fatalf("searches: %d roots\n%s", n, e.logs.String())
+	}
+	if n := e.count(`SELECT count(*) FROM download`); n != 1 || e.count(`SELECT count(*) FROM download WHERE release_title=?`, span.name) != 1 {
+		var got string
+		_ = e.st.Reader().QueryRow(`SELECT group_concat(release_title || ' ' || episodes, '; ') FROM download`).Scan(&got)
+		t.Fatalf("downloads=%d (%s), want the span only\n%s", n, got, e.logs.String())
+	}
+	e.finish(1)
+	e.seriesAvailable(id, 6, 6)
+}
+
+// The mixed case: a better pack for season 2 comes first, so the pack of all three seasons is opened for seasons 1
+// and 3 only; both are imported, the span's season-2 files left alone.
+func TestSeriesMergedSearchMixed(t *testing.T) {
+	t.Parallel()
+	e := newEnvironment(t, seriesPolicy(false))
+	id, eps := e.mergedShow(t)
+	span := release{name: "Merged.Show.S01-S03.2160p.WEB.H265-GRP", hash: fmt.Sprintf("%040x", 51), season: 2,
+		files: seasonFiles("2160p.WEB.H265-GRP", eps)}
+	two := release{name: "Merged.Show.S02.2160p.UHD.BluRay.REMUX.HEVC-GRP", hash: fmt.Sprintf("%040x", 52), season: 2,
+		files: seasonFiles("2160p.UHD.BluRay.REMUX.HEVC-GRP", eps, 2)}
+	e.edge.set(span, two)
+	for _, r := range []release{span, two} {
+		e.mountRelease(r)
+	}
+	e.refreshBeforeSearch(id, 6)
+	e.drain()
+	if n := e.count(`SELECT count(*) FROM download`); n != 2 {
+		t.Fatalf("downloads=%d, want the season-2 pack and the span\n%s", n, e.logs.String())
+	}
+	var episodesJSON string
+	must(t, e.st.Reader().QueryRowContext(e.ctx, `SELECT episodes FROM download WHERE release_title=?`, span.name).Scan(&episodesJSON))
+	var ids []int64
+	must(t, json.Unmarshal([]byte(episodesJSON), &ids))
+	if len(ids) != 4 {
+		t.Fatalf("span download episodes=%v, want seasons 1 and 3", ids)
+	}
+	_, err := e.rt.Poll(e.ctx)
+	must(t, err)
+	folders := map[string]int{}
+	for _, r := range []release{two, span} {
+		var downloadID int64
+		must(t, e.st.Reader().QueryRowContext(e.ctx, `SELECT id FROM download WHERE release_title=? AND state='ready'`, r.name).Scan(&downloadID))
+		plan, err := e.lib.Import(e.ctx, downloadID, false)
+		must(t, err)
+		if r.name == span.name && (len(plan.Unmatched) != 2 || !strings.Contains(plan.Unmatched[0], "S02E01")) {
+			t.Fatalf("span import unmatched=%v", plan.Unmatched)
+		}
+		for _, l := range plan.Links {
+			if !l.Done {
+				t.Fatalf("link not imported: %+v", l)
+			}
+			folders[filepath.Base(filepath.Dir(l.Path))]++
+		}
+	}
+	e.now = e.now.Add(2 * time.Second)
+	e.drain()
+	if folders["Season 01"] != 2 || folders["Season 02"] != 2 || folders["Season 03"] != 2 {
+		t.Fatalf("links by folder=%v", folders)
+	}
+	e.seriesAvailable(id, 6, 6)
+}
