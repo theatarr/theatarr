@@ -54,6 +54,11 @@ var (
 	// groups whose releases end with RlsGroup) or RlsGroup]
 	exceptionReleaseGroupRegex = re(`(?<=[._ \[])(?<releasegroup>(Silence|afm72|Panda|Ghost|MONOLITH|Tigole|Joy|ImE|UTR|t3nzin|Anime Time|Project Angel|Hakata Ramen|HONE|GiLG|Vyndros|SEV|Garshasp|Kappa|Natty|RCVR|SAMPA|YOGI|r00t|EDGE2020|RZeroX|FreetheFish|Anna|Bandi|Qman|theincognito|HDO|DusIctv|DHD|CtrlHD|-ZR-|ADC|XZVN|RH|Kametsu|Celdra)(?=\]|\)))`, optI)
 
+	// trailingIDTagRegex is an id tag at the end of a name (ours): "{imdb-tt…}", "{tmdb-…}", "{tvdb-…}", "[tt…]"
+	// and "-tt…". It is removed before the group is read, so a real group in front of it wins and with none the
+	// group is empty; Radarr reads a bracketed IMDb id as the group.
+	trailingIDTagRegex = newRegexReplace(`[-_. ]*(?:\{(?:imdb|tmdb|tvdb)(?:id)?-[a-z0-9]+\}|\[tt\d{7,10}\]|-tt\d{7,10})$`, "", optI)
+
 	cleanReleaseGroupRegex = newRegexReplace(`(-(RP|1|NZBGeek|Obfuscated|Obfuscation|Scrambled|sample|Pre|postbot|xpost|Rakuv[a-z0-9]*|WhiteRev|BUYMORE|AsRequested|AlternativeToRequested|GEROV|Z0iDS3N|Chamele0n|4P|4Planet|AlteZachen|RePACKPOST))+$`, "", optI)
 )
 
@@ -61,6 +66,7 @@ var (
 func ParseReleaseGroup(title string) *string {
 	title = netTrim(title)
 	title = RemoveFileExtension(title)
+	title = trailingIDTagRegex.Replace(title)
 	for _, r := range preSubstitutionRegex {
 		if isMatch(r.re, title) {
 			title = r.Replace(title)

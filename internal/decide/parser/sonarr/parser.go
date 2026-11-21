@@ -631,6 +631,9 @@ func ParseReleaseGroup(title string) *string { return v4plusd.parseReleaseGroup(
 func (d *dialect) parseReleaseGroup(title string) *string {
 	title = trimDotNet(title)
 	title = RemoveFileExtension(title)
+	if d.v4plus {
+		title = trailingIDTagRegex.Replace(title)
+	}
 	for _, r := range d.preSubstitution {
 		if r.TryReplace(&title) {
 			break

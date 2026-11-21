@@ -22,6 +22,7 @@ package sonarr
 // | WEB with EAC3 is WEB-DL                        | 6421bb621 (#8923)                    | sourceRegex4p              |
 // | WEB with DDP.5.1, ATVP WEB as WEB-DL           | v5 SourceRegex                       | sourceRegex4p              |
 // | "10 bits", "8 bits", "10-bits" are a bit depth | ours                                 | simpleTitleRegex4p         |
+// | A trailing id tag ({imdb-tt…}, [tt…]) no group | ours                                 | trailingIDTagRegex         |
 //
 // Left out on purpose (each behind a regression on the corpus, or needing v5's mapping): the pattern order of
 // 7b0db46c2 (E12.2020 read as S20E20), the seven new languages 47-53 (romaji "ka" read as Georgian, "Uzbekistan" as
@@ -112,6 +113,11 @@ var (
 
 	// subsAfterRegex is what follows a subtitle language: v5's [-_. ]subs? look-ahead.
 	subsAfterRegex = re(`^[-_. ]subs?`, optI)
+
+	// trailingIDTagRegex is an id tag at the end of a name (ours): "{imdb-tt…}", "{tmdb-…}", "{tvdb-…}" (Sonarr's
+	// and Radarr's folder naming), "[tt…]" and "-tt…". It is removed before the group is read, so a real group in
+	// front of it wins and with none the group is empty; v4 and v5 read the tag as the group.
+	trailingIDTagRegex = newRegexReplace(`[-_. ]*(?:\{(?:imdb|tmdb|tvdb)(?:id)?-[a-z0-9]+\}|\[tt\d{7,10}\]|-tt\d{7,10})$`, "", optI)
 
 	// subtitleListRegex marks a list of subtitle languages after it (ours): Erai-raws names its subtitles
 	// `[Multiple Subtitle] [ENG][POR-BR][SPA-LA]...`, which v4 and v5 read as audio.

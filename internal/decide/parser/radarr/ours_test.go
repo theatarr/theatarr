@@ -89,3 +89,24 @@ func TestJapaneseAndSubtitleLanguages(t *testing.T) {
 	}
 }
 
+// TestReleaseGroupIDTag: a trailing id tag ("[tt…]", "{imdb-tt…}", "-tt…") is not a group (ours; Radarr reads a
+// bracketed IMDb id as the group); a real group before it wins, with none the group is empty.
+func TestReleaseGroupIDTag(t *testing.T) {
+	t.Parallel()
+	for title, want := range map[string]string{
+		"Knives.Out.2019.2160p.WEB-DL.H265-GRP [tt8946378].mkv":  "GRP",
+		"Knives.Out.2019.2160p.WEB-DL.H265 [tt8946378].mkv":      "",
+		"Knives.Out.2019.2160p.WEB-DL.H265-GRP {imdb-tt8946378}": "GRP",
+		"Knives.Out.2019.2160p.WEB-DL.H265-GRP {tmdb-546554}":    "GRP",
+		"Knives.Out.2019.2160p.WEB-DL.H265-tt8946378.mkv":        "",
+		"Knives.Out.2019.2160p.WEB-DL.H265-GRP.mkv":              "GRP",
+	} {
+		got := ""
+		if g := ParseReleaseGroup(title); g != nil {
+			got = *g
+		}
+		if got != want {
+			t.Errorf("%s: group %q, want %q", title, got, want)
+		}
+	}
+}

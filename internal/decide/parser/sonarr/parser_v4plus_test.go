@@ -55,6 +55,12 @@ func TestV4Plus(t *testing.T) {
 		{"10-bit is not a group (350dea10d)",
 			"Is It Wrong to Try to Pick Up Girls in a Dungeon - S03E10 (BDRip 1920x1080 x265 10-bit AAC) [Dual Audio]",
 			"S3E10 | Unknown |  | Bluray-1080p", "S3E10 | Unknown | bit | Bluray-1080p"},
+		{"a trailing id tag is not a group (ours): live download 332's folder",
+			"Bad.Sisters.2022.S01E05.2160p.ATVP.WEB.DL.Hybrid.H265.DV.HDR10+.DDP.Atmos.5.1.English.HONE {imdb-tt15469618}",
+			"S1E5 | English |  | WEBDL-2160p", "S1E5 | English | tt15469618 | WEBDL-2160p"},
+		{"a bracketed IMDb tag is not a group, the group before it is (ours)",
+			"Bad.Sisters.S01E05.2160p.WEB-DL.H265-GROUP [tt15469618].mkv",
+			"S1E5 | Unknown | GROUP | WEBDL-2160p", "S1E5 | Unknown | tt15469618 | WEBDL-2160p"},
 
 		// The v5 regression classes, kept as v4 (no v4plus change).
 		{"E12.2020 is not S20E20 (7b0db46c2 left out)", "Cosmos.Possible.Worlds.E12.2020.DSNP.1080p.WEB-DL.DDP5.1.H.264-FLUX",
@@ -211,4 +217,45 @@ func TestV4PlusBitDepth(t *testing.T) {
 			t.Errorf("%q: series title changed: %v", s, p)
 		}
 	}
+}
+
+// TestV4PlusTrailingIDTag: a trailing id tag ("{imdb-tt…}", "{tmdb-…}", "{tvdb-…}", "[tt…]", "-tt…") is removed
+// before the group is read, so a real group before it wins and with none the group is empty (ours; Sonarr reads the
+// tag as the group). Live download 332's folder gave the group tt15469618.
+func TestV4PlusTrailingIDTag(t *testing.T) {
+	t.Parallel()
+	for title, want := range map[string]string{
+		"Bad.Sisters.2022.S01E05.2160p.ATVP.WEB.DL.Hybrid.H265.DV.HDR10+.DDP.Atmos.5.1.English.HONE {imdb-tt15469618}": "",
+		"Bad.Sisters.2022.S01E05.2160p.ATVP.WEB.DL.Hybrid.H265.DV.HDR10+.DDP.Atmos.5.1.English.HONE.mkv":               "",
+		"Bad.Sisters.S01E05.2160p.WEB-DL.H265-GROUP [tt15469618].mkv":                                                  "GROUP",
+		"Bad.Sisters.S01E05.2160p.WEB-DL.H265 [tt15469618].mkv":                                                        "",
+		"Bad.Sisters.S01E05.2160p.WEB-DL.H265-tt15469618.mkv":                                                          "",
+		"Bad.Sisters.S01E05.2160p.WEB-DL.H265-GRP {tmdb-81256}":                                                        "GRP",
+		"Bad.Sisters.S01E05.2160p.WEB-DL.H265-GRP {tvdb-405024}":                                                       "GRP",
+		"Bad.Sisters.S01E05.2160p.WEB-DL.H265-GRP {imdb-tt15469618}":                                                   "GRP",
+		"Bad Sisters (2022) - S01E05 - The Prey [WEBDL-2160p][DV HDR10Plus][EAC3 Atmos 5.1][h265]-tt15469618.mkv":      "",
+		// Not an id tag: kept.
+		"Bad.Sisters.S01E05.2160p.WEB-DL.H265-GRP.mkv": "GRP",
+		"Show.S01E01.1080p.WEB-DL-ttGRP.mkv":           "ttGRP",
+	} {
+		got := ""
+		if g := ParseReleaseGroup(title); g != nil {
+			got = *g
+		}
+		if got != want {
+			t.Errorf("%s: group %q, want %q", title, got, want)
+		}
+		if p := ParseTitle(title); p == nil {
+			t.Errorf("%s: no parse", title)
+		} else if g := strOr(p.ReleaseGroup); g != want {
+			t.Errorf("%s: parsed group %q, want %q", title, g, want)
+		}
+	}
+}
+
+func strOr(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }

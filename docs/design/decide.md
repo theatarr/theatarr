@@ -47,7 +47,9 @@ and models three versions with two criteria each.
      `SUB` (`… + Original (Eng) + Sub (Rus Eng)` reads Ukrainian, Original and English, not Russian), and everything from `Multiple Subtitle`
      on (`radarr.TestJapaneseAndSubtitleLanguages`). Only the last language before `SUBS` is a subtitle, unlike the
      series parser's list rule: `ITA.ENG.SUBS` reads Italian with English subtitles, on purpose (no codec-count
-     heuristics). `KA` stays Georgian, as Radarr reads it.
+     heuristics). `KA` stays Georgian, as Radarr reads it. A trailing id tag (`[tt…]`, `{imdb-tt…}`, `{tmdb-…}`,
+     `-tt…`) is removed before the release group is read, so the group before it wins and with none the group is
+     empty; Radarr reads `[tt…]` as the group (`radarr.TestReleaseGroupIDTag`).
   2. **Map** the release to the title (port of `ParsingService.FindMovie`):
      - the indexer's IMDb id, then its TMDb id; through `Library`, these can name another title in the library;
      - then the searched title's clean title, original title and aliases, with arabic and roman numerals
