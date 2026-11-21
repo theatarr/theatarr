@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 
 	"github.com/theatarr/theatarr/internal/decide"
+	"github.com/theatarr/theatarr/internal/decide/profile"
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/policy"
 )
@@ -82,8 +83,13 @@ func (l *Library) loadLinkedMetadata(ctx context.Context, d *importDownload) (*d
 				return nil, nil, err
 			}
 		}
-		decision, err := l.engine.Decide(ctx, decide.Release{Release: rel}, t,
-			decide.Version{ID: v.VersionID, Key: v.Key, Policy: v.Policy}, nil)
+		var search *decide.SeriesSearch
+		if d.EpisodeMap != nil && d.EpisodeMap.Pack.Span() {
+			// A pack of several seasons reads only under a search of several seasons: its claim's.
+			search = &decide.SeriesSearch{Kind: profile.SearchSeries, Seasons: d.EpisodeMap.Pack.Seasons}
+		}
+		decision, err := l.engine.DecideSearch(ctx, decide.Release{Release: rel}, t,
+			decide.Version{ID: v.VersionID, Key: v.Key, Policy: v.Policy}, search)
 		if err != nil {
 			return nil, nil, err
 		}
