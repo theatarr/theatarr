@@ -276,9 +276,11 @@ func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate)
 		case !s.vp.PreferSeaDex && series:
 			// A prefer-off version re-decides exactly as before standing existed (only on a revision change).
 			ss := seriesSearchFor(&t, c.Episodes)
-			if s.req.Merged && len(c.Criteria) > 0 {
-				// A merged search's candidate is decided with the criteria it was found with: freshness may have left
-				// a season pack one episode, which an episode search would reject; its scope stays theirs.
+			if len(c.Criteria) > 0 {
+				// A candidate is decided with the criteria it was found with (a merged search's, also once its
+				// download is requeued without the flag, or the whole-series window's): freshness may have left a
+				// season pack one episode, which an episode search would reject; its scope and its reading of an
+				// anime pack of several seasons stay theirs.
 				d, err = decideBest(ctx, r.decideSeries, c.Release, t, v, c.Criteria, ss)
 				break
 			}

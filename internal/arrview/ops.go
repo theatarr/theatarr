@@ -118,7 +118,18 @@ func (s *Service) GrabRelease(ctx context.Context, titleID int64, version string
 	if s.pol.Indexers[rel.Indexer] == nil {
 		return nil, refused("release indexer is no longer enabled: %s", rel.Indexer)
 	}
-	return s.grab(ctx, titleID, version, rel, override, unblockBy, source)
+	return s.grab(ctx, titleID, version, rel, override, unblockBy, source, false)
+}
+
+// GrabWholeRelease is GrabRelease for a release of the whole-series Interactive search: decided again with that
+// search's criterion, which travels on the candidate (a search's), so a later re-decision keeps it and an anime pack
+// of several seasons keeps its reading and its claim.
+func (s *Service) GrabWholeRelease(ctx context.Context, titleID int64, version string, rel indexer.Release, override bool,
+	unblockBy, source string) (*Grabbed, error) {
+	if s.pol.Indexers[rel.Indexer] == nil {
+		return nil, refused("release indexer is no longer enabled: %s", rel.Indexer)
+	}
+	return s.grab(ctx, titleID, version, rel, override, unblockBy, source, true)
 }
 
 // AddRelease routes a release a person names by its hash for a version of a title (the release panel's "Add by
@@ -129,11 +140,11 @@ func (s *Service) GrabRelease(ctx context.Context, titleID int64, version string
 func (s *Service) AddRelease(ctx context.Context, titleID int64, version string, rel indexer.Release, override bool,
 	unblockBy, source string) (*Grabbed, error) {
 	rel.Indexer, rel.Kind, rel.Privacy = policy.ManualIndexer, "", ""
-	return s.grab(ctx, titleID, version, rel, override, unblockBy, source)
+	return s.grab(ctx, titleID, version, rel, override, unblockBy, source, false)
 }
 
 func (s *Service) grab(ctx context.Context, titleID int64, version string, rel indexer.Release, override bool,
-	unblockBy, source string) (*Grabbed, error) {
+	unblockBy, source string, whole bool) (*Grabbed, error) {
 	if s.decider == nil {
 		return nil, refused("the decision engine is not running")
 	}
@@ -143,7 +154,16 @@ func (s *Service) grab(ctx context.Context, titleID int64, version string, rel i
 	if indexer.NormalizeHash(rel.InfoHash) == "" {
 		return nil, refused("the release has no info hash: only magnets by hash are routed")
 	}
-	d, err := s.decider.Decide(ctx, decide.Release{Release: rel}, titleID, version)
+	var d *decide.Decision
+	var ss *decide.SeriesSearch
+	var err error
+	if wd, ok := s.decider.(WholeDecider); whole && ok {
+		d, ss, err = wd.DecideWhole(ctx, decide.Release{Release: rel}, titleID, version)
+	} else if whole {
+		return nil, refused("the decision engine cannot decide a whole-series release")
+	} else {
+		d, err = s.decider.Decide(ctx, decide.Release{Release: rel}, titleID, version)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -174,6 +194,10 @@ func (s *Service) grab(ctx context.Context, titleID int64, version string, rel i
 	}
 	c := router.Candidate{Release: rel, Quality: d.Quality, Score: d.Score, Episodes: d.DownloadEpisodes(),
 		Formats: append([]decide.FormatScore{}, d.Formats...), EpisodeMap: d.EpisodeMapping()}
+	if ss != nil {
+		// Decided with the whole-series criterion: a search's candidate, which a re-decision decides with it again.
+		c.Search, c.Criteria = true, []*decide.SeriesSearch{ss}
+	}
 	if vp := s.pol.Versions[version]; len(c.Episodes) == 0 && vp != nil && vp.Kind == policy.KindSeries {
 		return out, refused("the release matches no episode of the title")
 	}

@@ -24,6 +24,16 @@ func (o serveOps) GrabRelease(ctx context.Context, titleID int64, version string
 	return &web.GrabbedRelease{Decision: g.Decision, Overridden: g.Overridden, Job: g.Job}, err
 }
 
+// GrabWholeRelease is GrabRelease for the whole-series Interactive search's releases.
+func (o serveOps) GrabWholeRelease(ctx context.Context, titleID int64, version string, rel indexer.Release, override bool,
+	unblockBy, source string) (*web.GrabbedRelease, error) {
+	g, err := o.av.GrabWholeRelease(ctx, titleID, version, rel, override, unblockBy, source)
+	if g == nil {
+		return nil, err
+	}
+	return &web.GrabbedRelease{Decision: g.Decision, Overridden: g.Overridden, Job: g.Job}, err
+}
+
 // AddRelease gives the release panel's "Add by magnet or hash" (internal/web/ops.go) the same route as a grab, for
 // a release no search found.
 func (o serveOps) AddRelease(ctx context.Context, titleID int64, version string, rel indexer.Release, override bool,

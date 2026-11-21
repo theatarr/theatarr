@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/theatarr/theatarr/internal/availability"
 	"github.com/theatarr/theatarr/internal/decide"
@@ -47,17 +48,11 @@ func (a *Acquirer) InteractiveMany(ctx context.Context, titleID int64, versions 
 		}
 		var ss *decide.SeriesSearch
 		whole := false
-		if t.Kind == policy.KindSeries && season == nil && len(episodes) == 0 && t.SeriesType != "anime" && !t.Anime {
-			// The whole series of a standard or daily series: the query without a season for packs of several
-			// seasons, over every aired episode above season 0 (monitored or not).
+		if t.Kind == policy.KindSeries && season == nil && len(episodes) == 0 {
+			// The whole series: the query without a season for packs of several seasons, over every aired episode
+			// above season 0 (monitored or not).
 			whole = true
-			now := a.now()
-			ss = &decide.SeriesSearch{Kind: profile.SearchSeries, Interactive: true}
-			for _, e := range t.Episodes {
-				if e.Season > 0 && e.AirDateUTC != nil && e.AirDateUTC.Before(now) {
-					ss.Episodes = append(ss.Episodes, e.ID)
-				}
-			}
+			ss = wholeSeries(&t, a.now())
 		} else if t.Kind == policy.KindSeries {
 			ss = seriesSearch(&t, target{season: season, episodes: episodes})
 			ss.Interactive, ss.MonitoredOnly = true, false
@@ -99,6 +94,45 @@ func (a *Acquirer) InteractiveMany(ctx context.Context, titleID int64, versions 
 		return nil, err
 	}
 	return found, nil
+}
+
+// wholeSeries is the whole-series Interactive search's criterion: every aired episode above season 0.
+func wholeSeries(t *decide.Title, now time.Time) *decide.SeriesSearch {
+	ss := &decide.SeriesSearch{Kind: profile.SearchSeries, Interactive: true}
+	for _, e := range t.Episodes {
+		if e.Season > 0 && e.AirDateUTC != nil && e.AirDateUTC.Before(now) {
+			ss.Episodes = append(ss.Episodes, e.ID)
+		}
+	}
+	return ss
+}
+
+// DecideWhole decides one release of the whole-series Interactive search again for a version of a series, with
+// that search's criterion (returned), as a grab by hand from that window is decided.
+func (a *Acquirer) DecideWhole(ctx context.Context, rel decide.Release, titleID int64, version string) (*decide.Decision,
+	*decide.SeriesSearch, error) {
+	ctx, err := decide.WithStoredSeaDex(ctx, a.st.Reader())
+	if err != nil {
+		return nil, nil, err
+	}
+	ctx = a.captureRuntime(ctx)
+	eng := a.eng
+	if a.runtimeEngine != nil {
+		eng = a.runtimeEngine(ctx)
+	}
+	if eng == nil {
+		return nil, nil, ErrNoEngine
+	}
+	t, v, _, err := a.load(ctx, titleID, version)
+	if err != nil {
+		return nil, nil, err
+	}
+	if t.Kind != policy.KindSeries {
+		return nil, nil, errors.New("acquire: a whole-series decision needs a series")
+	}
+	ss := wholeSeries(&t, a.now())
+	d, err := eng.DecideSearch(decide.WithSearch(ctx), rel, t, v, ss)
+	return d, ss, err
 }
 
 // Decide decides one release for a version of a title, as the RSS path does (no search criteria).

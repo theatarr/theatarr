@@ -1,6 +1,7 @@
 package decide
 
 import (
+	"context"
 	"slices"
 	"sort"
 	"strconv"
@@ -56,6 +57,25 @@ func (d *Decision) SeveralSeasons() bool {
 		return d.Pack.Span()
 	}
 	return indexer.HoldsSeasons(d.Release)
+}
+
+// AnimeWholeCandidate says whether a result of the query without a season can be a pack of several seasons for
+// anime series t under search: a name that states a span the library has, or an absolute batch that fills two or
+// more whole seasons. The rest is left out before deciding.
+func AnimeWholeCandidate(ctx context.Context, rel indexer.Release, t *Title, search *SeriesSearch) bool {
+	s := seriesFor(ctx, t)
+	p := s.parseRelease(rel, search)
+	switch {
+	case p == nil:
+		return false
+	case p.FullSeason:
+		return len(s.packSeasons(p, search)) >= 2
+	case len(p.AbsoluteEpisodeNumbers) >= 2:
+		_, _, sceneSource := s.seasonMapping(p.SeriesTitle, p.SeasonNumber)
+		eps, err := s.animeEpisodes(p, sceneSource)
+		return err == nil && s.absoluteClaim(p, eps, true).Span()
+	}
+	return false
 }
 
 // severalSeasons says whether a decision is made for a search of several seasons: a merged search's criterion (two

@@ -45,6 +45,10 @@ type Ops interface {
 	// who confirmed taking it off; then, when nothing else refuses it, it is taken off as the route is queued.
 	GrabRelease(ctx context.Context, titleID int64, version string, rel indexer.Release, override bool,
 		unblockBy, source string) (*GrabbedRelease, error)
+	// GrabWholeRelease is GrabRelease for a release of the whole-series Interactive search, decided again with its
+	// criterion.
+	GrabWholeRelease(ctx context.Context, titleID int64, version string, rel indexer.Release, override bool,
+		unblockBy, source string) (*GrabbedRelease, error)
 	RetryDownload(ctx context.Context, id int64, unblockBy, source string) (*RetriedDownload, error)
 	UnlinkLink(ctx context.Context, linkID int64, reason string) (*UnlinkedLink, error)
 	// UnlinkRemoved is UnlinkLink for a removal that deletes the files: a dead symlink too, and the folders the link
@@ -201,8 +205,14 @@ type liveCache struct {
 	m  map[string]liveRelease
 }
 
-func liveKey(titleID int64, version, hash string) string {
-	return strconv.FormatInt(titleID, 10) + "|" + version + "|" + hash
+// liveKey keys a live release; a whole-series search's are kept apart from a season search's of the same hash (whole),
+// so a grab from either window is decided as that window's result.
+func liveKey(titleID int64, version, hash string, whole bool) string {
+	k := strconv.FormatInt(titleID, 10) + "|" + version + "|" + hash
+	if whole {
+		k += "|whole"
+	}
+	return k
 }
 
 func (c *liveCache) put(titleID int64, version string, sr *router.Searched, now time.Time) {
@@ -222,7 +232,7 @@ func (c *liveCache) put(titleID int64, version string, sr *router.Searched, now 
 		if !ok || h == "" {
 			continue
 		}
-		k := liveKey(titleID, version, h)
+		k := liveKey(titleID, version, h, sr.Whole)
 		if old, seen := c.m[k]; seen && old.at.Equal(now) {
 			continue // the same hash from another indexer in this search: the better ranked one stays
 		}
@@ -230,10 +240,10 @@ func (c *liveCache) put(titleID int64, version string, sr *router.Searched, now 
 	}
 }
 
-func (c *liveCache) get(titleID int64, version, hash string, now time.Time) (indexer.Release, bool) {
+func (c *liveCache) get(titleID int64, version, hash string, whole bool, now time.Time) (indexer.Release, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	v, ok := c.m[liveKey(titleID, version, indexer.NormalizeHash(hash))]
+	v, ok := c.m[liveKey(titleID, version, indexer.NormalizeHash(hash), whole)]
 	if !ok || now.Sub(v.at) > grabTTL {
 		return indexer.Release{}, false
 	}
@@ -255,6 +265,8 @@ type GrabRequest struct {
 	// Unblock takes the release off the library's blocklist and grabs it (the person saw the 409's Blocked and
 	// confirmed); without it a blocklisted release is refused.
 	Unblock bool `json:"unblock,omitempty"`
+	// Whole grabs a release of the whole-series Interactive search: decided again with that search's criterion.
+	Whole bool `json:"whole,omitempty"`
 }
 
 // GrabResult is the answer of a grab.
@@ -303,13 +315,17 @@ func (w *Web) apiGrab(rw http.ResponseWriter, r *http.Request) {
 	if w.refuseRemovedCopy(rw, r, id, req.Version) {
 		return
 	}
-	rel, ok := w.live.get(id, req.Version, hash, w.now())
+	rel, ok := w.live.get(id, req.Version, hash, req.Whole, w.now())
 	if !ok {
 		writeJSON(rw, http.StatusNotFound, apiError{Error: "the release is not in a live search of the last 30 minutes: search again"})
 		return
 	}
 	by := actor(r)
-	g, err := w.ops.GrabRelease(ctx, id, req.Version, rel, req.Override, unblockBy(req.Unblock, by), "ui:grab:"+by)
+	grab := w.ops.GrabRelease
+	if req.Whole {
+		grab = w.ops.GrabWholeRelease
+	}
+	g, err := grab(ctx, id, req.Version, rel, req.Override, unblockBy(req.Unblock, by), "ui:grab:"+by)
 	w.grabbed(rw, r, id, req.Version, rel, g, err, "")
 }
 

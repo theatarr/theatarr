@@ -244,8 +244,8 @@ type target struct {
 	why string
 	// airDate is the newest stored air date (YYYY-MM-DD) of a series target's episodes (Wanted's Released).
 	airDate string
-	// anime: the target's series is anime (its series type or title flag): never a member of a merged search
-	// (mergeGroups).
+	// anime: the target's series is anime (its series type, store.SeriesTypeSQL): after a failure never a member of a
+	// merged search (mergeGroups).
 	anime bool
 }
 
@@ -558,7 +558,7 @@ func (a *Acquirer) targets(ctx context.Context, sel Selection) ([]target, error)
 			}
 			for i := range ts {
 				ts[i].joined = joined
-				ts[i].anime = v.anime == 1 || v.series == "anime"
+				ts[i].anime = v.series == "anime"
 			}
 			out = append(out, ts...)
 		}
@@ -880,8 +880,9 @@ func groupTargets(ts []target) [][]target {
 }
 
 // mergeGroups makes one merged search of the season targets of one series version with the same reason and why
-// (two or more): season targets above season 0 of a standard or daily series (a selection that names a season or
-// episodes makes no two season targets of one version), not a dead link's search. Each member keeps its own run row (startRuns: one root and children,
+// (two or more): season targets above season 0 of a series (a selection that names a season or episodes makes no two
+// season targets of one version), not a dead link's search, nor an anime series' search after a failure (its seasons
+// are searched one by one then). Each member keeps its own run row (startRuns: one root and children,
 // one version with several seasons). The merged group takes the place of its first member's group; ordinary
 // same-season sharing across versions stays for the rest.
 func mergeGroups(groups [][]target) [][]target {
@@ -890,8 +891,8 @@ func mergeGroups(groups [][]target) [][]target {
 		reason, why    string
 	}
 	keyOf := func(t target) (key, bool) {
-		ok := !t.anime && t.season != nil && *t.season > 0 && seasonTarget(t.name) &&
-			t.why != router.ReasonDeadLink
+		ok := t.season != nil && *t.season > 0 && seasonTarget(t.name) && t.why != router.ReasonDeadLink &&
+			!(t.anime && router.FailureWhy(t.why)) // after any failure an anime series' seasons are searched one by one
 		return key{t.titleID, t.versionID, t.reason, t.why}, ok
 	}
 	count := map[key]int{}

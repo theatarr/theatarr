@@ -105,6 +105,11 @@ var searchNow = time.Now
 // relatedRows is the Query.Related of a title's searches: a row of an id request is kept when it is about the title
 // for any target's version (decide.Related).
 func relatedRows(ctx context.Context, t decide.Title, targets []SearchTarget) func(indexer.Release) bool {
+	return relatedFor(ctx, t, targets, nil)
+}
+
+// relatedFor is relatedRows for the rows of queries with criterion search (the query without a season's).
+func relatedFor(ctx context.Context, t decide.Title, targets []SearchTarget, search *decide.SeriesSearch) func(indexer.Release) bool {
 	checks := make([]decide.Title, 0, len(targets))
 	for _, target := range targets {
 		c := t
@@ -115,7 +120,7 @@ func relatedRows(ctx context.Context, t decide.Title, targets []SearchTarget) fu
 	}
 	return func(rel indexer.Release) bool {
 		for i := range checks {
-			if decide.Related(ctx, rel, &checks[i]) {
+			if decide.RelatedFor(ctx, rel, &checks[i], search) {
 				return true
 			}
 		}
@@ -210,6 +215,11 @@ func SearchRequests(ctx context.Context, eng SearchEngine, svc *indexer.Service,
 				for _, sq := range plan.forKind(sr.Kind()) {
 					qq := sq.query
 					qq.Related = related
+					if pl.whole {
+						// The query without a season's rows are read with its criterion: "S1+S2" is a span of an
+						// anime series there.
+						qq.Related = relatedFor(ctx, t, targets, target.Series)
+					}
 					if qq.Validate() != nil || !sr.Supports(qq) {
 						continue
 					}
@@ -334,6 +344,21 @@ func SearchRequests(ctx context.Context, eng SearchEngine, svc *indexer.Service,
 		}
 		seen := map[string]int{}
 		answered := 0
+		// wholeCandidate says whether a result of the query without a season can be a pack of several seasons for
+		// this title: its name reads as several seasons, or, for an anime series, as a span or an absolute batch
+		// that fills whole seasons (decide.AnimeWholeCandidate; read once per name).
+		read := map[string]bool{}
+		wholeCandidate := func(r indexer.Release) bool {
+			if tt.SeriesType != "anime" {
+				return indexer.HoldsSeasons(r.Title)
+			}
+			ok, seen := read[r.Title]
+			if !seen {
+				ok = decide.AnimeWholeCandidate(ctx, r, &tt, target.Series)
+				read[r.Title] = ok
+			}
+			return ok
+		}
 		for _, ref := range refs[target.ID] {
 			key := ref.indexer + "\x00" + ref.query.Key()
 			got := results[key]
@@ -365,7 +390,7 @@ func SearchRequests(ctx context.Context, eng SearchEngine, svc *indexer.Service,
 				note(ref, ref.indexer+": only a plain keyword query; no episode criteria", true)
 			}
 			for _, r := range got.releases {
-				if ref.whole && !indexer.HoldsSeasons(r.Title) {
+				if ref.whole && !wholeCandidate(r) {
 					// The query without a season is asked for packs of several seasons only; the rest is the
 					// season queries' business.
 					searched.Dropped++
@@ -400,7 +425,7 @@ func SearchRequests(ctx context.Context, eng SearchEngine, svc *indexer.Service,
 		}
 		if searched.Dropped > 0 {
 			// The web's searchIncomplete (show-releases.tsx) reads this note as information: keep the words.
-			n := fmt.Sprintf("%d results of the search without a season hold one season or less: left out", searched.Dropped)
+			n := fmt.Sprintf("%d results of the search without a season are outside the whole-series search: left out", searched.Dropped)
 			searched.Notes = append(searched.Notes, n)
 			for i := range members {
 				members[i].Notes = append(members[i].Notes, n)
@@ -490,6 +515,17 @@ func planWhole(t *decide.Title, ss *decide.SeriesSearch, q indexer.Query) *serie
 	q.Season, q.Episode = 0, 0
 	c := q
 	c.Criteria = indexer.CriteriaSeries
+	if t.SeriesType == "anime" {
+		// An anime series' query without a season also asks by text, for the series name and the scene names its
+		// seasons' queries use (criteria.go sceneNames), with the anime categories.
+		var eps []*decide.Episode
+		for i := range t.Episodes {
+			if slices.Contains(ss.Episodes, t.Episodes[i].ID) {
+				eps = append(eps, &t.Episodes[i])
+			}
+		}
+		c.SceneTitles = (&criteriaBuilder{t: t}).sceneNames(eps)
+	}
 	// The plain sources are asked by IMDb id only (Zilean would add a title query, whose failure makes a clean answer
 	// partial); without one their own checks (Supports) refuse the query.
 	q.Title, q.Aliases = "", nil

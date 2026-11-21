@@ -1133,3 +1133,19 @@ func TestSeveralSeasonsByClaim(t *testing.T) {
 		t.Error("a standard span is no longer several seasons")
 	}
 }
+
+// The id filter reads a span name with the whole-series criterion: "(Season 1+2)" and "Seasons 1-3" of an anime
+// series are about the title there; without a search as before.
+func TestRelatedReadsAnimeSpansUnderWholeSearch(t *testing.T) {
+	t.Parallel()
+	tt := kaiju()
+	for _, name := range []string{"[G] Kaiju Tale (Season 1+2) [BD 1080p]", "[G] Kaiju Tale Seasons 1-3 [BD 1080p]"} {
+		r := rel(name, "public", 10*gb).Release
+		if Related(context.Background(), r, &tt) {
+			t.Errorf("%s: related without a search (main's reading changed)", name)
+		}
+		if !RelatedFor(context.Background(), r, &tt, kaijuMerged(0, 1, 2, 3)) {
+			t.Errorf("%s: dropped by the id filter of the whole-series search", name)
+		}
+	}
+}

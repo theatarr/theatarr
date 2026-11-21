@@ -14,6 +14,12 @@ import (
 // mappings, or a franchise name for a series). A release it refuses is one Decide rejects as UnableToParse,
 // UnknownMovie or UnknownSeries.
 func Related(ctx context.Context, rel indexer.Release, t *Title) bool {
+	return RelatedFor(ctx, rel, t, nil)
+}
+
+// RelatedFor is Related for the rows of a series query with its criterion: under a search of several seasons an
+// anime name that states a span ("S1+S2") is read as such, so a valid pack is not dropped before it is decided.
+func RelatedFor(ctx context.Context, rel indexer.Release, t *Title, search *SeriesSearch) bool {
 	if id := releaseIMDb(rel.IMDb); id != "0" && id == releaseIMDb(t.IMDb) {
 		return true
 	}
@@ -28,7 +34,7 @@ func Related(ctx context.Context, rel indexer.Release, t *Title) bool {
 		return findMovie(p, releaseIMDb(rel.IMDb), rel.TMDb, t, nil) != nil
 	}
 	s := seriesFor(ctx, t)
-	parsed := s.parseRelease(rel, nil)
+	parsed := s.parseRelease(rel, search)
 	if parsed == nil || strings.TrimSpace(parsed.SeriesTitle) == "" {
 		return false
 	}

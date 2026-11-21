@@ -181,8 +181,23 @@ func criteriaRequests(q Query, c *caps, cats string) [][]url.Values {
 		// YYYY-MM-DD: season=YYYY, ep=MM/DD.
 		return standard("season", q.AirDate[:4], "ep", q.AirDate[5:7]+"/"+q.AirDate[8:10])
 	case CriteriaSeries:
-		// A whole-series query: no season.
-		return standard()
+		// A whole-series query: no season. An anime series' (its scene names set) asks by id where the feed takes
+		// one and by text for each name, with tv-search's text or, without it, a plain search.
+		if !q.Anime || len(q.SceneTitles) == 0 {
+			return standard()
+		}
+		tier := ids()
+		if tvText {
+			tier = append(tier, titles()...)
+		} else if c.search.has("q") {
+			for _, t := range queryTitles(sceneTitles, c.search.raw) {
+				tier = append(tier, req("search", "q", t))
+			}
+		}
+		if len(tier) == 0 {
+			return nil
+		}
+		return [][]url.Values{tier}
 	case CriteriaDailySeason:
 		if !episodeCaps {
 			return nil

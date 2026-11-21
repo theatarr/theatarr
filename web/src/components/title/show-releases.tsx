@@ -38,7 +38,8 @@ const INFO = [
   /^dropped \d+ /, /^ignored the expanded records/, /^title search added \d+/, /^season search: kept/, /^page_cap \d+ reached/,
   /^no episode counts for this series$/, /^pack sizes are file sizes$/, /^no AniList id maps to this title/,
   /only a plain keyword query$/, /^no episode criteria$/, /^\d+ results from \d+ indexers$/,
-  /^\d+ results of the search without a season hold one season or less: left out$/,
+  /^\d+ results of the search without a season hold one season or less: left out$/, // stored before anime packs
+  /^\d+ results of the search without a season are outside the whole-series search: left out$/,
 ];
 // Every other note is trouble, in these words (the first that matches); anything else "had an error".
 const TROUBLE: [RegExp, string][] = [

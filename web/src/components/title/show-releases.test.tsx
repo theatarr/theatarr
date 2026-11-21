@@ -366,6 +366,7 @@ it("names the indexers that did not answer fully in one line, the raw notes kept
   expect(searchIncomplete(notes)).toBe("Search incomplete: therarbg was rate-limited, nyaa did not answer in time.");
   expect(searchIncomplete("title search added 1, dropped 0 for another IMDb id")).toBe("");
   expect(searchIncomplete("14 results of the search without a season hold one season or less: left out")).toBe("");
+  expect(searchIncomplete("14 results of the search without a season are outside the whole-series search: left out")).toBe("");
   expect(searchIncomplete("seadex: dropped 1 entries: private tracker; dropped 2 entries with an excluded tag")).toBe("");
   mockFetch([
     { method: "GET", path: "/auth/me", reply: { permissions: ["browse", "see_files", "manage"] } },

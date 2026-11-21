@@ -134,7 +134,11 @@ func TestMergeGroups(t *testing.T) {
 		{"dead link", []target{tg(1, "s01", 1, func(x *target) { x.why = router.ReasonDeadLink }),
 			tg(1, "s02", 2, func(x *target) { x.why = router.ReasonDeadLink })}, "1:s01 1:s02"},
 		{"season 0", []target{tg(1, "s00", 0, nil), tg(1, "s01", 1, nil)}, "1:s00 1:s01"},
-		{"anime", []target{tg(1, "s01", 1, func(x *target) { x.anime = true }), tg(1, "s02", 2, func(x *target) { x.anime = true })}, "1:s01 1:s02"},
+		{"anime", []target{tg(1, "s01", 1, func(x *target) { x.anime = true }), tg(1, "s02", 2, func(x *target) { x.anime = true })}, "1:s01+1:s02"},
+		{"anime after a failure", []target{tg(1, "s01", 1, func(x *target) { x.anime, x.why = true, router.ReasonLibrary }),
+			tg(1, "s02", 2, func(x *target) { x.anime, x.why = true, router.ReasonLibrary })}, "1:s01 1:s02"},
+		{"standard after a failure", []target{tg(1, "s01", 1, func(x *target) { x.why = router.ReasonLibrary }),
+			tg(1, "s02", 2, func(x *target) { x.why = router.ReasonLibrary })}, "1:s01+1:s02"},
 		{"one missing episode", []target{tg(1, "s01", 1, nil), tg(1, "s02e01", 2, nil)}, "1:s01 1:s02e01"},
 		{"two versions", []target{tg(1, "s01", 1, nil), tg(2, "s01", 1, nil), tg(1, "s02", 2, nil), tg(2, "s02", 2, nil)},
 			"1:s01+1:s02 2:s01+2:s02"},
@@ -318,8 +322,8 @@ func TestMergedSearchMemberOutcomes(t *testing.T) {
 	}
 }
 
-// A series-level interactive search of a standard series asks only the query without a season, over every aired
-// episode above season 0, monitored or not; an anime series keeps today's search.
+// A series-level interactive search of a series asks only the query without a season, over every aired episode
+// above season 0, monitored or not; an anime series too (phase AC).
 func TestInteractiveWholeSeries(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true, nil)
@@ -338,7 +342,7 @@ func TestInteractiveWholeSeries(t *testing.T) {
 	if _, err := e.a.Interactive(e.ctx, 10, "series", nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	if c := f.calls(); len(c) != 2 || c[1][0].WholeOnly || c[1][0].Series.Kind == profile.SearchSeries {
+	if c := f.calls(); len(c) != 2 || !c[1][0].WholeOnly || c[1][0].Series.Kind != profile.SearchSeries {
 		t.Fatalf("anime: %+v", c[1][0])
 	}
 }
@@ -431,23 +435,47 @@ func TestRoundGroupsAfterBusyItemsLeave(t *testing.T) {
 	}
 }
 
-// An anime series' seasons are searched one by one, through Submit and the wanted loop alike.
+// An anime series' seasons are searched together through Submit and the wanted loop like a standard series', but
+// one by one after a failure (a rejected import's re-search); a standard series still merges then. A series typed
+// standard that only carries the anime flag is a standard series.
 func TestAnimeSeasonsStayUnmerged(t *testing.T) {
 	t.Parallel()
-	e := newEnv(t, true, &policy.Wanted{PerHour: 10})
-	e.addSeries(40, 401, 2)
-	e.exec(`UPDATE title SET anime = 1 WHERE id = 40`)
-	e.exec(`UPDATE version SET monitored = 0 WHERE id <> 401`)
-	if _, err := e.a.Round(e.ctx, nil); err != nil {
-		t.Fatal(err)
-	}
-	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE title_id = 40 AND search_run IS NULL`); n != 2 {
-		t.Fatalf("round: %d roots", n)
-	}
-	if _, _, err := e.a.Submit(e.ctx, 0, Selection{Versions: []string{"series"}, TitleIDs: []int64{40}}); err != nil {
-		t.Fatal(err)
-	}
-	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE title_id = 40 AND source = 'command' AND search_run IS NULL`); n != 2 {
-		t.Fatalf("submit: %d roots", n)
+	for _, c := range []struct {
+		name, setup string
+		after       int
+	}{
+		{"anime", `UPDATE title SET series_type = 'anime' WHERE id = 40`, 2},
+		{"anime flag only", `UPDATE title SET anime = 1, series_type = 'standard' WHERE id = 40`, 1},
+		{"standard", `UPDATE title SET series_type = 'standard' WHERE id = 40`, 1},
+	} {
+		e := newEnv(t, true, &policy.Wanted{PerHour: 10})
+		e.addSeries(40, 401, 2)
+		e.exec(c.setup)
+		e.exec(`UPDATE version SET monitored = 0 WHERE id <> 401`)
+		if _, err := e.a.Round(e.ctx, nil); err != nil {
+			t.Fatal(err)
+		}
+		if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE title_id = 40 AND search_run IS NULL`); n != 1 {
+			t.Fatalf("%s: round: %d roots", c.name, n)
+		}
+		if _, _, err := e.a.Submit(e.ctx, 0, Selection{Versions: []string{"series"}, TitleIDs: []int64{40}}); err != nil {
+			t.Fatal(err)
+		}
+		if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE title_id = 40 AND source = 'command' AND search_run IS NULL`); n != 1 {
+			t.Fatalf("%s: submit: %d roots", c.name, n)
+		}
+		// A rejected import of a pack of both seasons: each season is searched again with the failure as its why.
+		e = newEnv(t, true, &policy.Wanted{PerHour: 10})
+		e.addSeries(40, 401, 2)
+		e.exec(c.setup)
+		e.exec(`UPDATE version SET monitored = 0 WHERE id <> 401`)
+		before := e.count(`SELECT COUNT(*) FROM acquire_run WHERE title_id = 40 AND search_run IS NULL`)
+		if err := e.a.Research(e.ctx, router.ResearchRequest{TitleID: 40, VersionID: 401, Version: "series",
+			Episodes: []int64{4011, 4012, 4021, 4022}, Reason: router.ReasonLibrary}); err != nil {
+			t.Fatal(err)
+		}
+		if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE title_id = 40 AND search_run IS NULL`) - before; n != c.after {
+			t.Fatalf("%s: after a failure: %d roots, want %d", c.name, n, c.after)
+		}
 	}
 }

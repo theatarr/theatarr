@@ -460,3 +460,80 @@ func TestMergedSeaDexTorrentUnderTwoSeasons(t *testing.T) {
 		t.Fatalf("candidates %v, want season 1's and season 2's SeaDex decision", cands)
 	}
 }
+
+// An anime series' query without a season asks by id and by text for its names (with the anime categories), and
+// keeps a result only when it can be a pack of several seasons for the title: a span name or an absolute batch that
+// fills whole seasons; the rest is counted as outside the whole-series search.
+func TestMergedAnimeSeriesSearch(t *testing.T) {
+	old := searchNow
+	searchNow = func() time.Time { return searchClock }
+	defer func() { searchNow = old }()
+	item := func(title string, hash byte) string {
+		return fmt.Sprintf(`<item><title>%s</title><guid>%c</guid><size>20000000000</size><category>5070</category>`+
+			`<torznab:attr name="seeders" value="10"/><torznab:attr name="infohash" value="%s"/></item>`, title, hash,
+			strings.Repeat(string(hash), 40))
+	}
+	var mu sync.Mutex
+	var asked []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		if q.Get("t") == "caps" {
+			fmt.Fprint(w, `<caps><limits default="100" max="100"/><searching><search available="yes" supportedParams="q"/><tv-search available="yes" supportedParams="q,tvdbid,season,ep"/></searching><categories><category id="5000" name="TV"><subcat id="5070" name="TV/Anime"/></category></categories></caps>`)
+			return
+		}
+		mu.Lock()
+		asked = append(asked, q.Get("t")+" "+q.Get("tvdbid")+"/"+q.Get("season")+"/"+q.Get("q"))
+		mu.Unlock()
+		var items string
+		if q.Get("season") == "" && q.Get("ep") == "" {
+			items = item("[GRP] Show Seasons 1-3 [WEB-DL 2160p]", 'c') + item("[GRP] Show - 05 [WEB-DL 2160p]", 'd') +
+				item("[GRP] Show (01-06) [WEB-DL 2160p]", 'e') + item("[GRP] Show - 02-03 [WEB-DL 2160p]", 'f')
+		}
+		fmt.Fprint(w, `<rss xmlns:torznab="http://torznab.com/schemas/2015/feed"><channel>`+items+`</channel></rss>`)
+	}))
+	defer srv.Close()
+	pol := &policy.Policy{Profiles: map[string]*policy.Profile{"web": {Qualities: []policy.QualityItem{{Name: "WEBDL-2160p"}}, Cutoff: "WEBDL-2160p"}},
+		Versions: map[string]*policy.VersionPolicy{"tv": {Kind: policy.KindSeries, Profile: "web", Indexers: []string{"one"}}},
+		Indexers: map[string]*policy.Indexer{"one": {Kind: "torznab", URL: srv.URL, Privacy: policy.PrivacyPublic}}}
+	eng, err := decide.New(pol, decide.Options{Now: func() time.Time { return searchClock }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc, err := indexer.New(pol, &searchGateway{}, indexer.Options{CacheTTL: -1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	title := mergedTitle()
+	title.SeriesType = "anime"
+	for i := range title.Episodes {
+		title.Episodes[i].Absolute = 2*(title.Episodes[i].Season-1) + title.Episodes[i].Number
+	}
+	seasons := []int{1, 2, 3}
+	member := func(s int) *decide.SeriesSearch {
+		return &decide.SeriesSearch{Kind: profile.SearchAnimeSeason, Season: s, Episodes: []int64{int64(10*s + 1), int64(10*s + 2)},
+			MonitoredOnly: true, Seasons: seasons}
+	}
+	whole := &decide.SeriesSearch{Kind: profile.SearchSeries, Episodes: []int64{11, 12, 21, 22, 31, 32}, MonitoredOnly: true, Seasons: seasons}
+	got, err := SearchRequests(context.Background(), eng, svc, title, []SearchTarget{{ID: "m", Version: decide.Version{ID: 1,
+		Key: "tv", Policy: pol.Versions["tv"]}, Series: whole, Members: []*decide.SeriesSearch{member(1), member(2), member(3)}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := got["m"]
+	if !slices.Contains(asked, "tvsearch 555//") || !slices.Contains(asked, "tvsearch //Show") {
+		t.Errorf("asked %v: want the id and the name without a season", asked)
+	}
+	var kept []string
+	for _, c := range s.Request.Candidates {
+		if len(c.Episodes) == 6 {
+			kept = append(kept, c.Release.Title)
+		}
+	}
+	slices.Sort(kept)
+	if want := []string{"[GRP] Show (01-06) [WEB-DL 2160p]", "[GRP] Show Seasons 1-3 [WEB-DL 2160p]"}; !slices.Equal(kept, want) {
+		t.Errorf("packs of three seasons %v, want %v", kept, want)
+	}
+	if s.Dropped != 2 || !strings.Contains(strings.Join(s.Notes, ";"), "2 results of the search without a season are outside the whole-series search") {
+		t.Errorf("dropped %d, notes %v", s.Dropped, s.Notes)
+	}
+}

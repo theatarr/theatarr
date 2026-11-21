@@ -109,6 +109,13 @@ type Decider interface {
 	Decide(ctx context.Context, rel decide.Release, titleID int64, version string) (*decide.Decision, error)
 }
 
+// WholeDecider decides a release of the whole-series Interactive search with that search's criterion (acquire's
+// DecideWhole), for a grab by hand from that window.
+type WholeDecider interface {
+	DecideWhole(ctx context.Context, rel decide.Release, titleID int64, version string) (*decide.Decision,
+		*decide.SeriesSearch, error)
+}
+
 // Cutoff is the arrs' Cutoff Unmet judgement: a file whose quality is below the profile's quality cutoff, the
 // format score aside (acquire.Acquirer.BelowQualityCutoff).
 type Cutoff interface {

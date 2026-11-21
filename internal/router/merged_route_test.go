@@ -408,6 +408,44 @@ func TestMergedRouteRedecideKeepsCriteria(t *testing.T) {
 	}
 }
 
+// A requeued download's route (no merged flag) is decided again with its candidate's stored criteria: an anime
+// "Seasons 1-2" stays the pack of both seasons with its claim, not absolute 1 to 2 of season 1.
+func TestRequeuedRouteRedecidesWithStoredCriteria(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.pol.Profiles = map[string]*policy.Profile{"tv": {Qualities: []policy.QualityItem{{Name: "WEBDL-2160p"}}, Cutoff: "WEBDL-2160p"}}
+	e.pol.Versions["series"].Profile = "tv"
+	e.exec(`UPDATE title SET runtime_minutes = 24, series_type = 'anime' WHERE id = 2`)
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, air_date, air_date_utc_at, created_at, updated_at) VALUES
+		(101, 2, 1, 1, 'Pilot', '2024-01-01', 1000, 0, 0), (102, 2, 1, 2, 'Second', '2024-01-02', 1000, 0, 0),
+		(201, 2, 2, 1, 'Return', '2024-02-01', 1000, 0, 0), (202, 2, 2, 2, 'Again', '2024-02-02', 1000, 0, 0)`)
+	eng, err := decide.New(e.pol, decide.Options{Now: func() time.Time { return e.clock }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.r.SetProfiles(eng.Profile)
+	e.r.SetDecider(eng.Decide, eng.DecideSearch)
+	all := []int64{101, 102, 201, 202}
+	c := Candidate{Release: indexer.Release{Indexer: "pub", Title: "[GRP] Show Seasons 1-2 [WEB-DL 2160p]", InfoHash: h("a"),
+		Size: 8 << 30, Seeders: 10, Peers: 5}, Quality: "WEBDL-2160p", Episodes: all, Search: true,
+		Origin: OriginSearch, Identity: RouteIdentityVersion,
+		Criteria: []*decide.SeriesSearch{{Kind: profile.SearchSeries, Episodes: all, MonitoredOnly: true, Seasons: []int{1, 2}}}}
+	req := Request{TitleID: 2, VersionID: 20, Version: "series", Source: "job", Candidates: []Candidate{c},
+		DecisionRev: "an older revision"}
+	res, err := e.r.Route(e.ctx, req)
+	if err != nil || res.Outcome != OutcomeAdded {
+		t.Fatalf("route %+v %v: %s", res, err, steps(res))
+	}
+	if got := e.storedEpisodes(h("a")); !slices.Equal(got, all) {
+		t.Fatalf("download episodes %v", got)
+	}
+	var m string
+	if err := e.st.Reader().QueryRow(`SELECT COALESCE(episode_map, '') FROM download WHERE info_hash = ?`, h("a")).Scan(&m); err != nil ||
+		!strings.Contains(m, `"mode":"seasons"`) {
+		t.Fatalf("stored mapping %q %v", m, err)
+	}
+}
+
 // One SeaDex torrent under two searched seasons, on a library that prefers SeaDex: the merged search keeps season 1's
 // and season 2's decision of the same hash. Season 1's opens the download; season 2's finds it held for season 1
 // only. Season 2 then waits for that torrent (its episodes count as covered) instead of taking a worse release, and

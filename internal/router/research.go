@@ -54,6 +54,15 @@ const (
 // retry chains before the schedule (retry_new, fresh). The acquirer and the journal share it.
 const FailureResearchSQL = `research IS NOT NULL AND research NOT IN ('asked', 'new', 'added', 'retry_new', 'fresh')`
 
+// FailureWhy is FailureResearchSQL for one schedule row's why: a search after a failure.
+func FailureWhy(why string) bool {
+	switch why {
+	case "", "asked", "new", "added", "retry_new", "fresh":
+		return false
+	}
+	return true
+}
+
 // researchSources are the blocklist sources that trigger a re-search.
 var researchSources = []string{BlocklistStalled, BlocklistTorrentFiles, BlocklistLibrary, BlocklistProvider,
 	BlocklistReadyTimeout}

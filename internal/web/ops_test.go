@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/decide"
@@ -27,6 +28,7 @@ type fakeOps struct {
 	mu            sync.Mutex
 	grabs         []indexer.Release
 	added         []string // the source of each AddRelease that went through (its release is in grabs)
+	whole         []string // the release of each GrabWholeRelease (whole-series window)
 	retries       []int64
 	unlinks       []int64
 	renameApplied []int64
@@ -122,6 +124,14 @@ func (f *fakeOps) GrabRelease(_ context.Context, _ int64, version string, rel in
 	}
 	f.grabs = append(f.grabs, rel)
 	return &GrabbedRelease{Decision: d, Overridden: f.reject, Job: 1}, nil
+}
+
+func (f *fakeOps) GrabWholeRelease(ctx context.Context, id int64, version string, rel indexer.Release, override bool,
+	unblockBy, source string) (*GrabbedRelease, error) {
+	f.mu.Lock()
+	f.whole = append(f.whole, rel.Title)
+	f.mu.Unlock()
+	return f.GrabRelease(ctx, id, version, rel, override, unblockBy, source)
 }
 
 func (f *fakeOps) AddRelease(ctx context.Context, id int64, version string, rel indexer.Release, override bool,
@@ -1024,5 +1034,27 @@ func TestRemoveSyncGroupOfTwo(t *testing.T) {
 	if code := o.jsonCall("POST", APIBase+"/titles/2/remove", RemoveRequest{Versions: []string{"movie-web"}, Unlink: true},
 		o.mc, o.mcsrf, nil); code != 200 || slices.Contains(o.ops.unlinks, 904) {
 		t.Errorf("Beta web removal: %d, unlinked %v", code, o.ops.unlinks)
+	}
+}
+
+// The live-result cache keeps a whole-series search's release apart from a season search's of the same hash, so a
+// grab from either window routes that window's result (and is decided as it).
+func TestLiveCacheKeepsWholeSeriesApart(t *testing.T) {
+	t.Parallel()
+	var c liveCache
+	now := time.Now()
+	hash := strings.Repeat("a", 40)
+	searched := func(title string, whole bool) *router.Searched {
+		d := &decide.Decision{Release: title}
+		return &router.Searched{Ranked: []*decide.Decision{d}, Whole: whole,
+			Releases: map[*decide.Decision]indexer.Release{d: {Title: title, InfoHash: hash}}}
+	}
+	c.put(1, "anime", searched("Show S01-S03 (whole)", true), now)
+	c.put(1, "anime", searched("Show S01-S03 (season 2)", false), now.Add(time.Second))
+	if r, ok := c.get(1, "anime", hash, true, now); !ok || r.Title != "Show S01-S03 (whole)" {
+		t.Errorf("whole: %q %v", r.Title, ok)
+	}
+	if r, ok := c.get(1, "anime", hash, false, now); !ok || r.Title != "Show S01-S03 (season 2)" {
+		t.Errorf("season: %q %v", r.Title, ok)
 	}
 }

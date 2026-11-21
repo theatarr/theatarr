@@ -29,6 +29,11 @@ func (o viewOps) GrabRelease(ctx context.Context, id int64, version string, rel 
 	return grabbed(o.av.GrabRelease(ctx, id, version, rel, override, unblockBy, source))
 }
 
+func (o viewOps) GrabWholeRelease(ctx context.Context, id int64, version string, rel indexer.Release, override bool,
+	unblockBy, source string) (*web.GrabbedRelease, error) {
+	return grabbed(o.av.GrabWholeRelease(ctx, id, version, rel, override, unblockBy, source))
+}
+
 func (o viewOps) AddRelease(ctx context.Context, id int64, version string, rel indexer.Release, override bool,
 	unblockBy, source string) (*web.GrabbedRelease, error) {
 	return grabbed(o.av.AddRelease(ctx, id, version, rel, override, unblockBy, source))
