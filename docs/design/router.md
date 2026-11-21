@@ -298,7 +298,9 @@ Explicit grabs keep their override behavior.
    `queued` row with no `router.route` job queued or running for it is not in flight but **stranded** (a row from a
    build before the row and its follow-up were written together, a route that died before it deferred, or a
    follow-up that ran out of attempts): the route resumes that row instead (`TestRetriedRouteResumesStrandedQueuedRow`;
-   the poller resumes strays too, step 8).
+   the poller resumes strays too, step 8). In a series batch a release a download of the same hash holds already
+   covers only the episodes that download is stored for (a download stored with none: the whole title), not the
+   candidate's, so a pack narrowed to some seasons leaves the others to the next candidates.
    **Movies: another release in flight** (Radarr's `QueueSpecification`, `queue.go`). A movie
    version gets no second release while another hash of the same title and version is in flight (`queued`, `adding`,
    `added`, `downloading`, `ready`, `importing`), unless the new release is an upgrade over the queued one by the
@@ -376,6 +378,34 @@ Explicit grabs keep their override behavior.
 
 Every provider considered is a `download_attempt` row: accepted, refused, skipped, error or deferred, with the code,
 a sanitised message and `retry_at`.
+
+### Merged searches (`Request.Merged`)
+
+The request of a merged search of several seasons (series.md "Seasons searched together") carries a flag, kept with
+its route job and continuation. Its candidates are scoped: a pack of several seasons is for the searched seasons only
+(`decide.SeriesSearch.Seasons` on every criterion, `Decision.DownloadEpisodes`). They are ranked by
+`decide.RankMerged`: quality, format score and protocol as always; then, between full-season releases only, one with
+cache evidence before one without, then the one with more scoped episodes; everything else in the usual order. So a
+pack of several seasons is taken for exactly the seasons where nothing found for that season ranks above it. Only a
+flagged request changes the batch, which RSS batches and single-season searches keep as above:
+
+- **Narrowing by whole seasons.** A candidate that overlaps what the batch placed or deferred, or episodes another
+  download of the version holds in flight, loses every season that has such an episode and goes on with its other
+  seasons (nothing is trimmed inside a season); with no season left it is skipped with the usual step
+  (`episode_covered`, `in_flight`). The download is opened for the episodes left, and a step (`narrowed`,
+  `seasons_covered`) names the seasons left out. A deferred release counts as covering its seasons: a pack behind it
+  is opened for the others. There is no re-ranking after narrowing.
+- **Attempts.** `max_candidates` bounds failed attempts per season, plus one more bucket of the same size shared by
+  the releases of several seasons; a candidate whose bucket is used up is skipped.
+- **Seasons left without a release.** When the route ends, the seasons that had an attempt missed on every provider
+  and nothing placed, deferred or in flight get the exhausted re-search an exhausted route of their own would get:
+  one re-search for all their episodes (not for a release added by hand or a dead link's search). A route that
+  placed nothing at all takes the usual exhausted re-search.
+- **Continuation, resume, re-decision.** The stored candidates keep their scoped episodes and rank order; narrowing is
+  worked out again on each pass from what is covered and in flight then, the resumed row left out. A re-decision ranks
+  with `RankMerged` and keeps the searched seasons. If a deferred release later fails, its season falls back to that
+  season's other releases in the continuation and then to the re-search, never to a pack already downloading for other
+  seasons (the same hash is not widened).
 
 ## Cache evidence
 

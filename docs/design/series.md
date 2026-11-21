@@ -84,7 +84,10 @@ from ordinary matching loads.
   searched season; a single-episode or daily episode search rejects it as a season pack (`FullSeason`). The other
   specifications apply over the whole span: every episode aired, every episode monitored on RSS and automatic
   searches, at least one missing or upgradable episode, size by the summed runtime; a single-season pack still ranks
-  first at equal quality and score. Anime series keep the rule: no span, no complete-series reading. A season pack, or any multi-episode release, is taken when it fills or
+  first at equal quality and score. In a merged search (below, "Seasons searched together") a pack of several seasons is
+  for the searched seasons only: its download leaves out every episode of a season nobody searched (one left with
+  nothing for them is rejected), and between full-season releases a known-cached one ranks first, then the one that
+  fills more searched episodes. Anime series keep the rule: no span, no complete-series reading. A season pack, or any multi-episode release, is taken when it fills or
   upgrades at least one episode (the actuallyevan fork's `ACCEPT_RELEASE_ANY_UPGRADABLE`, taken further than Sonarr
   and the fork). Two kinds of episode keep their file. An episode that already has a better file (`UpgradeDisk`)
   stays in the download's episodes, and the import upgrade check (library.md) leaves its file in place. An episode
@@ -166,8 +169,28 @@ only) plus the series title; episode mappings follow `GetSceneEpisodeMappings` (
 numbers). Clean titles are `GetCleanSceneTitle`; a feed whose caps say `searchEngine="raw"` gets raw and clean.
 
 Other sources keep the plain query in TVDB numbering: DMM and Torrentio key by IMDb id (Cinemeta/TMDb numbering),
-Zilean filters by IMDb id and title, SeaDex by AniList id per TVDB season. A whole-series search, or one for a title
-with no episodes loaded, keeps the plain query everywhere.
+Zilean filters by IMDb id and title, SeaDex by AniList id per TVDB season. A search for a title with no episodes
+loaded keeps the plain query everywhere.
+
+**Seasons searched together** (Theatarr's own; standard and daily series). When one series version is about to search
+two or more seasons (a newly added show, Search series, the wanted loop's due seasons), the season searches run
+together as one merged search: `acquire.mergeGroups` takes the season targets above season 0 of one version with the
+same reason and why, from a selection that names no season and no episodes (not an episode target, not a dead link's
+search, not anime), where the runs start (`Submit` before its `MaxBulk` cut, `Round` before the per-hour loop). Each
+member keeps its own run row (one root, the others its children), schedule row and stored search; the merged search
+costs one search per member of `router.wanted.per_hour` and `MaxBulk` and starts while one is left (it may overdraw;
+a series is never split). Each member asks exactly its own queries, plus one query without a season (criteria kind
+`series`: Torznab `tvsearch` by id, by title only where the id search falls back; Cardigann the series name, by id
+first; DMM and Zilean by IMDb id without a season; Torrentio and SeaDex need a season and are not asked). From that
+query's answer only releases whose name reads as two or more seasons are kept (`indexer.HoldsSeasons`); the rest is
+counted in the notes. Every result is decided with the criteria of the queries that returned it (a `series` criterion
+takes only a release of two or more seasons with a searched season, "Wrong season" or "Holds one season" otherwise),
+ranked together and routed once, on the root's source, as a flagged request (router.md "Merged searches"); every
+routed member carries that route job. A member is partial or unanswered only when its own queries failed; a failed
+query without a season is a note. Its stored search holds the decisions that hold its episodes (a pack of several
+seasons in each member it covers) under the route's source; Why, Last search, the episode window and pruning find a
+member's download by that source and its episodes. A search of one season or one episode, RSS, films and anime are
+unchanged.
 
 **Judging the answers.** The target's search (`SearchTarget.Series`, built by
 `decide.SearchFor`) is in TVDB numbering: the episodes wanted by their own season and number. Each query carries its

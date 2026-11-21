@@ -18,11 +18,11 @@ workaround, it is here too.
 - **Delay profiles and release profiles.** There is no delay before a grab and no release profile. The import
   from Sonarr or Radarr does not bring them over. Quality profiles and custom formats cover most of
   what release profiles are used for.
-- **Anime packs across seasons, and a whole-series search.** A standard or daily series takes a pack of several
-  seasons ("S01-S05", "Season 1-4", "S01 to S03", "S01.S02.S03") or a complete series ("Complete Series", "All Seasons", "The
-  Complete Collection") that a season search finds, which Sonarr does not. Anime series still reject packs across
-  seasons, and so does any pack whose name does not prove the seasons between ("S01.S03"). There is no search for a
-  whole series: searches stay per season, and such packs come from the sources that answer a season search with them.
+- **Anime packs across seasons, and an anime whole-series search.** A standard or daily series takes a pack of
+  several seasons ("S01-S05", "Season 1-4", "S01 to S03", "S01.S02.S03") or a complete series ("Complete Series", "All
+  Seasons", "The Complete Collection"), which Sonarr does not, and searches two or more wanted seasons together with
+  one query without a season (docs/design/series.md). Anime series still reject packs across seasons and are searched
+  season by season, and any pack whose name does not prove the seasons between ("S01.S03") is rejected.
 
 ## Media servers
 

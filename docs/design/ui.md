@@ -626,10 +626,14 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
 - **Interactive search** (`components/title/interactive-search.tsx`, the grid `release-grid.tsx`, columns
   `lib/release-columns.ts`): a wide window (a full-height sheet on phones) that searches the indexers the moment it
   opens, as Radarr's does. Managers open it for a movie from the action bar (the whole movie) and each library's
-  row (that library). A series has it per season and per episode only, as Sonarr does (an unscoped series search
-  would judge every episode unrequested): each season header (season packs and that season's episodes), each episode
+  row (that library). A standard or daily series has it there too, for the whole series (titled with the series
+  name and "Whole series"): only the query without a season is asked and only packs of several seasons are kept
+  (accepted and rejected with their reasons, one row per torrent, at most 300); under the list "N other results are
+  not shown. Search a season for those.", and with no pack "No pack of several seasons found." A pack's row shows
+  its seasons ("Seasons 1 to 5") where an episode is shown. An anime series has it per season and per episode only,
+  as Sonarr does. Every series has it on each season header (season packs and that season's episodes), each episode
   row (an icon button at the row's end; it does not open the episode overview) and the episode overview (per
-  library). Each Wanted row opens it for that library, and the row's season for a series. It is offered only when a
+  library). On a series the action bar's Search now reads "Search series". Each Wanted row opens it for that library, and the row's season for a series. It is offered only when a
   current library of the title searches live (`control.live_releases`). The title data
   still lists removed copies, so the window takes the current ones from the removal scope (`GET
   titles/{id}/removal`, its `copies`): a removed copy gets no tab, and a search asked for it opens on a current one. While the indexers answer, the window says "Searching the

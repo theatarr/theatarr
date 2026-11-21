@@ -486,7 +486,7 @@ stay the view's.
     | Command | Searches |
     |---|---|
     | `MoviesSearch` | each movie, unmonitored too (Radarr skips unmonitored movies only for automatic triggers) |
-    | `SeriesSearch` | each season with monitored episodes (no specials) |
+    | `SeriesSearch` | each season with monitored episodes (no specials); two or more seasons of a standard or daily series as one merged search (series.md "Seasons searched together") |
     | `SeasonSearch` | the season |
     | `EpisodeSearch` | each episode, unmonitored too (Sonarr's `EpisodeSearch` has `MonitoredEpisodesOnly` false) |
     | `MissingMoviesSearch`, `MissingEpisodeSearch` | missing items, aired episodes only |
