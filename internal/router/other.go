@@ -77,9 +77,6 @@ func DecideOther(ctx context.Context, pol *policy.Policy, eng *decide.Engine, re
 		}
 		return nil, "rejected: " + strings.Join(why, ", "), nil
 	}
-	if d.Pack.Span() {
-		r = decide.ClearSeaDex(r)
-	}
 	return &Candidate{Search: series, Criteria: crit, Release: r, Quality: d.Quality, Score: d.Score,
 			Episodes: d.DownloadEpisodes(), Formats: append([]decide.FormatScore{}, d.Formats...), EpisodeMap: d.EpisodeMapping()}, "",
 		nil

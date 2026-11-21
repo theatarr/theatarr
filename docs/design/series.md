@@ -242,8 +242,12 @@ an extra marker as the episode token (OVA, OAD, ONA, SP, Special, NCOP, NCED, cr
 OP/ED with a number, recap, preview, PV, CM, menu, trailer, teaser, a decimal "12.5"), a parse that is a special or
 season 0; "5.1" audio and a series title with "Special" in it are not extras. Every other video file must read as
 numbers in the claim's convention: bare absolute numbers under a batch's claim (number n is the episode stored for
-n); under a named claim a season from the file's own name ("S02E05", "S2 - 05") or one season folder ("Season
-2/Show - 05.mkv"; a folder and a name that disagree fail). No episode may be claimed by two files, and the files'
+n; a season folder is allowed only when it is that episode's season, so "Season 2/Show - 13" passes and numbers
+restarting per folder fail); under a named claim a season from the file's own name ("S02E05", "S2 - 05", "Show
+2nd Season - 05") or one season folder ("Season 2/Show - 05.mkv", "Show 2nd Season/"; a folder and a name that
+disagree fail; a folder that names a range, "Show S01-S02", names no season). A name that reads no episode because
+the series' own name ends in a number ("Mob Psycho 100 - 05") is read after that name. An extra is told by its
+episode token: an explicit episode token (S01E05) makes any file a regular one whatever words follow. No episode may be claimed by two files, and the files'
 episodes must be exactly the claimed ones. The proof's table is the placement (no franchise seam, no canonical
 fallback); a file of a season the download was not given is out of scope. A failed proof, or a proved pack none of
 whose files is for an episode the download was given, runs the import rejection: download failed, nothing linked,
