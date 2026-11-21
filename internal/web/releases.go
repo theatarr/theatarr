@@ -487,9 +487,11 @@ func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt6
 				message += "; partial answer: due again sooner"
 			}
 		}
-		err = scanAll(ctx, db, `SELECT id, info_hash, release_title, COALESCE(provider, ''), state, COALESCE(error, '')
-			FROM download WHERE source = ? AND (? = 0 OR EXISTS (SELECT 1 FROM json_each(download.episodes) j
-			WHERE j.value = ?)) ORDER BY id`, []any{"acquire:" + strconv.FormatInt(run.Int64, 10), episode, episode}, scan)
+		// A merged search's member: the downloads of the root's route that hold its episodes.
+		err = scanAll(ctx, db, `SELECT download.id, info_hash, release_title, COALESCE(provider, ''), download.state,
+			COALESCE(error, '') FROM download JOIN acquire_run r ON r.id = ? WHERE `+snapshot.RunDownloadsSQL("download", "r")+`
+			AND (? = 0 OR EXISTS (SELECT 1 FROM json_each(download.episodes) j WHERE j.value = ?)) ORDER BY download.id`,
+			[]any{run.Int64, episode, episode}, scan)
 		if err != nil {
 			return err
 		}

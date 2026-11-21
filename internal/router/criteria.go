@@ -169,7 +169,8 @@ func (b *criteriaBuilder) add(q indexer.Query, kind profile.SearchKind, eps []*d
 
 // addFor adds a query covering eps whose criteria request the episodes requested (Sonarr's criteria Episodes).
 func (b *criteriaBuilder) addFor(q indexer.Query, kind profile.SearchKind, eps, requested []*decide.Episode) {
-	sc := &decide.SeriesSearch{Kind: kind, MonitoredOnly: b.ss.MonitoredOnly, Interactive: b.ss.Interactive}
+	sc := &decide.SeriesSearch{Kind: kind, MonitoredOnly: b.ss.MonitoredOnly, Interactive: b.ss.Interactive,
+		Seasons: b.ss.Seasons}
 	switch kind {
 	case profile.SearchSingleEpisode, profile.SearchAnimeEpisode:
 		sc.Season, sc.Episode = q.Season, q.Episode

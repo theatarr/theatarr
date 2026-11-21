@@ -12,6 +12,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/availability"
+	"github.com/theatarr/theatarr/internal/journal/snapshot"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -706,7 +707,7 @@ func (a *Acquirer) wantedRuns(ctx context.Context, items []WantedRow) error {
 	}
 	rows, err := a.st.Reader().QueryContext(ctx, `WITH page(idx,title,key,season) AS (VALUES `+strings.Join(values, ",")+`), ranked AS (
  SELECT p.idx, r.id, r.created_at, r.state, r.results, r.accepted, r.message,
- (SELECT download.id FROM download WHERE download.source = 'acquire:' || r.id
+ (SELECT download.id FROM download WHERE `+snapshot.RunDownloadsSQL("download", "r")+`
    AND NOT (download.state = 'failed' AND `+activity.NotStartedSQL+`)
    ORDER BY CASE WHEN download.state = 'imported' THEN 2 WHEN download.state = 'failed' THEN 1 ELSE 0 END, download.id DESC
    LIMIT 1) AS downloaded,

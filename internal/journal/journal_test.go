@@ -1098,3 +1098,34 @@ func TestLowerQualitySeaDexIsInfo(t *testing.T) {
 		t.Errorf("other: %+v", f)
 	}
 }
+
+// A merged search stores one search per member under its route's source: a download's Why shows the member whose
+// list holds the grabbed release and whose season holds its episodes, not the newest of them.
+func TestMergedSearchWhy(t *testing.T) {
+	e := newEnv(t)
+	at := testNow.Add(-2 * time.Hour)
+	span := dec("Gamma.S01-S02.2160p.WEB-DL-GRP", true, "WEBDL-2160p", 100)
+	one := dec("Gamma.S01.2160p.WEB-DL-GRP", true, "WEBDL-2160p", 100)
+	two := dec("Gamma.S02.2160p.WEB-DL-GRP", true, "WEBDL-2160p", 100)
+	rels := map[*decide.Decision]indexer.Release{span: {Title: span.Release, Indexer: "dmm", InfoHash: hashA},
+		one: {Title: one.Release, Indexer: "dmm", InfoHash: hashB},
+		two: {Title: two.Release, Indexer: "dmm", InfoHash: hashC}}
+	for _, s := range []snapshot.Search{
+		{Source: "acquire:5", RunID: 5, TitleID: 3, Version: "tv-2160p", Target: "s01", Ranked: []*decide.Decision{span, one},
+			Releases: rels, CreatedAt: at},
+		{Source: "acquire:5", RunID: 6, TitleID: 3, Version: "tv-2160p", Target: "s02", Ranked: []*decide.Decision{span, two},
+			Releases: rels, CreatedAt: at},
+	} {
+		if err := snapshot.Record(context.Background(), e.st.Writer(), s); err != nil {
+			t.Fatal(err)
+		}
+	}
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, episodes, state,
+		source, created_at, updated_at) VALUES (1, 3, 3, 'tv-2160p', ?, ?, 'dmm', '[101,102]', 'downloading', 'acquire:5', ?, ?)`,
+		hashB, one.Release, msOf(at.Add(time.Minute)), msOf(at.Add(time.Minute)))
+	g := e.get("dl:1")
+	if g.Reasoning == nil || g.Reasoning.Chosen == nil || g.Reasoning.Chosen.Release != one.Release ||
+		len(g.Reasoning.RunnersUp) != 1 || g.Reasoning.RunnersUp[0].Release != span.Release {
+		t.Fatalf("reasoning: %+v", g.Reasoning)
+	}
+}

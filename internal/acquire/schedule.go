@@ -490,8 +490,12 @@ func (a *Acquirer) Round(ctx context.Context, scope []int64) (*WantedSummary, er
 	ordered = append(ordered, byTime(early)...)
 	ordered = append(ordered, orderTargets(unscheduled, last)...)
 	ordered = append(ordered, byTime(regular)...)
-	groups := groupTargets(ordered)
-	sum.Due = len(groups)
+	// A merged search (mergeGroups) is never split by the budget: it starts while one search is left and draws
+	// one per member, overdrawing the hour when it must.
+	groups := mergeGroups(groupTargets(ordered))
+	for _, g := range groups {
+		sum.Due += groupCost(g)
+	}
 	left := a.set.PerHour - sum.SearchedLastHour
 	for _, group := range groups {
 		if left <= 0 {
@@ -519,8 +523,8 @@ func (a *Acquirer) Round(ctx context.Context, scope []int64) (*WantedSummary, er
 		if err := a.startRuns(ctx, SourceWanted, 0, ready); err != nil {
 			return nil, err
 		}
-		sum.Queued++
-		left--
+		sum.Queued += groupCost(ready)
+		left -= groupCost(ready)
 	}
 	if sum.Due > 0 || full {
 		a.log.Info("search round", "full", full, "due", sum.Due, "queued", sum.Queued, "in_flight", sum.InFlight,

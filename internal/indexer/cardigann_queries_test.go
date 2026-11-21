@@ -214,3 +214,16 @@ func TestCardigannSeriesIDCarriesSeasonEpisode(t *testing.T) {
 		}
 	}
 }
+
+// The query without a season of a whole-series search keeps the id path: the id first, the title only when the id
+// search found nothing, neither with a season.
+func TestCardigannSeriesCriteriaKeepsID(t *testing.T) {
+	q := Query{Type: QuerySeries, Title: "Show", TVDB: 12345, Criteria: CriteriaSeries}
+	h, asked := idSite(t, func(url.Values) bool { return false })
+	search(t, h, "site", q)
+	got := asked()
+	if len(got) != 2 || got[0].Get("tvdb") != "12345" || got[0].Get("season") != "" || got[1].Get("q") != "Show" ||
+		got[1].Get("tvdb") != "" {
+		t.Fatalf("requests %v", got)
+	}
+}

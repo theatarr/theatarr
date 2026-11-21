@@ -239,6 +239,8 @@ func cardigannRequests(q Query, def *cardigann.Definition) (tiers [][]cardigann.
 			vars.Episode = fmt.Sprintf("S%02dE%02d", q.Season, q.Episode)
 		case CriteriaSeason:
 			vars.Season, vars.Episode = strconv.Itoa(q.Season), fmt.Sprintf("S%02d", q.Season)
+		case CriteriaSeries:
+			// A whole-series query: no season, the id path kept.
 		case CriteriaDaily:
 			if len(q.AirDate) == 10 {
 				vars.Season, vars.Ep = q.AirDate[:4], q.AirDate[5:7]+"/"+q.AirDate[8:10]

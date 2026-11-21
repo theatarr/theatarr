@@ -35,6 +35,22 @@ type Searched struct {
 	// Releases maps every decision of Ranked to the release it was made for (rejected ones too), for interactive
 	// search answers.
 	Releases map[*decide.Decision]indexer.Release
+	// Members is a merged search's answer per member (SearchTarget.Members, in their order); nil otherwise.
+	Members []MemberSearched
+	// Dropped counts the results of the query without a season left out because their name holds one season or
+	// less (a merged or series-level search).
+	Dropped int
+}
+
+// MemberSearched is one member's share of a merged search: the ranked decisions that hold its episodes (a pack of
+// several seasons in each member it covers; one that holds no member's episodes with the members whose queries
+// returned it, else the first member), and its own queries' failures. A failed query without a season is a note
+// on every member and makes none partial.
+type MemberSearched struct {
+	Ranked     []*decide.Decision
+	Notes      []string
+	Incomplete bool
+	NoAnswer   bool
 }
 
 // SearchTarget is one version's decision criteria in a shared search. Series is the series search in TVDB numbering
@@ -45,6 +61,15 @@ type SearchTarget struct {
 	Version  decide.Version
 	Existing *decide.ExistingFile
 	Series   *decide.SeriesSearch
+	// Members make the target a merged search of several seasons of one version: each member is a season's own
+	// search (with SeriesSearch.Seasons set) and is asked as it would be alone; Series is the SearchSeries criterion
+	// over every member's episodes, asked as one query without a season, whose answer keeps only releases of two or
+	// more seasons. Every result is decided by the criteria of the queries that returned it and ranked together
+	// (decide.RankMerged); the request is flagged (Request.Merged).
+	Members []*decide.SeriesSearch
+	// WholeOnly (a series-level interactive search) asks only the query without a season of Series, with the same
+	// filter on its answer.
+	WholeOnly bool
 }
 
 // SearchRequest searches the version's indexers for the title (through the gateway), decides every release and
@@ -66,6 +91,10 @@ type searchQuery struct {
 	// criteria are what the answer is judged with (nil for a movie): the query's own Sonarr criteria for a feed's
 	// criteria query, plainCriteria for a plain one.
 	criteria []*decide.SeriesSearch
+	// members are the merged search's members that asked this query (indices of SearchTarget.Members); whole marks
+	// the query without a season, whose answer keeps only releases of several seasons.
+	members []int
+	whole   bool
 }
 
 // searchNow is the clock of anime season searches (which episodes have aired).
@@ -136,18 +165,37 @@ func SearchRequests(ctx context.Context, eng SearchEngine, svc *indexer.Service,
 			// Where a film search falls to keywords, its original title is asked too (one more request).
 			q.Aliases = []string{o}
 		}
-		if tt.Kind == policy.KindSeries {
-			if target.Series == nil {
-				return nil, errors.New("router: a series search needs a season (and an episode for one episode)")
-			}
-			q = indexer.Query{Type: indexer.QuerySeries, Title: tt.Name, IMDb: tt.IMDb, TVDB: tt.TVDB,
-				Season: target.Series.Season, Episode: target.Series.Episode,
+		seriesQ := func(ss *decide.SeriesSearch) indexer.Query {
+			q := indexer.Query{Type: indexer.QuerySeries, Title: tt.Name, IMDb: tt.IMDb, TVDB: tt.TVDB,
+				Season: ss.Season, Episode: ss.Episode,
 				Anime: tt.SeriesType == "anime" || tt.Anime, EpisodeCounts: EpisodeCounts(tt.Episodes)}
 			for _, m := range tt.SceneMappings {
 				q.Aliases = append(q.Aliases, m.Title)
 			}
+			return q
 		}
-		plan := planSeries(&tt, target.Series, q)
+		if tt.Kind == policy.KindSeries {
+			if target.Series == nil {
+				return nil, errors.New("router: a series search needs a season (and an episode for one episode)")
+			}
+			q = seriesQ(target.Series)
+		}
+		// A merged target asks each member's queries and the query without a season; any other target its own.
+		type planned struct {
+			plan   *seriesPlan
+			member int // index in target.Members; -1 for the target's own search or the query without a season
+			whole  bool
+		}
+		var plans []planned
+		switch {
+		case len(target.Members) > 0 || target.WholeOnly:
+			for i, m := range target.Members {
+				plans = append(plans, planned{plan: planSeries(&tt, m, seriesQ(m)), member: i})
+			}
+			plans = append(plans, planned{plan: planWhole(&tt, target.Series, q), member: -1, whole: true})
+		default:
+			plans = []planned{{plan: planSeries(&tt, target.Series, q), member: -1}}
+		}
 		targetSeen := map[string]int{}
 		asked := map[string]bool{}
 		for _, k := range v.Policy.Indexers {
@@ -155,31 +203,43 @@ func SearchRequests(ctx context.Context, eng SearchEngine, svc *indexer.Service,
 			if sr == nil {
 				continue
 			}
-			for _, sq := range plan.forKind(sr.Kind()) {
-				qq := sq.query
-				qq.Related = related
-				if qq.Validate() != nil || !sr.Supports(qq) {
-					continue
-				}
-				var crit []*decide.SeriesSearch
-				if sq.search != nil {
-					crit = []*decide.SeriesSearch{sq.search}
-				} else if tt.Kind == policy.KindSeries {
-					crit = plan.plain
-				}
-				ref := searchQuery{indexer: k, query: qq, criteria: crit}
-				key := k + "\x00" + qq.Key()
-				if i, ok := targetSeen[key]; ok {
-					// Two of the target's criteria ask the same request: its answer is judged with both.
-					refs[target.ID][i].criteria = appendCriteria(refs[target.ID][i].criteria, crit...)
-					continue
-				}
-				targetSeen[key] = len(refs[target.ID])
-				refs[target.ID] = append(refs[target.ID], ref)
-				asked[k] = true
-				if !querySeen[key] {
-					querySeen[key] = true
-					queries = append(queries, ref)
+			for _, pl := range plans {
+				plan := pl.plan
+				for _, sq := range plan.forKind(sr.Kind()) {
+					qq := sq.query
+					qq.Related = related
+					if qq.Validate() != nil || !sr.Supports(qq) {
+						continue
+					}
+					var crit []*decide.SeriesSearch
+					if sq.search != nil {
+						crit = []*decide.SeriesSearch{sq.search}
+					} else if tt.Kind == policy.KindSeries {
+						crit = plan.plain
+					}
+					ref := searchQuery{indexer: k, query: qq, criteria: crit, whole: pl.whole}
+					if pl.member >= 0 {
+						ref.members = []int{pl.member}
+					}
+					key := k + "\x00" + qq.Key()
+					if i, ok := targetSeen[key]; ok {
+						// Two of the target's criteria ask the same request: its answer is judged with both.
+						r := &refs[target.ID][i]
+						r.criteria = appendCriteria(r.criteria, crit...)
+						for _, m := range ref.members {
+							if !slices.Contains(r.members, m) {
+								r.members = append(r.members, m)
+							}
+						}
+						continue
+					}
+					targetSeen[key] = len(refs[target.ID])
+					refs[target.ID] = append(refs[target.ID], ref)
+					asked[k] = true
+					if !querySeen[key] {
+						querySeen[key] = true
+						queries = append(queries, ref)
+					}
 				}
 			}
 		}
@@ -252,50 +312,100 @@ func SearchRequests(ctx context.Context, eng SearchEngine, svc *indexer.Service,
 		var rels []indexer.Release
 		var snapshots []indexer.SeaDexSnapshot
 		var crits [][]*decide.SeriesSearch
+		var returnedBy [][]int // merged: the members whose queries returned each release
+		merged := len(target.Members) > 0
+		members := make([]MemberSearched, len(target.Members))
+		memberRefs, memberAnswered := make([]int, len(target.Members)), make([]int, len(target.Members))
+		// note records a failure: on the target, and on a merged search's members that asked the query (every
+		// member's note for the query without a season, which makes none partial).
+		note := func(ref searchQuery, msg string, incomplete bool) {
+			if incomplete && (!ref.whole || !merged) {
+				searched.Incomplete = true
+			}
+			searched.Notes = append(searched.Notes, msg)
+			for i := range members {
+				if ref.whole || slices.Contains(ref.members, i) {
+					members[i].Notes = append(members[i].Notes, msg)
+					members[i].Incomplete = members[i].Incomplete || incomplete && !ref.whole
+				}
+			}
+		}
 		seen := map[string]int{}
 		answered := 0
 		for _, ref := range refs[target.ID] {
 			key := ref.indexer + "\x00" + ref.query.Key()
 			got := results[key]
+			for _, m := range ref.members {
+				memberRefs[m]++
+			}
 			if got.err != nil {
-				searched.Incomplete = true
-				searched.Notes = append(searched.Notes, fmt.Sprintf("%s: %v", ref.indexer, got.err))
+				note(ref, fmt.Sprintf("%s: %v", ref.indexer, got.err), true)
 				continue
 			}
 			answered++
+			for _, m := range ref.members {
+				memberAnswered[m]++
+			}
 			snapshots = append(snapshots, got.result.SeaDex...)
 			// Our own page_cap is a choice, not a failure: the search counts as done. A request that failed part-way
 			// is a partial answer.
 			if got.result.Truncated && !got.result.Capped {
-				searched.Incomplete = true
-				searched.Notes = append(searched.Notes, ref.indexer+": partial answer")
+				note(ref, ref.indexer+": partial answer", true)
 			}
-			searched.Notes = append(searched.Notes, got.result.Notes...)
+			if len(got.result.Notes) > 0 {
+				searched.Notes = append(searched.Notes, got.result.Notes...)
+				for _, m := range ref.members {
+					members[m].Notes = append(members[m].Notes, got.result.Notes...)
+				}
+			}
 			searcher := svc.Searcher(ref.indexer)
 			if tt.Kind == policy.KindSeries && seriesQueriesByKind[searcher.Kind()] == queryKeywords && ref.query.Criteria == "" {
-				searched.Incomplete = true
-				searched.Notes = append(searched.Notes, ref.indexer+": only a plain keyword query; no episode criteria")
+				note(ref, ref.indexer+": only a plain keyword query; no episode criteria", true)
 			}
 			for _, r := range got.releases {
+				if ref.whole && !indexer.HoldsSeasons(r.Title) {
+					// The query without a season is asked for packs of several seasons only; the rest is the
+					// season queries' business.
+					searched.Dropped++
+					continue
+				}
 				if len(refs[target.ID]) > 1 && r.InfoHash != "" {
 					k := ref.indexer + "\x00" + r.InfoHash
 					if i, ok := seen[k]; ok {
 						crits[i] = appendCriteria(crits[i], ref.criteria...)
+						if merged {
+							for _, m := range ref.members {
+								if !slices.Contains(returnedBy[i], m) {
+									returnedBy[i] = append(returnedBy[i], m)
+								}
+							}
+						}
 						continue
 					}
 					seen[k] = len(rels)
 				}
 				rels = append(rels, r)
 				crits = append(crits, ref.criteria)
+				if merged {
+					returnedBy = append(returnedBy, slices.Clone(ref.members))
+				}
 			}
 		}
+		if searched.Dropped > 0 {
+			searched.Notes = append(searched.Notes, fmt.Sprintf("%d results of the search without a season hold one "+
+				"season or less: left out", searched.Dropped))
+		}
 		searched.NoAnswer = len(refs[target.ID]) > 0 && answered == 0
+		for i := range members {
+			members[i].NoAnswer = memberRefs[i] > 0 && memberAnswered[i] == 0
+		}
 		indexer.MarkSeaDex(rels)
 		svc.ApplyCachedOn(ctx, rels)
 		ctx := decide.WithSeaDex(ctx, snapshots)
 		byDecision := map[*decide.Decision]indexer.Release{}
 		byCriteria := map[string][]*decide.SeriesSearch{}
 		var ds []*decide.Decision
+		decisionMembers := map[*decide.Decision][]int{}
 		for i, rel := range rels {
 			byCriteria[rel.Indexer+"\x00"+rel.InfoHash+"\x00"+rel.Title] = crits[i]
 			var d *decide.Decision
@@ -315,25 +425,43 @@ func SearchRequests(ctx context.Context, eng SearchEngine, svc *indexer.Service,
 			}
 			byDecision[d] = rel
 			ds = append(ds, d)
+			if merged {
+				decisionMembers[d] = returnedBy[i]
+			}
 		}
-		searched.Ranked = decide.Rank(ds)
+		rank := decide.Rank
+		if merged {
+			rank = decide.RankMerged
+		}
+		searched.Ranked = rank(ds)
 		// Each check's positives feed the ranking's cache tie-break: rank again after either, so the TorBox check
 		// sees the best releases with DMM's marks, and the order shown is the order the route tries.
 		rerank := func() {
 			for _, d := range ds {
 				eng.Recache(d, target.Version, byDecision[d])
 			}
-			searched.Ranked = decide.Rank(ds)
+			searched.Ranked = rank(ds)
 		}
-		if checkAvailable(ctx, svc, target.Version.Policy, searched.Ranked, byDecision) {
+		// A merged search's checks ask each member's leader and the best packs of several seasons first: cache
+		// evidence decides its ranking.
+		checkOrder := func() []*decide.Decision {
+			if !merged {
+				return searched.Ranked
+			}
+			return mergedCheckOrder(&tt, searched.Ranked, target.Members)
+		}
+		if checkAvailable(ctx, svc, target.Version.Policy, checkOrder(), byDecision) {
 			rerank()
 		}
-		if checkTop(ctx, svc, target.Version.Policy, searched.Ranked, byDecision) {
+		if checkTop(ctx, svc, target.Version.Policy, checkOrder(), byDecision) {
 			rerank()
 		}
 		searched.Releases = byDecision
 		searched.Request = Request{TitleID: tt.ID, VersionID: target.Version.ID, Version: target.Version.Key,
-			Candidates: Candidates(searched.Ranked, byDecision)}
+			Candidates: Candidates(searched.Ranked, byDecision), Merged: merged}
+		if merged {
+			searched.Members = splitMembers(searched.Ranked, target.Members, decisionMembers, members)
+		}
 		for i := range searched.Request.Candidates {
 			c := &searched.Request.Candidates[i]
 			c.Search = true
@@ -341,6 +469,85 @@ func SearchRequests(ctx context.Context, eng SearchEngine, svc *indexer.Service,
 		}
 	}
 	return out, nil
+}
+
+// planWhole plans the query without a season of a whole-series search: for Prowlarr's feeds and keyword sources the
+// SearchSeries criteria (by id, the title only where an id search falls back), for DMM and Zilean the plain query
+// without a season (Torrentio and SeaDex need a season and are not asked). Every answer is judged with ss.
+func planWhole(t *decide.Title, ss *decide.SeriesSearch, q indexer.Query) *seriesPlan {
+	q.Season, q.Episode = 0, 0
+	c := q
+	c.Criteria = indexer.CriteriaSeries
+	return &seriesPlan{base: seriesQuery{query: q}, criteria: []seriesQuery{{query: c, search: ss}},
+		plain: []*decide.SeriesSearch{ss}}
+}
+
+// holdsSeasons reports whether a decision maps episodes of two or more seasons above 0.
+func holdsSeasons(t *decide.Title, d *decide.Decision) bool {
+	seasons := map[int]bool{}
+	for _, id := range d.EpisodeIDs {
+		for i := range t.Episodes {
+			if t.Episodes[i].ID == id && t.Episodes[i].Season > 0 {
+				seasons[t.Episodes[i].Season] = true
+			}
+		}
+	}
+	return len(seasons) >= 2
+}
+
+// mergedCheckOrder is the order a merged search's bounded cache checks ask in: each member's best accepted release,
+// then the accepted packs of several seasons, then the rest in rank order.
+func mergedCheckOrder(t *decide.Title, ranked []*decide.Decision, ms []*decide.SeriesSearch) []*decide.Decision {
+	out := make([]*decide.Decision, 0, len(ranked))
+	taken := map[*decide.Decision]bool{}
+	take := func(d *decide.Decision) {
+		if !taken[d] {
+			taken[d] = true
+			out = append(out, d)
+		}
+	}
+	for _, m := range ms {
+		for _, d := range ranked {
+			if d.Accepted && overlaps(d.DownloadEpisodes(), m.Episodes) {
+				take(d)
+				break
+			}
+		}
+	}
+	for _, d := range ranked {
+		if d.Accepted && holdsSeasons(t, d) {
+			take(d)
+		}
+	}
+	for _, d := range ranked {
+		take(d)
+	}
+	return out
+}
+
+// splitMembers shares a merged search's ranked decisions out to its members (MemberSearched).
+func splitMembers(ranked []*decide.Decision, ms []*decide.SeriesSearch, returnedBy map[*decide.Decision][]int,
+	out []MemberSearched) []MemberSearched {
+	for _, d := range ranked {
+		held := false
+		for i, m := range ms {
+			if overlaps(d.EpisodeIDs, m.Episodes) {
+				out[i].Ranked = append(out[i].Ranked, d)
+				held = true
+			}
+		}
+		if held {
+			continue
+		}
+		by := returnedBy[d]
+		if len(by) == 0 && len(out) > 0 {
+			by = []int{0}
+		}
+		for _, i := range by {
+			out[i].Ranked = append(out[i].Ranked, d)
+		}
+	}
+	return out
 }
 
 // seriesPlan is a target's queries by source kind: Sonarr's criteria for Prowlarr's feeds, the AniList entries of

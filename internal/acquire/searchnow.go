@@ -261,11 +261,13 @@ func (a *Acquirer) searchNowSelection(titleID int64, key, reason string, season 
 	return sel
 }
 
-// wantedUsed counts the searches of the last hour that draw on router.wanted.per_hour.
+// wantedUsed counts the searches of the last hour that draw on router.wanted.per_hour: one per shared search (its
+// root and the other versions of its season), one per member of a merged search (its seasons).
 func (a *Acquirer) wantedUsed(ctx context.Context, now time.Time) (int, error) {
 	var used int
-	err := a.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM acquire_run WHERE source = ? AND search_run IS NULL
-		AND infra <> 3 AND created_at > ?`, SourceWanted, store.Millis(now.Add(-time.Hour))).Scan(&used)
+	err := a.st.Reader().QueryRowContext(ctx, `SELECT COUNT(DISTINCT COALESCE(search_run, id) || '/' ||
+		COALESCE(season, -1)) FROM acquire_run WHERE source = ? AND infra <> 3 AND created_at > ?`, SourceWanted,
+		store.Millis(now.Add(-time.Hour))).Scan(&used)
 	return used, err
 }
 

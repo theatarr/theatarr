@@ -32,6 +32,22 @@ const (
 	maxRejectionText = 200
 )
 
+// MergedRunSQL is true for acquire_run alias r when it is a member of a merged search of several seasons: its
+// search group (root and children) holds a run of the same version for another season. Its stored search and its
+// downloads carry the root's route source (acquire:<root>).
+func MergedRunSQL(r string) string {
+	return `EXISTS (SELECT 1 FROM acquire_run mr WHERE COALESCE(mr.search_run, mr.id) = COALESCE(` + r + `.search_run, ` +
+		r + `.id) AND mr.version_id = ` + r + `.version_id AND COALESCE(mr.season, -1) <> COALESCE(` + r + `.season, -1))`
+}
+
+// RunDownloadsSQL is true for a download (alias d) that acquire run r's search opened: one of its own route, or for
+// a member of a merged search one of the root's route that holds a member's episode.
+func RunDownloadsSQL(d, r string) string {
+	return `(CASE WHEN ` + MergedRunSQL(r) + ` THEN ` + d + `.source = 'acquire:' || COALESCE(` + r + `.search_run, ` + r +
+		`.id) AND EXISTS (SELECT 1 FROM json_each(` + d + `.episodes) de JOIN json_each(` + r + `.episodes) re
+		ON de.value = re.value) ELSE ` + d + `.source = 'acquire:' || ` + r + `.id END)`
+}
+
 // Candidate is one release as the decision saw it. Links (GUID, download URLs, magnets) are never kept.
 type Candidate struct {
 	Rank       int                  `json:"rank"`

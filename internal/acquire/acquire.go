@@ -26,6 +26,7 @@ import (
 	"github.com/theatarr/theatarr/internal/availability"
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/decide/format"
+	"github.com/theatarr/theatarr/internal/decide/profile"
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/jobs"
@@ -243,6 +244,10 @@ type target struct {
 	why string
 	// airDate is the newest stored air date (YYYY-MM-DD) of a series target's episodes (Wanted's Released).
 	airDate string
+	// anime: the target's series is anime (its series type or title flag). whole: a series target of a selection
+	// that names no season and no episodes (a title, missing or cutoff search). Both decide whether the target
+	// may be one member of a merged search (mergeGroups).
+	anime, whole bool
 }
 
 // namedEpisode tells a stored run of a named episode search: an arr command's run for one episode with no reason
@@ -301,20 +306,33 @@ func (a *Acquirer) Submit(ctx context.Context, commandID int64, sel Selection) (
 	if err != nil {
 		return 0, 0, err
 	}
-	groups := groupTargets(ts)
-	found += len(groups)
-	if len(sel.TitleIDs) == 0 && len(groups) > MaxBulk {
+	// Two or more seasons of one series version searched together are one merged search (mergeGroups); it costs
+	// as many of MaxBulk as it has members and is never split.
+	groups := mergeGroups(groupTargets(ts))
+	all := 0
+	for _, g := range groups {
+		all += groupCost(g)
+	}
+	found += all
+	if len(sel.TitleIDs) == 0 && all > MaxBulk {
 		if ts, err = a.oldestFirst(ctx, ts); err != nil {
 			return 0, found, err
 		}
-		groups = groupTargets(ts)
-		groups = groups[:MaxBulk]
+		groups = mergeGroups(groupTargets(ts))
+		left := MaxBulk
+		for i, g := range groups {
+			if left <= 0 {
+				groups = groups[:i]
+				break
+			}
+			left -= groupCost(g)
+		}
 	}
 	for _, group := range groups {
 		if err := a.startRuns(ctx, SourceCommand, commandID, group); err != nil {
 			return queued, found, err
 		}
-		queued++
+		queued += groupCost(group)
 		if sel.RequestedQueued != nil && !*sel.RequestedQueued {
 			*sel.RequestedQueued = slices.ContainsFunc(group, func(t target) bool { return !t.joined })
 		}
@@ -541,6 +559,8 @@ func (a *Acquirer) targets(ctx context.Context, sel Selection) ([]target, error)
 			}
 			for i := range ts {
 				ts[i].joined = joined
+				ts[i].anime = v.anime == 1 || v.series == "anime"
+				ts[i].whole = sel.Season == nil && len(sel.EpisodeIDs) == 0
 			}
 			out = append(out, ts...)
 		}
@@ -861,6 +881,78 @@ func groupTargets(ts []target) [][]target {
 	return out
 }
 
+// mergeGroups makes one merged search of the season targets of one series version with the same reason and why
+// (two or more): season targets above season 0 of a standard or daily series, from a selection that names no season
+// and no episodes, not a dead link's search. Each member keeps its own run row (startRuns: one root and children,
+// one version with several seasons). The merged group takes the place of its first member's group; ordinary
+// same-season sharing across versions stays for the rest.
+func mergeGroups(groups [][]target) [][]target {
+	type key struct {
+		title, version int64
+		reason, why    string
+	}
+	keyOf := func(t target) (key, bool) {
+		ok := t.whole && !t.anime && t.season != nil && *t.season > 0 && seasonTarget(t.name) &&
+			t.why != router.ReasonDeadLink
+		return key{t.titleID, t.versionID, t.reason, t.why}, ok
+	}
+	count := map[key]int{}
+	for _, g := range groups {
+		for _, t := range g {
+			if k, ok := keyOf(t); ok {
+				count[k]++
+			}
+		}
+	}
+	var out [][]target
+	at := map[key]int{}
+	for _, g := range groups {
+		var rest []target
+		for _, t := range g {
+			k, ok := keyOf(t)
+			if !ok || count[k] < 2 {
+				rest = append(rest, t)
+				continue
+			}
+			i, seen := at[k]
+			if !seen {
+				at[k] = len(out)
+				out = append(out, []target{t})
+				continue
+			}
+			out[i] = append(out[i], t)
+		}
+		if len(rest) > 0 {
+			out = append(out, rest)
+		}
+	}
+	return out
+}
+
+// mergedGroup says whether a group is a merged search: one version, two or more different seasons above 0.
+func mergedGroup(ts []target) bool {
+	if len(ts) < 2 {
+		return false
+	}
+	seasons := map[int]bool{}
+	for _, t := range ts {
+		if t.versionID != ts[0].versionID || t.season == nil || *t.season <= 0 {
+			return false
+		}
+		seasons[*t.season] = true
+	}
+	return len(seasons) >= 2
+}
+
+// groupCost is what a group draws on router.wanted.per_hour and MaxBulk: a merged search one per member, any other
+// shared search one.
+func groupCost(ts []target) int {
+	if mergedGroup(ts) {
+		return len(ts)
+	}
+	return 1
+}
+
 // oldestFirst orders targets by their latest attempt of any kind (an infrastructure failure too, so an item that
 // keeps failing does not stay in front of the rest), never attempted first, newest added first among those (stable
 // otherwise).
@@ -1103,6 +1195,8 @@ type fanoutOutcome struct {
 	accepted int
 	route    *router.Request
 	infra    int // acquire_run.infra (runKind)
+	// joinRoute: a merged search's routed member, which carries the one route's job (finishFanout's shared).
+	joinRoute bool
 }
 
 // runFanout claims every target row, performs the union search once, and commits each target's route with its
@@ -1166,7 +1260,7 @@ func (a *Acquirer) runFanout(ctx context.Context, rootID int64, claim, rootState
 	titleID := runs[0].titleID
 	baseTitle, err := decide.LoadTitle(ctx, a.st.Reader(), titleID)
 	if err != nil {
-		return a.finishFanout(ctx, claim, fanoutFailures(runs, err.Error()))
+		return a.finishFanout(ctx, claim, fanoutFailures(runs, err.Error()), nil)
 	}
 	var items []fanoutRun
 	var targets []router.SearchTarget
@@ -1238,10 +1332,19 @@ func (a *Acquirer) runFanout(ctx context.Context, rootID int64, claim, rootState
 		}
 	}
 	if len(items) == 0 {
-		return a.finishFanout(ctx, claim, outcomes)
+		return a.finishFanout(ctx, claim, outcomes, nil)
+	}
+	ctx = gateway.WithPurpose(decide.WithParseMemo(ctx), purpose)
+	// A merged search (one version's seasons, as written: busy members are left out above) is searched as one
+	// target and routed once, on the root.
+	ts := make([]target, len(runs))
+	for i := range runs {
+		ts[i] = runs[i].target
+	}
+	if mergedGroup(ts) && a.searchBatch != nil {
+		return a.runMerged(ctx, rootID, claim, baseTitle, items, targets, outcomes)
 	}
 	var found map[string]*router.Searched
-	ctx = gateway.WithPurpose(decide.WithParseMemo(ctx), purpose)
 	if a.searchBatch != nil {
 		found, err = a.searchBatch(ctx, baseTitle, targets)
 	} else {
@@ -1283,7 +1386,7 @@ func (a *Acquirer) runFanout(ctx context.Context, rootID int64, claim, rootState
 				failed[i].infra, failed[i].message = runInfra, failed[i].message+infraNote
 			}
 		}
-		return a.finishFanout(ctx, claim, append(outcomes, failed...))
+		return a.finishFanout(ctx, claim, append(outcomes, failed...), nil)
 	}
 	for _, item := range items {
 		key := strconv.FormatInt(item.id, 10)
@@ -1328,7 +1431,103 @@ func (a *Acquirer) runFanout(ctx context.Context, rootID int64, claim, rootState
 		outcomes = append(outcomes, fanoutOutcome{run: item, state: "routed", message: message, infra: kind,
 			results: len(searched.Ranked), accepted: len(req.Candidates), route: &req})
 	}
-	return a.finishFanout(ctx, claim, outcomes)
+	return a.finishFanout(ctx, claim, outcomes, nil)
+}
+
+// runMerged runs a merged search: the members' targets as one (router.SearchTarget.Members), each member's own
+// stored search and outcome from its share of the answer (router.MemberSearched), one route for all on the root's
+// source, whose job every routed member carries.
+func (a *Acquirer) runMerged(ctx context.Context, rootID int64, claim string, t decide.Title, items []fanoutRun,
+	targets []router.SearchTarget, outcomes []fanoutOutcome) error {
+	var seasons []int
+	var episodes []int64
+	members := make([]*decide.SeriesSearch, len(targets))
+	for i, tg := range targets {
+		seasons = append(seasons, *items[i].season)
+		episodes = append(episodes, tg.Series.Episodes...)
+	}
+	slices.Sort(seasons)
+	seasons = slices.Compact(seasons)
+	for i, tg := range targets {
+		m := *tg.Series
+		m.Seasons = seasons
+		members[i] = &m
+	}
+	first := targets[0]
+	whole := &decide.SeriesSearch{Kind: profile.SearchSeries, Episodes: episodes, MonitoredOnly: first.Series.MonitoredOnly,
+		Seasons: seasons}
+	id := strconv.FormatInt(rootID, 10)
+	found, err := a.searchBatch(ctx, t, []router.SearchTarget{{ID: id, Title: first.Title, Version: first.Version,
+		Series: whole, Members: members}})
+	if err == nil && (found[id] == nil || len(found[id].Members) != len(items)) {
+		err = errors.New("the merged search returned no answer for its members")
+	}
+	if err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		failed := fanoutFailures(items, "search failed: "+err.Error())
+		if runKind(err, nil) == runInfra {
+			for i := range failed {
+				failed[i].infra, failed[i].message = runInfra, failed[i].message+infraNote
+			}
+		}
+		return a.finishFanout(ctx, claim, append(outcomes, failed...), nil)
+	}
+	searched := found[id]
+	req := searched.Request
+	req.Source = Source(rootID)
+	req.Merged = true
+	var route *router.Request
+	for i, item := range items {
+		m := searched.Members[i]
+		own := &router.Searched{Ranked: m.Ranked, Notes: m.Notes, Incomplete: m.Incomplete, NoAnswer: m.NoAnswer}
+		kind := runKind(nil, own)
+		if kind == runInfra {
+			outcomes = append(outcomes, fanoutOutcome{run: item, state: "failed", infra: runInfra,
+				message: noAnswerMessage(own) + infraNote})
+			continue
+		}
+		// Every member's stored search carries the route's source: the readers find a member's download by it and
+		// the member's episodes.
+		if err := snapshot.Record(ctx, a.st.Writer(), snapshot.Search{Policy: a.pol, Source: req.Source,
+			RunID: item.id, TitleID: item.titleID, Version: item.key, Target: item.name, Ranked: m.Ranked,
+			Releases: searched.Releases, Notes: m.Notes, CreatedAt: a.now()}); err != nil {
+			a.log.Warn("journal: decision not recorded", "run", item.id, "err", err)
+		}
+		notes := ""
+		if len(m.Notes) > 0 {
+			notes = " (" + strings.Join(m.Notes, "; ") + ")"
+		}
+		if kind == runPartial {
+			notes += partialNote
+		}
+		var best string
+		accepted := 0
+		for _, c := range req.Candidates {
+			if overlapsAny(c.Episodes, item.episodes) {
+				if accepted == 0 {
+					best = c.Release.Title
+				}
+				accepted++
+			}
+		}
+		if accepted == 0 {
+			outcomes = append(outcomes, fanoutOutcome{run: item, state: "nothing", infra: kind, results: len(m.Ranked),
+				message: fmt.Sprintf("no accepted release among %d results%s", len(m.Ranked), notes)})
+			continue
+		}
+		route = &req
+		outcomes = append(outcomes, fanoutOutcome{run: item, state: "routed", infra: kind, results: len(m.Ranked),
+			accepted: accepted, joinRoute: true, message: fmt.Sprintf("%d of %d results accepted; best %s%s", accepted,
+				len(m.Ranked), best, notes)})
+	}
+	return a.finishFanout(ctx, claim, outcomes, route)
+}
+
+// overlapsAny says whether a and b share an id.
+func overlapsAny(a, b []int64) bool {
+	return slices.ContainsFunc(a, func(id int64) bool { return slices.Contains(b, id) })
 }
 
 func fanoutFailures(runs []fanoutRun, message string) []fanoutOutcome {
@@ -1339,10 +1538,23 @@ func fanoutFailures(runs []fanoutRun, message string) []fanoutOutcome {
 	return out
 }
 
-func (a *Acquirer) finishFanout(ctx context.Context, claim string, outcomes []fanoutOutcome) error {
+// finishFanout records a shared search's outcomes with their routes; shared, when set, is the one route of a merged
+// search, queued once, whose job every outcome with joinRoute carries.
+func (a *Acquirer) finishFanout(ctx context.Context, claim string, outcomes []fanoutOutcome, shared *router.Request) error {
 	err := a.st.WriteTx(ctx, func(tx *sql.Tx) error {
+		var sharedJob any
+		if shared != nil {
+			job, err := a.rt.EnqueueTx(ctx, tx, *shared, time.Time{})
+			if err != nil {
+				return err
+			}
+			sharedJob = job
+		}
 		for _, o := range outcomes {
 			var routeJob any
+			if o.joinRoute {
+				routeJob = sharedJob
+			}
 			if o.route != nil {
 				job, err := a.rt.EnqueueTx(ctx, tx, *o.route, time.Time{})
 				if err != nil {

@@ -82,6 +82,9 @@ const (
 	CriteriaDailySeason  Criteria = "daily-season" // DailySeasonSearchCriteria
 	CriteriaAnimeEpisode Criteria = "anime-episode"
 	CriteriaAnimeSeason  Criteria = "anime-season"
+	// CriteriaSeries (ours) is a query without a season of a whole-series search: asked by id first, by title only
+	// where an id search falls back to it.
+	CriteriaSeries Criteria = "series"
 )
 
 // SearchMode is Sonarr's SearchMode flags of a scene mapping: the default searches by id first and by title only
@@ -154,7 +157,7 @@ func (q *Query) Validate() error {
 
 func (q *Query) validateCriteria() error {
 	switch q.Criteria {
-	case CriteriaEpisode, CriteriaSeason, CriteriaAnimeEpisode, CriteriaAnimeSeason:
+	case CriteriaEpisode, CriteriaSeason, CriteriaAnimeEpisode, CriteriaAnimeSeason, CriteriaSeries:
 		if q.AirDate != "" || q.AirYear != 0 {
 			return fmt.Errorf("%w: %s criteria have no air date", ErrBadQuery, q.Criteria)
 		}

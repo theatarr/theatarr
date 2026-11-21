@@ -252,6 +252,16 @@ func PackSeasons(name string) (first, last int, ok bool) {
 	return atoiOr(nums[0], 0), atoiOr(nums[len(nums)-1], 0), true
 }
 
+// HoldsSeasons reports whether a name reads as two or more seasons: a span PackSeasons proves or a
+// complete-series phrase.
+func HoldsSeasons(name string) bool {
+	if _, _, ok := PackSeasons(name); ok {
+		return true
+	}
+	_, ok := CompleteSeriesName(name)
+	return ok
+}
+
 // CompleteSeriesName reads a name's complete-series phrase ("Complete Series", "All Seasons", "The Complete
 // Collection", with a leading "The") as season 1: "Show.Complete.Series.1080p" -> "Show.S01.1080p". ok is false when
 // the name holds none.

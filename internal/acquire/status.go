@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/journal/snapshot"
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -133,10 +134,11 @@ func routeStatus(ctx context.Context, db *sql.DB, runID int64, jobState, jobErr,
 	case "failed":
 		return "failed", "routing failed: " + jobErr, nil
 	}
-	src := Source(runID)
+	// A merged search's member reads the downloads of the root's route that hold its episodes.
 	var state, release, prov, dlErr string
-	err := db.QueryRowContext(ctx, `SELECT state, release_title, COALESCE(provider, client, ''), COALESCE(error, '')
-		FROM download WHERE source = ? ORDER BY CASE WHEN state = 'failed' THEN 1 ELSE 0 END, id DESC LIMIT 1`, src).
+	err := db.QueryRowContext(ctx, `SELECT download.state, release_title, COALESCE(provider, client, ''),
+		COALESCE(error, '') FROM download JOIN acquire_run r ON r.id = ? WHERE `+snapshot.RunDownloadsSQL("download", "r")+`
+		ORDER BY CASE WHEN download.state = 'failed' THEN 1 ELSE 0 END, download.id DESC LIMIT 1`, runID).
 		Scan(&state, &release, &prov, &dlErr)
 	switch {
 	case err == nil && state == router.StateQueued:

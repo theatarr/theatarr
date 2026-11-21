@@ -90,6 +90,10 @@ type Request struct {
 	Source string `json:"source,omitempty"`
 	// DownloadID resumes a queued download (a deferred route).
 	DownloadID int64 `json:"download_id,omitempty"`
+	// Merged flags the request of a merged search of several seasons (router.md): a candidate that overlaps what
+	// is covered or in flight is narrowed by whole seasons, failed attempts are bounded per season, seasons left
+	// without a release are searched again together, and a re-decision ranks with decide.RankMerged.
+	Merged bool `json:"merged,omitempty"`
 	// DecisionRev is the policy revision the candidates were decided under, set when the route is queued. An
 	// automatic route that runs under another revision decides its candidates again.
 	DecisionRev string `json:"decision_rev,omitempty"`

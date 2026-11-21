@@ -180,6 +180,9 @@ func criteriaRequests(q Query, c *caps, cats string) [][]url.Values {
 		}
 		// YYYY-MM-DD: season=YYYY, ep=MM/DD.
 		return standard("season", q.AirDate[:4], "ep", q.AirDate[5:7]+"/"+q.AirDate[8:10])
+	case CriteriaSeries:
+		// A whole-series query: no season.
+		return standard()
 	case CriteriaDailySeason:
 		if !episodeCaps {
 			return nil

@@ -523,8 +523,11 @@ func (e *environment) seriesAvailable(id int64, wantEpisodes, wantFiles int) map
 	return files
 }
 
-// A multi-season pack found by a season-2 search is grabbed for all three seasons: the other seasons' episodes are
-// in flight meanwhile, the import files each season in its own folder, and an episode with a better file keeps it.
+// A multi-season pack found by a season-2 search is grabbed for the seasons searched: seasons 2 and 3 are wanted
+// whole and searched together (one merged search), season 1 misses one episode and is searched by that episode
+// alone, so the pack is for seasons 2 and 3 only (phase AB: a pack never brings a season nobody searched). The
+// other searched season's episodes are in flight meanwhile, the import files each season in its own folder, and
+// season 1's files, one of them better, are left alone.
 func TestSeriesMultiSeasonPack(t *testing.T) {
 	t.Parallel()
 	e := newEnvironment(t, seriesPolicy(false))
@@ -565,8 +568,8 @@ func TestSeriesMultiSeasonPack(t *testing.T) {
 	}
 	var ids []int64
 	must(t, json.Unmarshal([]byte(episodesJSON), &ids))
-	if len(ids) != 5 { // S01E01 keeps its better file
-		t.Fatalf("pack download episodes=%v, want the five without a better file", ids)
+	if len(ids) != 4 { // seasons 2 and 3: season 1 was not searched by season
+		t.Fatalf("pack download episodes=%v, want the four of seasons 2 and 3", ids)
 	}
 	var versionID, s3 int64
 	must(t, e.st.Reader().QueryRowContext(e.ctx, `SELECT id FROM version WHERE title_id=? AND policy_key='tv'`, id).Scan(&versionID))
@@ -587,7 +590,8 @@ func TestSeriesMultiSeasonPack(t *testing.T) {
 	must(t, e.st.Reader().QueryRowContext(e.ctx, `SELECT id FROM download WHERE release_title=? AND state='ready'`, pack.name).Scan(&downloadID))
 	plan, err := e.lib.Import(e.ctx, downloadID, false)
 	must(t, err)
-	if len(plan.Unmatched) != 1 || plan.Unmatched[0] != pack.files[0] { // S01E01 is not the download's: left alone
+	if len(plan.Unmatched) != 2 || plan.Unmatched[0] != pack.files[0] || plan.Unmatched[1] != pack.files[1] {
+		// season 1's files are not the download's: left alone
 		t.Fatalf("pack import unmatched=%v", plan.Unmatched)
 	}
 	folders := map[string]int{}
@@ -599,10 +603,10 @@ func TestSeriesMultiSeasonPack(t *testing.T) {
 	}
 	e.now = e.now.Add(2 * time.Second)
 	e.drain()
-	if folders["Season 01"] != 1 || folders["Season 02"] != 2 || folders["Season 03"] != 2 {
+	if folders["Season 01"] != 0 || folders["Season 02"] != 2 || folders["Season 03"] != 2 {
 		t.Fatalf("pack links by folder=%v", folders)
 	}
-	files := e.seriesAvailable(id, 6, 6)
+	files := e.seriesAvailable(id, 5, 5)
 	if files["S01E01"] != before {
 		t.Fatalf("S01E01's better file was replaced: %d -> %d", before, files["S01E01"])
 	}

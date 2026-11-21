@@ -323,24 +323,73 @@ func (b *builder) cache(e *Entry, hash string) error {
 	return rows.Err()
 }
 
+// snapshotPick says which of a source's stored searches a reader wants: a merged search of several seasons stores
+// one per member under its route's source. run picks a member's own (0: none); hash and episodes (a download's
+// info hash and stored episode ids, JSON) the member whose list holds the hash and whose season holds one of the
+// episodes. Without a match the newest is read, as for any other source.
+type snapshotPick struct {
+	run      int64
+	hash     string
+	episodes string
+}
+
 // snapshotFor reads the journal_decision a route came from: same source, title and version, at or before at.
-func (b *builder) snapshotFor(source string, titleID int64, version string, at int64) (*Reasoning, error) {
+func (b *builder) snapshotFor(source string, titleID int64, version string, at int64, pick snapshotPick) (*Reasoning, error) {
 	if source == "" {
 		return nil, nil
 	}
 	var cj, rj, notes, target, rev string
 	var results, accepted int
 	var trimmed bool
-	err := b.db.QueryRowContext(b.ctx, `SELECT candidates, rejections, notes, target, results, accepted, trimmed,
-		policy_rev FROM journal_decision WHERE source = ? AND title_id = ? AND version_key = ? AND created_at <= ?
-		ORDER BY created_at DESC, id DESC LIMIT 1`, source, titleID, version, at).Scan(&cj, &rj, &notes, &target,
-		&results, &accepted, &trimmed, &rev)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
+	type stored struct {
+		cj, rj, notes, target, rev string
+		results, accepted          int
+		trimmed                    bool
+		run                        sql.NullInt64
 	}
+	rows, err := b.db.QueryContext(b.ctx, `SELECT candidates, rejections, notes, target, results, accepted, trimmed,
+		policy_rev, run_id FROM journal_decision WHERE source = ? AND title_id = ? AND version_key = ? AND created_at <= ?
+		ORDER BY created_at DESC, id DESC`, source, titleID, version, at)
 	if err != nil {
 		return nil, err
 	}
+	var all []stored
+	for rows.Next() {
+		var x stored
+		if err := rows.Scan(&x.cj, &x.rj, &x.notes, &x.target, &x.results, &x.accepted, &x.trimmed, &x.rev, &x.run); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		all = append(all, x)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(all) == 0 {
+		return nil, nil
+	}
+	chosen := all[0]
+	if len(all) > 1 {
+		if c, ok, err := b.pickSnapshot(pick, func(yield func(run sql.NullInt64, target, cj string) bool) {
+			for _, x := range all {
+				if !yield(x.run, x.target, x.cj) {
+					return
+				}
+			}
+		}); err != nil {
+			return nil, err
+		} else if ok {
+			for _, x := range all {
+				if x.run == c {
+					chosen = x
+					break
+				}
+			}
+		}
+	}
+	cj, rj, notes, target, rev = chosen.cj, chosen.rj, chosen.notes, chosen.target, chosen.rev
+	results, accepted, trimmed = chosen.results, chosen.accepted, chosen.trimmed
 	r := &Reasoning{Basis: "theatarr search", Results: results, Accepted: accepted, Notes: clean(notes), PolicyRev: rev}
 	if target == "rss" {
 		r.Basis = "theatarr rss"
@@ -357,6 +406,63 @@ func (b *builder) snapshotFor(source string, titleID int64, version string, at i
 		r.Missing = "candidates trimmed by retention"
 	}
 	return r, nil
+}
+
+// pickSnapshot picks one of a merged search's stored searches (snapshotPick): the run's own, else the first whose
+// candidates hold the hash and whose season (target sNN) holds one of the episodes.
+func (b *builder) pickSnapshot(pick snapshotPick,
+	each func(yield func(run sql.NullInt64, target, cj string) bool)) (sql.NullInt64, bool, error) {
+	var found sql.NullInt64
+	ok := false
+	if pick.run > 0 {
+		each(func(run sql.NullInt64, _, _ string) bool {
+			if run.Valid && run.Int64 == pick.run {
+				found, ok = run, true
+				return false
+			}
+			return true
+		})
+		if ok {
+			return found, true, nil
+		}
+	}
+	if pick.hash == "" || pick.episodes == "" {
+		return found, false, nil
+	}
+	seasons := map[int]bool{}
+	rows, err := b.db.QueryContext(b.ctx, `SELECT DISTINCT season FROM episode WHERE id IN (SELECT value FROM json_each(?))`,
+		pick.episodes)
+	if err != nil {
+		return found, false, err
+	}
+	for rows.Next() {
+		var n int
+		if err := rows.Scan(&n); err != nil {
+			rows.Close()
+			return found, false, err
+		}
+		seasons[n] = true
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return found, false, err
+	}
+	each(func(run sql.NullInt64, target, cj string) bool {
+		n, err := strconv.Atoi(strings.TrimPrefix(strings.ToLower(target), "s"))
+		if err != nil || !seasons[n] {
+			return true
+		}
+		var cands []snapshot.Candidate
+		_ = json.Unmarshal([]byte(cj), &cands)
+		for _, c := range cands {
+			if strings.EqualFold(c.InfoHash, pick.hash) {
+				found, ok = run, true
+				return false
+			}
+		}
+		return true
+	})
+	return found, ok, nil
 }
 
 // pickChosen moves the chosen candidate to Chosen: the one with hash, else the one named release, else (with
@@ -389,7 +495,7 @@ func (r *Reasoning) pickChosen(hash, release string) {
 }
 
 func (b *builder) decisionFor(e *Entry, d *dlRow) error {
-	r, err := b.snapshotFor(d.source, d.titleID, d.version, d.created)
+	r, err := b.snapshotFor(d.source, d.titleID, d.version, d.created, snapshotPick{hash: d.hash, episodes: d.episodes})
 	if err != nil {
 		return err
 	}
@@ -1088,9 +1194,12 @@ func (b *builder) run(e *Entry, rest string) error {
 	var results, accepted int
 	var created int64
 	var failure bool
+	// A member of a merged search stores its search and finds its downloads under the root's route source.
+	routeSource := "acquire:" + rest
 	if err := b.db.QueryRowContext(b.ctx, `SELECT source, target, state, message, research, results, accepted,
-		policy_rev, created_at, COALESCE(`+failureRunSQL+`, 0) FROM acquire_run WHERE id = ?`, id).Scan(&source, &target,
-		&state, &message, &research, &results, &accepted, &queuedRev, &created, &failure); err != nil {
+		policy_rev, created_at, COALESCE(`+failureRunSQL+`, 0), 'acquire:' || CASE WHEN `+snapshot.MergedRunSQL("acquire_run")+`
+		THEN COALESCE(search_run, id) ELSE id END FROM acquire_run WHERE id = ?`, id).Scan(&source, &target,
+		&state, &message, &research, &results, &accepted, &queuedRev, &created, &failure, &routeSource); err != nil {
 		return err
 	}
 	e.QueuedPolicyRev = queuedRev
@@ -1101,7 +1210,7 @@ func (b *builder) run(e *Entry, rest string) error {
 		e.Label, why = "Search after a failure", research.String
 	}
 	e.Summary = searchWords(source, target, state, why, message, b.full)
-	r, err := b.snapshotFor("acquire:"+rest, e.Title.ID, e.Version, created+24*3600*1000)
+	r, err := b.snapshotFor(routeSource, e.Title.ID, e.Version, created+24*3600*1000, snapshotPick{run: id})
 	if err != nil {
 		return err
 	}
@@ -1110,8 +1219,9 @@ func (b *builder) run(e *Entry, rest string) error {
 	}
 	r.pickChosen("", "")
 	e.Reasoning = r
-	rows, err := b.db.QueryContext(b.ctx, `SELECT id FROM download WHERE source = ? AND title_id = ?
-		AND version_key = ? ORDER BY id`, "acquire:"+rest, e.Title.ID, e.Version)
+	rows, err := b.db.QueryContext(b.ctx, `SELECT download.id FROM download JOIN acquire_run r ON r.id = ?
+		WHERE `+snapshot.RunDownloadsSQL("download", "r")+` AND download.title_id = ? AND download.version_key = ?
+		ORDER BY download.id`, id, e.Title.ID, e.Version)
 	if err != nil {
 		return err
 	}
