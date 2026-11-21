@@ -1031,7 +1031,9 @@ func TestEpisodeNothingGrabbedNamesSeasonSearch(t *testing.T) {
 	}
 	r = Releases{}
 	e.call("GET", APIBase+"/titles/10/releases?version=tv-2160p", nil, 200, &r)
-	if r.Grabbed != "Nothing grabbed: no accepted release among 508 results (indexer nyaa: timeout)" {
+	// The headline is for people (F6): built from the run's count when read, the notes left to the panel's own
+	// lines (Search incomplete, Technical details). This pinned the notes in the line before.
+	if r.Grabbed != "Nothing grabbed: no accepted release among 508 results" {
 		t.Errorf("season: %q", r.Grabbed)
 	}
 	// A partial run (an indexer timed out) keeps its early-retry hint in the episode's line.
@@ -1040,6 +1042,37 @@ func TestEpisodeNothingGrabbedNamesSeasonSearch(t *testing.T) {
 	e.call("GET", APIBase+"/titles/10/episodes/102/releases", nil, 200, &r)
 	if r.Grabbed != "Nothing grabbed: no accepted release among 508 results of the season search; partial answer: due again sooner" {
 		t.Errorf("E02 partial: %q", r.Grabbed)
+	}
+	// An exact episode's own search with both indexers' notes stored in its message (an old row too): the line is the
+	// count and the early-retry hint; the notes stay the panel's (Notes). Title History says the same line.
+	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, state, results, accepted, infra,
+		message, created_at, updated_at) VALUES (72, 'wanted', 10, 10, 'tv-2160p', 's01e01', 'nothing', 351, 0, 2,
+		'no accepted release among 351 results (title search added 0; dropped 0 entries for another IMDb id); partial answer: due again sooner', ?, ?)`,
+		now-500, now-500)
+	e.exec(`INSERT INTO journal_decision (id, source, run_id, title_id, version_key, target, results, accepted,
+		candidates, notes, created_at) VALUES (101, 'acquire:72', 72, 10, 'tv-2160p', 's01e01', 351, 0, '[]',
+		'title search added 0; dropped 0 entries for another IMDb id', ?)`, now-500)
+	const clean = "Nothing grabbed: no accepted release among 351 results; partial answer: due again sooner"
+	r = Releases{}
+	e.call("GET", APIBase+"/titles/10/episodes/101/releases", nil, 200, &r)
+	if r.Grabbed != clean || r.Notes != "title search added 0; dropped 0 entries for another IMDb id" {
+		t.Errorf("E01 own search: %q, notes %q", r.Grabbed, r.Notes)
+	}
+	var d TitleDetail
+	e.call("GET", APIBase+"/titles/10", nil, 200, &d)
+	found := false
+	for _, v := range d.Versions {
+		for _, h := range v.History {
+			if h.Event == "searched" && h.RunID != nil && *h.RunID == 72 {
+				found = true
+				if h.Summary != clean {
+					t.Errorf("history line: %q", h.Summary)
+				}
+			}
+		}
+	}
+	if !found {
+		t.Error("run 72 is not in the title's history")
 	}
 }
 

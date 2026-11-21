@@ -605,7 +605,10 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   an episode it held. Above the table one line says what the shown stored search did
   (`Releases.grabbed`, for an episode its downloads of that episode): "Grabbed #1 via rd → imported" or "Nothing
   grabbed: <reason>" ("Nothing grabbed for this episode" when a season search routed only others); it describes
-  the downloads that search opened. The source badge, the age and "12 results, 2 accepted" sit in one line; under it
+  the downloads that search opened. A search that accepted nothing reads "Nothing grabbed: no accepted release among
+  351 results", with "; partial answer: due again sooner" for a partial run, built from the run's count when read (so
+  older rows, whose stored message carries the indexers' notes, read the same); the notes stay in the lines below
+  (Search incomplete, Technical details). Title History's searched row says the same line. The source badge, the age and "12 results, 2 accepted" sit in one line; under it
   the message says what the stored search came from ("From RSS", "From a search", "From a search for S01"; an
   episode adds ", which covered S01E05"). A search that ran routed with no download says "A release was chosen, but no
   download was started.". The indexers' notes are one line naming what went wrong per indexer ("Search incomplete:

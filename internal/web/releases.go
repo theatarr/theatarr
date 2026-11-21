@@ -522,13 +522,8 @@ func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt6
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
-		if state == "nothing" && scope != "" {
-			// The search's notes are the panel's own (Notes); the line names the count as the whole search's, and
-			// keeps the run's early-retry hint (acquire's partialNote for a runPartial run, infra 2).
-			message = fmt.Sprintf("no accepted release among %d results of the %s search", results, scope)
-			if infra == 2 {
-				message += "; partial answer: due again sooner"
-			}
+		if state == "nothing" {
+			message = nothingLine(results, infra, scope)
 		}
 		// A merged search's member: the downloads of the root's route that hold its episodes.
 		err = scanAll(ctx, db, `SELECT download.id, info_hash, release_title, COALESCE(provider, ''), download.state,
@@ -592,6 +587,21 @@ func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt6
 	out.Grabbed = searchSummary(dls, pickDownload(dls, current), current, candidatesOf(out.Candidates), oc, state, message,
 		w.providerTag)
 	return nil
+}
+
+// nothingLine is the headline of a run that accepted nothing, built from its count when read (so old rows read the
+// same): "no accepted release among 351 results", naming a wider search's count as that search's for an episode
+// (scope "season" or "series": "… of the season search"), with the run's early-retry hint (acquire's partialNote for
+// a runPartial run, infra 2). The search's notes stay the panel's own lines (Search incomplete, Technical details).
+func nothingLine(results, infra int, scope string) string {
+	s := fmt.Sprintf("no accepted release among %d results", results)
+	if scope != "" {
+		s += " of the " + scope + " search"
+	}
+	if infra == 2 {
+		s += "; partial answer: due again sooner"
+	}
+	return s
 }
 
 // scanRunDownload reads id, info_hash, release_title, provider, state and error.

@@ -469,18 +469,21 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 	currents := map[int64]map[int64]bool{}
 	// A merged search's member reads the downloads of the root's route that hold one of its episodes.
 	err = scanAll(ctx, db, `SELECT r.version_id, r.version_key, r.id, r.created_at, r.target, r.state, r.message,
-		r.results, r.accepted, d.id, COALESCE(d.candidates, '[]'),
+		r.results, r.accepted, r.infra, d.id, COALESCE(d.candidates, '[]'),
 		CASE WHEN `+snapshot.MergedRunSQL("r")+` THEN COALESCE(r.search_run, r.id) ELSE 0 END, r.episodes
 		FROM acquire_run r LEFT JOIN journal_decision d ON d.run_id = r.id
 		AND d.id = (SELECT MAX(j.id) FROM journal_decision j WHERE j.run_id = r.id)
 		WHERE r.title_id = ? ORDER BY r.created_at DESC, r.id DESC LIMIT 10`, []any{titleID}, func(rows *sql.Rows) error {
 		var vid, id, at, root int64
-		var results, accepted int
+		var results, accepted, infra int
 		var decision sql.NullInt64
 		var key, target, state, message, cj, runEps string
-		if err := rows.Scan(&vid, &key, &id, &at, &target, &state, &message, &results, &accepted, &decision,
+		if err := rows.Scan(&vid, &key, &id, &at, &target, &state, &message, &results, &accepted, &infra, &decision,
 			&cj, &root, &runEps); err != nil {
 			return err
+		}
+		if state == "nothing" {
+			message = nothingLine(results, infra, "") // the line for people, as Last search says it
 		}
 		v := byID[vid]
 		if v == nil {
