@@ -192,12 +192,15 @@ The status word (one per title, copy or episode):
 | a file is held, and no monitored library has a gap (a series: every aired, monitored episode of every monitored library has a file), whatever its quality against the cutoff | **Available** (title page: "Available in 4K") | green `--ok` | posters, table Status, filter, title page, library rows, episode cells and window |
 | a file is held, and a monitored library has a gap (a movie library with no file; a series library missing an aired, monitored episode) | **Partly available** | amber `--warn` | posters, table Status, filter, title page |
 | no file, monitored, out (a movie past its home release; a series with an aired episode); an episode aired, monitored, no file | **Missing** | red `--bad` | posters, table Status, filter, title page, library rows, episode cells and window |
-| no file, and no library monitors it; an episode with no file whose episode or library is not monitored | **Not monitored** | grey `--ink-4` | posters, table Status, filter, title page, library rows, episode cells and window |
+| no file, and no library monitors it, or (a series with episode information) no current episode, specials and episodes to come included, is monitored in a monitored library; an episode with no file whose episode or library is not monitored | **Not monitored** | grey `--ink-4` | posters, table Status, filter, title page, library rows, episode cells and window |
 | no file, monitored, not out yet (a movie's home release, else its TMDb release date, still to come; a series with nothing aired); an episode still to air | **Upcoming** (with the day), episodes **Not aired** | grey `--ink-3` | posters, table Status, filter, title page, library rows, season header, episode cells |
 | in no library | none ("Not in the library yet" on the title page) | — | title page |
 
 A gap in a library that is not monitored is no gap: it reads Not monitored and counts in no missing number (season
-headers, library rows, coverage), for a series as for a movie. Wanted and searching are unchanged.
+headers, library rows, coverage), for a series as for a movie. Wanted and searching are unchanged. A series whose
+library is on but that monitors none of its episodes reads Not monitored, as its Libraries row ("none monitored") and
+Search series ("Nothing to search") say, and the status filter and its count follow; the Monitoring filter (the
+library switch), Home's picks, watchability without See files and the compatible API keep their own rules.
 
 The quality word, beside the status word of something with a file and never in its place (those who see files):
 
@@ -863,7 +866,7 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
   facet's `kind`; facets still loading, or a library with no current copy). Without See files there is no
   library, provider, tag or state chip. With nothing found:
   "No titles match these filters." and **Clear filters**. The sheet heads its first group **Monitoring** (On, Off:
-  whether a library monitors the title); the status **Not monitored** (no file and nothing monitors it) is apart,
+  whether a library monitors the title); the status **Not monitored** (no file and nothing in it monitored) is apart,
   its option named **Not monitored, no file** so its count is not read as Monitoring Off's. On Series (and Anime ›
   Series) the status **Missing** reads **Missing (no episodes available)**: a series with gaps is Partly available.
   A status chip uses its option's words (`availabilityOptionLabel`), never shorter ones. Series and Anime have

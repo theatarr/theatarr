@@ -417,6 +417,30 @@ func TestTitleFacets(t *testing.T) {
 	if got := counts(f.Certifications); got != "PG=1,R=1" {
 		t.Errorf("certifications: %s", got)
 	}
+	// The status facets follow the word (F2.2): a series in a monitored library that monitors none of its episodes is
+	// counted Not monitored, one monitoring only an episode to come Missing, one without episode information yet keeps
+	// its word (Upcoming), and one monitoring an episode only in its unmonitored second copy Not monitored.
+	now := store.Millis(testNow)
+	e.exec(`INSERT INTO title (id, kind, name, year, tvdb_id, monitored, created_at, updated_at) VALUES
+		(50, 'series', 'Zero', 2020, 550, 1, ?, ?), (51, 'series', 'Future', 2020, 551, 1, ?, ?),
+		(52, 'series', 'No Episodes', 2026, 552, 1, ?, ?), (53, 'series', 'Two Copies', 2020, 553, 1, ?, ?)`,
+		now, now, now, now, now, now, now, now)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, state, monitored, created_at, updated_at) VALUES
+		(50, 50, 'tv-2160p', 'wanted', 1, 0, 0), (51, 51, 'tv-2160p', 'wanted', 1, 0, 0), (52, 52, 'tv-2160p', 'wanted', 1, 0, 0),
+		(53, 53, 'tv-2160p', 'wanted', 1, 0, 0), (54, 53, 'anime-tv', 'wanted', 0, 0, 0)`)
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, air_date, created_at, updated_at) VALUES
+		(5001, 50, 1, 1, 'a', '2026-01-01', 0, 0), (5101, 51, 1, 1, 'a', '2026-01-01', 0, 0),
+		(5102, 51, 1, 2, 'b', '2026-12-01', 0, 0), (5301, 53, 1, 1, 'a', '2026-01-01', 0, 0)`)
+	e.exec(`UPDATE episode SET air_date_utc_at = CAST(strftime('%s', air_date) AS INTEGER) * 1000 WHERE title_id BETWEEN 50 AND 53`)
+	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, state, monitored, updated_at) VALUES
+		(50, 5001, 'wanted', 0, 0), (51, 5101, 'wanted', 0, 0), (51, 5102, 'wanted', 1, 0),
+		(53, 5301, 'wanted', 0, 0), (54, 5301, 'wanted', 1, 0)`)
+	var sf TitleFacets
+	e.getKey(APIBase+"/titles/facets?kind=series", key, &sf)
+	if sf.Availability["unmonitored"] != 2 || sf.Availability["missing"] != 1 || sf.Availability["upcoming"] != 1 {
+		t.Errorf("series status facets %v: want 2 not monitored (Zero, Two Copies), 1 missing (Future), 1 upcoming (No Episodes)",
+			sf.Availability)
+	}
 	// Every grid's facet counts agree with the titles they would filter.
 	for _, scope := range []string{"", "kind=movie", "kind=series&anime=false", "anime=true"} {
 		e.getKey(APIBase+"/titles/facets?"+scope, key, &f)
@@ -1193,6 +1217,17 @@ func TestMissingRowHomeRelease(t *testing.T) {
 	e.exec(`INSERT INTO title_release_date (title_id, source, country, type, date) VALUES
 		(44, 'tmdb-art', '', 'theatrical', '2026-10-01'), (44, 'tmdb', 'US', 'theatrical', '2026-10-01'),
 		(44, 'tmdb', 'FR', 'theatrical', '1988-05-11')`)
+	// Home's own rule for series, unchanged by the status word (F2.2): S Gap Mon lacks an aired episode it monitors
+	// and is picked; S Zero Mon (status Not monitored) monitors no episode and is not, as before.
+	e.exec(`INSERT INTO title (id, kind, name, year, tvdb_id, monitored, created_at, updated_at) VALUES
+		(45, 'series', 'S Gap Mon', 2020, 545, 1, ?, ?), (46, 'series', 'S Zero Mon', 2020, 546, 1, ?, ?)`, now, now, now, now)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
+		(45, 45, 'tv-2160p', 1, 'wanted', ?, ?), (46, 46, 'tv-2160p', 1, 'wanted', ?, ?)`, now, now, now, now)
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, air_date, created_at, updated_at) VALUES
+		(4501, 45, 1, 1, 'a', '2026-01-01', 0, 0), (4601, 46, 1, 1, 'a', '2026-01-01', 0, 0)`)
+	e.exec(`UPDATE episode SET air_date_utc_at = CAST(strftime('%s', air_date) AS INTEGER) * 1000 WHERE title_id IN (45, 46)`)
+	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, state, monitored, updated_at) VALUES
+		(45, 4501, 'wanted', 1, 0), (46, 4601, 'wanted', 0, 0)`)
 	var r DiscoverRow
 	if code := e.getKey(APIBase+"/discover/missing", e.apiKey(), &r); code != 200 {
 		t.Fatalf("discover/missing: %d", code)
@@ -1213,6 +1248,12 @@ func TestMissingRowHomeRelease(t *testing.T) {
 	}
 	if _, ok := got["Refreshed"]; ok {
 		t.Errorf("Refreshed is not out at home yet but in the missing row %v", got)
+	}
+	if _, ok := got["S Gap Mon"]; !ok {
+		t.Errorf("S Gap Mon lacks a monitored aired episode but is not in the missing row %v", got)
+	}
+	if _, ok := got["S Zero Mon"]; ok {
+		t.Errorf("S Zero Mon monitors no episode but is in the missing row %v", got)
 	}
 }
 
@@ -1435,7 +1476,36 @@ func TestStatusWords(t *testing.T) {
 	e.exec(`INSERT INTO version (id, title_id, policy_key, state, monitored, created_at, updated_at) VALUES
 		(161, 16, 'movie-web', 'wanted', 1, 0, 0), (171, 17, 'movie-web', 'wanted', 1, 0, 0), (181, 18, 'movie-web', 'wanted', 1, 0, 0),
 		(191, 19, 'movie-web', 'wanted', 1, 0, 0), (601, 60, 'movie-web', 'wanted', 1, 0, 0)`)
+	// Series without a file in a monitored library, by what their episodes say. S Zero Mon monitors no episode (an
+	// aired one and one to come): Not monitored, as Libraries and Search series say. S Future Mon monitors only the
+	// one to come, S Special only a special, S Fallback an episode without a state row that the episode itself
+	// monitors (acquisition's fallback): each Missing. S Fallback Off's episode without a state row is not monitored,
+	// S Two Copies Off monitors an episode only in its unmonitored copy, S Removed only an episode the metadata
+	// source dropped: Not monitored. S No Episodes has no episode information yet and keeps today's word.
+	e.exec(`INSERT INTO title (id, kind, name, year, created_at, updated_at) VALUES (30, 'series', 'S Zero Mon', 2020, 0, 0),
+		(31, 'series', 'S Future Mon', 2020, 0, 0), (32, 'series', 'S No Episodes', 2026, 0, 0),
+		(33, 'series', 'S Two Copies Off', 2020, 0, 0), (34, 'series', 'S Fallback', 2020, 0, 0),
+		(35, 'series', 'S Fallback Off', 2020, 0, 0), (36, 'series', 'S Special', 2020, 0, 0), (37, 'series', 'S Removed', 2020, 0, 0)`)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, state, monitored, created_at, updated_at) VALUES
+		(301, 30, 'tv-2160p', 'wanted', 1, 0, 0), (311, 31, 'tv-2160p', 'wanted', 1, 0, 0), (321, 32, 'tv-2160p', 'wanted', 1, 0, 0),
+		(331, 33, 'tv-2160p', 'wanted', 1, 0, 0), (332, 33, 'anime-tv', 'wanted', 0, 0, 0), (341, 34, 'tv-2160p', 'wanted', 1, 0, 0),
+		(351, 35, 'tv-2160p', 'wanted', 1, 0, 0), (361, 36, 'tv-2160p', 'wanted', 1, 0, 0), (371, 37, 'tv-2160p', 'wanted', 1, 0, 0)`)
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, air_date, monitored, removed_at, created_at, updated_at) VALUES
+		(3001, 30, 1, 1, 'a', '2026-01-01', 1, NULL, 0, 0), (3002, 30, 1, 2, 'b', '2026-12-01', 1, NULL, 0, 0),
+		(3101, 31, 1, 1, 'a', '2026-01-01', 1, NULL, 0, 0), (3102, 31, 1, 2, 'b', '2026-12-01', 1, NULL, 0, 0),
+		(3301, 33, 1, 1, 'a', '2026-01-01', 1, NULL, 0, 0),
+		(3401, 34, 1, 1, 'a', '2026-01-01', 1, NULL, 0, 0), (3402, 34, 1, 2, 'b', '2026-01-08', 1, NULL, 0, 0),
+		(3501, 35, 1, 1, 'a', '2026-01-01', 0, NULL, 0, 0),
+		(3601, 36, 1, 1, 'a', '2026-01-01', 1, NULL, 0, 0), (3602, 36, 0, 1, 'sp', '2026-01-02', 1, NULL, 0, 0),
+		(3701, 37, 1, 1, 'a', '2026-01-01', 1, NULL, 0, 0), (3702, 37, 1, 2, 'b', '2026-01-08', 1, 1, 0, 0)`)
+	e.exec(`UPDATE episode SET air_date_utc_at = CAST(strftime('%s', air_date) AS INTEGER) * 1000 WHERE title_id BETWEEN 30 AND 37`)
+	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, state, monitored, updated_at) VALUES
+		(301, 3001, 'wanted', 0, 0), (301, 3002, 'wanted', 0, 0), (311, 3101, 'wanted', 0, 0), (311, 3102, 'wanted', 1, 0),
+		(331, 3301, 'wanted', 0, 0), (332, 3301, 'wanted', 1, 0), (341, 3402, 'wanted', 0, 0),
+		(361, 3601, 'wanted', 0, 0), (361, 3602, 'wanted', 1, 0), (371, 3701, 'wanted', 0, 0), (371, 3702, 'wanted', 1, 0)`)
 	want := map[string]string{
+		"S Zero Mon": "unmonitored", "S Future Mon": "missing", "S No Episodes": "upcoming", "S Two Copies Off": "unmonitored",
+		"S Fallback": "missing", "S Fallback Off": "unmonitored", "S Special": "missing", "S Removed": "unmonitored",
 		"M Release Date Only": "missing", "M Announced": "upcoming", "M Undated": "missing", "M Dated Elsewhere": "missing", "M No Meta": "upcoming",
 		"M Partial": "partial", "M Off Gap": "available", "M Missing": "missing", "M Upcoming": "upcoming",
 		"M Digital": "upcoming", "M Unmonitored": "unmonitored", "S Full": "available", "S Gap": "partial",

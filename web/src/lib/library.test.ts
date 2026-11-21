@@ -74,6 +74,11 @@ describe("the status filters", () => {
     expect(availabilityFilters(true).map((a) => a.label)).toEqual(["Available", "Partly available", "Missing", "Not monitored", "Upcoming"]);
     expect(availabilityFilters(true, "movie").map((a) => a.id)).toContain("partial");
   });
+  it("says Not monitored also covers a series whose library monitors none of its episodes", () => {
+    expect(availabilityFilters(true).find((a) => a.id === "unmonitored")?.hint).toBe(
+      "No file, and nothing in it is monitored: no library, or no episode in a monitored library (Monitoring: Off counts every title no library monitors)",
+    );
+  });
   it("chips a status filter with its option's words: Not monitored keeps no file, Series' Missing says no episodes", () => {
     const chip = (q: string, kind?: string, seeFiles = true) => filterChips(new URLSearchParams(q), { seeFiles, kind }).map((c) => c.label);
     expect(chip("availability=unmonitored", "series")).toEqual(["Not monitored, no file"]);

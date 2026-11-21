@@ -558,6 +558,15 @@ func TestSeries(t *testing.T) {
 	rec = e.call("GET", "/sonarr/api/v3/series/lookup?term=tvdb:999", nil, 200, &lk)
 	e.golden("sonarr-lookup-unknown", rec.Body.Bytes())
 
+	// A monitored series with no monitored episode stays monitored here (any monitored copy), whatever the native
+	// status word says (Not monitored); its season flag follows its episodes. Then put the episodes back.
+	e.exec(`UPDATE episode_version_state SET monitored = 0 WHERE version_id = 10`)
+	one = nil
+	e.call("GET", "/sonarr/api/v3/series/"+strconv.Itoa(IDBase+10), nil, 200, &one)
+	if s1 = one["seasons"].([]any)[1].(map[string]any); one["monitored"] != true || s1["monitored"] != false {
+		t.Errorf("series with no monitored episode: monitored %v, season 1 %v", one["monitored"], s1)
+	}
+	e.exec(`UPDATE episode_version_state SET monitored = 1 WHERE version_id = 10 AND episode_id <> 100`)
 	// An unmonitored series keeps its numbers (SeriesStatisticsRepository counts by the episode flag alone); the
 	// flags stay effective (off), and Wanted still leaves it out.
 	e.exec(`UPDATE version SET monitored = 0 WHERE id = 10`)

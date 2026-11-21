@@ -232,7 +232,8 @@ func availStateSQL(c airClock) string {
 //     of every monitored library has a file), whatever the files' quality against the profile's cutoff;
 //   - partial: a file is held, and some monitored library has a gap (a movie library with no file; a series library
 //     missing an aired, monitored episode);
-//   - unmonitored: no file, and no library is monitored;
+//   - unmonitored: no file, and no library is monitored, or (a series with episode information) no current episode,
+//     specials and episodes to come included, is monitored in a monitored library;
 //   - upcoming: no file, monitored, and not out yet: a movie's home release (else its TMDb release date) is still to
 //     come, or it has neither and its status says it is not made yet (undatedMovieSQL: Upcoming, date unknown); a series has no aired episode and an episode's air time is still to come (one airing later today
 //     included), or its first air date is still to come (without one, its TMDb status is not Returning Series, Ended
@@ -288,9 +289,18 @@ func titleAvailabilitySQL(c airClock) string {
 		fmt.Sprint(c.nowMs) + `) OR
 			CASE WHEN COALESCE(m.release_date, '') <> '' THEN substr(m.release_date, 1, 10) > '` + c.today + `'
 			ELSE COALESCE(m.status, '') NOT IN ('Returning Series', 'Ended', 'Canceled') END) END`
+	// noneMonitored: a series with episode information none of whose current episodes (specials and episodes to come
+	// included) is monitored in a monitored copy, by its state row or, without one, by the episode (as acquisition
+	// reads it). It reads Not monitored, as Libraries and Search series say; without episodes it keeps its word.
+	noneMonitored := `t.kind <> 'movie' AND EXISTS (SELECT 1 FROM episode e WHERE e.title_id = t.id AND e.removed_at IS NULL)
+		AND NOT EXISTS (SELECT 1 FROM version v JOIN episode e ON e.title_id = v.title_id
+			LEFT JOIN episode_version_state s ON s.episode_id = e.id AND s.version_id = v.id
+			WHERE v.title_id = t.id AND ` + liveVersion + ` AND v.monitored = 1 AND e.removed_at IS NULL
+			AND COALESCE(s.monitored, e.monitored) = 1)`
 	return `(CASE WHEN NOT EXISTS (SELECT 1 ` + live + `) THEN 'none'
 		WHEN EXISTS (SELECT 1 ` + live + ` AND ` + currentFileSQL + `) THEN CASE WHEN ` + gap + ` THEN 'partial' ELSE 'available' END
 		WHEN NOT EXISTS (SELECT 1 ` + live + ` AND v.monitored = 1) THEN 'unmonitored'
+		WHEN ` + noneMonitored + ` THEN 'unmonitored'
 		WHEN ` + upcoming + ` THEN 'upcoming'
 		ELSE 'missing' END)`
 }

@@ -177,7 +177,7 @@ export const AVAILABILITY: { id: Availability; label: string; hint: string }[] =
   { id: "available", label: "Available", hint: "A file is held, and every monitored library has its files" },
   { id: "partial", label: "Partly available", hint: "A file is held; a monitored library still lacks one (a movie) or an aired episode (a series)" },
   { id: "missing", label: "Missing", hint: "Monitored, out, and no file" },
-  { id: "unmonitored", label: "Not monitored", hint: "No file, and no library monitors it (Monitoring: Off counts every title no library monitors)" },
+  { id: "unmonitored", label: "Not monitored", hint: "No file, and nothing in it is monitored: no library, or no episode in a monitored library (Monitoring: Off counts every title no library monitors)" },
   { id: "upcoming", label: "Upcoming", hint: "Monitored, no file, and not out yet" },
 ];
 
@@ -399,7 +399,7 @@ export function filterChips(
   const q = get("q");
   if (q) out.push({ key: "q", label: `Title: “${q}”` });
   const mon = get("monitored");
-  // Monitoring is its own axis, named so its chip is not the status "Not monitored" (no file, nothing monitors it).
+  // Monitoring is its own axis, named so its chip is not the status "Not monitored" (no file, nothing in it monitored).
   if (mon === "true") out.push({ key: "monitored", label: "Monitoring: on" });
   if (mon === "false") out.push({ key: "monitored", label: "Monitoring: off" });
   const av = get("availability");
