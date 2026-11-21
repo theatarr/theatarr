@@ -278,6 +278,13 @@ func rawDisk(e *Engine, s *Subject) Decision {
 
 // RepackSpecification: a repack of the file on disk must come from the same release group.
 func repack(e *Engine, s *Subject) Decision {
+	if !s.Release.Quality.Revision.IsRepack || e.Config.DownloadPropersAndRepacks == DoNotPrefer {
+		return Accept()
+	}
+	return e.checkHeldFiles(s, repackFile)
+}
+
+func repackFile(e *Engine, s *Subject, file *File) Decision {
 	if !s.Release.Quality.Revision.IsRepack {
 		return Accept()
 	}
@@ -285,59 +292,148 @@ func repack(e *Engine, s *Subject) Decision {
 	if mode == DoNotPrefer {
 		return Accept()
 	}
-	for _, file := range e.files(s) {
-		if !isRevisionUpgrade(file.Quality, s.Release.Quality) {
-			continue
-		}
-		if mode == DoNotUpgrade {
-			return Reject(ReasonRepackDisabled, "Repack downloading is disabled")
-		}
-		group, fileGroup := s.Release.ReleaseGroup, file.ReleaseGroup
-		if strings.TrimSpace(fileGroup) == "" {
-			return Reject(ReasonRepackUnknownReleaseGroup, "Unable to determine release group for the existing file")
-		}
-		if strings.TrimSpace(group) == "" {
-			return Reject(ReasonRepackUnknownReleaseGroup, "Unable to determine release group for this release")
-		}
-		if !strings.EqualFold(fileGroup, group) {
-			return Reject(ReasonRepackReleaseGroupDoesNotMatch,
-				"Release is a repack for a different release group. Release Group: {0}. File release group: {1}", group, fileGroup)
-		}
+	if !isRevisionUpgrade(file.Quality, s.Release.Quality) {
+		return Accept()
+	}
+	if mode == DoNotUpgrade {
+		return Reject(ReasonRepackDisabled, "Repack downloading is disabled")
+	}
+	group, fileGroup := s.Release.ReleaseGroup, file.ReleaseGroup
+	if strings.TrimSpace(fileGroup) == "" {
+		return Reject(ReasonRepackUnknownReleaseGroup, "Unable to determine release group for the existing file")
+	}
+	if strings.TrimSpace(group) == "" {
+		return Reject(ReasonRepackUnknownReleaseGroup, "Unable to determine release group for this release")
+	}
+	if !strings.EqualFold(fileGroup, group) {
+		return Reject(ReasonRepackReleaseGroupDoesNotMatch,
+			"Release is a repack for a different release group. Release Group: {0}. File release group: {1}", group, fileGroup)
 	}
 	return Accept()
 }
 
 // AnimeVersionUpgradeSpecification (Sonarr): a new version (v2) of an anime episode must come from the same group.
 func animeVersionUpgrade(e *Engine, s *Subject) Decision {
+	if s.Media == nil || !s.Media.Anime || e.Config.DownloadPropersAndRepacks == DoNotPrefer {
+		return Accept()
+	}
+	return e.checkHeldFiles(s, animeVersionUpgradeFile)
+}
+
+func animeVersionUpgradeFile(e *Engine, s *Subject, file *File) Decision {
+	if s.Media == nil || !s.Media.Anime || e.Config.DownloadPropersAndRepacks == DoNotPrefer {
+		return Accept()
+	}
+	if !isRevisionUpgrade(file.Quality, s.Release.Quality) {
+		return Accept()
+	}
 	group := s.Release.ReleaseGroup
-	if s.Media == nil || !s.Media.Anime {
-		return Accept()
+	if strings.TrimSpace(file.ReleaseGroup) == "" {
+		return Reject(ReasonUnknownReleaseGroup, "Existing release group is unknown")
 	}
-	if e.Config.DownloadPropersAndRepacks == DoNotPrefer {
-		return Accept()
+	if strings.TrimSpace(group) == "" {
+		return Reject(ReasonUnknownReleaseGroup, "Release group is unknown")
 	}
-	for _, file := range e.files(s) {
-		if isRevisionUpgrade(file.Quality, s.Release.Quality) {
-			if strings.TrimSpace(file.ReleaseGroup) == "" {
-				return Reject(ReasonUnknownReleaseGroup, "Existing release group is unknown")
-			}
-			if strings.TrimSpace(group) == "" {
-				return Reject(ReasonUnknownReleaseGroup, "Release group is unknown")
-			}
-			if file.ReleaseGroup != group {
-				return Reject(ReasonReleaseGroupDoesNotMatch, "{0} does not match existing release group {1}", group, file.ReleaseGroup)
-			}
-		}
+	if file.ReleaseGroup != group {
+		return Reject(ReasonReleaseGroupDoesNotMatch, "{0} does not match existing release group {1}", group, file.ReleaseGroup)
 	}
 	return Accept()
 }
 
 // UpgradeAllowedSpecification.
 func upgradeAllowed(e *Engine, s *Subject) Decision {
-	for _, file := range e.files(s) {
-		if !e.IsUpgradeAllowed(s.Profile, file.Quality, file.Formats, s.Release.Quality, s.Release.Formats) {
-			return Reject(ReasonQualityUpgradesDisabled, "Existing file and the Quality profile does not allow upgrades")
+	return e.checkHeldFiles(s, upgradeAllowedFile)
+}
+
+func upgradeAllowedFile(e *Engine, s *Subject, file *File) Decision {
+	if !e.IsUpgradeAllowed(s.Profile, file.Quality, file.Formats, s.Release.Quality, s.Release.Formats) {
+		return Reject(ReasonQualityUpgradesDisabled, "Existing file and the Quality profile does not allow upgrades")
+	}
+	return Accept()
+}
+
+// keptFilesByRule returns the held files kept by the four companion upgrade checks (UpgradeAllowed, Repack,
+// Proper, AnimeVersionUpgrade) when the Sonarr any-upgradable rule applies and the release has at least one usable
+// episode (missing, or upgradable by upgradeDiskFile and passing all four checks). Otherwise nil.
+func (e *Engine) keptFilesByRule(s *Subject) map[*File]bool {
+	if e.Flavour != format.Sonarr || !e.Config.AcceptReleaseAnyUpgradable || s == nil {
+		return nil
+	}
+	judged := map[*File]bool{}
+	usable := false
+	var kept map[*File]bool
+	for _, ep := range s.Episodes {
+		f := ep.File
+		if f == nil {
+			usable = true
+			continue
 		}
+		fails, seen := judged[f]
+		if !seen {
+			fails = !upgradeAllowedFile(e, s, f).Accepted ||
+				!repackFile(e, s, f).Accepted ||
+				!properFile(e, s, f).Accepted ||
+				!animeVersionUpgradeFile(e, s, f).Accepted
+			judged[f] = fails
+			if !fails && !usable {
+				if _, ok := upgradeDiskFile(e, s, f); ok {
+					usable = true
+				}
+			}
+		}
+		if fails {
+			if kept == nil {
+				kept = map[*File]bool{}
+			}
+			kept[f] = true
+		}
+	}
+	if !usable || len(kept) == 0 {
+		return nil
+	}
+	return kept
+}
+
+// KeptByRule returns the ids (in episode order) of the release's episodes whose held file fails one of the four
+// companion upgrade checks when the Sonarr any-upgradable rule applies and the release has at least one usable
+// episode; nil otherwise.
+func (e *Engine) KeptByRule(s *Subject) []int64 {
+	kept := e.keptFilesByRule(s)
+	if len(kept) == 0 {
+		return nil
+	}
+	var ids []int64
+	for _, ep := range s.Episodes {
+		if ep.File != nil && kept[ep.File] {
+			ids = append(ids, ep.ID)
+		}
+	}
+	return ids
+}
+
+// checkHeldFiles evaluates one of the four companion upgrade checks over e.files(s), skipping files kept by rule
+// under the Sonarr any-upgradable rule.
+func (e *Engine) checkHeldFiles(s *Subject, check func(*Engine, *Subject, *File) Decision) Decision {
+	files := e.files(s)
+	if len(files) == 0 {
+		return Accept()
+	}
+	var kept map[*File]bool
+	for _, file := range files {
+		d := check(e, s, file)
+		if d.Accepted {
+			continue
+		}
+		if kept == nil && e.Flavour == format.Sonarr && e.Config.AcceptReleaseAnyUpgradable {
+			kept = e.keptFilesByRule(s)
+			if kept == nil {
+				return d
+			}
+		}
+		if kept[file] {
+			continue
+		}
+		return d
 	}
 	return Accept()
 }

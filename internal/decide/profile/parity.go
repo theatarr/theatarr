@@ -26,18 +26,23 @@ func proper(e *Engine, s *Subject) Decision {
 	if s.Search != nil || e.Config.DownloadPropersAndRepacks == DoNotPrefer {
 		return Accept()
 	}
+	return e.checkHeldFiles(s, properFile)
+}
+
+func properFile(e *Engine, s *Subject, file *File) Decision {
+	if s.Search != nil || e.Config.DownloadPropersAndRepacks == DoNotPrefer {
+		return Accept()
+	}
+	if !isRevisionUpgrade(file.Quality, s.Release.Quality) {
+		return Accept()
+	}
+	if e.Config.DownloadPropersAndRepacks == DoNotUpgrade {
+		return Reject(ReasonPropersDisabled, "Proper downloading is disabled")
+	}
 	now := e.now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	for _, f := range e.files(s) {
-		if !isRevisionUpgrade(f.Quality, s.Release.Quality) {
-			continue
-		}
-		if e.Config.DownloadPropersAndRepacks == DoNotUpgrade {
-			return Reject(ReasonPropersDisabled, "Proper downloading is disabled")
-		}
-		if f.Added.Before(today.AddDate(0, 0, -7)) {
-			return Reject(ReasonProperForOldFile, "Proper for old file")
-		}
+	if file.Added.Before(today.AddDate(0, 0, -7)) {
+		return Reject(ReasonProperForOldFile, "Proper for old file")
 	}
 	return Accept()
 }

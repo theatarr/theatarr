@@ -1,6 +1,7 @@
 package profile
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -219,5 +220,279 @@ func TestEpisodeRequestedAndSeasonMatch(t *testing.T) {
 	}
 	if got := run(t, "SplitEpisode", &Subject{Release: &Release{SplitEpisode: true}}); got.Reason != ReasonSplitEpisode {
 		t.Errorf("split: %+v", got)
+	}
+}
+
+func TestCompanionChecksKeepByRule(t *testing.T) {
+	now := seriesNow
+	web := MustQuality(format.Sonarr, "WEBDL-1080p")
+	bluray := MustQuality(format.Sonarr, "Bluray-1080p")
+	prof := func(upgrades bool) *Profile {
+		return &Profile{
+			Profile:        format.Profile{Name: "HD", Flavour: format.Sonarr, MinUpgradeFormatScore: 1},
+			Items:          []Item{{Quality: &web, Allowed: true}, {Quality: &bluray, Allowed: true}},
+			Cutoff:         bluray.ID,
+			UpgradeAllowed: upgrades,
+		}
+	}
+	qm := func(q Quality, ver int, repack bool) QualityModel {
+		return QualityModel{Quality: q, Revision: Revision{Version: ver, IsRepack: repack}}
+	}
+	baseMedia := func(anime bool) *Media {
+		return &Media{Title: "The Show", Runtime: 45, Monitored: true, Anime: anime}
+	}
+	baseSubject := func(upgrades, anime bool, relQ QualityModel, relGroup string, search *Search, eps []*Episode) *Subject {
+		return &Subject{
+			Profile:  prof(upgrades),
+			Media:    baseMedia(anime),
+			Release:  &Release{Quality: relQ, ReleaseGroup: relGroup, PublishDate: now},
+			Episodes: eps,
+			Search:   search,
+		}
+	}
+	ep1 := func(f *File) *Episode {
+		return &Episode{ID: 101, SeasonNumber: 1, EpisodeNumber: 1, Monitored: true, File: f}
+	}
+	ep2 := func(f *File) *Episode {
+		return &Episode{ID: 102, SeasonNumber: 1, EpisodeNumber: 2, Monitored: true, File: f}
+	}
+	ep3 := func(f *File) *Episode {
+		return &Episode{ID: 103, SeasonNumber: 1, EpisodeNumber: 3, Monitored: true, File: f}
+	}
+
+	type tc struct {
+		name      string
+		mode      ProperDownloadTypes
+		spec      string
+		build     func() *Subject
+		wantAcc   bool
+		wantRsn   Reason
+		wantMsg   string
+		wantKept  []int64
+		offReason Reason
+	}
+	cases := []tc{
+		{
+			name: "a_upgrade_allowed_off_better_quality",
+			mode: PreferAndUpgrade,
+			spec: "UpgradeAllowed",
+			build: func() *Subject {
+				f := &File{Quality: qm(web, 1, false), ReleaseGroup: "GRP", Added: now}
+				return baseSubject(false, false, qm(bluray, 1, false), "GRP", nil, []*Episode{ep1(f), ep2(nil)})
+			},
+			wantAcc:   true,
+			wantKept:  []int64{101},
+			offReason: ReasonQualityUpgradesDisabled,
+		},
+		{
+			name: "b_repack_other_group",
+			mode: PreferAndUpgrade,
+			spec: "Repack",
+			build: func() *Subject {
+				f := &File{Quality: qm(web, 1, false), ReleaseGroup: "OLD", Added: now}
+				return baseSubject(true, false, qm(web, 2, true), "NEW", nil, []*Episode{ep1(f), ep2(nil)})
+			},
+			wantAcc:   true,
+			wantKept:  []int64{101},
+			offReason: ReasonRepackReleaseGroupDoesNotMatch,
+		},
+		{
+			name: "c_repack_unknown_held_group",
+			mode: PreferAndUpgrade,
+			spec: "Repack",
+			build: func() *Subject {
+				f := &File{Quality: qm(web, 1, false), ReleaseGroup: "", Added: now}
+				return baseSubject(true, false, qm(web, 2, true), "NEW", nil, []*Episode{ep1(f), ep2(nil)})
+			},
+			wantAcc:   true,
+			wantKept:  []int64{101},
+			offReason: ReasonRepackUnknownReleaseGroup,
+		},
+		{
+			name: "d_repack_do_not_upgrade",
+			mode: DoNotUpgrade,
+			spec: "Repack",
+			build: func() *Subject {
+				f := &File{Quality: qm(web, 1, false), ReleaseGroup: "GRP", Added: now}
+				return baseSubject(true, false, qm(web, 2, true), "GRP", nil, []*Episode{ep1(f), ep2(nil)})
+			},
+			wantAcc:   true,
+			wantKept:  []int64{101},
+			offReason: ReasonRepackDisabled,
+		},
+		{
+			name: "e_proper_rss_old_file",
+			mode: PreferAndUpgrade,
+			spec: "Proper",
+			build: func() *Subject {
+				f := &File{Quality: qm(web, 1, false), ReleaseGroup: "GRP", Added: now.AddDate(0, 0, -8)}
+				return baseSubject(true, false, qm(web, 2, false), "GRP", nil, []*Episode{ep1(f), ep2(nil)})
+			},
+			wantAcc:   true,
+			wantKept:  []int64{101},
+			offReason: ReasonProperForOldFile,
+		},
+		{
+			name: "f_anime_v2_other_group",
+			mode: PreferAndUpgrade,
+			spec: "AnimeVersionUpgrade",
+			build: func() *Subject {
+				f := &File{Quality: qm(web, 1, false), ReleaseGroup: "OldSub", Added: now}
+				return baseSubject(true, true, qm(web, 2, false), "NewSub", nil, []*Episode{ep1(f), ep2(nil)})
+			},
+			wantAcc:   true,
+			wantKept:  []int64{101},
+			offReason: ReasonReleaseGroupDoesNotMatch,
+		},
+		{
+			name: "g_control_no_usable_episode",
+			mode: PreferAndUpgrade,
+			spec: "Repack",
+			build: func() *Subject {
+				f1 := &File{Quality: qm(web, 1, false), ReleaseGroup: "OLD", Added: now}
+				f2 := &File{Quality: qm(bluray, 1, false), ReleaseGroup: "GRP", Added: now}
+				return baseSubject(true, false, qm(web, 2, true), "NEW", nil, []*Episode{ep1(f1), ep2(f2)})
+			},
+			wantAcc:   false,
+			wantRsn:   ReasonRepackReleaseGroupDoesNotMatch,
+			wantMsg:   "Release is a repack for a different release group. Release Group: NEW. File release group: OLD",
+			wantKept:  nil,
+			offReason: ReasonRepackReleaseGroupDoesNotMatch,
+		},
+		{
+			name: "h_e01_fails_e02_upgradable_and_passing",
+			mode: PreferAndUpgrade,
+			spec: "Repack",
+			build: func() *Subject {
+				f1 := &File{Quality: qm(web, 1, false), ReleaseGroup: "OLD", Added: now}
+				f2 := &File{Quality: qm(web, 1, false), ReleaseGroup: "NEW", Added: now}
+				return baseSubject(true, false, qm(web, 2, true), "NEW", nil, []*Episode{ep1(f1), ep2(f2)})
+			},
+			wantAcc:   true,
+			wantKept:  []int64{101},
+			offReason: ReasonRepackReleaseGroupDoesNotMatch,
+		},
+		{
+			name: "j_control_proper_with_search_set",
+			mode: PreferAndUpgrade,
+			spec: "Proper",
+			build: func() *Subject {
+				f := &File{Quality: qm(web, 1, false), ReleaseGroup: "GRP", Added: now.AddDate(0, 0, -8)}
+				eps := []*Episode{ep1(f), ep2(nil)}
+				s := baseSubject(true, false, qm(web, 2, false), "GRP", &Search{Kind: SearchSeason, SeasonNumber: 1, Episodes: eps}, eps)
+				s.Release.SeasonNumber = 1
+				return s
+			},
+			wantAcc:  true,
+			wantKept: nil,
+		},
+		{
+			name: "shared_file_keeps_both_episodes",
+			mode: PreferAndUpgrade,
+			spec: "Repack",
+			build: func() *Subject {
+				f := &File{Quality: qm(web, 1, false), ReleaseGroup: "OLD", Added: now}
+				return baseSubject(true, false, qm(web, 2, true), "NEW", nil, []*Episode{ep1(f), ep2(f), ep3(nil)})
+			},
+			wantAcc:   true,
+			wantKept:  []int64{101, 102},
+			offReason: ReasonRepackReleaseGroupDoesNotMatch,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			e := &Engine{
+				Flavour: format.Sonarr,
+				Config:  Config{DownloadPropersAndRepacks: c.mode, AcceptReleaseAnyUpgradable: true},
+				Now:     func() time.Time { return now },
+			}
+			s := c.build()
+			sp, ok := e.Spec(c.spec)
+			if !ok {
+				t.Fatalf("no spec %s", c.spec)
+			}
+			got := e.Run(sp, s)
+			if got.Accepted != c.wantAcc || got.Reason != c.wantRsn || (c.wantMsg != "" && got.Message != c.wantMsg) {
+				t.Errorf("any on (%s): got %+v, want acc=%v rsn=%s msg=%q", c.spec, got, c.wantAcc, c.wantRsn, c.wantMsg)
+			}
+			if c.wantAcc {
+				if rjs := e.Evaluate(s); len(rjs) != 0 {
+					t.Errorf("any on Evaluate: unexpected rejections %v", rjs)
+				}
+			}
+			if gotKept := e.KeptByRule(s); !slices.Equal(gotKept, c.wantKept) {
+				t.Errorf("KeptByRule = %v, want %v", gotKept, c.wantKept)
+			}
+
+			// (i, control) Any rule off: results as today, KeptByRule empty.
+			eOff := &Engine{
+				Flavour: format.Sonarr,
+				Config:  Config{DownloadPropersAndRepacks: c.mode, AcceptReleaseAnyUpgradable: false},
+				Now:     func() time.Time { return now },
+			}
+			sOff := c.build()
+			gotOff := eOff.Run(sp, sOff)
+			if gotOff.Reason != c.offReason {
+				t.Errorf("any off (%s): got %+v, want reason %s", c.spec, gotOff, c.offReason)
+			}
+			if gotKept := eOff.KeptByRule(sOff); len(gotKept) != 0 {
+				t.Errorf("any off KeptByRule = %v, want empty", gotKept)
+			}
+		})
+	}
+
+	// (i, control) Radarr flavour for the three checks Radarr has (UpgradeAllowed, Repack, Proper): results as today
+	// even if AcceptReleaseAnyUpgradable is set.
+	radWeb := MustQuality(format.Radarr, "WEBDL-1080p")
+	radBluray := MustQuality(format.Radarr, "Bluray-1080p")
+	radProf := func(upgrades bool) *Profile {
+		return &Profile{
+			Profile:        format.Profile{Name: "HD", Flavour: format.Radarr, MinUpgradeFormatScore: 1},
+			Items:          []Item{{Quality: &radWeb, Allowed: true}, {Quality: &radBluray, Allowed: true}},
+			Cutoff:         radBluray.ID,
+			UpgradeAllowed: upgrades,
+			Language:       format.LanguageAny,
+		}
+	}
+	for _, rc := range []struct {
+		name    string
+		spec    string
+		mode    ProperDownloadTypes
+		upgr    bool
+		file    *File
+		relQ    QualityModel
+		relGrp  string
+		wantRsn Reason
+	}{
+		{"upgrade_allowed", "UpgradeAllowed", PreferAndUpgrade, false,
+			&File{Quality: qm(radWeb, 1, false), ReleaseGroup: "GRP", Added: now}, qm(radBluray, 1, false), "GRP", ReasonQualityUpgradesDisabled},
+		{"repack", "Repack", PreferAndUpgrade, true,
+			&File{Quality: qm(radWeb, 1, false), ReleaseGroup: "OLD", Added: now}, qm(radWeb, 2, true), "NEW", ReasonRepackReleaseGroupDoesNotMatch},
+		{"proper", "Proper", PreferAndUpgrade, true,
+			&File{Quality: qm(radWeb, 1, false), ReleaseGroup: "GRP", Added: now.AddDate(0, 0, -8)}, qm(radWeb, 2, false), "GRP", ReasonProperForOldFile},
+	} {
+		t.Run("i_control_radarr_"+rc.name, func(t *testing.T) {
+			e := &Engine{
+				Flavour: format.Radarr,
+				Config:  Config{DownloadPropersAndRepacks: rc.mode, AcceptReleaseAnyUpgradable: true},
+				Now:     func() time.Time { return now },
+			}
+			s := &Subject{
+				Profile: radProf(rc.upgr),
+				Media:   &Media{Title: "The Movie", Runtime: 110, MovieFile: rc.file},
+				Release: &Release{Quality: rc.relQ, ReleaseGroup: rc.relGrp, PublishDate: now},
+			}
+			sp, ok := e.Spec(rc.spec)
+			if !ok {
+				t.Fatalf("no radarr spec %s", rc.spec)
+			}
+			if got := e.Run(sp, s); got.Reason != rc.wantRsn {
+				t.Errorf("radarr %s: got %+v, want %s", rc.spec, got, rc.wantRsn)
+			}
+			if gotKept := e.KeptByRule(s); len(gotKept) != 0 {
+				t.Errorf("radarr KeptByRule = %v, want empty", gotKept)
+			}
+		})
 	}
 }
