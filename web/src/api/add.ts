@@ -142,7 +142,7 @@ export function useSearchNow(titleId: number) {
  *  season's own search, run to that run's (or nothing). */
 export function useReleases(titleId: number, version: string | undefined, season?: number, run?: number) {
   return useQuery({
-    queryKey: qk.releases(titleId, version ?? "", false, season, run),
+    queryKey: qk.releases(titleId, version ?? "", season, run),
     queryFn: () => api<Releases>(`/titles/${titleId}/releases` + qs({ version, season, run })),
     staleTime: 30_000,
   });
