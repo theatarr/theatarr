@@ -736,6 +736,31 @@ func TestSeriesSearchScopedUpgradeReason(t *testing.T) {
 	}
 }
 
+// The existing file of an accepted scoped pack is the one it upgrades in the searched seasons, not a file it keeps:
+// seasons 2 and 3 searched, season 2's Remux kept, season 3's 1080p WEB upgraded.
+func TestSeriesSearchScopedExistingIsUpgradedFile(t *testing.T) {
+	t.Parallel()
+	e := seriesEngine(t)
+	v := tvVersion(e, "tv")
+	tt := fourSeasons()
+	for i := range tt.Episodes {
+		ep := &tt.Episodes[i]
+		switch ep.Season {
+		case 2:
+			ep.FileID, ep.File = ep.ID, &ExistingFile{Quality: "Bluray-2160p Remux", Revision: 1, SceneName: "The.Show.2160p.REMUX-X", Size: 30 * gb}
+		case 3:
+			ep.FileID, ep.File = ep.ID, &ExistingFile{Quality: "WEBDL-1080p", Revision: 1, SceneName: "The.Show.1080p.WEB-DL-X", Size: 3 * gb}
+		}
+	}
+	member := &SeriesSearch{Kind: profile.SearchSeason, Season: 3, Episodes: []int64{531, 532}, MonitoredOnly: true, Seasons: []int{2, 3}}
+	pack := rel("The.Show.Complete.Series.2160p.WEB-DL.DDP5.1.H.265-GRP", "public", 40*gb)
+	d, err := e.DecideSearch(context.Background(), pack, tt, v, member)
+	if err != nil || !d.Accepted || d.Existing == nil || d.Existing.Quality != "WEBDL-1080p" ||
+		!strings.HasPrefix(d.UpgradeReason, "better quality: WEBDL-2160p over WEBDL-1080p") {
+		t.Fatalf("scoped: %v %s existing %+v %q %v", d.Accepted, reasons(d), d.Existing, d.UpgradeReason, err)
+	}
+}
+
 // A whole-series search of a scene-numbered series judges a span by the seasons its episodes map to: scene seasons
 // 2 and 3 are TVDB seasons 1 and 2, so a search of TVDB season 1 takes it.
 func TestSeriesSearchSceneNumberedSpan(t *testing.T) {

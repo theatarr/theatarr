@@ -1132,15 +1132,19 @@ func (b *builder) run(e *Entry, rest string) error {
 	var research sql.NullString
 	var results, accepted int
 	var created int64
-	var failure, member bool
-	// A member of a merged search stores its search and finds its downloads under the root's route source.
-	routeSource := "acquire:" + rest
+	var failure bool
+	var root sql.NullInt64
+	// A member of a merged search (root: its search's root) stores its search and finds its downloads under the
+	// root's route source.
 	if err := b.db.QueryRowContext(b.ctx, `SELECT source, target, state, message, research, results, accepted,
-		policy_rev, created_at, COALESCE(`+failureRunSQL+`, 0), 'acquire:' || CASE WHEN `+snapshot.MergedRunSQL("acquire_run")+`
-		THEN COALESCE(search_run, id) ELSE id END, `+snapshot.MergedRunSQL("acquire_run")+` FROM acquire_run WHERE id = ?`,
-		id).Scan(&source, &target, &state, &message, &research, &results, &accepted, &queuedRev, &created, &failure,
-		&routeSource, &member); err != nil {
+		policy_rev, created_at, COALESCE(`+failureRunSQL+`, 0), CASE WHEN `+snapshot.MergedRunSQL("acquire_run")+`
+		THEN COALESCE(search_run, id) END FROM acquire_run WHERE id = ?`, id).Scan(&source, &target, &state, &message,
+		&research, &results, &accepted, &queuedRev, &created, &failure, &root); err != nil {
 		return err
+	}
+	routeSource := "acquire:" + rest
+	if root.Valid {
+		routeSource = "acquire:" + strconv.FormatInt(root.Int64, 10)
 	}
 	e.QueuedPolicyRev = queuedRev
 	e.Source = "theatarr"
@@ -1150,7 +1154,7 @@ func (b *builder) run(e *Entry, rest string) error {
 		e.Label, why = "Search after a failure", research.String
 	}
 	e.Summary = searchWords(source, target, state, why, message, b.full)
-	r, err := b.snapshotFor(routeSource, e.Title.ID, e.Version, created+24*3600*1000, snapshotPick{run: id, member: member})
+	r, err := b.snapshotFor(routeSource, e.Title.ID, e.Version, created+24*3600*1000, snapshotPick{run: id, member: root.Valid})
 	if err != nil {
 		return err
 	}

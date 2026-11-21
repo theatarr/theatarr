@@ -221,34 +221,30 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 	// fills any episode (AcceptReleaseAnyUpgradable), so an accepted pack may keep some files: the reason is the first
 	// upgraded file's, or the episodes it fills.
 	// A pack scoped to a merged search's seasons (scopeSeasons) is judged whole; its reason is the searched seasons'.
-	shown, missing := episodes, d.Missing
-	if scoped(search, r) {
-		shown, missing = nil, 0
+	// Its existing file is the one the reason names (none when it only fills); a rejected one's the first searched.
+	shown, missing, file, isScoped := episodes, d.Missing, firstFile, scoped(search, r)
+	if isScoped {
+		shown, missing, file = nil, 0, nil
 		for _, ep := range episodes {
 			if slices.Contains(search.Seasons, ep.SeasonNumber) {
 				shown = append(shown, ep)
 				if ep.File == nil {
 					missing++
+				} else if file == nil {
+					file = ep.File
 				}
 			}
 		}
 	}
-	var file *profile.File
-	for _, ep := range shown {
-		if ep.File != nil {
-			file = ep.File
-			break
-		}
-	}
-	if file != nil {
-		d.Existing = &Existing{Quality: file.Quality.Quality.Name, Formats: formatScores(p.Profile, file.Formats),
-			Score: p.Profile.FormatScore(file.Formats)}
-	}
+	existing := file
 	if firstFile != nil {
 		var kept []string
 		if p.Engine.Config.AcceptReleaseAnyUpgradable && len(d.Rejections) == 0 {
 			d.KeptEpisodeIDs = p.Engine.KeptByRule(subj)
 			file, kept = firstUpgraded(p, shown, qm, matched, d.KeptEpisodeIDs)
+			if isScoped {
+				existing = file
+			}
 		}
 		if file == nil {
 			if len(d.Rejections) == 0 { // a rejected release is no upgrade
@@ -267,6 +263,10 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 			d.Kept = kept
 			d.UpgradeReason += fmt.Sprintf("; %d episode(s) keep their file", len(kept))
 		}
+	}
+	if existing != nil {
+		d.Existing = &Existing{Quality: existing.Quality.Quality.Name, Formats: formatScores(p.Profile, existing.Formats),
+			Score: p.Profile.FormatScore(existing.Formats)}
 	}
 	scopeSeasons(d, search, r, episodes, func(ep *profile.Episode) bool {
 		return ep.File == nil || upgradesFile(p, ep, qm, matched, d.KeptEpisodeIDs)
