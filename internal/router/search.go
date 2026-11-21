@@ -219,6 +219,9 @@ func SearchRequests(ctx context.Context, eng SearchEngine, svc *indexer.Service,
 						// The query without a season's rows are read with its criterion: "S1+S2" is a span of an
 						// anime series there.
 						qq.Related = relatedFor(ctx, t, targets, target.Series)
+					} else if pl.member >= 0 {
+						// A merged search's member query reads them with its own criterion likewise.
+						qq.Related = relatedFor(ctx, t, targets, target.Members[pl.member])
 					}
 					if qq.Validate() != nil || !sr.Supports(qq) {
 						continue

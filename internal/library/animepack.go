@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -102,7 +101,7 @@ func folderSeason(rel string) (int, bool) {
 
 // proveFile reads one regular file of the pack under the claim: its episodes, or why the numbering cannot be trusted.
 func proveFile(rel string, p *sonarr.ParsedEpisodeInfo, claim *decide.PackClaim, byNumber map[[2]int]int64,
-	claimedIDs map[int64]bool) ([]int64, string) {
+	numbers map[int]int64, claimedIDs map[int64]bool) ([]int64, string) {
 	if p == nil || len(p.EpisodeNumbers) == 0 && len(p.AbsoluteEpisodeNumbers) == 0 {
 		return nil, "a file reads as no episode: " + rel
 	}
@@ -126,11 +125,11 @@ func proveFile(rel string, p *sonarr.ParsedEpisodeInfo, claim *decide.PackClaim,
 		}
 		var out []int64
 		for _, n := range p.AbsoluteEpisodeNumbers {
-			i := slices.IndexFunc(claim.Numbers, func(x decide.PackNumber) bool { return x.N == n })
-			if i < 0 {
+			id, ok := numbers[n]
+			if !ok {
 				return nil, fmt.Sprintf("a file outside the pack's numbers (%d): %s", n, rel)
 			}
-			out = append(out, claim.Numbers[i].Episode)
+			out = append(out, id)
 		}
 		return out, ""
 	}
@@ -184,6 +183,10 @@ func provePack(t *decide.Title, claim *decide.PackClaim, files []PlannedFile) (*
 	for _, id := range claim.Episodes {
 		claimedIDs[id] = true
 	}
+	numbers := make(map[int]int64, len(claim.Numbers))
+	for _, x := range claim.Numbers {
+		numbers[x.N] = x.Episode
+	}
 	proof := &packProof{files: map[string][]int64{}, extras: map[string]bool{}}
 	holder := map[int64]string{}
 	for _, f := range files {
@@ -193,7 +196,7 @@ func provePack(t *decide.Title, claim *decide.PackClaim, files []PlannedFile) (*
 			proof.extras[f.Rel] = true
 			continue
 		}
-		ids, why := proveFile(f.Rel, p, claim, byNumber, claimedIDs)
+		ids, why := proveFile(f.Rel, p, claim, byNumber, numbers, claimedIDs)
 		if why != "" {
 			return nil, why
 		}

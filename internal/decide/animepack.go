@@ -71,9 +71,19 @@ func AnimeWholeCandidate(ctx context.Context, rel indexer.Release, t *Title, sea
 	case p.FullSeason:
 		return len(s.packSeasons(p, search)) >= 2
 	case len(p.AbsoluteEpisodeNumbers) >= 2:
+		if t.AnimeMap != nil {
+			// A batch the franchise map (or an alternative cut) places is that engine's, never a span.
+			if _, _, _, ok, _, err := s.franchiseEpisodes(p, rel.Title, t.AnimeMap); err != nil || ok {
+				return false
+			}
+		}
 		_, _, sceneSource := s.seasonMapping(p.SeriesTitle, p.SeasonNumber)
-		eps, err := s.animeEpisodes(p, sceneSource)
-		return err == nil && s.absoluteClaim(p, eps, true).Span()
+		byNumber, err := s.animeByNumber(p, sceneSource)
+		var eps []*Episode
+		for _, x := range byNumber {
+			eps = append(eps, x...)
+		}
+		return err == nil && s.absoluteClaim(p, byNumber, eps, true).Span()
 	}
 	return false
 }
@@ -144,24 +154,21 @@ func (s *series) animeSpanParse(title string) *sonarr.ParsedEpisodeInfo {
 }
 
 // absoluteClaim is the claim of an anime absolute batch whose numbers map, one each, to regular episodes of two or
-// more seasons (today's mapping, whatever places it: scene absolute, then absolute): two or more numbers, not a
-// special, no season marker in the name, every number mapped on its own to exactly one regular episode, the
-// numbers' episodes exactly the release's. It is a span (Seasons) only when those episodes are every episode of
+// more seasons (today's mapping, whatever places it: scene absolute, then absolute; byNumber as the mapping gave it):
+// two or more numbers, not a special, no season marker in the name, every number mapped to exactly one regular
+// episode, the numbers' episodes exactly the release's (eps: nothing else replaced them). It is a span (Seasons) only when those episodes are every episode of
 // each season they touch and span is asked for. nil when the batch makes no such claim.
-func (s *series) absoluteClaim(p *sonarr.ParsedEpisodeInfo, eps []*Episode, span bool) *PackClaim {
-	if len(p.AbsoluteEpisodeNumbers) < 2 || p.Special || len(p.EpisodeNumbers) > 0 ||
-		seasonMarkerRE.MatchString(p.ReleaseTitle) {
+func (s *series) absoluteClaim(p *sonarr.ParsedEpisodeInfo, byNumber [][]*Episode, eps []*Episode, span bool) *PackClaim {
+	if len(p.AbsoluteEpisodeNumbers) < 2 || len(byNumber) != len(p.AbsoluteEpisodeNumbers) || p.Special ||
+		len(p.EpisodeNumbers) > 0 || seasonMarkerRE.MatchString(p.ReleaseTitle) {
 		return nil
 	}
-	_, _, sceneSource := s.seasonMapping(p.SeriesTitle, p.SeasonNumber)
 	claim := &PackClaim{Mode: PackAbsolute}
 	seen := map[int64]bool{}
 	seasons := map[int]bool{}
-	for _, n := range p.AbsoluteEpisodeNumbers {
-		one := *p
-		one.AbsoluteEpisodeNumbers = []int{n}
-		got, err := s.animeEpisodes(&one, sceneSource)
-		if err != nil || len(got) != 1 || got[0].Season <= 0 || seen[got[0].ID] {
+	for i, n := range p.AbsoluteEpisodeNumbers {
+		got := byNumber[i]
+		if len(got) != 1 || got[0].Season <= 0 || seen[got[0].ID] {
 			return nil
 		}
 		seen[got[0].ID] = true
@@ -210,7 +217,7 @@ func (s *series) claimPack(d *Decision, p *sonarr.ParsedEpisodeInfo, rel indexer
 	if d.AnimeMapping != "" && d.AnimeMapping != AnimeMapSonarr {
 		return
 	}
-	if c := s.absoluteClaim(p, r.episodes, search.severalSeasons()); c != nil {
+	if c := s.absoluteClaim(p, r.byNumber, r.episodes, search.severalSeasons()); c != nil {
 		d.Pack = c
 		if c.Span() {
 			r.seasons = c.Seasons

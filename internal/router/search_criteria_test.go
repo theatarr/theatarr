@@ -489,6 +489,10 @@ func TestMergedAnimeSeriesSearch(t *testing.T) {
 			items = item("[GRP] Show Seasons 1-3 [WEB-DL 2160p]", 'c') + item("[GRP] Show - 05 [WEB-DL 2160p]", 'd') +
 				item("[GRP] Show (01-06) [WEB-DL 2160p]", 'e') + item("[GRP] Show - 02-03 [WEB-DL 2160p]", 'f')
 		}
+		if q.Get("season") == "1" && q.Get("tvdbid") != "" {
+			// A member's id query answers a pack named as seasons 1 and 2 (no id attribute: the id filter reads it).
+			items = item("[GRP] Show (Season 1+2) [WEB-DL 2160p]", 'g')
+		}
 		fmt.Fprint(w, `<rss xmlns:torznab="http://torznab.com/schemas/2015/feed"><channel>`+items+`</channel></rss>`)
 	}))
 	defer srv.Close()
@@ -532,6 +536,11 @@ func TestMergedAnimeSeriesSearch(t *testing.T) {
 	slices.Sort(kept)
 	if want := []string{"[GRP] Show (01-06) [WEB-DL 2160p]", "[GRP] Show Seasons 1-3 [WEB-DL 2160p]"}; !slices.Equal(kept, want) {
 		t.Errorf("packs of three seasons %v, want %v", kept, want)
+	}
+	if !slices.ContainsFunc(s.Request.Candidates, func(c Candidate) bool {
+		return c.Release.Title == "[GRP] Show (Season 1+2) [WEB-DL 2160p]" && len(c.Episodes) == 4
+	}) {
+		t.Errorf("the member's pack of seasons 1 and 2 was dropped by the id filter")
 	}
 	if s.Dropped != 2 || !strings.Contains(strings.Join(s.Notes, ";"), "2 results of the search without a season are outside the whole-series search") {
 		t.Errorf("dropped %d, notes %v", s.Dropped, s.Notes)

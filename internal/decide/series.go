@@ -47,7 +47,9 @@ type remoteEpisode struct {
 	sceneMapping *SceneMapping
 	mappedSeason int
 	// seasons is the span of a multi-season or complete-series pack (packSeasons), nil otherwise.
-	seasons   []int
+	seasons []int
+	// byNumber are an absolute release's episodes by its numbers, as the mapping gave them (animeByNumber).
+	byNumber  [][]*Episode
 	matched   bool
 	matchType MatchType
 	episodes  []*Episode
@@ -483,8 +485,17 @@ func (s *series) mapRelease(p *sonarr.ParsedEpisodeInfo, tvdbID int, imdbID stri
 			r.episodes = s.packEpisodes(p, r.seasons, search)
 			return r, nil
 		}
-		eps, err := s.getEpisodes(p, r.mappedSeason, sceneSource, search)
-		if err != nil {
+		var eps []*Episode
+		var err error
+		if !p.FullSeason && !p.IsDaily() && p.IsAbsoluteNumbering() {
+			// getEpisodes' absolute branch, each number's episodes kept for an anime pack's claim (absoluteClaim)
+			if r.byNumber, err = s.animeByNumber(p, sceneSource); err != nil {
+				return nil, err
+			}
+			for _, x := range r.byNumber {
+				eps = append(eps, x...)
+			}
+		} else if eps, err = s.getEpisodes(p, r.mappedSeason, sceneSource, search); err != nil {
 			return nil, err
 		}
 		r.episodes = eps
@@ -706,7 +717,20 @@ func (s *series) dailyEpisode(airDate string, part *int, search *SeriesSearch) (
 
 // animeEpisodes is GetAnimeEpisodes.
 func (s *series) animeEpisodes(p *sonarr.ParsedEpisodeInfo, sceneSource bool) ([]*Episode, error) {
+	byNumber, err := s.animeByNumber(p, sceneSource)
+	if err != nil {
+		return nil, err
+	}
 	var out []*Episode
+	for _, eps := range byNumber {
+		out = append(out, eps...)
+	}
+	return out, nil
+}
+
+// animeByNumber is GetAnimeEpisodes with each absolute number's episodes apart, in the numbers' order.
+func (s *series) animeByNumber(p *sonarr.ParsedEpisodeInfo, sceneSource bool) ([][]*Episode, error) {
+	var out [][]*Episode
 	sceneSeason := s.sceneSeasonNumber(p.SeriesTitle)
 	for _, abs := range p.AbsoluteEpisodeNumbers {
 		var eps []*Episode
@@ -759,7 +783,7 @@ func (s *series) animeEpisodes(p *sonarr.ParsedEpisodeInfo, sceneSource bool) ([
 				eps = append(eps, e)
 			}
 		}
-		out = append(out, eps...)
+		out = append(out, eps)
 	}
 	return out, nil
 }

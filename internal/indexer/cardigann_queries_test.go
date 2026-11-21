@@ -227,3 +227,20 @@ func TestCardigannSeriesCriteriaKeepsID(t *testing.T) {
 		t.Fatalf("requests %v", got)
 	}
 }
+
+// An anime series' query without a season asks by text as well as by id, even when the id search answers: its packs
+// are named, rarely tagged with the id. A standard series' keeps the id first, the title only when it found nothing.
+func TestCardigannAnimeWholeSeriesAsksByText(t *testing.T) {
+	q := Query{Type: QuerySeries, Title: "Show", TVDB: 12345, Criteria: CriteriaSeries, Anime: true, SceneTitles: []string{"Show"}}
+	h, asked := idSite(t, func(v url.Values) bool { return v.Get("tvdb") == "12345" })
+	search(t, h, "site", q)
+	if got := asked(); len(got) != 2 || got[1].Get("q") != "Show" {
+		t.Fatalf("anime: requests %v", got)
+	}
+	q.Anime, q.SceneTitles = false, nil
+	h, asked = idSite(t, func(v url.Values) bool { return v.Get("tvdb") == "12345" })
+	search(t, h, "site", q)
+	if got := asked(); len(got) != 1 {
+		t.Fatalf("standard: requests %v", got)
+	}
+}

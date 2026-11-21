@@ -1025,6 +1025,16 @@ func TestAnimePackClaims(t *testing.T) {
 	if d.Pack == nil || d.AnimeMapping != AnimeMapSonarr || d.EpisodeMapping() == nil || !d.EpisodeMapping().Fallback {
 		t.Errorf("fallback batch: mapping %q %+v, claim %+v", d.AnimeMapping, d.EpisodeMapping(), d.Pack)
 	}
+	// The filter of the query without a season classifies as the decision does: the unreviewed entry's batch (Sonarr's
+	// numbering) is a candidate, the reviewed entry's (the franchise engine's) is left out.
+	if !AnimeWholeCandidate(ctx, rel("[G] Kaiju Tale (01-10) [BD 1080p]", "public", 20*gb).Release, &franchised, kaijuMerged(0, 1, 2, 3)) {
+		t.Error("a batch placed by Sonarr's numbering is left out of the query without a season")
+	}
+	franchised.AnimeMap.Entries[0].Status = animemeta.StatusAuto
+	franchised.AnimeMap = animemap.New(6006, franchised.AnimeMap.Entries, nil)
+	if AnimeWholeCandidate(ctx, rel("[G] Kaiju Tale (01-10) [BD 1080p]", "public", 20*gb).Release, &franchised, kaijuMerged(0, 1, 2, 3)) {
+		t.Error("a franchise-placed batch is kept by the filter of the query without a season")
+	}
 	sd := rel("[G] Kaiju Tale (01-10) [BD 1080p]", "public", 20*gb)
 	sd.Kind = "seadex"
 	if d, err = e.DecideSearch(ctx, sd, kaiju(), v, kaijuMerged(0, 1, 2, 3)); err != nil {

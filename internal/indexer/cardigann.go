@@ -302,7 +302,9 @@ func cardigannRequests(q Query, def *cardigann.Definition) (tiers [][]cardigann.
 		return [][]cardigann.Query{{*id}, keywords}, true
 	case q.Mode == SearchID:
 		return [][]cardigann.Query{{*id}}, true
-	case q.Mode == SearchID|SearchTitle:
+	case q.Mode == SearchID|SearchTitle, q.Criteria == CriteriaSeries && q.Anime && len(q.SceneTitles) > 0:
+		// An anime series' query without a season asks by text as well as by id: its packs are named, rarely
+		// tagged with the id.
 		return [][]cardigann.Query{append([]cardigann.Query{*id}, keywords...)}, true
 	}
 	return [][]cardigann.Query{{*id}, keywords}, true
