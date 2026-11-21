@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -506,5 +507,70 @@ func TestFailedAtOnceThenMissOneResearch(t *testing.T) {
 	}
 	if jobs := researchJobs(e); len(jobs) != 1 || jobs[0].Reason != ReasonExhausted {
 		t.Errorf("re-searches %+v, want one exhausted", jobs)
+	}
+}
+
+// A fallback already queued behind pacing (found in flight) is not an added release: the better-ranked release
+// that failed at once keeps its own re-search.
+func TestFailedAtOnceFallbackInFlight(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	withQueue(e)
+	for _, k := range []string{"rd", "ad", "tb"} {
+		e.exec(`INSERT INTO router_pacing (provider, backoff_until, failures, reason, updated_at)
+			VALUES (?, ?, 1, 'x', 0)`, k, e.clock.Add(time.Hour).UnixMilli())
+	}
+	b := cand(h("b"), "Movie.2024.2160p.WEB.H265-B")
+	if res, err := e.r.Route(e.ctx, grabReq(b)); err != nil || res.Outcome != OutcomeDeferred {
+		t.Fatalf("queue the fallback: %+v %v", res, err)
+	}
+	e.exec(`DELETE FROM router_pacing WHERE provider = 'rd'`)
+	e.pr["rd"].set("rd-aaaa", provider.Torrent{Hash: h("a"), Status: "magnet_error", State: provider.StateError})
+	res, err := e.r.Route(e.ctx, grabReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-A"), b))
+	if err != nil || res.Outcome != OutcomeInFlight {
+		t.Fatalf("route: %+v %v steps=%s", res, err, steps(res))
+	}
+	if n := e.count(`SELECT COUNT(*) FROM router_blocklist WHERE info_hash = ? AND researched_at IS NULL`, h("a")); n != 1 {
+		t.Error("a fallback in flight took the failure's re-search away")
+	}
+}
+
+// A merged search: a pack of two seasons fails at once, season 1's release is added, season 2's misses everywhere
+// and the route searches season 2 again. Nothing of the pack is left: its row is marked and the blocklist poll queues
+// nothing more (one re-search in all).
+func TestFailedAtOnceMergedSplit(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	withQueue(e)
+	e.r.set.CachedOnly = true
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, air_date, air_date_utc_at, created_at, updated_at) VALUES
+		(101, 2, 1, 1, 'One', '2024-01-01', 1000, 0, 0), (201, 2, 2, 1, 'Two', '2025-01-01', 1000, 0, 0)`)
+	e.pr["rd"].set("rd-aaaa", provider.Torrent{Hash: h("a"), Status: "magnet_error", State: provider.StateError})
+	e.pr["rd"].set("rd-bbbb", provider.Torrent{Hash: h("b"), Status: "downloaded", State: provider.StateDownloaded,
+		Files: []provider.File{{ID: "1", Path: "Show/Show.S01E01.mkv", Bytes: 9000, Selected: true}}})
+	for _, k := range []string{"rd", "ad", "tb"} {
+		e.ad[k].add = func(m adder.Magnet, _ adder.AddOptions) (*adder.Added, error) {
+			if m.Hash() == h("c") {
+				return nil, &adder.Error{Provider: k, Code: adder.CodeNotCached, Status: 400}
+			}
+			return &adder.Added{ID: k + "-" + m.Hash()[:4], Hash: m.Hash()}, nil
+		}
+	}
+	pack := cand(h("a"), "Show.S01-S02.2160p.WEB.H265-A")
+	one, two := cand(h("b"), "Show.S01.2160p.WEB.H265-B"), cand(h("c"), "Show.S02.2160p.WEB.H265-C")
+	pack.Episodes, one.Episodes, two.Episodes = []int64{101, 201}, []int64{101}, []int64{201}
+	res, err := e.r.Route(e.ctx, Request{TitleID: 2, VersionID: 20, Version: "series", Source: "test", Merged: true,
+		Candidates: []Candidate{pack, one, two}})
+	if err != nil || res.Outcome != OutcomeAdded || res.Release != one.Release.Title {
+		t.Fatalf("route: %+v %v steps=%s", res, err, steps(res))
+	}
+	if n := e.count(`SELECT COUNT(*) FROM router_blocklist WHERE info_hash = ? AND researched_at IS NOT NULL`, h("a")); n != 1 {
+		t.Error("the pack's row is left to a second re-search")
+	}
+	if n, err := e.r.researchBlocklisted(e.ctx); err != nil || n != 0 {
+		t.Fatalf("blocklist re-searches %d %v", n, err)
+	}
+	if jobs := researchJobs(e); len(jobs) != 1 || !slices.Equal(jobs[0].Episodes, []int64{201}) {
+		t.Errorf("re-searches %+v, want one for season 2", jobs)
 	}
 }

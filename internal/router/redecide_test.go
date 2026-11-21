@@ -337,6 +337,10 @@ func TestKeptByRuleEpisodesLeftOut(t *testing.T) {
 		case "search":
 			c.Search, c.Origin, src = true, OriginSearch, "wanted"
 			c.Criteria = []*decide.SeriesSearch{{Kind: profile.SearchSeason, Season: 1, Episodes: []int64{101, 102, 103}}}
+		case "episode":
+			// An episode search's criteria: they reject a season pack (Full season pack), RSS rules accept it.
+			c.Search, c.Origin, src = true, OriginSearch, "wanted"
+			c.Criteria = []*decide.SeriesSearch{{Kind: profile.SearchSingleEpisode, Season: 1, Episode: 2, Episodes: []int64{102}}}
 		case "legacy":
 			c.Search, c.Origin, src = true, OriginSearch, "wanted"
 		case "manual":
@@ -352,7 +356,7 @@ func TestKeptByRuleEpisodesLeftOut(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if mode == "search" && (req.Candidates[0].Origin != OriginSearch || len(req.Candidates[0].Criteria) != 1) {
+		if (mode == "search" || mode == "episode") && (req.Candidates[0].Origin != OriginSearch || len(req.Candidates[0].Criteria) != 1) {
 			t.Fatalf("resumed search candidate lost its criteria: %+v", req.Candidates[0])
 		}
 		e.clock = e.clock.Add(2 * time.Minute)
@@ -391,6 +395,15 @@ func TestKeptByRuleEpisodesLeftOut(t *testing.T) {
 		e, res := resume(t, "search", holdAll)
 		if res.Outcome != OutcomeCancelled || !strings.Contains(steps(res), "skipped/rejected_now") || e.writes() != 0 {
 			t.Fatalf("all held search: outcome=%s writes=%d steps=%s", res.Outcome, e.writes(), steps(res))
+		}
+	})
+
+	// The stored criteria decide, not RSS rules: nothing is held, RSS rules would accept the pack.
+	t.Run("remap_resumed_decides_with_stored_criteria", func(t *testing.T) {
+		t.Parallel()
+		e, res := resume(t, "episode", func(*env) {})
+		if res.Outcome != OutcomeCancelled || !strings.Contains(steps(res), "skipped/rejected_now") || e.writes() != 0 {
+			t.Fatalf("episode criteria: outcome=%s writes=%d steps=%s", res.Outcome, e.writes(), steps(res))
 		}
 	})
 

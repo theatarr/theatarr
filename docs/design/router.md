@@ -294,14 +294,15 @@ placement: the step reads `failed_at_once` with the download's error, the route 
 provider, caches no miss for it, counts it as one failed attempt, leaves its episodes uncovered and goes on with the
 next ranked release. "Failed" means exactly that the download's row is `failed` after those reads; every other
 unknown (a status read that failed, files not listed yet, the write gate closed, a selection the provider answered
-with an error, a row that moved on) still waits as an add, so two releases are never added for one item. When a
-later release of the same route is added for what the failed one was for (the movie, or all its episodes), the failed
-one's blocklist row is marked (`researched_at`, "retried" in Activity's Blocklist) and starts no re-search of its own;
-a later release that only waits (paced) still reserves those episodes in the batch but leaves the row unmarked, as it
-may expire or be rejected when it resumes. A route whose releases all fail so ends exhausted, not added; when it
-queues its own exhausted re-search, that search holds the failed releases' episodes and their rows are marked in the
-same step, so one re-search runs (`TestFailedAtOnceTriesNextRelease`, `TestSelectionErrorStillWaits`,
-`TestFailedAtOnceEverywhere`, `TestFailedAtOnceNextReleaseWaits`, `TestFailedAtOnceThenMissOneResearch`).
+with an error, a row that moved on) still waits as an add, so two releases are never added for one item. A route whose releases all fail so
+ends exhausted, not added. Whether the failed release's blocklist row still starts its own re-search follows one
+rule: take what it was for (its episodes; a film: the film), less what this route added (an add only, not a release
+found in flight, deferred or paced: those may still expire or be rejected) and, once the route has queued its own
+exhausted re-search, less that re-search's episodes. When nothing is left the row is marked (`researched_at`,
+"retried" in Activity's Blocklist) and starts no re-search of its own, so one re-search runs; otherwise it starts one
+as for any failure (`TestFailedAtOnceTriesNextRelease`, `TestSelectionErrorStillWaits`, `TestFailedAtOnceEverywhere`,
+`TestFailedAtOnceNextReleaseWaits`, `TestFailedAtOnceThenMissOneResearch`, `TestFailedAtOnceFallbackInFlight`,
+`TestFailedAtOnceMergedSplit`).
 
 Season targets still make one search, including when only some wanted episodes are in flight. A dry run lists
 every placement in their steps and simulate pacing between adds without writing it. A deferred batch retries from

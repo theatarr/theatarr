@@ -205,6 +205,6 @@ type Result struct {
 	Steps      []Step    `json:"steps"`
 	// research are the episodes of a merged search's seasons left without a release (Route searches them again).
 	research []int64
-	// failed are the route's downloads that failed at once (vFailed), for an exhausted route's re-search.
-	failed []failedAdd
+	// failed are the route's downloads that failed at once (vFailed) and what it added after them (stampCovered).
+	failed failedAt
 }

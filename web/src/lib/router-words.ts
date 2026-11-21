@@ -37,6 +37,7 @@ const CODES: Record<string, string> = {
   add_unsettled: "add not settled yet",
   held_unread: "held, not readable yet",
   held_error: "a failed copy is on the account; an admin can delete it under Torrents",
+  failed_at_once: "failed at once",
   download_moved_on: "the download moved on",
   reconciled: "settled from the account",
   upgrades_off: "upgrades are off",

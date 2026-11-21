@@ -365,7 +365,7 @@ func (r *Router) remapResumed(ctx context.Context, s *routeState, cands []Candid
 	var t *decide.Title
 	var v decide.Version
 	out := make([]Candidate, 0, len(cands))
-	rejected, allKept := false, false
+	allKept := false
 	for _, c := range cands {
 		search := c.Origin == OriginSearch
 		if search && len(c.Criteria) == 0 {
@@ -402,7 +402,6 @@ func (r *Router) remapResumed(ctx context.Context, s *routeState, cands []Candid
 				why = append(why, rj.String())
 			}
 			r.skipFresh(s, c, "rejected_now", "rejected under the current policy: "+strings.Join(why, "; "))
-			rejected = true
 			continue
 		}
 		if d.Accepted && !r.applyDecisionEpisodes(s, &c, d) {
@@ -413,7 +412,7 @@ func (r *Router) remapResumed(ctx context.Context, s *routeState, cands []Candid
 	}
 	if len(out) == 0 {
 		msg := "no release is still wanted by this version"
-		if rejected && !allKept {
+		if !allKept { // every candidate was rejected now
 			msg = "no release is accepted under the current policy"
 		}
 		return r.finishFresh(ctx, s, msg)
