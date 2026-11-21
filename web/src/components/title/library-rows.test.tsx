@@ -531,6 +531,19 @@ describe("a series row's last search (F3.3)", () => {
     expect(film.textContent).toBe("Search now");
     expect(film.getAttribute("aria-label")).toBe("Search WEB now");
   });
+  for (const px of [400, 1440]) {
+    it(`offers no link for a run that found nothing (it stores no list), at ${px} px`, async () => {
+      width(px);
+      manager();
+      renderPage(<LibraryRows title={show as never} versions={[tv({ target: "s02", state: "nothing", results: 0, accepted: 0 })] as never} />);
+      await screen.findByTestId("version-search-tv"); // the account is read
+      const why = screen.getByTestId("library-why");
+      expect(why.textContent).toMatch(/^Last searched Season 2 /);
+      expect(within(why).queryByTestId("library-why-releases")).toBeNull();
+      await userEvent.setup().click(screen.getByRole("button", { name: /Details/ }));
+      expect((await screen.findByTestId("library-details-releases")).getAttribute("href")).toBe("/title/7/releases?version=tv");
+    });
+  }
   it("offers no link for a run that searched nothing (failed), and names its season", async () => {
     manager();
     renderPage(<LibraryRows title={show as never} versions={[tv({ target: "s01", state: "failed", results: 0, accepted: 0 })] as never} />);

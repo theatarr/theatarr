@@ -83,10 +83,11 @@ export function whyMissing(v: Version, title: TitleDetail, kind: Kind, canSearch
 /** The row's search button in words: a series is searched as Search series (as the toolbar says), a film Search now. */
 const searchLabel = (kind: Kind) => (kind === "series" ? "Search series" : "Search now");
 
-/** The run a series row's last search reports, when it found something to show: its stored search is a link away. */
+/** The run a series row's last search reports, when it found something to show: its stored search is a link away (a
+ *  run that found nothing stores no list, so it gets no link). */
 function reportedRun(v: Version, kind: Kind): Version["last_search"] {
   const l = v.last_search;
-  return kind === "series" && !v.searching && l && l.results != null && (l.state === "routed" || l.state === "nothing") ? l : undefined;
+  return kind === "series" && !v.searching && l && (l.results ?? 0) > 0 && (l.state === "routed" || l.state === "nothing") ? l : undefined;
 }
 
 /** The Status cell: the stage linked to Activity, the upgrade badge with Why?, or the words; a second line under it,

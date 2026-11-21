@@ -504,7 +504,7 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   series …" on a series, whose row button below 768 px also reads **Search series**, named "Search series in 4K"). On a
   series the last search names what its run searched, since one Search series writes a run per season and the row
   reports one of them, with that run's own counts (never summed): "Last searched Season 2 today: 474 results, none
-  accepted.", "Last search of Season 1 today failed."; after a run that searched, managers get **Show releases**,
+  accepted.", "Last search of Season 1 today failed."; after a run that searched and found results, managers get **Show releases** (a run that found nothing stores no list, so it has none),
   which opens that run's stored search (`?run=`) or says it stored none, never an older search; the row's Details
   **Last search results** then opens the same run, so the row gives one answer (a row that shows no such line, such
   as an available or unmonitored series, keeps the library's Last search there). That page heads it as that search,
