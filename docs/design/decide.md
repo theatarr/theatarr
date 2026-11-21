@@ -44,7 +44,7 @@ and models three versions with two criteria each.
      left alone on purpose and reads as on main; `JPN.ENG.SUBS` and `JPN.English.Subs` are Japanese, `ENG.PT-BR.SUBS` English,
      `[English Subs]` gives no English), `SUB` joined before a
      language (`SUBFRENCH`: French subtitles; `ENG.SUBFRENCH` stays English), an explicit list in parentheses after
-     `SUB` (`… + Original (Eng) + Sub (Rus Eng)` reads Ukrainian, Original and English, not Russian), and everything from `Multiple Subtitle`
+     `SUB` (`… + Original (Eng) + Sub (Rus Eng)` reads Ukrainian, Original and English, not Russian; the marker stays, so `JPN.English.Subs (Forced)` is Japanese), and everything from `Multiple Subtitle`
      on (`radarr.TestJapaneseAndSubtitleLanguages`). Only the last language before `SUBS` is a subtitle, unlike the
      series parser's list rule: `ITA.ENG.SUBS` reads Italian with English subtitles, on purpose (no codec-count
      heuristics). `KA` stays Georgian, as Radarr reads it. A trailing id tag (`[tt…]`, `{imdb-tt…}`, `{tmdb-…}`,

@@ -57,8 +57,9 @@ var (
 	subtitleBeforeRegex = re(`(?<=^|[-_. \[(+,])(?<lang>pt-BR|ger[. ]dub|PL\W?(?:DUB|LEK)|(?:DUB|LEK)\W?PL|\(JA\)|[\p{L}\d]+)[-_. ]sub(?:s|bed|titles?|titled)?(?![\p{L}\d])`, optI)
 	subtitleJoinedRegex = re(`(?<![\p{L}\d])sub(?<lang>\p{L}+)(?![\p{L}\d])`, optI)
 	subtitleListRegex   = re(`\[?\bMultiple[-_. ]Subtitles?\b`, optI)
-	// subtitleParenRegex is an explicit subtitle list in parentheses after SUB(S) (ours): `Sub (Rus Eng)`.
-	subtitleParenRegex = re(`(?<![\p{L}\d])sub(?:s|titles?)?[ ]?\([^()]*\)`, optI)
+	// subtitleParenRegex is an explicit subtitle list in parentheses after SUB(S) (ours): `Sub (Rus Eng)`. Only
+	// the parentheses go; the marker stays for subtitleBeforeRegex (`English.Subs (Forced)` stays a subtitle).
+	subtitleParenRegex = re(`(?<![\p{L}\d])(sub(?:s|titles?)?)[ ]?\([^()]*\)`, optI)
 
 	germanDualLanguageRegex  = re(`(?<!WEB[-_. ]?)\bDL\b`, optI)
 	germanMultiLanguageRegex = re(`\bML\b`, optI)
@@ -236,7 +237,7 @@ func withoutSubtitles(title string) string {
 		}
 		return m.String()
 	}
-	title = replace(subtitleParenRegex, title, " ")
+	title = replace(subtitleParenRegex, title, "$1")
 	title = replaceFunc(subtitleBeforeRegex, title, span)
 	return replaceFunc(subtitleJoinedRegex, title, span)
 }

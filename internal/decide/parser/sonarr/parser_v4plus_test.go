@@ -142,6 +142,9 @@ func TestV4PlusSubtitleLanguages(t *testing.T) {
 		"[Group] Show - 01 [1080p][English Subs]":                         "Unknown",
 		"Show.S01E01.1080p.WEB-DL.SUBENGLISH-GRP":                         "Unknown",
 		"Show.S01E01.ENG.Submarine.1080p.WEB-DL-GRP":                      "English",
+		"Show.S01E01.EN.Submarine.1080p.WEB-DL-GRP":                       "English",
+		"Show.S01E01.1080p.WEB-DL.GER.DUB.ENG.SUBS-GRP":                   "German,English", // a dub tag before SUBS is a list
+		"Show.S01E01.1080p.WEB-DL.PL.DUB.ENG.SUBS-GRP":                    "Polish,English",
 		"Show.S01E01.1080p.WEB-DL.English.Subtitles-GRP":                  "Unknown",
 		"Show.S01E01.1080p.WEB-DL.Japanese.English.Subs-GRP":              "Japanese,English", // a list keeps v4's reading
 		"Show.S01E01.1080p.WEB-DL.English.DD5.1.[English Subs]-GRP":       "English",

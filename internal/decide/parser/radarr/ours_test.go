@@ -56,19 +56,20 @@ func TestJapaneseAndSubtitleLanguages(t *testing.T) {
 		"Akira.1988.1080p.BluRay.JPN.LEK.PL.Subs-GRP":   "Japanese",
 		"Akira.1988.1080p.BluRay.ENG.(JA).Subs-GRP":     "English",
 		// A bracketed tag before a marker outside it is left alone on purpose: it reads as on main.
-		"Akira (1988) [French Audio] SUBS 1080p x264-GRP":   "French",
-		"Akira (1988) [ENG.DTS.5.1].Subs 1080p x264-GRP":    "English",
-		"Akira (1988) 1080p [JPN][CHS].SUBS x264-GRP":       "Japanese,Chinese", // main: Chinese; JPN is read now
-		"Akira.1988.1080p.BluRay.JPN.2xUkr.Subs-GRP":        "Japanese",
-		"Akira.1988.1080p.BluRay.JPN.EN.SUBS-GRP":           "Japanese",
-		"Akira.1988.1080p.BluRay.JPN.Castellano.Subs-GRP":   "Japanese",
-		"Akira.1988.1080p.BluRay.JPN.Español.Subs-GRP":      "Japanese",
-		"Akira.1988.1080p.BluRay.ENG.VF2.SUBS-GRP":          "English",
-		"Akira.1988.1080p.BluRay.JPN.ENG-Sub.x264-GRP":      "Japanese",
-		"Akira.1988.1080p.BluRay.JPN.ENG_Subtitle-GRP":      "Japanese",
-		"Akira.1988.1080p.BluRay.JPN.English Subtitles-GRP": "Japanese",
-		"Akira.1988.1080p.BluRay.JPN.Eng.Subbed-GRP":        "Japanese",
-		"Akira.1988.1080p.BluRay.JPN.ENG.SUBFRENCH-GRP":     "Japanese,English",
+		"Akira (1988) [French Audio] SUBS 1080p x264-GRP":       "French",
+		"Akira (1988) [ENG.DTS.5.1].Subs 1080p x264-GRP":        "English",
+		"Akira (1988) 1080p [JPN][CHS].SUBS x264-GRP":           "Japanese,Chinese", // main: Chinese; JPN is read now
+		"Akira.1988.1080p.BluRay.JPN.2xUkr.Subs-GRP":            "Japanese",
+		"Akira.1988.1080p.BluRay.JPN.EN.SUBS-GRP":               "Japanese",
+		"Akira.1988.1080p.BluRay.JPN.Castellano.Subs-GRP":       "Japanese",
+		"Akira.1988.1080p.BluRay.JPN.Español.Subs-GRP":          "Japanese",
+		"Akira.1988.1080p.BluRay.ENG.VF2.SUBS-GRP":              "English",
+		"Akira.1988.1080p.BluRay.JPN.ENG-Sub.x264-GRP":          "Japanese",
+		"Akira.1988.1080p.BluRay.JPN.ENG_Subtitle-GRP":          "Japanese",
+		"Akira.1988.1080p.BluRay.JPN.English Subtitles-GRP":     "Japanese",
+		"Akira.1988.1080p.BluRay.JPN.Eng.Subbed-GRP":            "Japanese",
+		"Akira.1988.1080p.BluRay.JPN.ENG.SUBFRENCH-GRP":         "Japanese,English",
+		"Akira.1988.1080p.BluRay.JPN.English.Subs (Forced)-GRP": "Japanese", // the marker stays for the rule above
 		// An explicit "Sub (…)" list is subtitles: live download 327 reads Ukrainian, Original (Eng) and English, not
 		// the Russian of its subtitle list; with the only Eng in that list there is no English.
 		"Достать ножи / Knives Out [2019 WEB-DL 2160p HDR10 HDR10+ Dolby Vision] [Hybrid] Dub + 2x MVO + 2x DVO + AVO + Ukr + Kaz + Original (Eng) + Sub (Rus Eng)": "Ukrainian,Original,English",

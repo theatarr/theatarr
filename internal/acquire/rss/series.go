@@ -3,6 +3,7 @@ package rss
 import (
 	"context"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/theatarr/theatarr/internal/decide"
@@ -71,7 +72,7 @@ type seriesIndex struct {
 	// byFranchise is an anime franchise entry's name (a sequel, a romaji title) to its series: the last fallback for
 	// an item with no ids that nothing else finds. Only importable entries with regular episodes of a candidate
 	// series, and only a name that no other series has as its title, a scene name or an entry name (every catalog
-	// series and every anime mapping counted, as byIMDb is built over everything).
+	// series and every stored anime mapping counted, as byIMDb is built over everything).
 	byFranchise map[string]int64
 	loaded      map[int64]decide.Title
 }
@@ -127,44 +128,59 @@ func (r *Runner) seriesIndex(ctx context.Context, cands map[int64][]seriesCandid
 	return ix, r.franchiseNames(ctx, ix, cands, all, sceneAll)
 }
 
-// franchiseNames fills ix.byFranchise.
+// franchiseNames fills ix.byFranchise. Each cleaned name has one owner, a TVDB series (or a catalog series without
+// a TVDB id), or none when two differ; every stored anime mapping counts, also one into a series outside the catalog.
 func (r *Runner) franchiseNames(ctx context.Context, ix *seriesIndex, cands map[int64][]seriesCandidate,
 	all map[int64]decide.Title, scene map[int64][]string) error {
-	byTVDB := map[int][]int64{}
+	rows, err := r.st.Reader().QueryContext(ctx, `SELECT DISTINCT tvdb_series FROM anime_mapping
+		WHERE tvdb_series IS NOT NULL`)
+	if err != nil {
+		return err
+	}
 	var tvdbs []int
-	for id, t := range all {
-		if t.TVDB > 0 {
-			if len(byTVDB[t.TVDB]) == 0 {
-				tvdbs = append(tvdbs, t.TVDB)
-			}
-			byTVDB[t.TVDB] = append(byTVDB[t.TVDB], id)
+	for rows.Next() {
+		var tvdb int
+		if err := rows.Scan(&tvdb); err != nil {
+			rows.Close()
+			return err
 		}
+		tvdbs = append(tvdbs, tvdb)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
 	}
 	maps, err := animemap.LoadMany(ctx, r.st.Reader(), tvdbs)
 	if err != nil || len(maps) == 0 {
 		return err
 	}
-	owners := map[string]map[int64]bool{}
-	own := func(name string, id int64) {
+	const ambiguous = "*"
+	owner := map[string]string{}
+	own := func(name, who string) {
 		if c := sonarr.CleanSeriesTitle(name); c != "" {
-			if owners[c] == nil {
-				owners[c] = map[int64]bool{}
+			if o, ok := owner[c]; ok && o != who {
+				owner[c] = ambiguous
+			} else {
+				owner[c] = who
 			}
-			owners[c][id] = true
 		}
 	}
+	byTVDB := map[int][]int64{}
 	for id, t := range all {
-		own(t.Name, id)
+		who := "title:" + strconv.FormatInt(id, 10)
+		if t.TVDB > 0 {
+			who = "tvdb:" + strconv.Itoa(t.TVDB)
+			byTVDB[t.TVDB] = append(byTVDB[t.TVDB], id)
+		}
+		own(t.Name, who)
 		for _, n := range scene[id] {
-			own(n, id)
+			own(n, who)
 		}
 	}
 	for tvdb, m := range maps {
 		for _, e := range m.Entries {
 			for _, n := range e.Names {
-				for _, id := range byTVDB[tvdb] {
-					own(n, id)
-				}
+				own(n, "tvdb:"+strconv.Itoa(tvdb))
 			}
 		}
 	}
@@ -178,7 +194,7 @@ func (r *Runner) franchiseNames(ctx context.Context, ix *seriesIndex, cands map[
 				continue
 			}
 			for _, n := range e.Names {
-				if c := sonarr.CleanSeriesTitle(n); c != "" && len(owners[c]) == 1 && owners[c][ids[0]] {
+				if c := sonarr.CleanSeriesTitle(n); c != "" && owner[c] == "tvdb:"+strconv.Itoa(tvdb) {
 					ix.byFranchise[c] = ids[0]
 				}
 			}

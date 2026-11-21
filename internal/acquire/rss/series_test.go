@@ -147,6 +147,12 @@ func TestRSSSeriesByFranchiseName(t *testing.T) {
 			VALUES ('g', 'al:31', 'anilist', 31, 'Show Sequel', '[]', '{}');
 			INSERT INTO anime_mapping (franchise, entry_key, status, tvdb_series, episodes, updated_at)
 			VALUES ('g', 'al:31', 'conflict', 1002, '[[1,1]]', 0)`, false},
+		{"entry name mapped into a series outside the catalogue", placed, "auto",
+			`INSERT INTO anime_franchise (slug, name, seed_anilist, created_at, updated_at) VALUES ('g', 'G', 31, 0, 0);
+			INSERT INTO anime_entry (franchise, key, origin, anilist_id, title, tmdb_movie, body)
+			VALUES ('g', 'al:31', 'anilist', 31, 'Show Sequel', '[]', '{}');
+			INSERT INTO anime_mapping (franchise, entry_key, status, tvdb_series, episodes, updated_at)
+			VALUES ('g', 'al:31', 'auto', 1002, '[[1,1]]', 0)`, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := newEnv(t, false)

@@ -109,9 +109,9 @@ var (
 	languageRegex4p = re(`(?<english>\b(?:ing|eng)\b)|(?<italian>\b(?:ita|italian)\b)|(?<german>(?:swiss)?german\b|videomann|ger[. ]dub|(?<=^|[-_. \[(+,])ger\b)|(?<flemish>flemish)|(?<greek>greek)|(?<french>(?:_|\b)(?:FR|VF|VF2|VFF|VFI|VFQ|TRUEFRENCH|FRENCH|FRE|FRA)(?:_|\b))|(?<russian>\b(?:rus|ru)\b)|(?<hungarian>\b(?:HUNDUB|HUN)\b)|(?<hebrew>\bHebDub\b)|(?<polish>\b(?:PL\W?DUB|DUB\W?PL|LEK\W?PL|PL\W?LEK)\b)|(?<chinese>\[(?:CH[ST]|BIG5|GB)\]|简|繁|字幕|国语音轨[.+])|(?<bulgarian>\bbgaudio\b)|(?<spanish>\b(?:español|castellano|esp|spa(?!\(Latino\)))\b)|(?<ukrainian>\b(?:\dx?)?(?:ukr))|(?<thai>\b(?:THAI)\b)|(?<romanian>\b(?:RoDubbed|ROMANIAN)\b)|(?<catalan>[-,. ]cat[. ](?:DD|subs)|\b(?:catalan|catalán)\b)|(?<latvian>\b(?:lat|lav|lv)\b)|(?<turkish>\b(?:tur)\b)|(?<japanese>\(JA\)|\b(?:JAP|JPN)\b)|(?<portuguese>[_. ]por[_. ])|(?<original>\b(?:orig|original)\b)`, optI)
 
 	// caseSensitiveLanguageRegex4p is v5's CaseSensitiveLanguageRegex (DE, 9e5ebdc62) with EN as English and JA as
-	// Japanese (ours): the upper-case ISO 639-1 codes Sonarr's own {MediaInfo AudioLanguages} naming writes
+	// Japanese, and SUB in its look-ahead as a whole word, as subsAfterRegex (`EN.Submarine` is English) (ours): the upper-case ISO 639-1 codes Sonarr's own {MediaInfo AudioLanguages} naming writes
 	// (`[JA+EN]`) and TURG's `DE-EN-TR`. On the corpus every upper-case EN and JA word is such a tag.
-	caseSensitiveLanguageRegex4p = re(`(?:(?i)(?<!SUB[\W|_|^]))(?:(?<lithuanian>\bLT\b)|(?<czech>\bCZ\b)|(?<polish>\bPL\b)|(?<bulgarian>\bBG\b)|(?<slovak>\bSK\b)|(?<german>\bDE\b)|(?<english>\bEN\b)|(?<japanese>\bJA\b))(?:(?i)(?![\W|_|^]SUB))`, optNone)
+	caseSensitiveLanguageRegex4p = re(`(?:(?i)(?<!SUB[\W|_|^]))(?:(?<lithuanian>\bLT\b)|(?<czech>\bCZ\b)|(?<polish>\bPL\b)|(?<bulgarian>\bBG\b)|(?<slovak>\bSK\b)|(?<german>\bDE\b)|(?<english>\bEN\b)|(?<japanese>\bJA\b))(?:(?i)(?![\W|_|^]SUB(?:S|BED|TITLES?|TITLED)?(?![\p{L}\d])))`, optNone)
 
 	// subsAfterRegex is what follows a subtitle language: v5's [-_. ]subs? look-ahead, as a whole word (ours:
 	// SUB, SUBS, SUBBED, SUBTITLE(S), SUBTITLED; `ENG.Submarine` keeps English).
@@ -200,6 +200,17 @@ func (d *dialect) withoutSubtitles4p(title string) string {
 		return len(ls) > 0 && ls[0] != LanguageUnknown
 	}
 	runes := []rune(title)
+	// The ends of the pattern matches (a dub tag such as `GER.DUB`, `PL.DUB` reads as one language).
+	ends := map[int]bool{}
+	for _, r := range []*regexp2.Regexp{d.language, d.caseSensitiveLanguage} {
+		for _, m := range matches(r, title) {
+			e := m.Index + m.Length
+			for e > m.Index && strings.ContainsRune("-_. ", runes[e-1]) {
+				e--
+			}
+			ends[e] = true
+		}
+	}
 	title = replaceFunc(subtitlePhraseRegex4p, title, func(m regexp2.Match) string {
 		if !reads(value(&m, "lang")) {
 			return m.String()
@@ -207,6 +218,9 @@ func (d *dialect) withoutSubtitles4p(title string) string {
 		// The token before it, across one separator.
 		i := m.Index - 1
 		if i > 0 && strings.ContainsRune("-_. ", runes[i]) {
+			if ends[i] {
+				return m.String()
+			}
 			j := i
 			for j > 0 && (unicode.IsLetter(runes[j-1]) || unicode.IsDigit(runes[j-1])) {
 				j--
