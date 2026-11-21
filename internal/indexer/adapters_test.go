@@ -756,9 +756,25 @@ func TestExtraEpisodeToken(t *testing.T) {
 		"Show.NCOP1.1080p.mkv": true, "[GRP] Show - SP01 [BD].mkv": true, "[GRP] Show - OP1 [BD].mkv": true,
 		"[GRP] Show - 05 [BD 1080p AAC 5.1].mkv": false, "Special.Forces.S01E05.1080p.DDP5.1.mkv": false,
 		"[GRP] Special Forces - 05 [BD].mkv": false, "[GRP] Show - 05 [ED].mkv": false, "Show.S01E05.1080p-ED.mkv": false,
-		"[GRP] Show - 05.mkv": false,
+		"[GRP] Show - 05.mkv": false, "[GRP] Show - 05 - Special Training [BD 1080p].mkv": false,
+		"Show - 02 - Preview of the Future.mkv": false, "[GRP] Show - S01E05 - Preview [1080p].mkv": false,
+		"Show.S01E05.Special.1080p.mkv": false, "NCED.mkv": true, "NCOP1.mkv": true, "Recap.mkv": true,
 	} {
 		if got := ExtraEpisodeToken(name); got != want {
+			t.Errorf("%q: %v, want %v", name, got, want)
+		}
+	}
+}
+
+// SeaDexExtra (SeaDex 1..N batches, RSS filing, the import's season numbering) answers as before phase AC.
+func TestSeaDexExtraAsBefore(t *testing.T) {
+	for name, want := range map[string]bool{
+		"[sam] Show - OVA (BD 1080p).mkv": true, "Extras/[sam] Show - NCOP1 (BD 1080p).mkv": true, "[sam] Show - SP2.mkv": true,
+		"[sam] Show - Specials 01.mkv": true, "[sam] Show - 05 - Special Training.mkv": true,
+		"[sam] Show - Recap 01 2160p [WEB].mkv": false, "[sam] Show - 12.5.mkv": false, "[sam] Show - Creditless OP.mkv": false,
+		"[sam] Show - 05 (BD 1080p).mkv": false, "[sam] Show - Preview.mkv": false,
+	} {
+		if got := SeaDexExtra(name); got != want {
 			t.Errorf("%q: %v, want %v", name, got, want)
 		}
 	}

@@ -98,49 +98,51 @@ var seadexExtraRE = regexp.MustCompile(`(?i)\b(?:OVA|OAD|ONA|specials?|SP\d*|NC 
 // path): the one classification the 1..N proof (seadexNumbered) and the import's season numbering
 // (decide.fileFranchise) both use, so an extra the proof left out is never placed as an episode.
 func SeaDexExtra(name string) bool {
-	base := path.Base(strings.ReplaceAll(name, `\`, "/"))
-	return seadexExtraRE.MatchString(base) || ExtraEpisodeToken(base)
+	return seadexExtraRE.MatchString(path.Base(strings.ReplaceAll(name, `\`, "/")))
 }
 
 var (
 	// extraBracketRE is a bracketed group of a file name ("[1080p]", "(BD)"), dropped before the episode token is read.
 	extraBracketRE = regexp.MustCompile(`\[[^\]]*\]|\([^)]*\)|\{[^}]*\}`)
-	// extraSegmentRE is an extra marker opening a name's segment ("Recap 01 2160p", "NCOP1", "OVA", "12.5").
+	// extraSegmentRE is an extra marker opening a name's episode segment ("Recap 01 2160p", "NCOP1", "OVA", "12.5").
 	extraSegmentRE = regexp.MustCompile(`(?i)^(?:(?:OVA|OAD|ONA|SP|Specials?|NC[ ._]?OP|NC[ ._]?ED|NCOP|NCED|creditless|` +
 		`clean[ ._](?:opening|ending)|recap|preview|PV|CM|menu|trailer|teaser)(?:[ ._]?\d{1,3})?|(?:OP|ED)[ ._]?\d{1,2}|\d{1,4}\.\d)(?:v\d)?(?:$|[ ._])`)
-	// extraWordRE is a marker word of a name without " - " segments; extraNumberedRE one that needs a number beside it.
-	extraWordRE     = regexp.MustCompile(`(?i)^(?:OVA|OAD|ONA|SP|NCOP|NCED|NC|creditless|recap|preview|PV|CM|menu|trailer|teaser)\d{0,3}(?:v\d)?$`)
-	extraNumberedRE = regexp.MustCompile(`(?i)^(?:OP|ED|Specials?)\d{0,2}$`)
+	// extraWordRE is a marker word of a name without " - " segments; extraNumberedRE one that needs a number with it.
+	extraWordRE     = regexp.MustCompile(`(?i)^(?:OVA|OAD|ONA|SP|NCOP|NCED|NC|creditless|recap|preview|PV|CM|menu|trailer|teaser|specials?)\d{0,3}(?:v\d)?$`)
+	extraNumberedRE = regexp.MustCompile(`(?i)^(?:OP|ED)\d{0,2}$`)
+	// episodeWordRE is a word that is an episode token itself: S01E05, 1x05, a bare number (not a resolution).
+	episodeWordRE = regexp.MustCompile(`(?i)^(?:S\d{1,2}E\d{1,3}.*|\d{1,2}x\d{2,3}|\d{1,4}(?:v\d)?)$`)
+	// numberWordRE is a number after a marker ("OVA 01"); resolutionWordRE a resolution ("NCOP1.1080p").
+	numberWordRE     = regexp.MustCompile(`^\d{1,3}(?:v\d)?$`)
+	resolutionWordRE = regexp.MustCompile(`(?i)^\d{3,4}[pi]$`)
 )
 
 // ExtraEpisodeToken says whether a file name's episode token is an extra marker: OVA, OAD, ONA, SP, Special, NCOP,
 // NCED, NC OP/ED, creditless or clean opening or ending, OP/ED with a number, recap, preview, PV, CM, menu, trailer,
-// teaser, or a decimal episode number ("12.5"). The token is a " - " segment after the first one, read before any
-// quality text after it ("Show - Recap 01 2160p"); in a name without segments a marker word after the first word with
-// a number or nothing after it ("Show OVA 01", "Show.NCOP1.1080p"). A marker anywhere else in the name is not read:
-// "5.1" audio and a series title with "Special" in it are no extras. SeaDex batches and the anime pack proof share it.
+// teaser, or a decimal episode number ("12.5"). Only the episode token is read: in a name with " - " segments the
+// first segment after the series title ("Show - Recap 01 2160p", "Show - OVA - 01"; "Show - 05 - Special Training" is
+// episode 5); without segments the first word that is an episode token or a marker, a marker counting only with a
+// number, a resolution or nothing after it ("Show OVA 01", "Show.NCOP1.1080p", "NCED"), so "Show.S01E05.Special.1080p"
+// is episode 5 and a series title with "Special" in it is no extra. The anime pack proof uses it (library/animepack.go).
 func ExtraEpisodeToken(name string) bool {
 	stem := strings.TrimSuffix(name, path.Ext(name))
 	plain := strings.TrimSpace(extraBracketRE.ReplaceAllString(stem, " "))
 	if segs := strings.Split(plain, " - "); len(segs) > 1 {
-		for _, seg := range segs[1:] {
-			if extraSegmentRE.MatchString(strings.TrimSpace(seg)) {
-				return true
-			}
-		}
-		return false
+		return extraSegmentRE.MatchString(strings.TrimSpace(segs[1]))
 	}
 	words := strings.FieldsFunc(plain, func(r rune) bool { return r == ' ' || r == '.' || r == '_' })
-	for i := 1; i < len(words); i++ {
+	for i, w := range words {
 		next := ""
 		if i+1 < len(words) {
 			next = words[i+1]
 		}
-		numbered := next != "" && next[0] >= '0' && next[0] <= '9'
+		after := next == "" || numberWordRE.MatchString(next) || resolutionWordRE.MatchString(next)
 		switch {
-		case extraWordRE.MatchString(words[i]) && (next == "" || numbered):
+		case i > 0 && episodeWordRE.MatchString(w):
+			return false // the episode token is a number: whatever follows is a title or quality text
+		case extraWordRE.MatchString(w) && after:
 			return true
-		case extraNumberedRE.MatchString(words[i]) && (numbered || strings.IndexAny(words[i], "0123456789") > 0):
+		case extraNumberedRE.MatchString(w) && (numberWordRE.MatchString(next) || strings.IndexAny(w, "0123456789") > 0):
 			return true
 		}
 	}

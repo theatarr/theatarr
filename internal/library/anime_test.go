@@ -624,7 +624,9 @@ func TestAnimePackExtras(t *testing.T) {
 		"[GRP] Kaiju Tale - NCED2 [BD].mkv": true, "Specials/[GRP] Kaiju Tale - 01.mkv": true, "Kaiju.Tale.NCOP1.1080p.mkv": true,
 		"[GRP] Kaiju Tale - 12.5 [BD].mkv": true, "Season 1/[GRP] Kaiju Tale - Recap 01 2160p [WEB].mkv": true,
 		"[GRP] Kaiju Tale OVA 01.mkv": true, "[GRP] Kaiju Tale NCOP 01.mkv": true, "[GRP] Kaiju Tale - OVA - 01.mkv": true,
-		"Kaiju Tale S02 1080p.mkv": false, "[GRP] Kaiju Tale - 05 [ED].mkv": false} {
+		"Kaiju Tale S02 1080p.mkv": false, "[GRP] Kaiju Tale - 05 [ED].mkv": false,
+		"[GRP] Kaiju Tale - 05 - Special Training [BD 1080p].mkv": false, "Kaiju.Tale.S01E05.Special.1080p.mkv": false,
+		"[GRP] Kaiju Tale - S01E05 - Preview [1080p].mkv": false, "Extras/NCED.mkv": true, "NCOP1.mkv": true} {
 		stem := strings.TrimSuffix(filepath.Base(name), filepath.Ext(name))
 		if got := packExtra(name, sonarr.ParseTitle(stem)); got != want {
 			t.Errorf("%s: extra %v, want %v", name, got, want)

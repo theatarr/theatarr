@@ -71,7 +71,8 @@ func packExtra(rel string, p *sonarr.ParsedEpisodeInfo) bool {
 		return false
 	}
 	// A whole-season name with no number is a regular video without a number: it fails the proof, not set aside.
-	return p.Special || p.IsSeasonExtra || len(p.SpecialAbsoluteEpisodeNumbers) > 0 || p.SeasonNumber == 0 &&
+	// The parser's special flag counts only without episode numbers ("- 05 - Special Training" is episode 5).
+	return p.Special && len(p.AbsoluteEpisodeNumbers) == 0 && len(p.EpisodeNumbers) == 0 || p.IsSeasonExtra || len(p.SpecialAbsoluteEpisodeNumbers) > 0 || p.SeasonNumber == 0 &&
 		len(p.EpisodeNumbers) > 0
 }
 
