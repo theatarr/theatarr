@@ -721,8 +721,16 @@ func TestSeriesSearchScopedUpgradeReason(t *testing.T) {
 	if err != nil || !d.Accepted || !d.Upgrade || d.UpgradeReason != "fills 4 episode(s) with no file" {
 		t.Fatalf("scoped: %v %s upgrade %v %q %v", d.Accepted, reasons(d), d.Upgrade, d.UpgradeReason, err)
 	}
+	if d.Existing != nil {
+		t.Errorf("scoped: existing from an unsearched season: %+v", d.Existing)
+	}
+	// A rejected scoped pack is no upgrade.
+	bad := rel("The.Show.Complete.Series.480p.WEB-DL.DDP5.1.H.264-GRP", "public", 4*gb)
+	if d, err := e.DecideSearch(context.Background(), bad, tt, v, member); err != nil || d.Accepted || d.Upgrade {
+		t.Fatalf("rejected scoped pack: %v %s upgrade %v %q %v", d.Accepted, reasons(d), d.Upgrade, d.UpgradeReason, err)
+	}
 	member.Seasons = nil
-	if d, _ := e.DecideSearch(context.Background(), pack, tt, v, member); !d.Accepted ||
+	if d, _ := e.DecideSearch(context.Background(), pack, tt, v, member); !d.Accepted || d.Existing == nil ||
 		!strings.HasPrefix(d.UpgradeReason, "better quality: WEBDL-2160p over WEBDL-1080p") {
 		t.Fatalf("without the merge the reason is the whole pack's: %v %q", d.Accepted, d.UpgradeReason)
 	}

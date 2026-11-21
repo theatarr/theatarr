@@ -800,14 +800,14 @@ func (r *Router) narrowMerged(ctx context.Context, s *routeState, m *mergedRoute
 		m.place(c.Episodes)
 		return "in_flight", fmt.Sprintf("download %d holds overlapping episodes already", id), nil, nil
 	}
-	drop, elsewhere := map[int]bool{}, map[int]bool{}
+	drop := map[int]bool{}
 	byBatch := false
 	for _, e := range c.Episodes {
 		if slices.Contains(covered, e) {
 			drop[m.seasonOf(e)], byBatch = true, true
 		}
 		if slices.Contains(held, e) {
-			drop[m.seasonOf(e)], elsewhere[m.seasonOf(e)] = true, true
+			drop[m.seasonOf(e)], m.covered[m.seasonOf(e)] = true, true // in flight elsewhere: not left without a release
 		}
 	}
 	if len(drop) == 0 {
@@ -817,9 +817,6 @@ func (r *Router) narrowMerged(ctx context.Context, s *routeState, m *mergedRoute
 	for _, e := range c.Episodes {
 		if drop[m.seasonOf(e)] {
 			gone = append(gone, e)
-			if elsewhere[m.seasonOf(e)] {
-				m.place([]int64{e}) // in flight elsewhere: not left without a release
-			}
 		} else {
 			keep = append(keep, e)
 		}

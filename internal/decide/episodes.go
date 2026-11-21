@@ -164,10 +164,6 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 		}
 		episodes = append(episodes, pe)
 	}
-	if firstFile != nil {
-		d.Existing = &Existing{Quality: firstFile.Quality.Quality.Name, Formats: formatScores(p.Profile, firstFile.Formats),
-			Score: p.Profile.FormatScore(firstFile.Formats)}
-	}
 	prio := rel.IndexerPriority
 	if prio == 0 {
 		prio = 25
@@ -237,21 +233,27 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 			}
 		}
 	}
-	if firstFile != nil {
-		var file *profile.File
-		var kept []string
-		for _, ep := range shown {
-			if ep.File != nil {
-				file = ep.File
-				break
-			}
+	var file *profile.File
+	for _, ep := range shown {
+		if ep.File != nil {
+			file = ep.File
+			break
 		}
+	}
+	if file != nil {
+		d.Existing = &Existing{Quality: file.Quality.Quality.Name, Formats: formatScores(p.Profile, file.Formats),
+			Score: p.Profile.FormatScore(file.Formats)}
+	}
+	if firstFile != nil {
+		var kept []string
 		if p.Engine.Config.AcceptReleaseAnyUpgradable && len(d.Rejections) == 0 {
 			d.KeptEpisodeIDs = p.Engine.KeptByRule(subj)
 			file, kept = firstUpgraded(p, shown, qm, matched, d.KeptEpisodeIDs)
 		}
 		if file == nil {
-			d.Upgrade, d.UpgradeReason = true, fmt.Sprintf("fills %d episode(s) with no file", missing)
+			if len(d.Rejections) == 0 { // a rejected release is no upgrade
+				d.Upgrade, d.UpgradeReason = true, fmt.Sprintf("fills %d episode(s) with no file", missing)
+			}
 		} else {
 			d.Upgrade, d.UpgradeReason = upgradeOf(p, file, qm, matched, d.Rejections)
 			if len(d.Rejections) > 0 && d.Upgrade {

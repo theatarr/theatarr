@@ -1155,4 +1155,21 @@ func TestMergedSearchWhy(t *testing.T) {
 		len(g.Reasoning.RunnersUp) != 1 || g.Reasoning.RunnersUp[0].Release != two.Release {
 		t.Fatalf("member: %+v", g.Reasoning)
 	}
+	// The root member with no stored search of its own beside a child that has one: its own counts, not the child's.
+	if err := snapshot.Record(context.Background(), e.st.Writer(), snapshot.Search{Source: "acquire:8", RunID: 9, TitleID: 3,
+		Version: "tv-2160p", Target: "s02", Ranked: []*decide.Decision{span, two}, Releases: rels, CreatedAt: at}); err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range []struct{ id, season int }{{8, 1}, {9, 2}} {
+		var parent any
+		if r.id != 8 {
+			parent = 8
+		}
+		e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, season, search_run, state,
+			message, results, accepted, created_at, updated_at) VALUES (?, 'wanted', 3, 3, 'tv-2160p', ?, ?, ?, 'nothing',
+			'', 0, 0, ?, ?)`, r.id, fmt.Sprintf("s%02d", r.season), r.season, parent, msOf(at.Add(-time.Minute)), msOf(at))
+	}
+	if g := e.get("run:8"); g.Reasoning == nil || len(g.Reasoning.RunnersUp) != 0 || g.Reasoning.Chosen != nil {
+		t.Fatalf("root without a stored search: %+v", g.Reasoning)
+	}
 }

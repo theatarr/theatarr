@@ -324,12 +324,13 @@ func (b *builder) cache(e *Entry, hash string) error {
 }
 
 // snapshotPick says which of a source's stored searches a reader wants: a merged search of several seasons stores
-// one per member under its route's source. run picks a member's own (0: none): a member under the root's source
-// reads its own or none. hash and episodes (a download's info hash and stored episode ids, JSON) pick the member
+// one per member under its route's source. run picks a run's own (0: none); member (a member of a merged search,
+// the root included) reads its own or none. hash and episodes (a download's info hash and stored episode ids, JSON) pick the member
 // whose list holds the hash and whose season holds one of the episodes, else the member of one of the episodes'
 // seasons. Without a match the newest is read, as for any other source.
 type snapshotPick struct {
 	run      int64
+	member   bool
 	hash     string
 	episodes string
 }
@@ -348,7 +349,7 @@ func (b *builder) snapshotFor(source string, titleID int64, version string, at i
 			ORDER BY created_at DESC, id DESC LIMIT 1`, append([]any{source, titleID, version, at}, args...)...).Scan(&cj,
 			&rj, &notes, &target, &results, &accepted, &trimmed, &rev)
 	}
-	// A merged search's members share the source: the run's own (a member under the root's source has no other),
+	// A merged search's members share the source: the run's own (a member has no other),
 	// else the one whose list holds the hash and whose season holds one of the episodes, else the one of the
 	// episodes' seasons; else (and for any other source) the newest.
 	var picks []func() error
@@ -356,9 +357,9 @@ func (b *builder) snapshotFor(source string, titleID int64, version string, at i
 	if strings.HasPrefix(source, "acquire:") {
 		if pick.run > 0 {
 			picks = append(picks, func() error { return read(` AND run_id = ?`, pick.run) })
-			shared = source != "acquire:"+strconv.FormatInt(pick.run, 10)
+			shared = pick.member
 		}
-		if pick.episodes != "" {
+		if pick.episodes != "" && pick.episodes != "[]" {
 			season := ` AND EXISTS (SELECT 1 FROM episode e JOIN json_each(?) de ON e.id = de.value
 				WHERE 's' || printf('%02d', e.season) = lower(target))`
 			if pick.hash != "" {
@@ -1131,13 +1132,14 @@ func (b *builder) run(e *Entry, rest string) error {
 	var research sql.NullString
 	var results, accepted int
 	var created int64
-	var failure bool
+	var failure, member bool
 	// A member of a merged search stores its search and finds its downloads under the root's route source.
 	routeSource := "acquire:" + rest
 	if err := b.db.QueryRowContext(b.ctx, `SELECT source, target, state, message, research, results, accepted,
 		policy_rev, created_at, COALESCE(`+failureRunSQL+`, 0), 'acquire:' || CASE WHEN `+snapshot.MergedRunSQL("acquire_run")+`
-		THEN COALESCE(search_run, id) ELSE id END FROM acquire_run WHERE id = ?`, id).Scan(&source, &target,
-		&state, &message, &research, &results, &accepted, &queuedRev, &created, &failure, &routeSource); err != nil {
+		THEN COALESCE(search_run, id) ELSE id END, `+snapshot.MergedRunSQL("acquire_run")+` FROM acquire_run WHERE id = ?`,
+		id).Scan(&source, &target, &state, &message, &research, &results, &accepted, &queuedRev, &created, &failure,
+		&routeSource, &member); err != nil {
 		return err
 	}
 	e.QueuedPolicyRev = queuedRev
@@ -1148,7 +1150,7 @@ func (b *builder) run(e *Entry, rest string) error {
 		e.Label, why = "Search after a failure", research.String
 	}
 	e.Summary = searchWords(source, target, state, why, message, b.full)
-	r, err := b.snapshotFor(routeSource, e.Title.ID, e.Version, created+24*3600*1000, snapshotPick{run: id})
+	r, err := b.snapshotFor(routeSource, e.Title.ID, e.Version, created+24*3600*1000, snapshotPick{run: id, member: member})
 	if err != nil {
 		return err
 	}
