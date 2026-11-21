@@ -396,14 +396,16 @@ flagged request changes the batch, which RSS batches and single-season searches 
   `seasons_covered`) names the seasons left out. A deferred release counts as covering its seasons: a pack behind it
   is opened for the others. There is no re-ranking after narrowing.
 - **Attempts.** `max_candidates` bounds failed attempts per season, plus one more bucket of the same size shared by
-  the releases of several seasons; a candidate whose bucket is used up is skipped.
-- **Seasons left without a release.** When the route ends, the seasons that had an attempt missed on every provider
-  and nothing placed, deferred or in flight get the exhausted re-search an exhausted route of their own would get:
-  one re-search for all their episodes (not for a release added by hand or a dead link's search). A route that
-  placed nothing at all takes the usual exhausted re-search.
+  the releases of several seasons (by the release's name, whatever scope and freshness left it); a candidate whose
+  bucket is used up is skipped.
+- **Seasons left without a release.** When the route ends, whatever its outcome, the seasons that had a release
+  missed on every provider (a client's cache miss too) and nothing placed, deferred or in flight get the exhausted
+  re-search an exhausted route of their own would get: one re-search for all their episodes (not for a release added
+  by hand or a dead link's search). Seasons whose releases were only skipped are not searched again.
 - **Continuation, resume, re-decision.** The stored candidates keep their scoped episodes and rank order; narrowing is
-  worked out again on each pass from what is covered and in flight then, the resumed row left out. A re-decision ranks
-  with `RankMerged` and keeps the searched seasons. If a deferred release later fails, its season falls back to that
+  worked out again on each pass from what is covered and in flight then, the resumed row left out. A re-decision decides each candidate with
+  the criteria it was found with (a season pack freshness left one episode stays a season pack), ranks with
+  `RankMerged` and keeps the searched seasons. If a deferred release later fails, its season falls back to that
   season's other releases in the continuation and then to the re-search, never to a pack already downloading for other
   seasons (the same hash is not widened).
 
