@@ -57,6 +57,8 @@ var (
 	subtitleBeforeRegex = re(`(?<=^|[-_. \[(+,])(?<lang>pt-BR|ger[. ]dub|PL\W?(?:DUB|LEK)|(?:DUB|LEK)\W?PL|\(JA\)|[\p{L}\d]+)[-_. ]sub(?:s|bed|titles?|titled)?(?![\p{L}\d])`, optI)
 	subtitleJoinedRegex = re(`(?<![\p{L}\d])sub(?<lang>\p{L}+)(?![\p{L}\d])`, optI)
 	subtitleListRegex   = re(`\[?\bMultiple[-_. ]Subtitles?\b`, optI)
+	// subtitleParenRegex is an explicit subtitle list in parentheses after SUB(S) (ours): `Sub (Rus Eng)`.
+	subtitleParenRegex = re(`(?<![\p{L}\d])sub(?:s|titles?)?[ ]?\([^()]*\)`, optI)
 
 	germanDualLanguageRegex  = re(`(?<!WEB[-_. ]?)\bDL\b`, optI)
 	germanMultiLanguageRegex = re(`\bML\b`, optI)
@@ -219,8 +221,9 @@ func audioLanguages(title string) []Language {
 	return languages
 }
 
-// withoutSubtitles is the title cut at a "Multiple Subtitle" marker, with each subtitle span (subtitleBeforeRegex,
-// subtitleJoinedRegex) whose tag reads as a language replaced by a space (ours). Only the last language before SUBS
+// withoutSubtitles is the title cut at a "Multiple Subtitle" marker, without an explicit `Sub (…)` list, and with
+// each subtitle span (subtitleBeforeRegex, subtitleJoinedRegex) whose tag reads as a language replaced by a space
+// (ours). Only the last language before SUBS
 // is a subtitle: `JPN.ENG.SUBS` is Japanese audio with English subtitles, `ITA.ENG.SUBS` Italian. A joined marker is
 // not a word: `ENG.SUBFRENCH` keeps English.
 func withoutSubtitles(title string) string {
@@ -233,6 +236,7 @@ func withoutSubtitles(title string) string {
 		}
 		return m.String()
 	}
+	title = replace(subtitleParenRegex, title, " ")
 	title = replaceFunc(subtitleBeforeRegex, title, span)
 	return replaceFunc(subtitleJoinedRegex, title, span)
 }

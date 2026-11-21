@@ -69,6 +69,10 @@ func TestJapaneseAndSubtitleLanguages(t *testing.T) {
 		"Akira.1988.1080p.BluRay.JPN.English Subtitles-GRP": "Japanese",
 		"Akira.1988.1080p.BluRay.JPN.Eng.Subbed-GRP":        "Japanese",
 		"Akira.1988.1080p.BluRay.JPN.ENG.SUBFRENCH-GRP":     "Japanese,English",
+		// An explicit "Sub (…)" list is subtitles: live download 327 reads Ukrainian, Original (Eng) and English, not
+		// the Russian of its subtitle list; with the only Eng in that list there is no English.
+		"Достать ножи / Knives Out [2019 WEB-DL 2160p HDR10 HDR10+ Dolby Vision] [Hybrid] Dub + 2x MVO + 2x DVO + AVO + Ukr + Kaz + Original (Eng) + Sub (Rus Eng)": "Ukrainian,Original,English",
+		"Достать ножи / Knives Out [2019 WEB-DL 2160p] Dub + Ukr + Sub (Rus Eng)":                                                                                   "Ukrainian",
 	} {
 		p := ParseMovieTitle(title, false)
 		if p == nil {
@@ -84,3 +88,4 @@ func TestJapaneseAndSubtitleLanguages(t *testing.T) {
 		}
 	}
 }
+
