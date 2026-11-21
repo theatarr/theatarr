@@ -626,14 +626,16 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
 - **Interactive search** (`components/title/interactive-search.tsx`, the grid `release-grid.tsx`, columns
   `lib/release-columns.ts`): a wide window (a full-height sheet on phones) that searches the indexers the moment it
   opens, as Radarr's does. Managers open it for a movie from the action bar (the whole movie) and each library's
-  row (that library). A standard or daily series has it there too, for the whole series (titled with the series
+  row (that library). A series (anime too) has it there too, for the whole series (titled with the series
   name and "Whole series"): only the query without a season is asked and only packs of several seasons are kept
   (accepted and rejected with their reasons, one row per torrent, at most 300); under the list "N other results are
   not shown. Search a season for those.", and with no pack "No pack of several seasons found.", followed by "Search a season instead." when no other
   result was left out. Every row there is a pack, so it has no Packs only filter. In every release list a release
-  whose name reads as two or more seasons (the candidate's `multi_season`) shows its seasons ("Seasons 1 to 5") where
-  an episode is shown; any other release keeps its episode range ("S01E12–S02E01 (2)"). An anime series has it per season and per episode only,
-  as Sonarr does. Every series has it on each season header (season packs and that season's episodes), each episode
+  that is a pack of several seasons (the candidate's `multi_season`: its name, for an anime series its claim, also
+  an absolute batch that fills whole seasons) shows its seasons ("Seasons 1 to 5") where an episode is shown; any
+  other release keeps its episode range ("S01E12–S02E01 (2)"). A grab from the whole-series window sends `whole`:
+  the server decides it again with that search's criterion, and keeps its live results apart from a season search's
+  of the same hash. Every series has it on each season header (season packs and that season's episodes), each episode
   row (an icon button at the row's end; it does not open the episode overview) and the episode overview (per
   library). On a series the action bar's Search now reads "Search series". Each Wanted row opens it for that library, and the row's season for a series. It is offered only when a
   current library of the title searches live (`control.live_releases`). The title data

@@ -173,11 +173,11 @@ Other sources keep the plain query in TVDB numbering: DMM and Torrentio key by I
 Zilean filters by IMDb id and title, SeaDex by AniList id per TVDB season. A search for a title with no episodes
 loaded keeps the plain query everywhere.
 
-**Seasons searched together** (Theatarr's own; standard and daily series). When one series version is about to search
+**Seasons searched together** (Theatarr's own; every series type, anime since phase AC). When one series version is about to search
 two or more seasons (a newly added show, Search series, the wanted loop's due seasons), those season searches run
 together as one merged search. `acquire.mergeGroups` takes the season targets above season 0 of one version with the
 same reason and why: seasons are searched together per library version and reason, so missing seasons and seasons
-below cutoff that come due together are two merged searches; an episode target, a dead link's search and an anime series are never members. The merge happens
+below cutoff that come due together are two merged searches; an episode target and a dead link's search are never members, nor an anime series' season after any failure re-search (`router.FailureWhy`: its seasons are then searched one by one). "Anime" is the series type (`store.SeriesTypeSQL`), not the title's anime flag. The merge happens
 where the runs start: `Submit` before its `MaxBulk` cut, `Round` after busy and running items left and before the
 per-hour loop. Each member keeps its own run row (one root, the others its children), schedule row and stored search.
 The merged search costs one search per member of `router.wanted.per_hour` and `MaxBulk`, and starts while one is
@@ -186,9 +186,9 @@ is that member's ordinary search, recorded under the group's route source like a
 
 Each member asks exactly its own queries, plus one query without a season (criteria kind `series`): Torznab
 `tvsearch` by id, by title only where the id search falls back; Cardigann the series name, by id first; DMM and
-Zilean by IMDb id alone (without one their own checks refuse the query); Torrentio and SeaDex need a season and are not asked. From that query's answer only releases
-whose name reads as two or more seasons are kept (`indexer.HoldsSeasons`); how many were left out is a note on every
-member. Every result is decided with the criteria of the queries that returned it: a `series` criterion takes only a
+Zilean by IMDb id alone (without one their own checks refuse the query); Torrentio and SeaDex need a season and are not asked. An anime series' query without a season also asks by text, for the series name and the scene names its seasons' queries use, with the anime categories (a Torznab feed without a text tv-search gets `t=search&q=`). From that query's answer only releases
+that can be a pack of several seasons are kept: whose name reads as two or more seasons (`indexer.HoldsSeasons`), or for an anime series a name the anime reader reads as a span or an absolute batch that fills whole seasons (`decide.AnimeWholeCandidate`); how many were left out ("outside the whole-series search") is a note on every
+member. That query's id filter reads the rows with its criterion (`decide.RelatedFor`), so "S1+S2" is not dropped before it is decided. Every result is decided with the criteria of the queries that returned it: a `series` criterion takes only a
 release of two or more seasons that maps an episode of a searched season ("Wrong season" or "Holds one season"
 otherwise). The results are ranked together and routed once, on the root's source, as a flagged request (router.md
 "Merged searches"), whatever the members' own queries did. The bounded cache checks (TorBox asks ten) ask the best
@@ -200,8 +200,52 @@ download one of its episodes (a rejected one: that map one), under the route's s
 episode window and History find a member's downloads by that source and its episodes: a member's Why shows its own
 stored search or, with none (its season found nothing, or was skipped), only its counts; a download's Why the member
 whose list holds the grabbed release and whose season holds its episodes, else the member of its season; pruning keeps the stored
-searches while a download of the route lives. A search of one season or one episode, RSS, films and anime are
+searches while a download of the route lives. A search of one season or one episode, RSS and films are
 unchanged.
+
+**Anime packs of several seasons** (phase AC; `decide/animepack.go`, `library/animepack.go`). Only a decision made for
+a search of several seasons (a merged search's criterion with two or more `Seasons`, or the whole-series
+criterion) reads an anime release as a span; a one-season search, a one-episode search and RSS parse and decide as
+before ("Multi-season releases are not supported" stays there). Two shapes read as a span:
+- a name that states its seasons, by the anime reader `indexer.AnimePackSeasons` (`PackSeasons` and the parser are
+  untouched): both sides marked ("S01-S03", "S1 - S3", "S01 to S03", "S01~S03", "Season 1 - Season 3", "S1 & S2"),
+  the plural ("Seasons 1-3", "Seasons 1 to 3", "Seasons 1+2"), "Season" with "+", "&", "to", "~" or a tight "-"
+  ("Season 1-3", "(Season 1+2)", "(Season 1+2+OVA+Specials)" is seasons 1 to 2), a tight "S01-03", and lists
+  ("S01.S02.S03", "S1+S2+S3"): ascending, steps of one. Not a span: "Season 2", "2nd Season", "Part 2", "Cour 2",
+  "S2 - 01-12", "S1 - 02", "Season 2 - 05" (a spaced dash before a bare number is an episode), "S01+S03", "S03-S01",
+  "S01E12-S02E01", bare "Complete" or "Batch", and "Complete Series" (unread for anime). The phrase is read as
+  "S<first>" for the parser, so "Seasons 1-3" is not absolute 1 to 3. The library must have every season of the span,
+  none numbered differently by the scene (a scene season or number, or a scene mapping's offset) and none in a
+  franchise entry marked as conflicting; then it claims every regular episode of those seasons.
+- an absolute batch (two or more numbers, not a special, no season marker) placed by the plain numbering (not by a
+  franchise entry, an alternative cut or a SeaDex mapping; not a SeaDex feed result) whose numbers each map to one
+  regular episode, those being every episode of two or more whole seasons. "001-030", "13-30" and "- 12-13" across a
+  break are not spans.
+
+The decision stores what the pack claims on its `EpisodeMap` (`pack`: mode `seasons` or `absolute`, the span's
+seasons, the claimed episodes and, for an absolute batch, each number's episode), carried by the route candidate and
+stored in `download.episode_map`; the claim is the whole pack's, also when the download is narrowed. For anime,
+whatever asks "is this a pack of several seasons" (the route's span bucket, the cache checks' order,
+`multi_season`, the journal's span check) reads the claim, not the name. A span counts as a full-season release in
+the merged order and the unaired rule. A span keeps only the SeaDex standing it is listed for: the weakest standing of
+its downloaded episodes under the entries SeaDex actively lists its hash for, none when one of them is outside them;
+so a season's own SeaDex pick keeps winning that season. An anime absolute batch across seasons gets the same claim
+(no span) in every search and RSS: its decision is today's, its import is proved.
+
+At import (`library/animepack.go`) a download with a claim, and no files chosen by hand, is proved before any link.
+Extras are set aside and never linked: an extras folder ("Extras", "Specials", "Bonus", "NC", "Season 0", "S00"),
+an extra marker as the episode token (OVA, OAD, ONA, SP, Special, NCOP, NCED, creditless or clean opening or ending,
+OP/ED with a number, recap, preview, PV, CM, menu, trailer, teaser, a decimal "12.5"), a parse that is a special or
+season 0; "5.1" audio and a series title with "Special" in it are not extras. Every other video file must read as
+numbers in the claim's convention: bare absolute numbers under an absolute claim (number n is the episode stored for
+n); under a seasons claim a season from the file's own name ("S02E05", "S2 - 05") or one season folder ("Season
+2/Show - 05.mkv"; a folder and a name that disagree fail). No episode may be claimed by two files, and the files'
+episodes must be exactly the claimed ones. The proof's table is the placement (no franchise seam, no canonical
+fallback); a file of a season the download was not given is out of scope. A failed proof, or a proved pack with
+nothing it may link, runs the import rejection: download failed, nothing linked, the release blocklisted for the
+library, never held; the blocklist's re-search makes each season due and, as an anime failure re-search, each is
+searched alone. An unconfirmed zurg listing waits first, as today. Relink and rescope leave a claimed download's
+links alone, and it is not linked into other libraries at import (they get it by their own search).
 
 **Judging the answers.** The target's search (`SearchTarget.Series`, built by
 `decide.SearchFor`) is in TVDB numbering: the episodes wanted by their own season and number. Each query carries its
