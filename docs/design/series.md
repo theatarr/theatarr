@@ -67,7 +67,7 @@ from ordinary matching loads.
   `-season` searches that season.
 - **Parser and season packs** (every series library, no setting): release names parse as v4plus, the Sonarr v4
   port with the Sonarr v5 parser changes chosen one by one and a few fixes of our own (the table in
-  `internal/decide/parser/sonarr/parser_v4plus.go`): multi-episode anime ranges with a subgroup, more language tags,
+  `internal/decide/parser/sonarr/parser_v4plus.go`): multi-episode anime ranges with a subgroup, more language tags, subtitle tags kept out of the audio languages (everything after `Multiple Subtitle`, a language right before the whole word `SUB(S)` / `SUBTITLE(S)` such as `[English Subs]`, and `SUB` joined before a language such as `SUBENGLISH`; a word that only starts with `Sub`, `ENG.Submarine`, is no marker; a list before `SUBS`, `ITA.ENG.SUBS`, keeps both languages on purpose; `TestV4PlusSubtitleLanguages`),
   `WEB` with `EAC3` or a separated `DDP.5.1` and `ATVP WEB` as WEB-DL, a bit depth written `10 bits` / `8 bits` / `10-bits` (not an episode number), and a trailing id tag (`{imdb-tt…}`, `{tmdb-…}`, `{tvdb-…}`, `[tt…]`, `-tt…`) that is no release group: it is removed before the group is read, so a real group before it wins and with none the group is empty, where Sonarr reads the tag as the group (a torrent folder named `… .English.HONE {imdb-tt15469618}` gave the group `tt15469618`; `TestV4PlusTrailingIDTag`; files already named keep their names).
   Packs named by a season title, original titles and partial seasons are not read (v5's mapping is not ported).
   **Multi-season and complete-series packs** (standard and daily series; departs from Sonarr, which rejects every

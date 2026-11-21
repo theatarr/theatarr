@@ -13,7 +13,8 @@ package sonarr
 // | JPN, JAP, (JA) as Japanese                     | dacd46962, b376b63c9; ours: \b       | language                   |
 // | POR as Portuguese; 国语音轨 as Chinese          | a4e3be721, f2f4edad0                 | language                   |
 // | A language right before SUBS is a subtitle    | 224e74605, e06c6ba64; ours: lists    | subtitleMatches4p          |
-// | Languages after "[Multiple Subtitle]" are subs | ours                                 | subtitleMatches4p          |
+// | Languages after "[Multiple Subtitle]" are subs | ours                                 | withoutSubtitles4p         |
+// | Full words before SUBS, SUB+word are subtitles | ours                                 | withoutSubtitles4p         |
 // | EN, JA (upper case) as English, Japanese       | ours                                 | case-sensitive languages   |
 // | Every case-sensitive language, not the first   | ours                                 | regexLanguage              |
 // | GER only after a separator                     | ours                                 | language                   |
@@ -34,6 +35,7 @@ package sonarr
 import (
 	"fmt"
 	"strings"
+	"unicode"
 
 	"github.com/dlclark/regexp2"
 )
@@ -111,8 +113,14 @@ var (
 	// (`[JA+EN]`) and TURG's `DE-EN-TR`. On the corpus every upper-case EN and JA word is such a tag.
 	caseSensitiveLanguageRegex4p = re(`(?:(?i)(?<!SUB[\W|_|^]))(?:(?<lithuanian>\bLT\b)|(?<czech>\bCZ\b)|(?<polish>\bPL\b)|(?<bulgarian>\bBG\b)|(?<slovak>\bSK\b)|(?<german>\bDE\b)|(?<english>\bEN\b)|(?<japanese>\bJA\b))(?:(?i)(?![\W|_|^]SUB))`, optNone)
 
-	// subsAfterRegex is what follows a subtitle language: v5's [-_. ]subs? look-ahead.
-	subsAfterRegex = re(`^[-_. ]subs?`, optI)
+	// subsAfterRegex is what follows a subtitle language: v5's [-_. ]subs? look-ahead, as a whole word (ours:
+	// SUB, SUBS, SUBBED, SUBTITLE(S), SUBTITLED; `ENG.Submarine` keeps English).
+	subsAfterRegex = re(`^[-_. ]sub(?:s|bed|titles?|titled)?(?![\p{L}\d])`, optI)
+
+	// subtitlePhraseRegex4p is a language word right before the whole word SUB(S) (ours): `[English Subs]`;
+	// subtitleJoinedRegex4p is SUB joined before a language word: `SUBENGLISH`. withoutSubtitles4p removes them.
+	subtitlePhraseRegex4p = re(`(?<=^|[-_. \[(+,])(?<lang>\p{L}+)[-_. ]sub(?:s|bed|titles?|titled)?(?![\p{L}\d])`, optI)
+	subtitleJoinedRegex4p = re(`(?<![\p{L}\d])sub(?<lang>\p{L}+)(?![\p{L}\d])`, optI)
 
 	// trailingIDTagRegex is an id tag at the end of a name (ours): "{imdb-tt…}", "{tmdb-…}", "{tvdb-…}" (Sonarr's
 	// and Radarr's folder naming), "[tt…]" and "-tt…". It is removed before the group is read, so a real group in
@@ -151,14 +159,10 @@ var v4plusd = func() *dialect {
 // subtitleMatches4p marks the language matches that are subtitles: a language directly followed by "sub"/"subs"
 // (`[Eng-Subs]`, `ENG.SUBS`), as v5 reads it (224e74605), unless another language directly precedes it in a list.
 // v5 (e06c6ba64) takes the whole list before SUBS as subtitles; on the corpus that list is the audio of Italian
-// releases (`E-AC3+AC3 ITA ENG SUBS`), so a list keeps v4's reading (ours). Every language after a
-// "Multiple Subtitle" marker is a subtitle too (ours).
+// releases (`E-AC3+AC3 ITA ENG SUBS`), so a list keeps v4's reading (ours). The title is already cut at a
+// "Multiple Subtitle" marker (withoutSubtitles4p).
 func subtitleMatches4p(title string, ms []*regexp2.Match) []bool {
 	runes := []rune(title)
-	listFrom := len(runes) + 1
-	if m := match(subtitleListRegex, title); m != nil {
-		listFrom = m.Index + m.Length
-	}
 	type span struct{ start, end int }
 	core := make([]span, len(ms))
 	for i, m := range ms {
@@ -173,10 +177,6 @@ func subtitleMatches4p(title string, ms []*regexp2.Match) []bool {
 	}
 	subs := make([]bool, len(ms))
 	for i := range ms {
-		if core[i].start >= listFrom {
-			subs[i] = true
-			continue
-		}
 		if !isMatch(subsAfterRegex, string(runes[core[i].end:])) {
 			continue
 		}
@@ -184,4 +184,43 @@ func subtitleMatches4p(title string, ms []*regexp2.Match) []bool {
 		subs[i] = !listed
 	}
 	return subs
+}
+
+// withoutSubtitles4p is the title the languages are read from (ours): cut at a "Multiple Subtitle" marker, so no
+// pass reads the list after it (`[Multiple Subtitle][EN][DE]`), and without a language right before the whole word
+// SUB(S) (`[English Subs]`, `ENG.SUBS`) or joined after SUB (`SUBENGLISH`). A language before SUBS that follows
+// another language keeps v4's reading, as subtitleMatches4p does: `ITA.ENG.SUBS` and `Japanese.English.Subs` keep
+// both.
+func (d *dialect) withoutSubtitles4p(title string) string {
+	if m := match(subtitleListRegex, title); m != nil {
+		title = string([]rune(title)[:m.Index])
+	}
+	reads := func(tok string) bool {
+		ls := d.readLanguages(" " + tok + " ")
+		return len(ls) > 0 && ls[0] != LanguageUnknown
+	}
+	runes := []rune(title)
+	title = replaceFunc(subtitlePhraseRegex4p, title, func(m regexp2.Match) string {
+		if !reads(value(&m, "lang")) {
+			return m.String()
+		}
+		// The token before it, across one separator.
+		i := m.Index - 1
+		if i > 0 && strings.ContainsRune("-_. ", runes[i]) {
+			j := i
+			for j > 0 && (unicode.IsLetter(runes[j-1]) || unicode.IsDigit(runes[j-1])) {
+				j--
+			}
+			if j < i && reads(string(runes[j:i])) {
+				return m.String()
+			}
+		}
+		return " "
+	})
+	return replaceFunc(subtitleJoinedRegex4p, title, func(m regexp2.Match) string {
+		if reads(value(&m, "lang")) {
+			return " "
+		}
+		return m.String()
+	})
 }

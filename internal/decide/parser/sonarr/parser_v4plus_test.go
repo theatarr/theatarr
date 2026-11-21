@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/theatarr/theatarr/internal/decide/format"
 )
 
 // TestV4Plus covers every row of the v4plus change table (parser_v4plus.go) with a corpus
@@ -134,13 +136,58 @@ func TestV4PlusSubtitleLanguages(t *testing.T) {
 		"Series.S01E01.1080p.WEB-DL.POR.SUBS-GRP":      "Unknown",
 		"[Erai-raws] Akuyaku Reijou Level 99 - 01 [1080p][Multiple Subtitle] [ENG][POR-BR][SPA-LA][SPA][ARA][FRE][GER][ITA][RUS]": "Unknown",
 		"[Erai-raws].Akuyaku.Reijou.Level.99.-.06.[1080p][Multiple.Subtitle].[ENG][POR-BR][SPA-LA][SPA][ARA][FRE][GER][ITA][RUS]": "Unknown",
+		// Upper-case codes and full words are subtitles too: after "Multiple Subtitle", right before the whole word
+		// SUB(S)/SUBBED/SUBTITLE(S), or joined after SUB (ours). A word that only starts with "Sub" is no marker.
+		"[Group] Show - 01 [1080p][Multiple Subtitle][EN][DE][FR]":        "Unknown",
+		"[Group] Show - 01 [1080p][English Subs]":                         "Unknown",
+		"Show.S01E01.1080p.WEB-DL.SUBENGLISH-GRP":                         "Unknown",
+		"Show.S01E01.ENG.Submarine.1080p.WEB-DL-GRP":                      "English",
+		"Show.S01E01.1080p.WEB-DL.English.Subtitles-GRP":                  "Unknown",
+		"Show.S01E01.1080p.WEB-DL.Japanese.English.Subs-GRP":              "Japanese,English", // a list keeps v4's reading
+		"Show.S01E01.1080p.WEB-DL.English.DD5.1.[English Subs]-GRP":       "English",
+		"[Group] Show - 01 [1080p][JA+EN][Multiple Subtitle][EN][DE][FR]": "Japanese,English",
 	} {
-		var got []string
-		for _, l := range ParseLanguages(title) {
-			got = append(got, l.Name)
-		}
-		if g := strings.Join(got, ","); g != want {
+		if g := languageNames(ParseLanguages(title)); g != want {
 			t.Errorf("%s: %s, want %s", title, g, want)
+		}
+	}
+}
+
+func languageNames(ls []Language) string {
+	var got []string
+	for _, l := range ls {
+		got = append(got, l.Name)
+	}
+	return strings.Join(got, ",")
+}
+
+// TestV4PlusSubtitleLanguageScore: the language formats a series profile scores follow the subtitle reading; a
+// subtitle list no longer earns an English or German score.
+func TestV4PlusSubtitleLanguageScore(t *testing.T) {
+	t.Parallel()
+	english := &format.Format{ID: 1, Name: "English", Flavour: format.Sonarr,
+		Specs: []*format.Spec{{Name: "English", Condition: &format.Language{Value: LanguageEnglish.ID}}}}
+	german := &format.Format{ID: 2, Name: "German", Flavour: format.Sonarr,
+		Specs: []*format.Spec{{Name: "German", Condition: &format.Language{Value: LanguageGerman.ID}}}}
+	profile := &format.Profile{Flavour: format.Sonarr, FormatItems: []format.FormatItem{
+		{Format: 1, Name: "English", Score: 100}, {Format: 2, Name: "German", Score: 10}}}
+	for title, want := range map[string]int{
+		"[Group] Show - 01 [1080p][Multiple Subtitle][EN][DE][FR]": 0,
+		"[Group] Show - 01 [1080p][English Subs]":                  0,
+		"Show.S01E01.1080p.WEB-DL.SUBENGLISH-GRP":                  0,
+		"Show.S01E01.ENG.Submarine.1080p.WEB-DL-GRP":               100,
+		"Show.S01E01.1080p.WEB-DL.DE-EN.DDP5.1-GRP":                110,
+	} {
+		var ids []int
+		for _, l := range ParseLanguages(title) {
+			ids = append(ids, l.ID)
+		}
+		matched, err := format.Calculate([]*format.Format{english, german}, &format.Input{Flavour: format.Sonarr, Languages: ids})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := profile.Score(matched); got != want {
+			t.Errorf("%s: score %d, want %d", title, got, want)
 		}
 	}
 }

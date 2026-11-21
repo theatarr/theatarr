@@ -37,7 +37,15 @@ func (d *dialect) parseLanguages(title string) []Language {
 			break
 		}
 	}
+	if d.v4plus {
+		title = d.withoutSubtitles4p(title)
+	}
+	return d.readLanguages(title)
+}
 
+// readLanguages is the rest of LanguageParser.ParseLanguages: the language words, the patterns, English, Unknown
+// and the German DL/ML rule.
+func (d *dialect) readLanguages(title string) []Language {
 	lowerTitle := strings.ToLower(title)
 
 	var languages []Language
