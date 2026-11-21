@@ -2,9 +2,7 @@ package decide
 
 import (
 	"context"
-	"regexp"
 	"slices"
-	"strings"
 	"sync"
 
 	"github.com/theatarr/theatarr/internal/decide/parser/radarr"
@@ -66,7 +64,7 @@ func ParseMovieRelease(ctx context.Context, title string) *radarr.ParsedMovieInf
 func ParseSeriesRelease(ctx context.Context, title string) *sonarr.ParsedEpisodeInfo {
 	m := releaseParseMemo(ctx)
 	if m == nil {
-		return parseSeriesTitle(title)
+		return indexer.ParseSeriesName(title)
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -75,7 +73,7 @@ func ParseSeriesRelease(ctx context.Context, title string) *sonarr.ParsedEpisode
 	}
 	p, ok := m.series[title]
 	if !ok {
-		p = parseSeriesTitle(title)
+		p = indexer.ParseSeriesName(title)
 		m.series[title] = p
 	}
 	if p == nil {
@@ -94,38 +92,6 @@ func ParseSeriesRelease(ctx context.Context, title string) *sonarr.ParsedEpisode
 	}
 	return &out
 }
-
-// parseSeriesTitle is the Sonarr parse with the complete-series reading: a name with "Complete Series", "All
-// Seasons" or "The Complete Collection" is parsed again with the phrase read as "S01" when the parser cannot read it,
-// reads absolute numbers only, or reads a year standing next to the phrase as numbers (2010 as S20E10 or season 2010)
-// in a name with no season or episode marker; a season pack from that is a complete-series pack (CompleteSeries).
-// Anime series do not use it (series.parseRelease). Bare "Complete" is not read.
-func parseSeriesTitle(title string) *sonarr.ParsedEpisodeInfo {
-	p := sonarr.ParseTitle(title)
-	named, ok := indexer.CompleteSeriesName(title)
-	if !ok {
-		return p
-	}
-	absoluteOnly := p != nil && len(p.AbsoluteEpisodeNumbers) > 0 && len(p.EpisodeNumbers) == 0 && !p.FullSeason
-	yearNextToPhrase := !seasonMarkerRE.MatchString(title) && yearBesidePhraseRE.MatchString(named)
-	if p != nil && !absoluteOnly && !yearNextToPhrase {
-		return p
-	}
-	c := sonarr.ParseTitle(named)
-	if c == nil || !c.FullSeason || c.IsMultiSeason || len(c.EpisodeNumbers) > 0 || c.SeasonNumber != 1 ||
-		strings.TrimSpace(c.SeriesTitle) == "" {
-		return p
-	}
-	c.ReleaseTitle, c.CompleteSeries = title, true
-	return c
-}
-
-var (
-	// seasonMarkerRE is a real season or episode marker: S01, S01E02, Season 1, 1x02.
-	seasonMarkerRE = regexp.MustCompile(`(?i)\b(?:S\d{1,2}(?:E\d{1,3})?|Season[ ._]?\d{1,2}|\d{1,2}x\d{2,3})\b`)
-	// yearBesidePhraseRE is a year directly before or after the phrase, once read as S01.
-	yearBesidePhraseRE = regexp.MustCompile(`\b(?:19|20)\d{2}[ ._]S01\b|\bS01[ ._](?:19|20)\d{2}\b`)
-)
 
 func copyParsePointer[T any](p *T) *T {
 	if p == nil {

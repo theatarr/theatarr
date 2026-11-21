@@ -1285,6 +1285,12 @@ func TestSeveralSeasonsByClaim(t *testing.T) {
 	if !d.SeveralSeasons() {
 		t.Error("a standard span is no longer several seasons")
 	}
+	// An episode titled with the phrase is one episode, not a pack (C6).
+	d, _ = e.Decide(ctx, rel("The.Show.S01E02.A.Man.for.All.Seasons.2160p.WEB-DL.DDP5.1.H.265-GRP", "public", 4*gb), ended(),
+		tvVersion(e, "tv"), nil)
+	if len(d.EpisodeIDs) != 1 || d.SeveralSeasons() {
+		t.Errorf("an episode titled \"All Seasons\": %v, several seasons %v", d.Episodes, d.SeveralSeasons())
+	}
 }
 
 // The id filter reads a span name with the whole-series criterion: "(Season 1+2)" and "Seasons 1-3" of an anime

@@ -87,8 +87,14 @@ from ordinary matching loads.
   else (`S01.S03`, `S01 S04`) keeps `MultiSeason`. A name with "Complete Series", "All Seasons" or "The Complete
   Collection" that does not parse, parses to absolute numbers only, or (with no `S01`, `S01E02`, `Season 1` or `1x02`
   marker) has a year directly before or after the phrase (`Show.2010.Complete.Series`, read by the parser as S20E10)
-  is parsed again with the phrase read as `S01` (`decide.ParseSeriesRelease`, also RSS's title lookup): a season pack
-  from that is a complete-series pack, every season above 0 (bare "Complete" stays unparsed). The span maps to every
+  is parsed again with the phrase read as `S01` (`indexer.ParseSeriesName` behind `decide.ParseSeriesRelease`, also
+  RSS's title lookup): a season pack from that is a complete-series pack, every season above 0 (bare "Complete" stays
+  unparsed). Whatever asks of a standard or daily release "is this a pack of several seasons" by its name (the
+  decision's `multi_season`, the merged route's attempt bucket, the filter of the query without a season) reads
+  `indexer.HoldsSeasons`, which answers no for a name that parses as an explicit episode
+  (`Show.S01E05.A.Man.for.All.Seasons`, `Show.S01E01-E02.All.Seasons`, a dated episode): the phrase is its episode
+  title. Sonarr reads no such phrase at all (a deliberate difference). `Show S01 - 02` is read by the parser as seasons
+  1 to 2 and stays a pack of two seasons. The span maps to every
   episode of each season, each through its own scene mapping (specials never); the decision's season is the first,
   its episodes all of them, its release type `seasonPack` as before. A season search accepts a span that holds the
   searched season; a single-episode or daily episode search rejects it as a season pack (`FullSeason`). The other

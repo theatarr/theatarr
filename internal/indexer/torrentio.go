@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/theatarr/theatarr/internal/decide/parser/sonarr"
 )
 
 // torrentio searches the Torrentio Stremio addon's stream API by IMDb id.
@@ -327,14 +329,51 @@ func AnimePackSeasons(name string) (rewritten string, first, last int, ok bool) 
 }
 
 // HoldsSeasons reports whether a name reads as two or more seasons: a span PackSeasons proves or a
-// complete-series phrase.
+// complete-series phrase, unless the series parser (ParseSeriesName) reads the name as an explicit episode
+// ("Show.S01E05.A.Man.for.All.Seasons", "Show.S01E01-E02.All.Seasons", a dated episode): the phrase is then its
+// episode title. A deliberate difference from Sonarr, which reads no phrase at all.
 func HoldsSeasons(name string) bool {
-	if _, _, ok := PackSeasons(name); ok {
-		return true
+	_, _, ok := PackSeasons(name)
+	if _, complete := CompleteSeriesName(name); !ok && !complete {
+		return false
 	}
-	_, ok := CompleteSeriesName(name)
-	return ok
+	p := ParseSeriesName(name)
+	return p == nil || p.FullSeason || len(p.EpisodeNumbers) == 0 && len(p.AbsoluteEpisodeNumbers) == 0 && !p.IsDaily()
 }
+
+// ParseSeriesName is the Sonarr parse with the complete-series reading: a name with "Complete Series", "All
+// Seasons" or "The Complete Collection" is parsed again with the phrase read as "S01" when the parser cannot read it,
+// reads absolute numbers only, or reads a year standing next to the phrase as numbers (2010 as S20E10 or season 2010)
+// in a name with no season or episode marker; a season pack from that is a complete-series pack (CompleteSeries).
+// Anime series do not use it (decide's series.parseRelease). Bare "Complete" is not read.
+func ParseSeriesName(title string) *sonarr.ParsedEpisodeInfo {
+	p := sonarr.ParseTitle(title)
+	named, ok := CompleteSeriesName(title)
+	if !ok {
+		return p
+	}
+	absoluteOnly := p != nil && len(p.AbsoluteEpisodeNumbers) > 0 && len(p.EpisodeNumbers) == 0 && !p.FullSeason
+	yearNextToPhrase := !HasSeasonMarker(title) && yearBesidePhraseRE.MatchString(named)
+	if p != nil && !absoluteOnly && !yearNextToPhrase {
+		return p
+	}
+	c := sonarr.ParseTitle(named)
+	if c == nil || !c.FullSeason || c.IsMultiSeason || len(c.EpisodeNumbers) > 0 || c.SeasonNumber != 1 ||
+		strings.TrimSpace(c.SeriesTitle) == "" {
+		return p
+	}
+	c.ReleaseTitle, c.CompleteSeries = title, true
+	return c
+}
+
+// HasSeasonMarker says whether a name holds a real season or episode marker: S01, S01E02, Season 1, 1x02.
+func HasSeasonMarker(name string) bool { return seasonMarkerRE.MatchString(name) }
+
+var (
+	seasonMarkerRE = regexp.MustCompile(`(?i)\b(?:S\d{1,2}(?:E\d{1,3})?|Season[ ._]?\d{1,2}|\d{1,2}x\d{2,3})\b`)
+	// yearBesidePhraseRE is a year directly before or after the phrase, once read as S01.
+	yearBesidePhraseRE = regexp.MustCompile(`\b(?:19|20)\d{2}[ ._]S01\b|\bS01[ ._](?:19|20)\d{2}\b`)
+)
 
 // CompleteSeriesName reads a name's complete-series phrase ("Complete Series", "All Seasons", "The Complete
 // Collection", with a leading "The") as season 1: "Show.Complete.Series.1080p" -> "Show.S01.1080p". ok is false when

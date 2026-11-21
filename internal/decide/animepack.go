@@ -163,7 +163,7 @@ func (s *series) animeSpanParse(title string) *sonarr.ParsedEpisodeInfo {
 // each season they touch and span is asked for. nil when the batch makes no such claim.
 func (s *series) absoluteClaim(p *sonarr.ParsedEpisodeInfo, byNumber [][]*Episode, eps []*Episode, span bool) *PackClaim {
 	if len(p.AbsoluteEpisodeNumbers) < 2 || len(byNumber) != len(p.AbsoluteEpisodeNumbers) || p.Special ||
-		len(p.EpisodeNumbers) > 0 || seasonMarkerRE.MatchString(p.ReleaseTitle) {
+		len(p.EpisodeNumbers) > 0 || indexer.HasSeasonMarker(p.ReleaseTitle) {
 		return nil
 	}
 	claim := &PackClaim{Mode: PackAbsolute}

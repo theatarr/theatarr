@@ -698,6 +698,26 @@ func TestPackSeasons(t *testing.T) {
 	}
 }
 
+// HoldsSeasons answers no for a name the series parser reads as an explicit episode: the phrase is its episode title.
+// A year next to a complete-series phrase is no episode ("Show.2010.Complete.Series" is no S20E10).
+func TestHoldsSeasons(t *testing.T) {
+	for name, want := range map[string]bool{
+		"Show.S01E05.A.Man.for.All.Seasons.1080p.WEB-DL-GRP": false,
+		"Show.S01E01-E02.All.Seasons.1080p.WEB-DL-GRP":       false,
+		"Show.2021.03.05.All.Seasons.720p.WEB-DL-GRP":        false,
+		"Show.2010.Complete.Series.1080p.BluRay-GRP":         true,
+		"Show 2020 All Seasons 720p":                         true,
+		"Show.Complete.Series.1080p.BluRay-GRP":              true,
+		"Show.S01-S03.1080p.BluRay-GRP":                      true,
+		"Show.Season.1-3.1080p.BluRay-GRP":                   true,
+		"Show.S02.1080p.BluRay-GRP":                          false,
+	} {
+		if got := HoldsSeasons(name); got != want {
+			t.Errorf("%q: %v, want %v", name, got, want)
+		}
+	}
+}
+
 // The anime reader of names that state several seasons (AnimePackSeasons): the shapes that read as a span, with
 // the name rewritten for the parser, and the ones that must not (a single season, a cour, an episode after a spaced
 // dash, a gap, a descending range, episode numbers on both sides).
