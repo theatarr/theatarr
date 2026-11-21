@@ -1227,7 +1227,11 @@ func TestPackChecks(t *testing.T) {
 		"Gamma.S02-S03.2160p.WEB-DL-X", "WEBDL-2160p", 100, int64(400*850)<<20, season2, "")
 	e.dlEvent(83, "added", base.Add(43*time.Hour), 3, 3, "tv-2160p", fmt.Sprintf("%040d", 83),
 		"Gamma.S01.S03.2160p.WEB-DL-X", "WEBDL-2160p", 100, int64(500*850)<<20, season1, "")
-	for _, id := range []string{"dl:70", "dl:71", "dl:80", "dl:82", "dl:83"} {
+	// An unclaimed absolute batch of nine narrowed to its two wanted episodes (84 GB, 860 MB/min over them): left out
+	// of both.
+	e.dlEvent(84, "added", base.Add(44*time.Hour), 3, 3, "tv-2160p", fmt.Sprintf("%040d", 84),
+		"[G] Gamma (01-09) [WEB-DL 2160p]", "WEBDL-2160p", 100, int64(100*860)<<20, []int64{101, 102}, "")
+	for _, id := range []string{"dl:70", "dl:71", "dl:80", "dl:82", "dl:83", "dl:84"} {
 		en := e.get(id)
 		for _, code := range []string{CheckUnparsed, CheckEpisodes, CheckSize} {
 			if f := hasFlag(en, code); f != nil {

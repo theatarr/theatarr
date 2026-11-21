@@ -246,7 +246,7 @@ var (
 	// packTokenNumberRE is a number of a bare joined token.
 	packTokenNumberRE = regexp.MustCompile(`(\d{1,4})`)
 	// packQualityTagRE is a quality tag a joined token must not run into ("1080p", "720i", "1920x1080").
-	packQualityTagRE = regexp.MustCompile(`(?i)\d{3,4}[pi]\b|\d{3,4}x\d{3,4}`)
+	packQualityTagRE = regexp.MustCompile(`(?i)\d{3,4}[pi](?:[^a-z0-9]|$)|\d{3,4}x\d{3,4}`)
 	// packVersionRE is a version suffix right after a token ("01-02v2").
 	packVersionRE = regexp.MustCompile(`^[vV]\d{1,2}`)
 )
@@ -277,12 +277,9 @@ func joinedToken(read string, p *sonarr.ParsedEpisodeInfo) bool {
 		case strings.ContainsAny(token, "xX"):
 			re = packTokenXRE
 		}
-		var got []string
-		for _, m := range re.FindAllStringSubmatch(token, -1) {
-			got = append(got, m[1])
-		}
-		first, _ := strconv.Atoi(got[0])
-		last, _ := strconv.Atoi(got[len(got)-1])
+		got := re.FindAllStringSubmatch(token, -1)
+		first, _ := strconv.Atoi(got[0][1])
+		last, _ := strconv.Atoi(got[len(got)-1][1])
 		if first == nums[0] && last == nums[len(nums)-1] {
 			return true
 		}

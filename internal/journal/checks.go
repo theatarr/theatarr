@@ -324,20 +324,26 @@ func (b *builder) checkSize(e *Entry, ti *titleInfo) error {
 
 // packCoverage is the episodes a series download's bytes are spread over: a stored pack claim's full episode list
 // (the download may have been narrowed to some of them), else the episodes it was filed under. A recognised pack
-// without a claim (a season pack, a span or a complete-series name) may have been narrowed, so ok is false and it is
+// without a claim (a season pack, a span, a complete-series name, or an absolute batch filed under fewer episodes
+// than it numbers) may have been narrowed, so ok is false and it is
 // left out, except in the entry's own check (bySeason given: the title's regular episode ids per season) a name that
 // states exactly one full season whose stored episodes are exactly that season's, at least one known.
 func packCoverage(release string, eps []int64, claim *decide.PackClaim, bySeason map[int][]int64) ([]int64, bool) {
 	if claim != nil && len(claim.Episodes) > 0 {
 		return claim.Episodes, true
 	}
-	_, _, _, several := indexer.AnimePackSeasons(release)
-	several = several || indexer.HoldsSeasons(release)
+	if _, _, _, ok := indexer.AnimePackSeasons(release); ok || indexer.HoldsSeasons(release) {
+		return nil, false
+	}
 	p := decide.ParseSeriesRelease(context.Background(), release)
-	if !several && (p == nil || !p.FullSeason) {
+	if p != nil && !p.FullSeason && len(p.EpisodeNumbers) == 0 && len(p.AbsoluteEpisodeNumbers) > 1 &&
+		len(eps) != len(p.AbsoluteEpisodeNumbers) {
+		return nil, false // an absolute batch filed under fewer episodes than it numbers: narrowed
+	}
+	if p == nil || !p.FullSeason {
 		return eps, true
 	}
-	if several || p.IsMultiSeason || p.CompleteSeries {
+	if p.IsMultiSeason || p.CompleteSeries {
 		return nil, false
 	}
 	want := bySeason[p.SeasonNumber]

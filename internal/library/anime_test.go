@@ -1230,11 +1230,13 @@ func TestAnimePackJoinedForms(t *testing.T) {
 	t.Parallel()
 	first3 := map[int]bool{101: true, 102: true, 103: true}
 	for joined, pat := range map[string]string{
-		"Show S01E01-03.mkv":             "Show S%02dE%02d.mkv",
-		"Season 1/Show - 01-02-03.mkv":   "Season %d/Show - %02d.mkv",
-		"Show 1x01-1x03.mkv":             "Show %dx%02d.mkv",
-		"Show.S01E01-E03-1080p.mkv":      "Show.S%02dE%02d-1080p.mkv",
-		"Season 1/Show - 01-03-720p.mkv": "Season %d/Show - %02d.mkv",
+		"Show S01E01-03.mkv":               "Show S%02dE%02d.mkv",
+		"Season 1/Show - 01-02-03.mkv":     "Season %d/Show - %02d.mkv",
+		"Show 1x01-1x03.mkv":               "Show %dx%02d.mkv",
+		"Show.S01E01-E03-1080p_x265.mkv":   "Show.S%02dE%02d-1080p_x265.mkv",
+		"Show_S01E01-E03-1080p_WEB-DL.mkv": "Show_S%02dE%02d-1080p_WEB-DL.mkv",
+		"Show.S01E01-E03-1080p.mkv":        "Show.S%02dE%02d-1080p.mkv",
+		"Season 1/Show - 01-03-720p.mkv":   "Season %d/Show - %02d.mkv",
 	} {
 		title, claim := proofTitle("Show", decide.PackSeasons)
 		var files []PlannedFile
