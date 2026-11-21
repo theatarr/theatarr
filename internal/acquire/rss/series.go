@@ -178,9 +178,10 @@ func (r *Runner) franchiseNames(ctx context.Context, ix *seriesIndex, cands map[
 		}
 	}
 	for tvdb, m := range maps {
+		who := "tvdb:" + strconv.Itoa(tvdb)
 		for _, e := range m.Entries {
 			for _, n := range e.Names {
-				own(n, "tvdb:"+strconv.Itoa(tvdb))
+				own(n, who)
 			}
 		}
 	}
@@ -189,12 +190,13 @@ func (r *Runner) franchiseNames(ctx context.Context, ix *seriesIndex, cands map[
 		if len(ids) != 1 || len(cands[ids[0]]) == 0 {
 			continue
 		}
+		who := "tvdb:" + strconv.Itoa(tvdb)
 		for _, e := range m.Entries {
 			if !e.Importable() || len(e.Regular()) == 0 {
 				continue
 			}
 			for _, n := range e.Names {
-				if c := sonarr.CleanSeriesTitle(n); c != "" && owner[c] == "tvdb:"+strconv.Itoa(tvdb) {
+				if c := sonarr.CleanSeriesTitle(n); c != "" && owner[c] == who {
 					ix.byFranchise[c] = ids[0]
 				}
 			}

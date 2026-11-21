@@ -237,7 +237,7 @@ func withoutSubtitles(title string) string {
 		}
 		return m.String()
 	}
-	title = replace(subtitleParenRegex, title, "$1")
+	title = replace(subtitleParenRegex, title, "$1 ") // a space after it: `Sub (Rus).EN` keeps the EN after it
 	title = replaceFunc(subtitleBeforeRegex, title, span)
 	return replaceFunc(subtitleJoinedRegex, title, span)
 }

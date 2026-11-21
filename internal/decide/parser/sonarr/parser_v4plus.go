@@ -120,6 +120,9 @@ var (
 	// subtitlePhraseRegex4p is a language word right before the whole word SUB(S) (ours): `[English Subs]`;
 	// subtitleJoinedRegex4p is SUB joined before a language word: `SUBENGLISH`. withoutSubtitles4p removes them.
 	subtitlePhraseRegex4p = re(`(?<=^|[-_. \[(+,])(?<lang>\p{L}+)[-_. ]sub(?:s|bed|titles?|titled)?(?![\p{L}\d])`, optI)
+	// compoundDubRegex4p is a two-word dub tag languageRegex4p reads as one language, at the end of the text in
+	// front of a subtitle phrase: `GER.DUB`, `PL.DUB`, `DUB-PL`, `LEK.PL`.
+	compoundDubRegex4p    = re(`(?:^|[-_. \[(+,])(?:ger[. ]dub|PL\W?(?:DUB|LEK)|(?:DUB|LEK)\W?PL)$`, optI)
 	subtitleJoinedRegex4p = re(`(?<![\p{L}\d])sub(?<lang>\p{L}+)(?![\p{L}\d])`, optI)
 
 	// trailingIDTagRegex is an id tag at the end of a name (ours): "{imdb-tt…}", "{tmdb-…}", "{tvdb-…}" (Sonarr's
@@ -200,17 +203,6 @@ func (d *dialect) withoutSubtitles4p(title string) string {
 		return len(ls) > 0 && ls[0] != LanguageUnknown
 	}
 	runes := []rune(title)
-	// The ends of the pattern matches (a dub tag such as `GER.DUB`, `PL.DUB` reads as one language).
-	ends := map[int]bool{}
-	for _, r := range []*regexp2.Regexp{d.language, d.caseSensitiveLanguage} {
-		for _, m := range matches(r, title) {
-			e := m.Index + m.Length
-			for e > m.Index && strings.ContainsRune("-_. ", runes[e-1]) {
-				e--
-			}
-			ends[e] = true
-		}
-	}
 	title = replaceFunc(subtitlePhraseRegex4p, title, func(m regexp2.Match) string {
 		if !reads(value(&m, "lang")) {
 			return m.String()
@@ -218,8 +210,8 @@ func (d *dialect) withoutSubtitles4p(title string) string {
 		// The token before it, across one separator.
 		i := m.Index - 1
 		if i > 0 && strings.ContainsRune("-_. ", runes[i]) {
-			if ends[i] {
-				return m.String()
+			if isMatch(compoundDubRegex4p, string(runes[:i])) {
+				return m.String() // a dub tag before it: GER.DUB.ENG.SUBS keeps English
 			}
 			j := i
 			for j > 0 && (unicode.IsLetter(runes[j-1]) || unicode.IsDigit(runes[j-1])) {
