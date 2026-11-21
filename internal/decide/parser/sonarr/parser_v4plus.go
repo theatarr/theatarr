@@ -121,8 +121,8 @@ var (
 	// subtitleJoinedRegex4p is SUB joined before a language word: `SUBENGLISH`. withoutSubtitles4p removes them.
 	subtitlePhraseRegex4p = re(`(?<=^|[-_. \[(+,])(?<lang>\p{L}+)[-_. ]sub(?:s|bed|titles?|titled)?(?![\p{L}\d])`, optI)
 	// compoundDubRegex4p is a two-word dub tag languageRegex4p reads as one language, at the end of the text in
-	// front of a subtitle phrase: `GER.DUB`, `PL.DUB`, `DUB-PL`, `LEK.PL`.
-	compoundDubRegex4p    = re(`(?:^|[-_. \[(+,])(?:ger[. ]dub|PL\W?(?:DUB|LEK)|(?:DUB|LEK)\W?PL)$`, optI)
+	// front of a subtitle phrase: `GER.DUB`, `PL.DUB`, `DUB-PL`, `LEK.PL`, also right after a bracket (`[DDP5.1]PL.DUB`).
+	compoundDubRegex4p    = re(`(?:^|[-_. \[\](+,])(?:ger[. ]dub|PL\W?(?:DUB|LEK)|(?:DUB|LEK)\W?PL)$`, optI)
 	subtitleJoinedRegex4p = re(`(?<![\p{L}\d])sub(?<lang>\p{L}+)(?![\p{L}\d])`, optI)
 
 	// trailingIDTagRegex is an id tag at the end of a name (ours): "{imdb-tt…}", "{tmdb-…}", "{tvdb-…}" (Sonarr's
@@ -216,6 +216,15 @@ func (d *dialect) withoutSubtitles4p(title string) string {
 			j := i
 			for j > 0 && (unicode.IsLetter(runes[j-1]) || unicode.IsDigit(runes[j-1])) {
 				j--
+			}
+			if j == i && runes[i-1] == ')' { // a bracketed code: `(JA) ENG Subs`
+				k := i - 2
+				for k > 0 && i-k <= 5 && runes[k] != '(' {
+					k--
+				}
+				if k >= 0 && runes[k] == '(' {
+					j = k
+				}
 			}
 			if j < i && reads(string(runes[j:i])) {
 				return m.String()

@@ -146,6 +146,8 @@ func TestV4PlusSubtitleLanguages(t *testing.T) {
 		"Show.S01E01.1080p.WEB-DL.GER.DUB.ENG.SUBS-GRP":                   "German,English", // a dub tag before SUBS is a list
 		"Show.S01E01.1080p.WEB-DL.PL.DUB.ENG.SUBS-GRP":                    "Polish,English",
 		"Show.S01E01.1080p.WEB-DL.JPN.AAC.CAT.SUBS.English.Subs-GRP":      "Japanese,Catalan", // a subtitle tag is no list (Catalan as on main)
+		"Blue Lock.S02E01.1080p.CR.WEB-DL.[Dual Audio (JA) ENG Subs]":     "Japanese,English", // (JA) is a language before it
+		"Show.S01E01.1080p.WEB-DL.[DDP5.1]PL.DUB.ENG.Subs":                "Polish,English",
 		"Show.S01E01.1080p.WEB-DL.English.Subtitles-GRP":                  "Unknown",
 		"Show.S01E01.1080p.WEB-DL.Japanese.English.Subs-GRP":              "Japanese,English", // a list keeps v4's reading
 		"Show.S01E01.1080p.WEB-DL.English.DD5.1.[English Subs]-GRP":       "English",
