@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Version } from "@/api/library";
 import { copyTone, copyWords, TONE } from "./library-status";
-import { currentLibraries, fileName, renameSides, versionBrief, nextSearchWhy, lastSearchAt, libraryColumns, libraryStatus, nextSearch, nextSearchOf } from "./library-rows";
+import { currentLibraries, fileName, renameSides, versionBrief, nextSearchWhy, lastSearchAt, libraryColumns, libraryStatus, nextSearch, nextSearchOf, runReleasesHref } from "./library-rows";
 
 const v = (o: Partial<Version>): Version => ({ id: 1, key: "movie-web", label: "WEB", monitored: true, has_file: false, state: "wanted", ...o }) as Version;
 const downloading = { stage: "downloading" as const, words: "", progress: 37, download_id: 1, downloads: 1, updated_at: "2026-11-12T00:00:00Z" };
@@ -132,5 +132,15 @@ describe("row readers", () => {
     expect(nextSearch({ at: "2026-11-12T11:00:00Z" }, now)).toBe("now");
     expect(nextSearch({ at: "2026-11-12T11:00:00Z", why: "stalled" }, now)).toBe("now (after a failed download)");
     expect(nextSearchOf(v({ control: { can_edit: true, can_search: true, live_releases: true } }))).toBeUndefined();
+  });
+});
+
+describe("runReleasesHref", () => {
+  it("names the season or the episode the run searched, so the page can head it as that search", () => {
+    const at = new Date(2026, 10, 8, 10).toISOString();
+    expect(runReleasesHref(7, "tv", { run_id: 162, target: "s02", at })).toBe("/title/7/releases?version=tv&run=162&season=2&at=2026-11-08");
+    // An episode run links without a season (the page would ask for that season's own search) and names the episode.
+    expect(runReleasesHref(7, "tv", { run_id: 163, target: "s02e05", at })).toBe("/title/7/releases?version=tv&run=163&episode=S02E05&at=2026-11-08");
+    expect(runReleasesHref(7, "tv", { run_id: 164, target: "", at })).toBe("/title/7/releases?version=tv&run=164&at=2026-11-08");
   });
 });

@@ -49,8 +49,12 @@ export function TitleReleasesPage() {
   // A pinned run is that search, not the library's last one (a later search may exist): its season and day.
   const rawAt = params.get("at");
   const ranOn = rawAt && /^\d{4}-\d{2}-\d{2}$/.test(rawAt) ? fmtDay(rawAt) : "";
+  // An episode run (?episode=S02E05, for the heading only) is that episode's search, not a whole-series one.
+  const rawEpisode = params.get("episode");
+  const episode = !seasonName && rawEpisode && /^S\d+E\d+$/i.test(rawEpisode) ? rawEpisode.toUpperCase() : "";
+  const searched = seasonName || episode;
   const subject = pinned
-    ? `: the search${seasonName ? ` of ${seasonName}` : ""}${ranOn ? ` on ${ranOn}` : ""} that the Libraries row reports. `
+    ? `: the search${searched ? ` of ${searched}` : ""}${ranOn ? ` on ${ranOn}` : ""} that the Libraries row reports. `
     : seasonName ? `, ${seasonName}: the last search of this season Theatarr decided for each library. ` : ": the last search Theatarr decided for each library. ";
   return (
     <div>

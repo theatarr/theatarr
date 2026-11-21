@@ -88,6 +88,16 @@ for (const px of [400, 1440]) {
     expect(await screen.findByText(/that the Libraries row reports/)).toBeTruthy();
   });
 
+  it(`heads an episode run as the search of that episode, not as a whole-series search, at ${px} px`, async () => {
+    width(px);
+    const api = open("/title/7/releases?version=tv&run=163&episode=S02E05&at=2025-11-08", { ...stored, target: "s02e05", message: "From a search for S02E05" });
+    await screen.findByTestId("releases-facts");
+    const q = new URLSearchParams(api.calls("GET", "/titles/7/releases")[0].search);
+    expect([q.get("run"), q.has("season"), q.has("episode")]).toEqual(["163", false, false]);
+    expect(screen.getByText(/Show \(2020\): the search of S02E05 on Nov 8, 2025 that the Libraries row reports\./)).toBeTruthy();
+    expect(screen.queryByText(/the last search/)).toBeNull();
+  });
+
   it(`asks without a season when the link names none, and says what the whole-series search lists, at ${px} px`, async () => {
     width(px);
     const api = open("/title/7/releases?version=tv", stored);

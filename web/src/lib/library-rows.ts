@@ -206,12 +206,14 @@ export function seasonReleasesHref(titleId: number, version: string, season: num
   return `/title/${titleId}/releases?${new URLSearchParams({ version, season: String(season) }).toString()}`;
 }
 
-/** The stored search of the run a library row reports (the row's last search), with its season when it searched one:
- *  the releases page shows that run's own decision, or says it stored none. */
+/** The stored search of the run a library row reports (the row's last search), with its season when it searched one
+ *  (or the episode, for the heading only: an episode run has no season of its own to ask for): the releases page
+ *  shows that run's own decision, or says it stored none. */
 export function runReleasesHref(titleId: number, version: string, l: { run_id: number; target?: string | null; at?: string }): string {
   const q = new URLSearchParams({ version, run: String(l.run_id) });
   const s = /^s(\d+)$/i.exec(l.target ?? "");
   if (s) q.set("season", String(Number(s[1])));
+  if (/^s\d+e\d+$/i.test(l.target ?? "")) q.set("episode", (l.target ?? "").toUpperCase());
   // When it ran, for the page's heading ("the search of Season 2 on Nov 12"): a later search may exist by then.
   const at = l.at ? new Date(l.at) : undefined;
   if (at && !Number.isNaN(at.getTime())) q.set("at", `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}-${String(at.getDate()).padStart(2, "0")}`);
