@@ -3,6 +3,7 @@ package library
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -638,17 +639,54 @@ func TestAnimePackNarrowed(t *testing.T) {
 		}
 	}
 
+	// Nothing to place: a proved pack of seasons 1 and 2 given only season 3's episodes is rejected, not held.
 	e2 := newEnv(t, true)
 	e2.kaiju()
-	files := map[string]float64{"[GRP] Kaiju Tale - 01-02 [BD 1080p].mkv": 2880, "[GRP] Kaiju Tale - 03-04 [BD 1080p].mkv": 2880,
-		"[GRP] Kaiju Tale - 05-06 [BD 1080p].mkv": 2880, "[GRP] Kaiju Tale - 07-08 [BD 1080p].mkv": 2880,
-		"[GRP] Kaiju Tale - 09-10 [BD 1080p].mkv": 2880}
-	plan = e2.importKaiju("[GRP] Kaiju Tale (01-10) [BD 1080p]", files, kaijuClaim(decide.PackAbsolute), []int64{621})
-	if len(plan.Links) != 0 || !strings.HasPrefix(plan.Why, "pack numbering: no file of the pack fits") {
+	claim := decide.PackClaim{Mode: decide.PackAbsolute, Seasons: []int{1, 2}, Episodes: kaijuIDs(1, 2)}
+	for i, id := range claim.Episodes {
+		claim.Numbers = append(claim.Numbers, decide.PackNumber{N: i + 1, Episode: id})
+	}
+	b, _ := json.Marshal(decide.EpisodeMap{Pack: &claim})
+	files := map[string]float64{}
+	for n := 1; n <= 6; n++ {
+		files[fmt.Sprintf("[GRP] Kaiju Tale - %02d [BD 1080p].mkv", n)] = 1440
+	}
+	plan = e2.importKaiju("[GRP] Kaiju Tale (01-06) [BD 1080p]", files, string(b), kaijuIDs(3))
+	if len(plan.Links) != 0 || !strings.HasPrefix(plan.Why, "pack numbering: no file of the pack is for the episodes") {
 		t.Fatalf("links %d, why %q", len(plan.Links), plan.Why)
 	}
 	if s := e2.one(`SELECT state FROM download WHERE id = 1`); s != "failed" {
 		t.Errorf("download %s", s)
+	}
+}
+
+// A proved pack that is merely not an upgrade ends as any other download does: not imported, not blocklisted, no
+// numbering reason (section 13 point 7).
+func TestAnimePackNotAnUpgradeEndsAsToday(t *testing.T) {
+	t.Parallel()
+	e := importUpEnv(t, "")
+	e.kaiju()
+	for i, id := range kaijuIDs() {
+		release := fmt.Sprintf("Kaiju.Tale.E%02d.2160p.BluRay.REMUX.HEVC-OLD", i+1)
+		p := filepath.Join(e.shows, "Kaiju Tale (2019)", release+".mkv")
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		target := filepath.Join(e.mount, "__all__", "Held", release+".mkv")
+		if err := os.Symlink(target, p); err != nil {
+			t.Fatal(err)
+		}
+		e.exec(`INSERT INTO link (id, path, target, kind, title_id, release_title, quality, state, created_at, updated_at)
+			VALUES (?, ?, ?, 'symlink', 6, ?, 'Bluray-2160p Remux', 'active', 0, 0)`, 100+i, p, target, release)
+		e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (?, 60)`, 100+i)
+		e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (?, ?)`, 100+i, id)
+	}
+	plan := e.importKaiju("[GRP] Kaiju Tale S01-S03 [BD 1080p]", kaijuFiles("SxxEyy"), kaijuClaim(decide.PackSeasons), kaijuIDs())
+	if len(plan.Links) != 0 || plan.Why != "not an upgrade for the existing files" {
+		t.Fatalf("links %d, why %q", len(plan.Links), plan.Why)
+	}
+	if got := e.one(`SELECT COUNT(*) FROM router_blocklist`) + "/" + e.one(`SELECT state FROM download WHERE id = 1`); got != "0/ready" {
+		t.Errorf("blocklist rows/download state %s", got)
 	}
 }
 

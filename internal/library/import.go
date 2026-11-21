@@ -1399,6 +1399,12 @@ func (l *Library) planSeries(ctx context.Context, d *importDownload, vn *Version
 			return nil
 		}
 		res.proof = proof
+		if !proof.places(res.allowed) {
+			// Nothing to place: no file of the proved pack is for an episode this download was given. Rejected like a
+			// failed proof, never held. Anything after placement ends as for any other download.
+			plan.packRefused = "no file of the pack is for the episodes this download was given"
+			return nil
+		}
 	}
 	taken := map[int64]bool{}
 	for _, i := range res.order(plan.Files) {
@@ -1500,12 +1506,6 @@ func (l *Library) planSeries(ctx context.Context, d *importDownload, vn *Version
 		lk.Exists = linkPointsAt(path, lk.Target)
 		lk.prev, _ = os.Readlink(path)
 		plan.Links = append(plan.Links, lk)
-	}
-	if pack != nil && len(plan.Links) == 0 && firstCollision(plan.Rejected) == "" {
-		// A proved pack with nothing to link (its files for the awarded episodes also hold others): rejected like a
-		// failed proof, never held.
-		plan.packRefused = "no file of the pack fits the episodes this download was given"
-		return nil
 	}
 	planSeriesReplacements(plan, existing)
 	if up != nil {

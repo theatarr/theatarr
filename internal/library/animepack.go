@@ -168,6 +168,18 @@ func proveFile(rel string, p *sonarr.ParsedEpisodeInfo, claim *decide.PackClaim,
 	return out, ""
 }
 
+// places says whether the table puts a file on any of the download's episodes (allowed).
+func (p *packProof) places(allowed map[int64]episodeInfo) bool {
+	for _, ids := range p.files {
+		for _, id := range ids {
+			if _, ok := allowed[id]; ok {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func cmpOr(a, b int) int {
 	if a != 0 {
 		return a
