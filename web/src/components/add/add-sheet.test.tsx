@@ -514,3 +514,41 @@ it("names beside Add libraries and search every library it searches, the ones th
   expect((await screen.findByTestId("add-submit-search")).textContent).toBe("Add libraries and search");
   expect(screen.getByTestId("add-searches").textContent).toBe("Searches: 4K WEB, 4K Remux");
 });
+
+it("offers Add alone for a new series added with Monitor None, with the later-seasons switch either way", async () => {
+  for (const later of [true, false]) {
+    const fetch = mockFetch(routes(seriesOptions));
+    const user = userEvent.setup();
+    renderPage(<AddSheet target={{ kind: "series", name: "Kappa", year: 2025, tmdb_id: 8 }} onClose={() => {}} />);
+    await user.selectOptions(await screen.findByTestId("add-monitor"), "none");
+    expect(screen.queryByTestId("add-submit-search")).toBeNull();
+    expect(screen.getByTestId("add-monitor-new")).toBeTruthy();
+    if (!later) await user.click(screen.getByTestId("add-monitor-new"));
+    expect(screen.queryByTestId("add-submit-search")).toBeNull();
+    expect(screen.getByTestId("add-submit").textContent).toBe("Add");
+    await user.click(screen.getByTestId("add-submit"));
+    expect(await bodyOf(fetch)).toEqual({ kind: "series", tmdb_id: 8, title: "Kappa", year: 2025, anime: false, versions: ["tv-web"], search: false, monitor: "none", ...(later ? {} : { monitor_new: "none" }) });
+    cleanup();
+  }
+});
+
+it("offers Add alone when Choose seasons has every box cleared, and both again once one is ticked", async () => {
+  const own = { ...seriesOptions, seasons: [{ season: 0 }, { season: 1 }, { season: 2 }] };
+  const fetch = mockFetch(routes(own));
+  const user = userEvent.setup();
+  renderPage(<AddSheet target={{ kind: "series", name: "Kappa", year: 2025, tmdb_id: 8 }} onClose={() => {}} />);
+  await user.selectOptions(await screen.findByTestId("add-monitor"), "choose");
+  const ticks = within(screen.getByTestId("add-seasons")).getAllByRole("checkbox");
+  await user.click(ticks[1]);
+  expect(screen.getByTestId("add-submit-search")).toBeTruthy();
+  await user.click(ticks[2]);
+  expect(screen.queryByTestId("add-submit-search")).toBeNull();
+  await user.click(ticks[0]);
+  expect(screen.getByTestId("add-submit-search")).toBeTruthy();
+  await user.click(ticks[0]);
+  expect(screen.getByTestId("add-monitor-new")).toBeTruthy();
+  await user.click(screen.getByTestId("add-submit"));
+  expect(JSON.stringify(await bodyOf(fetch))).toBe(
+    '{"kind":"series","tmdb_id":8,"title":"Kappa","year":2025,"anime":false,"versions":["tv-web"],"seasons":[{"season":0,"monitored":false},{"season":1,"monitored":false},{"season":2,"monitored":false}],"search":false}',
+  );
+});

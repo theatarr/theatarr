@@ -215,7 +215,11 @@ export function AddSheet({ target, onClose, onLeave }: { target: AddTarget; onCl
   // seasons alone keeps its one "Save seasons".
   // A new movie added unmonitored is not searched: only "Add" is offered.
   const unmonitored = o?.kind === "movie" && !current && !monitored;
-  const searchOffered = !!o && canSearch && chosen.length > 0 && !unmonitored;
+  // Nor is a new series that monitors no episode: Monitor "None", or its seasons with every box cleared. The switch
+  // for seasons that appear later does not change that: nothing is there to search now.
+  const shownSeasons = o?.seasons ?? [];
+  const noEpisodes = o?.kind === "series" && !current && (preset === "none" || (!preset && (choosing || epKnown) && shownSeasons.length > 0 && shownSeasons.every((s) => !seasonOn(s.season, seasonDefault(s)))));
+  const searchOffered = !!o && canSearch && chosen.length > 0 && !unmonitored && !noEpisodes;
   // The type a new series has without a choice: anime for an anime title, else standard.
   const typeDefault = anime ? "anime" : "standard";
 

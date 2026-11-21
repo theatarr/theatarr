@@ -154,10 +154,11 @@ the API answers 400 to `monitor` there, naming the library title, and writes not
 ticked libraries ("2 libraries"; "Nothing new ticked" before a change) and ends with **Add** (`search: false`) and **Add and search** (primary; `search: true`, so the ticked
 libraries that can search are searched at once); for a title already in the library they read **Add libraries** and
 **Add libraries and search**. Only **Add** is offered when no ticked library can search, with a line saying adding
-searches nothing, and only **Save seasons** when only a series' seasons changed. Nothing is remembered between adds.
-An add from the Search overlay that succeeds closes the overlay too, so the title's page it goes to is not covered;
-Cancel or a failed add returns to the same search, its text and results kept. The request sheet closes the overlay
-only when the member follows one of its links.
+searches nothing, for a new series that monitors no episode (Monitor **None**, or its seasons with every box
+cleared; the switch for seasons that appear later does not change that), and only **Save seasons** when only a
+series' seasons changed. Nothing is remembered between adds. An add from the Search overlay that succeeds closes
+the overlay too, so the title's page it goes to is not covered; Cancel or a failed add returns to the same search,
+its text and results kept. The request sheet closes the overlay only when the member follows one of its links.
 
 A new series also gets **Series type** (Standard, Daily, Anime). The select shows the type the series gets without
 a choice (Anime when Anime is ticked, else Standard) and the request carries `series_type` only when the pick
