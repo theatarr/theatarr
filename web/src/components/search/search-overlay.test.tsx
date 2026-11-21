@@ -90,3 +90,71 @@ it("keeps a household member's View request on the library card when its TMDb hi
   await waitFor(() => expect(lib.querySelector("[data-testid=view-request]")?.getAttribute("aria-label")).toBe("View your request for Lanterns"));
   expect(screen.queryByRole("button", { name: "Request Lanterns" })).toBeNull();
 });
+
+// After an add from Search the new title's page is not covered by Search (F1); Cancel and a failed add come back to
+// the same search, its text and results kept. Invented keys and names.
+const addGates = { paused: false, pause_forced: false, library_writes: true, will_grab: true };
+const addOptions = { kind: "movie", anime: false, router_enabled: true, episodes_known: false, can_search: true, seasons: [],
+  versions: [{ key: "movie-web", label: "Web", kind: "movie", enable: "", fits: true, default: true, on: false, searchable: true, grab_state: addGates }] };
+const addRoutes = (post: unknown) => [
+  { method: "GET", path: "/auth/me", reply: { id: 1, username: "admin", permissions: ["browse", "add", "admin"], csrf_token: "t" } },
+  { method: "GET", path: "/search", reply: (r: { search: string }) => (r.search.includes("scope=library") ? { library: [], library_total: 0 }
+    : { tmdb_state: "ok", tmdb: [{ tmdb_id: 99, media_type: "movie", kind: "movie", name: "Signal", year: 2026, in_library: false }] }) },
+  { method: "GET", path: "/requests", reply: { items: [], total: 0 } },
+  { method: "GET", path: "/add/options", reply: addOptions },
+  { method: "POST", path: "/titles", reply: post },
+];
+
+it("closes Search when an add succeeds and goes to the new title's page", async () => {
+  const user = userEvent.setup();
+  mockFetch(addRoutes({ created: true, new: ["movie-web"], title: { id: 9, name: "Signal", versions: [] } }));
+  renderPage(<SearchProvider><Opener /><Where /></SearchProvider>, "/");
+  await user.click(await screen.findByRole("button", { name: "Add Signal (2026)" }));
+  await user.click(await screen.findByTestId("add-submit"));
+  await waitFor(() => expect(screen.getByTestId("where").textContent).toBe("/title/9"));
+  expect(screen.queryByTestId("add-sheet")).toBeNull();
+  expect(screen.queryByTestId("search-overlay")).toBeNull();
+});
+
+it("comes back to the same search after Cancel and after a failed add", async () => {
+  const user = userEvent.setup();
+  mockFetch(addRoutes({ status: 500, body: { error: "boom" } }));
+  renderPage(<SearchProvider><Opener /><Where /></SearchProvider>, "/");
+  await user.click(await screen.findByRole("button", { name: "Add Signal (2026)" }));
+  await screen.findByTestId("add-submit");
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  await waitFor(() => expect(screen.queryByTestId("add-sheet")).toBeNull());
+  expect(screen.getByTestId("search-overlay")).toBeTruthy();
+  expect((screen.getByTestId("search-input") as HTMLInputElement).value).toBe("Signal");
+  // The failed add keeps the sheet, its error shown; closing it shows the same search.
+  await user.click(screen.getByRole("button", { name: "Add Signal (2026)" }));
+  await user.click(await screen.findByTestId("add-submit"));
+  await waitFor(() => expect(screen.getByTestId("add-sheet").textContent).toMatch(/boom|Could not add/));
+  expect(screen.getByTestId("search-overlay")).toBeTruthy();
+  expect(screen.getByTestId("where").textContent).toBe("/");
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  await waitFor(() => expect(screen.queryByTestId("add-sheet")).toBeNull());
+  expect((screen.getByTestId("search-input") as HTMLInputElement).value).toBe("Signal");
+  expect(screen.getByRole("button", { name: "Add Signal (2026)" })).toBeTruthy();
+});
+
+it("keeps Search under a member's sent request until the member follows its link", async () => {
+  const user = userEvent.setup();
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 3, username: "member", permissions: ["browse", "request"], csrf_token: "t" } },
+    { method: "GET", path: "/search", reply: (r: { search: string }) => (r.search.includes("scope=library") ? { library: [], library_total: 0 }
+      : { tmdb_state: "ok", tmdb: [{ tmdb_id: 99, media_type: "movie", kind: "movie", name: "Signal", year: 2026, in_library: false }] }) },
+    { method: "GET", path: "/requests", reply: { items: [], total: 0, counts: {} } },
+    { method: "GET", path: "/add/options", reply: addOptions },
+    { method: "POST", path: "/requests", reply: { approved: false, merged: false, request: { id: 4, name: "Signal", status: "pending", versions: [{ key: "movie-web", label: "Web" }] } } },
+  ]);
+  renderPage(<SearchProvider><Opener /><Where /></SearchProvider>, "/");
+  await user.click(await screen.findByRole("button", { name: "Request Signal (2026)" }));
+  await user.click(await screen.findByTestId("request-submit"));
+  await screen.findByTestId("request-done");
+  expect(screen.getByTestId("search-overlay")).toBeTruthy();
+  await user.click(screen.getByRole("link", { name: "View request" }));
+  await waitFor(() => expect(screen.queryByTestId("search-overlay")).toBeNull());
+  expect(screen.queryByTestId("request-sheet")).toBeNull();
+  expect(screen.getByTestId("where").textContent).not.toBe("/");
+});

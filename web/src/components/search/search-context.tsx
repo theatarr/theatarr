@@ -46,8 +46,10 @@ export function SearchProvider({ children }: { children: ReactNode }) {
     <Ctx.Provider value={value}>
       {children}
       {overlay.open ? <SearchOverlay initial={overlay.q} onClose={closeOverlay} onAdd={openAdd} /> : null}
-      {target && canAdd ? <AddSheet key={sheetKey} target={target} onClose={() => setTarget(null)} /> : null}
-      {target && !canAdd && canRequest ? <RequestSheet key={sheetKey} target={target} onClose={() => setTarget(null)} /> : null}
+      {/* An add that succeeds goes to the title's page, and a request's link to the request: Search closes then, so it
+          does not cover the page. Cancel or a failed add leaves it as it was, text and results kept. */}
+      {target && canAdd ? <AddSheet key={sheetKey} target={target} onClose={() => setTarget(null)} onLeave={closeOverlay} /> : null}
+      {target && !canAdd && canRequest ? <RequestSheet key={sheetKey} target={target} onClose={() => setTarget(null)} onLeave={closeOverlay} /> : null}
     </Ctx.Provider>
   );
 }

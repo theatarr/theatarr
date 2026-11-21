@@ -154,7 +154,8 @@ const MONITOR_PRESETS: readonly (readonly [MonitorPreset, string])[] = [
   ["lastSeason", "Latest season"], ["pilot", "Pilot only"], ["none", "None"],
 ];
 
-export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () => void }) {
+/** `onLeave` runs when a successful add goes to the title's page (the shell closes Search with it). */
+export function AddSheet({ target, onClose, onLeave }: { target: AddTarget; onClose: () => void; onLeave?: () => void }) {
   const perms = usePerms();
   const [anime, setAnime] = useState(Boolean(target.anime));
   // Unset until picked: the select then shows what applies without a choice, and the request carries none.
@@ -251,6 +252,7 @@ export function AddSheet({ target, onClose }: { target: AddTarget; onClose: () =
     const body = [said, r.search?.message ? r.search.message.replace(/([^.!?])$/, "$1.") : ""].filter(Boolean).join(" ");
     toast({ tone: r.search && !r.search.started ? "warn" : "ok", title: r.created ? `${r.title.name} is in the library` : `${r.title.name} updated`, body, image: target.poster });
     onClose();
+    onLeave?.();
     navigate(`/title/${r.title.id}`);
   };
 

@@ -45,7 +45,12 @@ function seasonLabel(n: number) {
   return n === 0 ? "Specials" : `Season ${n}`;
 }
 
-export function RequestSheet({ target, onClose }: { target: AddTarget; onClose: () => void }) {
+/** `onLeave` runs when the member follows one of the sheet's links away (the shell closes Search with it). */
+export function RequestSheet({ target, onClose, onLeave }: { target: AddTarget; onClose: () => void; onLeave?: () => void }) {
+  const follow = () => {
+    onClose();
+    onLeave?.();
+  };
   const me = useAuth();
   // A title Theatarr knows (current copies or not): the request names it by id.
   const known = target.title_id !== undefined;
@@ -126,9 +131,9 @@ export function RequestSheet({ target, onClose }: { target: AddTarget; onClose: 
         </div>
 
         {done ? (
-          <RequestDone result={done} manages={Boolean(me.data?.permissions?.includes("manage_requests"))} onClose={onClose} />
+          <RequestDone result={done} manages={Boolean(me.data?.permissions?.includes("manage_requests"))} onClose={onClose} onFollow={follow} />
         ) : action.kind !== "request" ? (
-          <RequestSettled action={action} fetching={fetching} onClose={onClose} />
+          <RequestSettled action={action} fetching={fetching} onClose={onClose} onFollow={follow} />
         ) : (
           <>
             <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
@@ -231,7 +236,7 @@ export function RequestSheet({ target, onClose }: { target: AddTarget; onClose: 
 }
 
 /** The sheet when there is nothing new to ask: the caller's open request, or everything already here or monitored. */
-function RequestSettled({ action, fetching, onClose }: { fetching: boolean; action: Exclude<ReturnType<typeof requestAction>, { kind: "request" }>; onClose: () => void }) {
+function RequestSettled({ action, fetching, onClose, onFollow }: { fetching: boolean; action: Exclude<ReturnType<typeof requestAction>, { kind: "request" }>; onClose: () => void; onFollow: () => void }) {
   const mine = action.kind === "view-request";
   const st = mine ? (REQUEST_STATUS[action.status] ?? { label: action.status, tone: "neutral" as const }) : null;
   return (
@@ -248,13 +253,13 @@ function RequestSettled({ action, fetching, onClose }: { fetching: boolean; acti
       <div className="flex flex-wrap gap-2">
         {action.kind === "view-request" ? (
           <Button asChild data-testid="request-view">
-            <Link to={action.to} onClick={onClose}>
+            <Link to={action.to} onClick={onFollow}>
               <Inbox /> View request
             </Link>
           </Button>
         ) : action.to ? (
           <Button asChild data-testid="request-view-title">
-            <Link to={action.to} onClick={onClose}>
+            <Link to={action.to} onClick={onFollow}>
               <ArrowUpRight /> {action.label}
             </Link>
           </Button>
@@ -265,7 +270,7 @@ function RequestSettled({ action, fetching, onClose }: { fetching: boolean; acti
   );
 }
 
-function RequestDone({ result, manages, onClose }: { result: CreateResult; manages: boolean; onClose: () => void }) {
+function RequestDone({ result, manages, onClose, onFollow }: { result: CreateResult; manages: boolean; onClose: () => void; onFollow: () => void }) {
   const r = result.request;
   const text = requestDoneWords(result, manages);
   return (
@@ -284,7 +289,7 @@ function RequestDone({ result, manages, onClose }: { result: CreateResult; manag
       </div>
       <div className="flex gap-2">
         <Button asChild>
-          <Link to={requestLink(r.id)} onClick={onClose}>
+          <Link to={requestLink(r.id)} onClick={onFollow}>
             <Inbox /> View request
           </Link>
         </Button>
