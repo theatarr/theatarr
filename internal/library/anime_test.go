@@ -566,7 +566,7 @@ func TestAnimePackProofFails(t *testing.T) {
 			"reads as no episode: Kaiju Tale S02 1080p.mkv"},
 		{"two files on one episode", "[GRP] Kaiju Tale S01-S03 [BD 1080p]", decide.PackSeasons, dup, "two files on S02E01"},
 		{"restarting files under an absolute name", "[GRP] Kaiju Tale (01-10) [BD 1080p]", decide.PackAbsolute, restart,
-			"season-numbered file under an absolute name"},
+			"a file numbered 1 sits in a season 2 folder"},
 		{"absolute files under a season name", "[GRP] Kaiju Tale S01-S03 [BD 1080p]", decide.PackSeasons,
 			kaijuFiles("absolute"), "absolute-numbered file under a season name"},
 		{"a claimed episode without a file", "[GRP] Kaiju Tale S01-S03 [BD 1080p]", decide.PackSeasons, missing,
@@ -857,5 +857,158 @@ func TestAnimeExplicitAcrossBreakImportsAsBefore(t *testing.T) {
 	}
 	if got := strings.Join(e.linkedTo(), "\n"); !strings.Contains(got, "S01E03 <- Kaiju.Tale.S01E03") || !strings.Contains(got, "S02E01 <- Kaiju.Tale.S02E01") {
 		t.Errorf("links\n%s", got)
+	}
+}
+
+// proofTitle is a two-season anime series of 12 episodes each (ids 100*season+number, absolute 1 to 24) named name,
+// with the claim of a pack of both seasons: by its seasons or as an absolute batch.
+func proofTitle(name, mode string) (*decide.Title, *decide.PackClaim) {
+	t := &decide.Title{ID: 9, Kind: "series", Name: name, SeriesType: "anime"}
+	c := &decide.PackClaim{Mode: mode, Seasons: []int{1, 2}}
+	for s := 1; s <= 2; s++ {
+		for n := 1; n <= 12; n++ {
+			id := int64(100*s + n)
+			t.Episodes = append(t.Episodes, decide.Episode{ID: id, Season: s, Number: n, Absolute: 12*(s-1) + n})
+			c.Episodes = append(c.Episodes, id)
+			if mode == decide.PackAbsolute {
+				c.Numbers = append(c.Numbers, decide.PackNumber{N: 12*(s-1) + n, Episode: id})
+			}
+		}
+	}
+	return t, c
+}
+
+// proofFiles names a pack's files: pat takes the season and the number, each file of both seasons, less skip
+// (100*season+number).
+func proofFiles(skip map[int]bool, pat func(season, number int) string) []string {
+	var out []string
+	for s := 1; s <= 2; s++ {
+		for n := 1; n <= 12; n++ {
+			if !skip[100*s+n] {
+				out = append(out, pat(s, n))
+			}
+		}
+	}
+	return out
+}
+
+// absFiles names an absolute batch's files 1 to 24, less skip.
+func absFiles(skip map[int]bool, pat string) []string {
+	var out []string
+	for n := 1; n <= 24; n++ {
+		if !skip[n] {
+			out = append(out, fmt.Sprintf(pat, n))
+		}
+	}
+	return out
+}
+
+// Pack layouts the proof takes or rejects (the coordinator's comparison table): every valid layout whose season stays
+// explicit is taken and its watched file placed on its own episode; every layout whose numbering cannot be trusted,
+// and bare-number stems (no proof of what they number; docs/not-supported.md), are rejected.
+func TestAnimePackLayouts(t *testing.T) {
+	t.Parallel()
+	no := map[int]bool{}
+	sf := func(pat string) func(int, int) string {
+		return func(s, n int) string { return fmt.Sprintf(pat, s, n) }
+	}
+	first12 := map[int]bool{}
+	for n := 13; n <= 24; n++ {
+		first12[n] = true
+	}
+	season2 := map[int]bool{}
+	for n := 1; n <= 12; n++ {
+		season2[200+n] = true
+	}
+	for _, c := range []struct {
+		name, series, mode string
+		ok                 bool
+		files              []string
+		watch              string
+		at                 int64
+	}{
+		{"01 plain SxxEyy", "Show", decide.PackSeasons, true, proofFiles(no, sf("Show S%02dE%02d.mkv")), "Show S02E03.mkv", 203},
+		{"02 season folders, absolute-style names", "Show", decide.PackSeasons, true, proofFiles(no, sf("Season %d/Show - %02d.mkv")), "Season 2/Show - 03.mkv", 203},
+		{"03 season folders, bare stems", "Show", decide.PackSeasons, false, proofFiles(no, sf("Season %d/%02d.mkv")), "", 0},
+		{"04 range folder outside", "Show", decide.PackSeasons, true, proofFiles(no, sf("Show Season 1 ~ 2/Show S%02dE%02d.mkv")), "Show Season 1 ~ 2/Show S02E03.mkv", 203},
+		{"04b range folder, no season of its own", "Show", decide.PackSeasons, false, proofFiles(no, func(s, n int) string { return fmt.Sprintf("Show Season 1 ~ 2/Show - %02d.mkv", 12*(s-1)+n) }), "", 0},
+		{"05 range folder + season folders", "Show", decide.PackSeasons, true, proofFiles(no, sf("Show Season 1 ~ 2/Season %d/Show - %02d.mkv")), "Show Season 1 ~ 2/Season 2/Show - 03.mkv", 203},
+		{"06 'S1-S2' folder outside", "Show", decide.PackSeasons, true, proofFiles(no, sf("[Grp] Show S1-S2 [BD 1080p]/Show S%02dE%02d.mkv")), "[Grp] Show S1-S2 [BD 1080p]/Show S02E03.mkv", 203},
+		{"07 numeric prefix vs explicit token", "Show", decide.PackSeasons, false, append(proofFiles(map[int]bool{101: true, 102: true, 201: true, 202: true},
+			func(s, n int) string { return fmt.Sprintf("Season %d/Show S%02dE%02d.mkv", s, s, n) }), "Season 1/01-02 - Show S02E01-E02.mkv", "Season 2/Show S02E01-E02.mkv"), "", 0},
+		{"08 numeric title, unnumbered file", "12 Kingdoms", decide.PackSeasons, false, append(proofFiles(map[int]bool{112: true}, sf("Season %d/12 Kingdoms - %02d.mkv")), "Season 1/12 Kingdoms - Digest.mkv"), "", 0},
+		{"09 numeric title, normal files", "12 Kingdoms", decide.PackSeasons, true, proofFiles(no, sf("Season %d/12 Kingdoms - %02d.mkv")), "Season 1/12 Kingdoms - 05.mkv", 105},
+		{"10 extras beside episodes", "Show", decide.PackSeasons, true, append(proofFiles(no, sf("Show S%02dE%02d.mkv")), "Show - NCOP1.mkv", "Show - OVA 01.mkv", "Extras/Show - 01.mkv"), "Show S01E01.mkv", 101},
+		{"11 dotted creditless opening", "Show", decide.PackSeasons, true, append(proofFiles(no, sf("Show.S%02dE%02d.1080p.mkv")), "Show.NC.OP.1080p.mkv"), "Show.S02E03.1080p.mkv", 203},
+		{"12 episode title 'Special Training'", "Show", decide.PackSeasons, true, append(proofFiles(map[int]bool{105: true}, sf("Show S%02dE%02d.mkv")), "Show S01E05 - Special Training.mkv"), "Show S01E05 - Special Training.mkv", 105},
+		{"13 two files on one episode", "Show", decide.PackSeasons, false, append(proofFiles(no, sf("Show S%02dE%02d.mkv")), "Show S01E01 v2.mkv"), "", 0},
+		{"14 one episode missing", "Show", decide.PackSeasons, false, proofFiles(map[int]bool{207: true}, sf("Show S%02dE%02d.mkv")), "", 0},
+		{"15 season name, absolute files", "Show", decide.PackSeasons, false, absFiles(nil, "Show - %02d.mkv"), "", 0},
+		{"16 file of a third season", "Show", decide.PackSeasons, false, append(proofFiles(no, sf("Show S%02dE%02d.mkv")), "Show S03E01.mkv"), "", 0},
+		{"17 S01 file in Season 2 folder", "Show", decide.PackSeasons, false, append(proofFiles(map[int]bool{201: true},
+			func(s, n int) string { return fmt.Sprintf("Season %d/Show S%02dE%02d.mkv", s, s, n) }), "Season 2/Show S01E01.mkv"), "", 0},
+		{"18 'Show S2 - 05' names", "Show", decide.PackSeasons, true, proofFiles(no, sf("[Grp] Show S%d - %02d [1080p].mkv")), "[Grp] Show S2 - 03 [1080p].mkv", 203},
+		{"20 absolute plain", "Show", decide.PackAbsolute, true, absFiles(nil, "[Grp] Show - %02d [1080p].mkv"), "[Grp] Show - 15 [1080p].mkv", 203},
+		{"21 absolute bare stems", "Show", decide.PackAbsolute, false, absFiles(nil, "%03d.mkv"), "", 0},
+		{"22 absolute, numeric title + NCOP", "Mob Psycho 100", decide.PackAbsolute, true, append(absFiles(nil, "Mob Psycho 100 - %02d.mkv"), "Mob Psycho 100 NCOP1.mkv"), "Mob Psycho 100 - 15.mkv", 203},
+		{"23 absolute name, season files", "Show", decide.PackAbsolute, false, proofFiles(no, sf("Show S%02dE%02d.mkv")), "", 0},
+		{"24 absolute name, numbers restart in folders", "Show", decide.PackAbsolute, false, proofFiles(no, sf("Season %d/Show - %02d.mkv")), "", 0},
+		{"24b absolute batch in season folders", "Show", decide.PackAbsolute, true, proofFiles(no, func(s, n int) string { return fmt.Sprintf("Season %d/Show - %02d.mkv", s, 12*(s-1)+n) }), "Season 2/Show - 15.mkv", 203},
+		{"25 absolute, one number beyond the batch", "Show", decide.PackAbsolute, false, append(absFiles(nil, "Show - %02d.mkv"), "Show - 25.mkv"), "", 0},
+		{"26 absolute with v2 and episode titles", "Show", decide.PackAbsolute, true, append(absFiles(map[int]bool{7: true, 9: true}, "Show - %02d.mkv"), "Show - 07v2.mkv", "Show - 09 - Opening Night.mkv"), "Show - 09 - Opening Night.mkv", 109},
+		{"30 wrapper 'Show (Seasons 1-2) [BD]'", "Show", decide.PackSeasons, true, proofFiles(no, sf("Show (Seasons 1-2) [BD]/Show S%02dE%02d.mkv")), "Show (Seasons 1-2) [BD]/Show S02E03.mkv", 203},
+		{"31 wrapper 'Show S01-S02' + season folders", "Show", decide.PackSeasons, true, proofFiles(no, sf("Show S01-S02/Season %d/Show - %02d.mkv")), "Show S01-S02/Season 2/Show - 03.mkv", 203},
+		{"32 wrapper 'Show S01+S02'", "Show", decide.PackSeasons, true, proofFiles(no, sf("Show S01+S02/Show S%02dE%02d.mkv")), "Show S01+S02/Show S02E03.mkv", 203},
+		{"33 folders 'Show S1' / 'Show S2'", "Show", decide.PackSeasons, true, proofFiles(no, sf("Show S%d/Show - %02d.mkv")), "Show S2/Show - 03.mkv", 203},
+		{"34 folders 'S01' / 'S02'", "Show", decide.PackSeasons, true, proofFiles(no, sf("S%02d/Show - %02d.mkv")), "S02/Show - 03.mkv", 203},
+		{"35 folders 'Season 01' with SxxEyy files", "Show", decide.PackSeasons, true, proofFiles(no, func(s, n int) string { return fmt.Sprintf("Season %02d/Show S%02dE%02d.mkv", s, s, n) }), "Season 02/Show S02E03.mkv", 203},
+		{"36 absolute batch inside one wrapper folder", "Show", decide.PackAbsolute, true, absFiles(nil, "Show (01-24) [1080p]/Show - %02d.mkv"), "Show (01-24) [1080p]/Show - 15.mkv", 203},
+		{"37 '2nd Season' folder", "Show", decide.PackSeasons, true, append(proofFiles(season2, sf("Season %d/Show - %02d.mkv")),
+			absFiles(first12, "Show 2nd Season/Show 2nd Season - %02d.mkv")...), "Show 2nd Season/Show 2nd Season - 03.mkv", 203},
+	} {
+		title, claim := proofTitle(c.series, c.mode)
+		var files []PlannedFile
+		for _, f := range c.files {
+			files = append(files, PlannedFile{Rel: f})
+		}
+		proof, why := provePack(title, claim, files)
+		if (why == "") != c.ok {
+			t.Errorf("%s: proof holds %v (%s), want %v", c.name, why == "", why, c.ok)
+			continue
+		}
+		if c.ok && c.watch != "" && !slices.Equal(proof.files[c.watch], []int64{c.at}) {
+			t.Errorf("%s: %s placed on %v, want [%d]", c.name, c.watch, proof.files[c.watch], c.at)
+		}
+	}
+}
+
+// File names the proof sets aside as extras, and names that are regular episodes (the coordinator's table).
+func TestAnimePackExtraNames(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		series, rel string
+		extra       bool
+	}{
+		{"Show", "Show - NCOP1.mkv", true}, {"Show", "Show - NCED 01.mkv", true}, {"Show", "Show.NC.OP.1080p.mkv", true},
+		{"Mob Psycho 100", "Mob Psycho 100 NCOP1.mkv", true}, {"Show", "Show NCED2.mkv", true},
+		{"Show", "[Group] Show - NCOP [1080p].mkv", true}, {"Show", "Show - OVA 01.mkv", true}, {"Show", "Show - OVA.mkv", true},
+		{"Show", "Show - Special 1.mkv", true}, {"Show", "Show - SP1.mkv", true}, {"Show", "Show - Recap.mkv", true},
+		{"Show", "Extras/Show - 01.mkv", true}, {"Show", "Specials/Show - 01.mkv", true}, {"Show", "Season 0/Show - 01.mkv", true},
+		{"Show", "Show - Creditless OP.mkv", true}, {"Show", "Show - PV1.mkv", true}, {"Show", "Show - Menu 1.mkv", true},
+		{"Show", "Show S00E01.mkv", true}, {"Show", "[Group] Show - Creditless Ending 2 [BD 1080p].mkv", true},
+		{"Show", "Show - OP1.mkv", true}, {"Show", "Show - ED2 [1080p].mkv", true},
+		{"Show", "Show S01E01 - Special Training.mkv", false}, {"Show", "Show - 05 - Special Training.mkv", false},
+		{"Special 7", "Special 7 - 05.mkv", false}, {"Special 7", "Special.7.S01E05.1080p.mkv", false},
+		{"Show", "Show - 05 [5.1 AAC].mkv", false}, {"Show", "Show S02E03 - Recap of Love.mkv", false},
+		{"Mob Psycho 100", "Mob Psycho 100 - 05.mkv", false}, {"Show", "Show - 07 - Opening Night.mkv", false},
+		{"Show", "Season 2/Show - 05.mkv", false}, {"Show", "[Group] Show - 01 [BD 1080p][OPUS].mkv", false},
+		{"Show", "Show - 12 - The Menu.mkv", false}, {"OVA Girls", "OVA Girls - 03.mkv", false},
+		{"Show", "Show S01E12 - The Special.mkv", false}, {"Show", "Show - 01v2 [NCED fixed].mkv", false},
+	} {
+		title, _ := proofTitle(c.series, decide.PackSeasons)
+		stem := strings.TrimSuffix(filepath.Base(c.rel), filepath.Ext(c.rel))
+		if got := packExtra(c.rel, parseFile(stem, title)); got != c.extra {
+			t.Errorf("%s (%s): extra %v, want %v", c.rel, c.series, got, c.extra)
+		}
 	}
 }

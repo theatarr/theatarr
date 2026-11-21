@@ -45,10 +45,10 @@ func claimed(d *importDownload) *decide.PackClaim {
 var (
 	// packExtraFolderRE is a folder of extras inside a pack.
 	packExtraFolderRE = regexp.MustCompile(`(?i)^(?:extras?|specials?|bonus|nc|nced|ncop|creditless|season[ ._]?0+|s0+|menus?|ovas?|oads?)$`)
-	// packSeasonFolderRE is a folder named as one season ("Season 2", "S02").
-	packSeasonFolderRE = regexp.MustCompile(`(?i)^(?:season|s)[ ._]?0*(\d{1,2})$`)
+	// packSeasonFolderRE is a folder named as one season ("Season 2", "S02", "Show 2nd Season").
+	packSeasonFolderRE = regexp.MustCompile(`(?i)^(?:(?:season|s)[ ._]?0*(\d{1,2})|.*\b(\d)(?:st|nd|rd|th)[ ._]season)$`)
 	// packTitleSeasonRE is a season at the end of a parsed series title ("Show S2" of "Show S2 - 05").
-	packTitleSeasonRE = regexp.MustCompile(`(?i)(?:^|[ ._])(?:S|Season[ ._]?)0*(\d{1,2})$`)
+	packTitleSeasonRE = regexp.MustCompile(`(?i)(?:^|[ ._])(?:(?:S|Season[ ._]?)0*(\d{1,2})|(\d)(?:st|nd|rd|th)[ ._]Season)$`)
 )
 
 // packExtra says whether a file of a pack is an extra: below an extras folder ("Extras", "Specials", "Bonus", "NC",
@@ -84,8 +84,11 @@ func folderSeason(rel string) (int, bool) {
 	for dir := filepath.Dir(rel); dir != "." && dir != "/" && dir != ""; dir = filepath.Dir(dir) {
 		name := strings.TrimSpace(filepath.Base(dir))
 		n := 0
+		if _, _, _, span := indexer.AnimePackSeasons(name); span {
+			continue // a folder that names a range ("Show S01-S02") names no season, as the release name does
+		}
 		if m := packSeasonFolderRE.FindStringSubmatch(name); m != nil {
-			n, _ = strconv.Atoi(m[1])
+			n, _ = strconv.Atoi(m[1] + m[2])
 		} else if p := sonarr.ParseTitle(name); p != nil && p.FullSeason && len(p.EpisodeNumbers) == 0 &&
 			len(p.AbsoluteEpisodeNumbers) == 0 && !p.IsMultiSeason {
 			n = p.SeasonNumber
@@ -103,7 +106,7 @@ func folderSeason(rel string) (int, bool) {
 
 // proveFile reads one regular file of the pack under the claim: its episodes, or why the numbering cannot be trusted.
 func proveFile(rel string, p *sonarr.ParsedEpisodeInfo, claim *decide.PackClaim, byNumber map[[2]int]int64,
-	numbers map[int]int64, claimedIDs map[int64]bool) ([]int64, string) {
+	numbers map[int]int64, seasonOf map[int64]int, claimedIDs map[int64]bool) ([]int64, string) {
 	if p == nil || len(p.EpisodeNumbers) == 0 && len(p.AbsoluteEpisodeNumbers) == 0 {
 		return nil, "a file reads as no episode: " + rel
 	}
@@ -116,13 +119,13 @@ func proveFile(rel string, p *sonarr.ParsedEpisodeInfo, claim *decide.PackClaim,
 	if len(nums) > 0 {
 		own = p.SeasonNumber
 	} else if m := packTitleSeasonRE.FindStringSubmatch(p.SeriesTitle); m != nil {
-		own, _ = strconv.Atoi(m[1]) // "Show S2 - 05"
+		own, _ = strconv.Atoi(m[1] + m[2]) // "Show S2 - 05", "Show 2nd Season - 05"
 	}
 	if own > 0 && folder > 0 && own != folder {
 		return nil, fmt.Sprintf("a file named for season %d sits in a season %d folder: %s", own, folder, rel)
 	}
 	if claim.Mode == decide.PackAbsolute {
-		if own > 0 || folder > 0 || len(p.AbsoluteEpisodeNumbers) == 0 {
+		if own > 0 || len(p.AbsoluteEpisodeNumbers) == 0 {
 			return nil, "a season-numbered file under an absolute name: " + rel
 		}
 		var out []int64
@@ -130,6 +133,11 @@ func proveFile(rel string, p *sonarr.ParsedEpisodeInfo, claim *decide.PackClaim,
 			id, ok := numbers[n]
 			if !ok {
 				return nil, fmt.Sprintf("a file outside the pack's numbers (%d): %s", n, rel)
+			}
+			if folder > 0 && seasonOf[id] != folder {
+				// A season folder is accepted only where its season is the numbered episode's ("Season 2/Show - 13");
+				// numbers restarting per folder ("Season 2/Show - 01") are not absolute.
+				return nil, fmt.Sprintf("a file numbered %d sits in a season %d folder: %s", n, folder, rel)
 			}
 			out = append(out, id)
 		}
@@ -164,6 +172,34 @@ func (p *packProof) places(allowed map[int64]episodeInfo) bool {
 	return false
 }
 
+// parseFile parses a pack file's name; when that reads no episode and the name starts with the series' name or one
+// of its scene names ("Mob Psycho 100 - 01", whose number the parser takes into the title), the rest is read after
+// a neutral name. A name that starts with neither reads as before.
+func parseFile(stem string, t *decide.Title) *sonarr.ParsedEpisodeInfo {
+	p := sonarr.ParseTitle(stem)
+	if p != nil && (len(p.EpisodeNumbers) > 0 || len(p.AbsoluteEpisodeNumbers) > 0) {
+		return p
+	}
+	plain := strings.TrimSpace(stem)
+	if strings.HasPrefix(plain, "[") {
+		if i := strings.Index(plain, "]"); i > 0 {
+			plain = strings.TrimSpace(plain[i+1:])
+		}
+	}
+	names := []string{t.Name}
+	for _, m := range t.SceneMappings {
+		names = append(names, m.Title)
+	}
+	for _, n := range names {
+		if n != "" && len(plain) > len(n) && strings.EqualFold(plain[:len(n)], n) {
+			if q := sonarr.ParseTitle("Series" + plain[len(n):]); q != nil && (len(q.EpisodeNumbers) > 0 || len(q.AbsoluteEpisodeNumbers) > 0) {
+				return q
+			}
+		}
+	}
+	return p
+}
+
 func cmpOr(a, b int) int {
 	if a != 0 {
 		return a
@@ -176,8 +212,10 @@ func cmpOr(a, b int) int {
 func provePack(t *decide.Title, claim *decide.PackClaim, files []PlannedFile) (*packProof, string) {
 	byNumber := map[[2]int]int64{}
 	label := map[int64]string{}
+	seasonOf := map[int64]int{}
 	for _, e := range t.Episodes {
 		byNumber[[2]int{e.Season, e.Number}] = e.ID
+		seasonOf[e.ID] = e.Season
 		label[e.ID] = fmt.Sprintf("S%02dE%02d", e.Season, e.Number)
 	}
 	claimedIDs := map[int64]bool{}
@@ -192,12 +230,12 @@ func provePack(t *decide.Title, claim *decide.PackClaim, files []PlannedFile) (*
 	holder := map[int64]string{}
 	for _, f := range files {
 		stem := strings.TrimSuffix(filepath.Base(f.Rel), filepath.Ext(f.Rel))
-		p := sonarr.ParseTitle(stem)
+		p := parseFile(stem, t)
 		if packExtra(f.Rel, p) {
 			proof.extras[f.Rel] = true
 			continue
 		}
-		ids, why := proveFile(f.Rel, p, claim, byNumber, numbers, claimedIDs)
+		ids, why := proveFile(f.Rel, p, claim, byNumber, numbers, seasonOf, claimedIDs)
 		if why != "" {
 			return nil, why
 		}
