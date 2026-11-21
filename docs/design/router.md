@@ -288,6 +288,18 @@ set is disjoint from releases placed or deferred in this batch or already in fli
 all its mapped episodes. A release that misses everywhere reserves nothing, so its overlapping alternatives remain
 eligible. Movies still stop after one placement.
 
+A release whose add the provider takes but whose download fails in the reads right after the add (a provider error
+status such as `magnet_error` or `virus`, or files rejected at selection: an executable, no video) is not a
+placement: the step reads `failed_at_once` with the download's error, the route offers that download to no other
+provider, caches no miss for it, counts it as one failed attempt, leaves its episodes uncovered and goes on with the
+next ranked release. "Failed" means exactly that the download's row is `failed` after those reads; every other
+unknown (a status read that failed, files not listed yet, the write gate closed, a selection the provider answered
+with an error, a row that moved on) still waits as an add, so two releases are never added for one item. When a
+later release of the same route covers what the failed one was for (the movie, or all its episodes), the failed
+one's blocklist row is marked searched (`researched_at`) and starts no re-search of its own; otherwise its re-search
+follows as for any failure. A route whose releases all fail so ends exhausted, not added
+(`TestFailedAtOnceTriesNextRelease`, `TestSelectionErrorStillWaits`, `TestFailedAtOnceEverywhere`).
+
 Season targets still make one search, including when only some wanted episodes are in flight. A dry run lists
 every placement in their steps and simulate pacing between adds without writing it. A deferred batch retries from
 its first deferred release, retaining the later alternatives and resuming queued rows without duplicating successful
@@ -558,7 +570,7 @@ id (`TorrentNotCachedError`) and tries the next debrid. Theatarr does the same w
 | AD | `ready: true` in the upload answer, else `GET /v4.1/magnet/status?id=` | `ready`, or statusCode 4 | statusCode 0–3 after one re-read |
 
 At most four reads (five when the files are selected at the fourth: a selection is always followed by one read after
-its grace); a read error, a provider error status or a rejected file list is "no verdict": the add stays and the poller finishes the check ("Unfinished checks" below). decypharr's
+its grace); a read error, a provider error status or a rejected file list is "no verdict" on the cache: the add stays and the poller finishes the check ("Unfinished checks" below); a download those reads failed (provider error status, rejected file list) ends that release and the route tries the next one (above). decypharr's
 effective behaviour is the same (one read after a 2 s sleep, one more after a selection), except that Theatarr gives
 a converting Real-Debrid magnet the remaining reads, as its poller does not judge one either.
 

@@ -337,3 +337,109 @@ func TestReadyDeadlineMismatchAfterPartial(t *testing.T) {
 		t.Errorf("blocklisted (%d rows)", n)
 	}
 }
+
+// C8: an add the provider takes whose download fails in the reads right after it (a provider error status, or files
+// rejected at selection) ends that release only: the route goes on with the next ranked release. The failed download
+// is offered to no other provider, no miss is cached for it, and its blocklist row starts no re-search when the next
+// release covers it. With cached-only on (settle) and off (one read for the selection).
+func TestFailedAtOnceTriesNextRelease(t *testing.T) {
+	t.Parallel()
+	failing := map[string]provider.Torrent{
+		"provider_error": {Hash: h("a"), Status: "magnet_error", State: provider.StateError},
+		"files_rejected": {Hash: h("a"), Status: rdWaitingFiles, State: provider.StateQueued,
+			Files: []provider.File{{ID: "1", Path: "Movie/Movie.mkv", Bytes: 9000}, {ID: "2", Path: "Movie/setup.exe", Bytes: 1}}},
+	}
+	for way, bad := range failing {
+		for _, cachedOnly := range []bool{true, false} {
+			t.Run(way+map[bool]string{true: "/cached_only", false: "/not_cached_only"}[cachedOnly], func(t *testing.T) {
+				t.Parallel()
+				e := newEnv(t, true)
+				e.r.set.CachedOnly = cachedOnly
+				e.pr["rd"].set("rd-aaaa", bad)
+				e.pr["rd"].set("rd-bbbb", provider.Torrent{Hash: h("b"), Status: "downloaded", State: provider.StateDownloaded,
+					Files: []provider.File{{ID: "1", Path: "Movie/Movie.mkv", Bytes: 9000, Selected: true}}})
+				res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-BAD"),
+					cand(h("b"), "Movie.2024.2160p.WEB.H265-GOOD")))
+				if err != nil || res.Outcome != OutcomeAdded || res.Release != "Movie.2024.2160p.WEB.H265-GOOD" {
+					t.Fatalf("route: %+v %v steps=%s", res, err, steps(res))
+				}
+				if !strings.Contains(steps(res), "aaaa/rd/error/"+codeFailedAtOnce) {
+					t.Errorf("steps %s", steps(res))
+				}
+				if len(e.ad["rd"].adds) != 2 || len(e.ad["ad"].adds)+len(e.ad["tb"].adds) != 0 {
+					t.Errorf("adds rd=%v ad=%v tb=%v", e.ad["rd"].adds, e.ad["ad"].adds, e.ad["tb"].adds)
+				}
+				if n := e.count(`SELECT COUNT(*) FROM download WHERE info_hash = ? AND state = 'failed'`, h("a")); n != 1 {
+					t.Error("the failed release's download is not failed")
+				}
+				if n := e.count(`SELECT COUNT(*) FROM provider_cache WHERE info_hash = ? AND state IN ('miss', 'uncached')`,
+					h("a")); n != 0 {
+					t.Errorf("%d miss rows cached for the failed release", n)
+				}
+				if n := e.count(`SELECT COUNT(*) FROM router_blocklist WHERE info_hash = ? AND researched_at IS NOT NULL`,
+					h("a")); n != 1 {
+					t.Error("the covered failure would start a re-search of its own")
+				}
+			})
+		}
+	}
+}
+
+// Only a failed row ends a release at once. A selection the provider answers with an error leaves the download added:
+// the route waits for it as today and adds nothing else (two releases would land for one movie).
+func TestSelectionErrorStillWaits(t *testing.T) {
+	t.Parallel()
+	for _, cachedOnly := range []bool{true, false} {
+		e := newEnv(t, true)
+		e.r.set.CachedOnly = cachedOnly
+		e.ad["rd"].onSelect = func(context.Context) error { return errors.New("503 service unavailable") }
+		e.pr["rd"].set("rd-aaaa", provider.Torrent{Hash: h("a"), Status: rdWaitingFiles, State: provider.StateQueued,
+			Files: []provider.File{{ID: "1", Path: "Movie/Movie.mkv", Bytes: 9000}}})
+		res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-BAD"),
+			cand(h("b"), "Movie.2024.2160p.WEB.H265-GOOD")))
+		if err != nil || res.Outcome != OutcomeAdded || res.Release != "Movie.2024.2160p.WEB.H265-BAD" {
+			t.Fatalf("cached_only=%v route: %+v %v steps=%s", cachedOnly, res, err, steps(res))
+		}
+		if len(e.ad["rd"].adds) != 1 || e.count(`SELECT COUNT(*) FROM download WHERE state = 'added'`) != 1 {
+			t.Errorf("cached_only=%v: adds %v", cachedOnly, e.ad["rd"].adds)
+		}
+	}
+}
+
+// Every release failing at once: the route ends as one whose releases all missed does (exhausted, not added), each
+// failure counted as one attempt, and the blocklist rows still start their re-search. A series release that fails at
+// once is not covered by a later release of fewer episodes.
+func TestFailedAtOnceEverywhere(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.pr["rd"].set("rd-aaaa", provider.Torrent{Hash: h("a"), Status: "magnet_error", State: provider.StateError})
+	e.pr["rd"].set("rd-bbbb", provider.Torrent{Hash: h("b"), Status: "virus", State: provider.StateError})
+	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-A"), cand(h("b"), "Movie.2024.2160p.WEB.H265-B")))
+	if err != nil || res.Outcome != OutcomeExhausted {
+		t.Fatalf("route: %+v %v steps=%s", res, err, steps(res))
+	}
+	if n := e.count(`SELECT COUNT(*) FROM router_blocklist WHERE researched_at IS NULL`); n != 2 {
+		t.Errorf("%d blocklist rows left to re-search, want 2", n)
+	}
+	e.r.set.MaxCandidates = 1
+	e.pr["rd"].set("rd-cccc", provider.Torrent{Hash: h("c"), Status: "magnet_error", State: provider.StateError})
+	res, err = e.r.Route(e.ctx, grabReq(cand(h("c"), "Movie.2024.2160p.WEB.H265-C"), cand(h("d"), "Movie.2024.2160p.WEB.H265-D")))
+	if err != nil || res.Outcome != OutcomeExhausted || len(e.ad["rd"].adds) != 3 {
+		t.Fatalf("one attempt allowed: %+v %v adds=%v steps=%s", res, err, e.ad["rd"].adds, steps(res))
+	}
+
+	s := newEnv(t, true)
+	s.pr["rd"].set("rd-eeee", provider.Torrent{Hash: h("e"), Status: "magnet_error", State: provider.StateError})
+	s.pr["rd"].set("rd-ffff", provider.Torrent{Hash: h("f"), Status: "downloaded", State: provider.StateDownloaded,
+		Files: []provider.File{{ID: "1", Path: "Show/Show.S01E01.mkv", Bytes: 9000, Selected: true}}})
+	pack, one := cand(h("e"), "Show.S01.2160p.WEB.H265-A"), cand(h("f"), "Show.S01E01.2160p.WEB.H265-B")
+	pack.Episodes, one.Episodes = []int64{101, 102}, []int64{101}
+	res, err = s.r.Route(s.ctx, Request{TitleID: 2, VersionID: 20, Version: "series", Source: "test",
+		Candidates: []Candidate{pack, one}})
+	if err != nil || res.Outcome != OutcomeAdded || res.Release != one.Release.Title {
+		t.Fatalf("series route: %+v %v steps=%s", res, err, steps(res))
+	}
+	if n := s.count(`SELECT COUNT(*) FROM router_blocklist WHERE info_hash = ? AND researched_at IS NULL`, h("e")); n != 1 {
+		t.Error("a failure only partly covered starts no re-search")
+	}
+}

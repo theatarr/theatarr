@@ -372,6 +372,9 @@ const (
 	vAbsent                     // no key: this provider is not usable at all
 	vPending                    // an add's outcome is unknown: the download stays in adding until settled
 	vCancelled                  // the download was ended or taken while the route ran (errMovedOn): the route stops
+	// vFailed: the add was taken and its download failed at once (its row is failed after the reads that follow the
+	// add: a provider error status, files rejected at selection): the route goes on with the next release.
+	vFailed
 )
 
 // routeState carries one route through the candidates.
@@ -414,6 +417,9 @@ type routeState struct {
 	// waitRelease: provider deferred the whole release, not only itself (heldReadPaced): no other provider is tried
 	// for it in this route.
 	waitRelease bool
+	// failedNow are the downloads of this route that failed at once (vFailed), with their episodes: their blocklist
+	// rows start no re-search of their own when a later release of the route covers them (stampCovered).
+	failedNow []failedAdd
 	// held is the stored episodes of the download of the same hash that answered the current candidate ("holds it
 	// already"; nil when none did, empty for a download of the whole title).
 	held *[]int64
@@ -631,7 +637,7 @@ func (r *Router) route(ctx context.Context, s *routeState, req Request, dry bool
 			return s.res, nil
 		case vAccepted:
 			if vp.Kind != policy.KindSeries {
-				return s.res, nil
+				return s.res, r.stampCovered(ctx, s, nil, true)
 			}
 			if chosen == nil || (chosen.Outcome == OutcomeInFlight && s.res.Outcome != OutcomeInFlight) {
 				copy := *s.res
@@ -641,7 +647,7 @@ func (r *Router) route(ctx context.Context, s *routeState, req Request, dry bool
 			s.res.Outcome, s.res.RetryAt = OutcomeDeferred, retryAt
 			s.res.Release, s.res.Hash, s.res.Indexer = c.Release.Title, indexer.NormalizeHash(c.Release.InfoHash), c.Release.Indexer
 			if vp.Kind != policy.KindSeries {
-				return s.res, nil
+				return s.res, r.stampCovered(ctx, s, nil, true)
 			}
 			if deferred == nil {
 				copy := *s.res
@@ -666,6 +672,9 @@ func (r *Router) route(ctx context.Context, s *routeState, req Request, dry bool
 		}
 		// A miss (or a release that cannot go to debrid): the next candidate, without searching again.
 	}
+	if err := r.stampCovered(ctx, s, covered, whole || vp.Kind != policy.KindSeries && chosen != nil); err != nil {
+		return s.res, err
+	}
 	// The existing job retry resumes at the first deferred release, keeping every later alternative and disjoint
 	// candidate. Later queued downloads are resumed by the stranded-row check; successful ones stay in flight.
 	if deferred != nil {
@@ -680,6 +689,28 @@ func (r *Router) route(ctx context.Context, s *routeState, req Request, dry bool
 	}
 	s.res.research = mr.left()
 	return s.res, nil
+}
+
+// failedAdd is a download of the route that failed at once (vFailed) and the episodes it was for.
+type failedAdd struct {
+	dl       int64
+	episodes []int64
+}
+
+// stampCovered marks the blocklist rows of the route's downloads that failed at once as searched again when a later
+// release of the same route covers what they were for (all: the whole title; otherwise each one's episodes are all
+// in covered), so the failure starts no re-search of its own (researchBlocklisted). Not in a dry run.
+func (r *Router) stampCovered(ctx context.Context, s *routeState, covered []int64, all bool) error {
+	for _, f := range s.failedNow {
+		if !all && (len(f.episodes) == 0 || !subset(f.episodes, covered)) {
+			continue
+		}
+		if _, err := r.st.Writer().ExecContext(ctx, `UPDATE router_blocklist SET researched_at = ?
+			WHERE download_id = ? AND researched_at IS NULL`, store.Millis(r.now()), f.dl); err != nil {
+			return fmt.Errorf("router: download %d: %w", f.dl, err)
+		}
+	}
+	return nil
 }
 
 // codeSeasonsCovered: a merged search's pack of several seasons was narrowed; the step names the seasons left out.
@@ -1133,6 +1164,19 @@ func (r *Router) candidate(ctx context.Context, s *routeState, c *Candidate) (ve
 			return 0, time.Time{}, err
 		}
 		st.Provider = pk
+		failed := false
+		if v == vAccepted && !s.dry && s.dlID != 0 {
+			// The reads after the add may have failed the download already (a provider error status, files rejected
+			// at selection). Only a failed row ends the release here; anything else still waits as an add.
+			var state, why string
+			if err := r.st.Writer().QueryRowContext(ctx, `SELECT state, COALESCE(error, '') FROM download WHERE id = ?`,
+				s.dlID).Scan(&state, &why); err != nil {
+				return 0, time.Time{}, fmt.Errorf("router: download %d: %w", s.dlID, err)
+			}
+			if failed = state == StateFailed; failed {
+				st = Step{Provider: pk, Outcome: "error", Code: codeFailedAtOnce, Message: "the add failed at once: " + why}
+			}
+		}
 		step(st)
 		if st.Code == codeHeldError {
 			heldErr[pk] = st.Message // the provider holds the hash, failed: that is no cache verdict
@@ -1141,6 +1185,14 @@ func (r *Router) candidate(ctx context.Context, s *routeState, c *Candidate) (ve
 			if err := r.recordAttempt(ctx, s.dlID, st); err != nil {
 				return 0, time.Time{}, err
 			}
+		}
+		if failed {
+			// No other provider is offered this download, and no miss is cached: the route goes on with the next
+			// release. The failure counts as one attempt; its episodes stay uncovered.
+			r.log.Info("add failed at once; the next release is tried", "provider", pk, "release", rel.Title,
+				"hash", hash, "download", s.dlID)
+			s.failedNow = append(s.failedNow, failedAdd{dl: s.dlID, episodes: c.Episodes})
+			return vFailed, time.Time{}, nil
 		}
 		switch v {
 		case vPending:
@@ -1367,6 +1419,9 @@ const codeHeldUnread = "held_unread"
 // ours), nothing is deleted and no miss is cached: the provider ends for this release, and the route goes on to the
 // next one. The entry stays until someone deletes it (Torrents › Failed).
 const codeHeldError = "held_error"
+
+// codeFailedAtOnce: the provider took the add and the download failed in the reads right after it (vFailed).
+const codeFailedAtOnce = "failed_at_once"
 
 func heldErrorStep(pk, id string) Step {
 	return Step{Outcome: "skipped", Code: codeHeldError, Message: pk + " holds this hash only as a failed entry " +
