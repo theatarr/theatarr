@@ -52,7 +52,8 @@ import (
 func (l *Library) rescope(ctx context.Context, d *importDownload, files []PlannedFile, guard func(PlannedFile, []episodeInfo) string) error {
 	v := &d.Version
 	m := d.EpisodeMap
-	if l.engine == nil || d.rescoped != nil || m == nil || m.How != decide.AnimeMapFranchise || m.Entry == "" {
+	if l.engine == nil || d.rescoped != nil || m == nil || m.How != decide.AnimeMapFranchise || m.Entry == "" ||
+		m.Pack != nil { // a claimed pack is placed by its proof, never re-scoped
 		return nil
 	}
 	db := l.st.Reader()
@@ -216,6 +217,8 @@ type resolver struct {
 	allowed map[int64]episodeInfo
 	all     map[int64]episodeInfo
 	title   *decide.Title
+	// proof is a claimed pack's proved placement (animepack.go): the only say on its files.
+	proof *packProof
 }
 
 func (l *Library) newResolver(ctx context.Context, d *importDownload, pack bool) (*resolver, error) {
@@ -279,6 +282,17 @@ func (r *resolver) episodes(rel string, taken map[int64]bool) (eps []episodeInfo
 		}
 		return out
 	}
+	if r.proof != nil {
+		// A proved pack: its table and nothing else (no franchise seam, no canonical fallback).
+		if r.proof.extras[rel] {
+			return nil, HowPackExtra, "extra: set aside by the pack's proof, not linked to an episode", nil
+		}
+		res := decide.FileEpisodes{EpisodeIDs: r.proof.files[rel], How: HowPack}
+		if len(res.EpisodeIDs) == 0 {
+			return nil, HowPack, "refused: not in the pack's proof", nil
+		}
+		return r.check(res, taken, pick)
+	}
 	if f, ok := r.d.Manual[rel]; ok && f.How == HowReplaced {
 		return nil, HowManual, "replaced: Change episodes gave the episodes this file held to another file", nil
 	} else if ok && len(f.Episodes) > 0 {
@@ -307,6 +321,12 @@ func (r *resolver) episodes(rel string, taken map[int64]bool) (eps []episodeInfo
 	if len(res.EpisodeIDs) == 0 {
 		return nil, "", "", nil // nothing authoritative: the canonical numbers decide
 	}
+	return r.check(res, taken, pick)
+}
+
+// check is a resolved file's episodes inside the download's (out of scope otherwise) and not another file's.
+func (r *resolver) check(res decide.FileEpisodes, taken map[int64]bool, pick func([]int64, map[int64]episodeInfo) []episodeInfo) (
+	[]episodeInfo, string, string, error) {
 	var outside, other []string
 	for _, id := range res.EpisodeIDs {
 		switch {

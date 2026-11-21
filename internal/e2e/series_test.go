@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/arrview"
+	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/metadata/anime"
 	"github.com/theatarr/theatarr/internal/metadata/tvdb"
 	"github.com/theatarr/theatarr/internal/policy"
@@ -721,4 +722,158 @@ func TestSeriesMergedSearchMixed(t *testing.T) {
 		t.Fatalf("links by folder=%v", folders)
 	}
 	e.seriesAvailable(id, 6, 6)
+}
+
+// animeShow is an ended anime series of three seasons of two episodes, absolute 1 to 6, added with every season.
+func (e *environment) animeShow(t *testing.T) (int64, []tvdb.Episode) {
+	var eps []tvdb.Episode
+	for s := 1; s <= 3; s++ {
+		for n := 1; n <= 2; n++ {
+			name, aired, runtime, abs := fmt.Sprintf("Episode %d", n), fmt.Sprintf("%d-03-%02d", 2018+s, n), 24, 2*(s-1)+n
+			eps = append(eps, tvdb.Episode{ID: 970000 + 10*s + n, SeriesID: 454545, Name: &name, Aired: &aired,
+				Runtime: &runtime, SeasonNumber: s, Number: n, AbsoluteNumber: &abs})
+		}
+	}
+	e.edge.tvdb["/series/454545/extended"] = encode(t, map[string]any{"status": "success", "data": tvdb.Series{ID: 454545,
+		Name: "Kaiju Tale", Year: "2019", OriginalLanguage: "jpn", Status: tvdb.Status{Name: "Ended"}}})
+	e.edge.tvdb["/series/454545/episodes/default?page=0"] = episodeResponse(t, eps)
+	e.edge.tvdb["/series/454545/episodes/absolute?page=0"] = episodeResponse(t, eps)
+	return e.addSeries(454545, "Kaiju Tale", "anime", 1, 2, 3), eps
+}
+
+// A newly added anime series is one merged search; a pack named as seasons 1 to 3 is taken for all three, proved
+// at import and every file linked to its own episode; nothing else is downloaded.
+func TestAnimeMergedSearchTakesTheSpan(t *testing.T) {
+	t.Parallel()
+	e := newEnvironment(t, seriesPolicy(true))
+	id, eps := e.animeShow(t)
+	span := release{name: "[GRP] Kaiju Tale S01-S03 [WEB 2160p]", hash: fmt.Sprintf("%040x", 61), season: 2, size: 8 << 30}
+	for _, ep := range eps {
+		span.files = append(span.files, fmt.Sprintf("Season %d/[GRP] Kaiju Tale - %02d [WEB 2160p].mkv", ep.SeasonNumber, ep.Number))
+	}
+	span.files = append(span.files, "[GRP] Kaiju Tale - NCOP1 [WEB 2160p].mkv")
+	e.edge.set(span)
+	e.mountRelease(span)
+	e.refreshBeforeSearch(id, 6)
+	e.drain()
+	if n := e.count(`SELECT count(*) FROM acquire_run WHERE title_id=? AND search_run IS NULL`, id); n != 1 {
+		t.Fatalf("searches: %d roots\n%s", n, e.logs.String())
+	}
+	if n := e.count(`SELECT count(*) FROM download`); n != 1 || !strings.Contains(e.text(`SELECT COALESCE(episode_map,'') FROM download`), `"mode":"seasons"`) {
+		t.Fatalf("downloads=%d, want the span with its claim\n%s", n, e.logs.String())
+	}
+	_, err := e.rt.Poll(e.ctx)
+	must(t, err)
+	plan, err := e.lib.Import(e.ctx, int64(e.count(`SELECT id FROM download`)), false)
+	must(t, err)
+	if len(plan.Links) != 6 {
+		t.Fatalf("links %d, why %q, unresolved %v", len(plan.Links), plan.Why, plan.Unresolved)
+	}
+	for _, l := range plan.Links {
+		var season, number int
+		if _, err := fmt.Sscanf(l.File, "Season %d/[GRP] Kaiju Tale - %d", &season, &number); err != nil ||
+			!strings.Contains(filepath.Base(l.Path), fmt.Sprintf("S%02dE%02d", season, number)) {
+			t.Errorf("link %s <- %s", l.Path, l.File)
+		}
+	}
+	e.now = e.now.Add(2 * time.Second)
+	e.drain()
+	e.seriesAvailable(id, 6, 6)
+}
+
+// A pack whose numbering cannot be trusted (two files on one episode) is rejected at import: nothing linked, the
+// download failed and blocklisted; each season is then searched by itself, takes its own season pack, and the bad
+// pack is not taken again.
+func TestAnimeMergedPackRejectedThenSeasonsAlone(t *testing.T) {
+	t.Parallel()
+	e := newEnvironment(t, seriesPolicy(true))
+	id, eps := e.animeShow(t)
+	bad := release{name: "[GRP] Kaiju Tale (01-06) [WEB 2160p]", hash: fmt.Sprintf("%040x", 71), season: 2, size: 8 << 30}
+	for i := range eps {
+		bad.files = append(bad.files, fmt.Sprintf("[GRP] Kaiju Tale - %02d [WEB 2160p].mkv", i+1))
+	}
+	bad.files = append(bad.files, "[GRP] Kaiju Tale - 04 [WEB 2160p] (v2).mkv")
+	e.edge.set(bad)
+	e.mountRelease(bad)
+	e.refreshBeforeSearch(id, 6)
+	e.drain()
+	if n := e.count(`SELECT count(*) FROM download`); n != 1 {
+		t.Fatalf("downloads=%d\n%s", n, e.logs.String())
+	}
+	_, err := e.rt.Poll(e.ctx)
+	must(t, err)
+	plan, err := e.lib.Import(e.ctx, int64(e.count(`SELECT id FROM download`)), false)
+	must(t, err)
+	if len(plan.Links) != 0 || !strings.HasPrefix(plan.Why, "pack numbering: two files on S02E02") {
+		t.Fatalf("links %d, why %q", len(plan.Links), plan.Why)
+	}
+	if got := e.text(`SELECT state FROM download`); got != "failed" || e.count(`SELECT count(*) FROM router_blocklist WHERE source='library'`) != 1 {
+		t.Fatalf("download %s, blocklist %d", got, e.count(`SELECT count(*) FROM router_blocklist`))
+	}
+	var packs []release
+	for s := 1; s <= 3; s++ {
+		p := release{name: fmt.Sprintf("[GRP] Kaiju Tale S%d [WEB 2160p]", s), hash: fmt.Sprintf("%040x", 71+s), season: s, size: 3 << 30}
+		for n := 1; n <= 2; n++ {
+			p.files = append(p.files, fmt.Sprintf("[GRP] Kaiju Tale S%d - %02d [WEB 2160p].mkv", s, n))
+		}
+		packs = append(packs, p)
+		e.mountRelease(p)
+	}
+	e.edge.set(append([]release{bad}, packs...)...)
+	roots := e.count(`SELECT count(*) FROM acquire_run WHERE title_id=? AND search_run IS NULL`, id)
+	_, err = e.rt.Poll(e.ctx) // the blocklist's re-search
+	must(t, err)
+	e.drain()
+	if n := e.count(`SELECT count(*) FROM acquire_run WHERE title_id=? AND search_run IS NULL`, id) - roots; n != 3 {
+		t.Fatalf("re-search: %d roots, want three seasons one by one\n%s", n, e.logs.String())
+	}
+	if n := e.count(`SELECT count(*) FROM download WHERE info_hash=?`, bad.hash); n != 1 {
+		t.Fatalf("the rejected pack was taken again: %d downloads", n)
+	}
+	if n := e.count(`SELECT count(*) FROM download WHERE state<>'failed'`); n != 3 {
+		var got string
+		_ = e.st.Reader().QueryRow(`SELECT group_concat(release_title || ' ' || state, '; ') FROM download`).Scan(&got)
+		t.Fatalf("season packs: %s", got)
+	}
+}
+
+// A grab by hand from the whole-series window, with override, is decided with that window's criterion (the pack is
+// read as seasons 1 to 3 and claims them) and its import is proved like any other: a duplicate number rejects it.
+func TestAnimeWholeSeriesGrabByHandIsProved(t *testing.T) {
+	t.Parallel()
+	e := newEnvironment(t, seriesPolicy(true))
+	id, _ := e.animeShow(t)
+	e.refreshBeforeSearch(id, 6)
+	e.drain()
+	pack := release{name: "[GRP] Kaiju Tale Seasons 1-3 [WEB 2160p]", hash: fmt.Sprintf("%040x", 81), size: 1 << 30}
+	for s := 1; s <= 3; s++ {
+		for n := 1; n <= 2; n++ {
+			pack.files = append(pack.files, fmt.Sprintf("Season %d/[GRP] Kaiju Tale - %02d [WEB 2160p].mkv", s, n))
+		}
+	}
+	pack.files = append(pack.files, "Season 3/[GRP] Kaiju Tale - 02 [WEB 2160p] (v2).mkv")
+	e.edge.set(pack)
+	e.mountRelease(pack)
+	rel := indexer.Release{Title: pack.name, InfoHash: pack.hash, Indexer: "public", Kind: "torznab", Privacy: "public",
+		Size: pack.size, Seeders: 20, Peers: 20}
+	g, err := e.av.GrabWholeRelease(e.ctx, id, "tv", rel, true, "", "ui:grab:key:e2e")
+	must(t, err)
+	if !g.Overridden || len(g.Decision.EpisodeIDs) != 6 || g.Decision.Pack == nil || !g.Decision.Pack.Span() {
+		t.Fatalf("grab: overridden %v, episodes %v, claim %+v (%v)", g.Overridden, g.Decision.Episodes, g.Decision.Pack,
+			g.Decision.Rejections)
+	}
+	e.drain()
+	_, err = e.rt.Poll(e.ctx)
+	must(t, err)
+	if c := e.text(`SELECT COALESCE(release_data, '') FROM download WHERE info_hash = ?`, pack.hash); !strings.Contains(c, `"Kind":"series"`) {
+		t.Errorf("the candidate lost the whole-series criterion: %s", c)
+	}
+	plan, err := e.lib.Import(e.ctx, int64(e.count(`SELECT id FROM download WHERE info_hash = ?`, pack.hash)), false)
+	must(t, err)
+	if len(plan.Links) != 0 || !strings.HasPrefix(plan.Why, "pack numbering: two files on S03E02") {
+		t.Fatalf("links %d, why %q", len(plan.Links), plan.Why)
+	}
+	if got := e.text(`SELECT state FROM download WHERE info_hash = ?`, pack.hash); got != "failed" {
+		t.Errorf("download %s", got)
+	}
 }

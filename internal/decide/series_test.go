@@ -976,6 +976,29 @@ func TestAnimePackClaims(t *testing.T) {
 			t.Errorf("%s: claim %+v", name, d.Pack)
 		}
 	}
+	// Controls: a scene-numbered season pack whose episodes lie in two library seasons, and "S01 to S03" taken by a
+	// one-season search, claim nothing (imported as on main).
+	scene := kaiju()
+	scene.UseSceneNumbering = true
+	for i, id := range []int64{613, 621, 622, 623} {
+		ep(&scene, id).SceneSeason, ep(&scene, id).SceneNumber = ip(2), ip(i+1)
+	}
+	for _, c := range []struct {
+		name string
+		tt   Title
+		ss   *SeriesSearch
+	}{
+		{"[G] Kaiju Tale S02 [BD 1080p]", scene, nil},
+		{"[G] Kaiju Tale S01 to S03 [BD 1080p]", kaiju(), one},
+	} {
+		d, err := e.DecideSearch(ctx, rel(c.name, "public", 20*gb), c.tt, v, c.ss)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if d.Pack != nil {
+			t.Errorf("%s: claim %+v", c.name, d.Pack)
+		}
+	}
 	// A batch the franchise map places is that engine's: no claim.
 	franchised := kaiju()
 	var all []animemeta.SE
@@ -990,6 +1013,16 @@ func TestAnimePackClaims(t *testing.T) {
 	}
 	if d.Pack != nil || d.AnimeMapping != AnimeMapFranchise {
 		t.Errorf("franchise-placed batch: mapping %q, claim %+v", d.AnimeMapping, d.Pack)
+	}
+	// The same entry unreviewed: Sonarr's numbering places the batch (a fallback), so it claims and is proved.
+	franchised.AnimeMap.Entries[0].Status = animemeta.StatusConflict
+	franchised.AnimeMap = animemap.New(6006, franchised.AnimeMap.Entries, nil)
+	if d, err = e.DecideSearch(ctx, rel("[G] Kaiju Tale (01-10) [BD 1080p]", "public", 20*gb), franchised, v,
+		kaijuMerged(0, 1, 2, 3)); err != nil {
+		t.Fatal(err)
+	}
+	if d.Pack == nil || d.AnimeMapping != AnimeMapSonarr || d.EpisodeMapping() == nil || !d.EpisodeMapping().Fallback {
+		t.Errorf("fallback batch: mapping %q %+v, claim %+v", d.AnimeMapping, d.EpisodeMapping(), d.Pack)
 	}
 	sd := rel("[G] Kaiju Tale (01-10) [BD 1080p]", "public", 20*gb)
 	sd.Kind = "seadex"

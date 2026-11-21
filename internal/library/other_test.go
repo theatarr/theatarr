@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -313,4 +314,67 @@ func TestOtherLibrarySeaDexPreferred(t *testing.T) {
 	if len(matches) != 1 || !strings.Contains(matches[0], "WEBDL-1080p") {
 		t.Errorf("movie-web files %v", matches)
 	}
+}
+
+// A download that carries an anime pack claim is not linked into other libraries at import: its proof is its own
+// library's, and another library deciding the release again would read it without its claim. Those libraries get
+// it by their own search.
+func TestOtherLibrarySkipsClaimedPack(t *testing.T) {
+	t.Parallel()
+	for _, claim := range []bool{true, false} {
+		e := newEnv(t, true)
+		e.kaiju()
+		e.pol.Router = &policy.Router{Enabled: true}
+		e.pol.Indexers = map[string]*policy.Indexer{"idx": {Kind: "torznab", URL: "http://idx", Privacy: policy.PrivacyPublic}}
+		tv := e.pol.Versions["tv"]
+		tv.Storage, tv.Providers = policy.StorageDebrid, []string{"rd"}
+		other := filepath.Join(e.dir, "media", "anime-two")
+		if err := os.MkdirAll(other, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		two := *tv
+		two.Library = other
+		e.pol.Versions["tv-two"] = &two
+		e.pol.Library.Versions["tv-two"] = &policy.LibraryVersion{Roots: []string{other}}
+		e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, created_at, updated_at) VALUES (61, 6, 'tv-two', 1, 0, 0)`)
+		e.exec(`UPDATE version SET monitored = 1`)
+		engine, err := decide.New(e.pol, decide.Options{Now: func() time.Time { return e.now }})
+		if err != nil {
+			t.Fatal(err)
+		}
+		e.lib.mount.closeHelpers()
+		e.lib = New(Options{Store: e.st, Policy: e.pol, Engine: engine, Queue: e.queue, Now: func() time.Time { return e.now },
+			Probe: func(p string, _ int64) (*probe.Result, error) {
+				if r, ok := e.probes[p]; ok {
+					return r, nil
+				}
+				return nil, probe.ErrUnknownFormat
+			},
+			Formats: func(context.Context, string, int64, string) []string { return nil }})
+		t.Cleanup(e.lib.mount.closeHelpers)
+		epMap := kaijuClaim(decide.PackAbsolute)
+		if !claim {
+			epMap = "" // control: the same release without a claim is offered to the other library as today
+		}
+		release := "[GRP] Kaiju Tale (01-10) [WEB-DL 1080p]"
+		e.release(release, kaijuFiles("absolute"))
+		e.videoSize(release, 1920, 1080)
+		js, _ := json.Marshal(kaijuIDs())
+		e.seriesDownload(1, 6, 60, hashA, release, string(js), nullIf(epMap))
+		plan, err := e.lib.Import(e.ctx, 1, false)
+		if err != nil || len(plan.Links) != 10 {
+			t.Fatalf("claim=%v: links %d %v (%q)", claim, len(plan.Links), err, plan.Why)
+		}
+		got := e.one(`SELECT COUNT(*) FROM download WHERE version_key = 'tv-two'`)
+		if want := map[bool]string{true: "0", false: "1"}[claim]; got != want {
+			t.Errorf("claim=%v: downloads for the other library %s, want %s", claim, got, want)
+		}
+	}
+}
+
+func nullIf(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
 }

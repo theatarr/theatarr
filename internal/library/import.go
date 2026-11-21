@@ -50,6 +50,8 @@ type Plan struct {
 	// for the web UI's Manual import (arrview); it is not stored.
 	Why        string            `json:"-"`
 	seaDexVeto map[string]string // files markVeto marked (upgrade.go)
+	// packRefused is why a claimed pack's numbering cannot be trusted (animepack.go): the import is rejected.
+	packRefused string
 }
 
 // PlannedFile is a video file of the release.
@@ -642,6 +644,11 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 	}
 	plan.Naming = vn.Source
 	root := filepath.Clean(v.Policy.Library)
+	if v.Title.Kind != "movie" && claimed(d) != nil && anyZurgUnconfirmed(plan.Rejected) {
+		// A pack's proof needs the whole listing: an unconfirmed one waits as today, before any file counts as missing.
+		return l.waitMismatch(ctx, d, plan, dryRun, "zurg does not confirm the files are this download's ("+
+			firstZurgReason(plan.Rejected)+")")
+	}
 	if v.Title.Kind == "movie" {
 		err = l.planMovie(ctx, d, vn, root, resolution, labels, plan)
 	} else {
@@ -649,6 +656,12 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 	}
 	if err != nil {
 		return nil, err
+	}
+	if plan.packRefused != "" {
+		// The pack's numbering cannot be trusted: nothing is linked, the release is blocklisted and its seasons are
+		// searched again one by one (animepack.go). Never held for review.
+		plan.Links = nil
+		return l.reject(ctx, d, plan, dryRun, "pack numbering: "+plan.packRefused)
 	}
 	if len(plan.Links) == 0 {
 		reason := "no file passed the sample guard"
@@ -1377,6 +1390,16 @@ func (l *Library) planSeries(ctx context.Context, d *importDownload, vn *Version
 	if err != nil {
 		return err
 	}
+	pack := claimed(d)
+	if pack != nil {
+		// Before any link: the files must match the pack's claim one to one; the proof's table is the placement.
+		proof, why := provePack(res.title, pack, plan.Files)
+		if why != "" {
+			plan.packRefused = why
+			return nil
+		}
+		res.proof = proof
+	}
 	taken := map[int64]bool{}
 	for _, i := range res.order(plan.Files) {
 		f := &plan.Files[i]
@@ -1477,6 +1500,12 @@ func (l *Library) planSeries(ctx context.Context, d *importDownload, vn *Version
 		lk.Exists = linkPointsAt(path, lk.Target)
 		lk.prev, _ = os.Readlink(path)
 		plan.Links = append(plan.Links, lk)
+	}
+	if pack != nil && len(plan.Links) == 0 && firstCollision(plan.Rejected) == "" {
+		// A proved pack with nothing to link (its files for the awarded episodes also hold others): rejected like a
+		// failed proof, never held.
+		plan.packRefused = "no file of the pack fits the episodes this download was given"
+		return nil
 	}
 	planSeriesReplacements(plan, existing)
 	if up != nil {

@@ -109,8 +109,9 @@ func (l *Library) relinkAnime(ctx context.Context, tvdbID int) (*AnimeRelinked, 
 			}
 			downloads[c.downloadID] = d
 		}
-		// a client's or an admin's choice of episodes stays
-		if _, ok := d.Manual[rel]; ok || d.Recorded[rel].How == HowManual {
+		// a client's or an admin's choice of episodes stays, and a pack placed by its proof (animepack.go): its files
+		// read differently file by file ("Season 2/Show - 05.mkv" as number 5 of the entry named "Show")
+		if _, ok := d.Manual[rel]; ok || d.Recorded[rel].How == HowManual || d.EpisodeMap != nil && d.EpisodeMap.Pack != nil {
 			continue
 		}
 		key := [2]int64{titleID, c.versionID}

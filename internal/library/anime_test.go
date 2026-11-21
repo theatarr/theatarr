@@ -3,11 +3,14 @@ package library
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/decide"
+	"github.com/theatarr/theatarr/internal/decide/parser/sonarr"
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/metadata/anime/animestore"
 )
@@ -391,5 +394,310 @@ func TestAnimeFallbackFilesNameOtherEntry(t *testing.T) {
 				t.Errorf("links hold %s", got)
 			}
 		})
+	}
+}
+
+// kaiju is an anime series of three seasons (3, 3 and 4 episodes; ids 6s0n, absolute 1 to 10) with version 60.
+func (e *env) kaiju() {
+	e.exec(`INSERT INTO title (id, kind, name, year, tvdb_id, series_type, runtime_minutes, created_at, updated_at)
+		VALUES (6, 'series', 'Kaiju Tale', 2019, 6006, 'anime', 24, 0, 0)`)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (60, 6, 'tv', 0, 0)`)
+	abs := 0
+	for s, n := range []int{3, 3, 4} {
+		for i := 1; i <= n; i++ {
+			abs++
+			id := 600 + 10*(s+1) + i
+			e.exec(`INSERT INTO episode (id, title_id, season, number, name, created_at, updated_at) VALUES (?, 6, ?, ?, 'Episode', 0, 0)`,
+				id, s+1, i)
+			e.exec(`INSERT INTO episode_number (episode_id, title_id, scheme, number, source) VALUES (?, 6, 'absolute_tvdb', ?, 'tvdb')`, id, abs)
+		}
+	}
+}
+
+// kaijuIDs are kaiju's episode ids of the seasons (all when none).
+func kaijuIDs(seasons ...int) []int64 {
+	var out []int64
+	for s, n := range []int{3, 3, 4} {
+		if len(seasons) > 0 && !slices.Contains(seasons, s+1) {
+			continue
+		}
+		for i := 1; i <= n; i++ {
+			out = append(out, int64(600+10*(s+1)+i))
+		}
+	}
+	return out
+}
+
+// kaijuClaim is the stored mapping of a pack of kaiju's three seasons: named (seasons) or absolute 1 to 10.
+func kaijuClaim(mode string) string {
+	c := decide.PackClaim{Mode: mode, Seasons: []int{1, 2, 3}, Episodes: kaijuIDs()}
+	if mode == decide.PackAbsolute {
+		for i, id := range c.Episodes {
+			c.Numbers = append(c.Numbers, decide.PackNumber{N: i + 1, Episode: id})
+		}
+	}
+	b, _ := json.Marshal(decide.EpisodeMap{Pack: &c})
+	return string(b)
+}
+
+// kaijuFiles names kaiju's ten episodes: "S01E01" style, "Season N/... - 0n" style, or absolute "- 0n".
+func kaijuFiles(style string) map[string]float64 {
+	out := map[string]float64{}
+	abs := 0
+	for s, n := range []int{3, 3, 4} {
+		for i := 1; i <= n; i++ {
+			abs++
+			switch style {
+			case "SxxEyy":
+				out[fmt.Sprintf("Kaiju.Tale.S%02dE%02d.1080p.BluRay.x264-GRP.mkv", s+1, i)] = 1440
+			case "folders":
+				out[fmt.Sprintf("Season %d/[GRP] Kaiju Tale - %02d [BD 1080p].mkv", s+1, i)] = 1440
+			case "absolute":
+				out[fmt.Sprintf("[GRP] Kaiju Tale - %02d [BD 1080p].mkv", abs)] = 1440
+			}
+		}
+	}
+	return out
+}
+
+// importKaiju imports a pack of kaiju's seasons for download 1 with the files and the stored mapping, the download
+// given episodes eps.
+func (e *env) importKaiju(release string, files map[string]float64, epMap string, eps []int64) *Plan {
+	e.t.Helper()
+	e.release(release, files)
+	e.videoSize(release, 1920, 1080)
+	js, _ := json.Marshal(eps)
+	e.seriesDownload(1, 6, 60, hashA, release, string(js), epMap)
+	plan, err := e.lib.Import(e.ctx, 1, false)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	return plan
+}
+
+// linkedTo is every link's file and its episode, as "S01E01 <- file".
+func (e *env) linkedTo() []string {
+	e.t.Helper()
+	rows, err := e.st.Reader().Query(`SELECT printf('S%02dE%02d', ep.season, ep.number), cf.path FROM link l
+		JOIN link_episode le ON le.link_id = l.id JOIN episode ep ON ep.id = le.episode_id
+		JOIN content_file cf ON cf.id = l.content_file_id WHERE l.title_id = 6 ORDER BY ep.season, ep.number`)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var se, f string
+		if err := rows.Scan(&se, &f); err != nil {
+			e.t.Fatal(err)
+		}
+		out = append(out, se+" <- "+f)
+	}
+	return out
+}
+
+// An anime pack of several seasons imports only when its files match its stored claim one to one; each file then
+// links to its own episode, by its own season and number, by its season folder, or by its absolute number.
+func TestAnimePackProved(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct{ name, release, style, mode string }{
+		{"named, per-season files", "[GRP] Kaiju Tale S01-S03 [BD 1080p]", "SxxEyy", decide.PackSeasons},
+		{"named, season folders", "[GRP] Kaiju Tale Seasons 1-3 [BD 1080p]", "folders", decide.PackSeasons},
+		{"absolute batch", "[GRP] Kaiju Tale (01-10) [BD 1080p]", "absolute", decide.PackAbsolute},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			e := newEnv(t, true)
+			e.kaiju()
+			plan := e.importKaiju(c.release, kaijuFiles(c.style), kaijuClaim(c.mode), kaijuIDs())
+			if len(plan.Links) != 10 {
+				t.Fatalf("links %d, unresolved %v, why %q", len(plan.Links), plan.Unresolved, plan.Why)
+			}
+			got := e.linkedTo()
+			abs := 0
+			for s, n := range []int{3, 3, 4} {
+				for i := 1; i <= n; i++ {
+					abs++
+					want := map[string]string{"SxxEyy": fmt.Sprintf("S%02dE%02d.", s+1, i),
+						"folders":  fmt.Sprintf("Season %d/[GRP] Kaiju Tale - %02d ", s+1, i),
+						"absolute": fmt.Sprintf("Kaiju Tale - %02d ", abs)}[c.style]
+					line := got[abs-1]
+					if !strings.HasPrefix(line, fmt.Sprintf("S%02dE%02d <- ", s+1, i)) || !strings.Contains(line, want) {
+						t.Errorf("link %d: %s", abs, line)
+					}
+				}
+			}
+			if s := e.one(`SELECT state FROM download WHERE id = 1`); s != "imported" {
+				t.Errorf("download %s", s)
+			}
+		})
+	}
+}
+
+// A pack whose numbering cannot be trusted is rejected whole: nothing linked, the download failed, the release
+// blocklisted for the library (its seasons are then searched one by one), never held for review.
+func TestAnimePackProofFails(t *testing.T) {
+	t.Parallel()
+	dup := kaijuFiles("SxxEyy")
+	dup["Kaiju.Tale.S02E01.1080p.BluRay.x264-OTHER.mkv"] = 1440
+	restart := map[string]float64{}
+	for s, n := range []int{3, 3, 4} {
+		for i := 1; i <= n; i++ {
+			restart[fmt.Sprintf("Season %d/[GRP] Kaiju Tale - %02d [BD 1080p].mkv", s+1, i)] = 1440
+		}
+	}
+	missing := kaijuFiles("SxxEyy")
+	delete(missing, "Kaiju.Tale.S03E04.1080p.BluRay.x264-GRP.mkv")
+	outside := kaijuFiles("absolute")
+	outside["[GRP] Kaiju Tale - 11 [BD 1080p].mkv"] = 1440
+	for _, c := range []struct {
+		name, release, mode string
+		files               map[string]float64
+		why                 string
+	}{
+		{"two files on one episode", "[GRP] Kaiju Tale S01-S03 [BD 1080p]", decide.PackSeasons, dup, "two files on S02E01"},
+		{"restarting files under an absolute name", "[GRP] Kaiju Tale (01-10) [BD 1080p]", decide.PackAbsolute, restart,
+			"season-numbered file under an absolute name"},
+		{"absolute files under a season name", "[GRP] Kaiju Tale S01-S03 [BD 1080p]", decide.PackSeasons,
+			kaijuFiles("absolute"), "absolute-numbered file under a season name"},
+		{"a claimed episode without a file", "[GRP] Kaiju Tale S01-S03 [BD 1080p]", decide.PackSeasons, missing,
+			"no file for S03E04"},
+		{"a regular file outside the claim", "[GRP] Kaiju Tale (01-10) [BD 1080p]", decide.PackAbsolute, outside,
+			"outside the pack's numbers (11)"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			e := newEnv(t, true)
+			e.kaiju()
+			plan := e.importKaiju(c.release, c.files, kaijuClaim(c.mode), kaijuIDs())
+			if len(plan.Links) != 0 || len(e.linkedTo()) != 0 {
+				t.Fatalf("linked %v", e.linkedTo())
+			}
+			if !strings.HasPrefix(plan.Why, "pack numbering: ") || !strings.Contains(plan.Why, c.why) {
+				t.Errorf("why %q, want %q", plan.Why, c.why)
+			}
+			if got := e.one(`SELECT d.state || ' ' || li.state || ' ' || (SELECT COUNT(*) FROM router_blocklist b WHERE b.info_hash = d.info_hash
+				AND b.source = 'library' AND b.version_key = 'tv') FROM download d JOIN library_import li ON li.download_id = d.id
+				WHERE d.id = 1`); got != "failed rejected 1" {
+				t.Errorf("download, import, blocklist: %s", got)
+			}
+		})
+	}
+}
+
+// Extras beside the episodes are set aside before the proof and never linked: OVA, SP01, NCOP1, NCED, recap, a
+// decimal "12.5", an Extras folder. "5.1" audio and a series title with "Special" in it are not extras.
+func TestAnimePackExtras(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.kaiju()
+	files := kaijuFiles("absolute")
+	for _, x := range []string{"[GRP] Kaiju Tale - OVA [BD 1080p].mkv", "[GRP] Kaiju Tale - SP01 [BD 1080p].mkv",
+		"[GRP] Kaiju Tale - NCOP1 [BD 1080p].mkv", "[GRP] Kaiju Tale - NCED [BD 1080p].mkv",
+		"[GRP] Kaiju Tale - Recap [BD 1080p].mkv", "[GRP] Kaiju Tale - 03.5 [BD 1080p].mkv",
+		"Extras/[GRP] Kaiju Tale - 01 Making Of [BD 1080p].mkv"} {
+		files[x] = 1440
+	}
+	delete(files, "[GRP] Kaiju Tale - 02 [BD 1080p].mkv")
+	files["[GRP] Kaiju Tale - 02 [BD 1080p AAC 5.1].mkv"] = 1440
+	plan := e.importKaiju("[GRP] Kaiju Tale (01-10) [BD 1080p]", files, kaijuClaim(decide.PackAbsolute), kaijuIDs())
+	if len(plan.Links) != 10 {
+		t.Fatalf("links %d, why %q, unresolved %v", len(plan.Links), plan.Why, plan.Unresolved)
+	}
+	for _, l := range plan.Links {
+		if strings.Contains(l.File, "OVA") || strings.Contains(l.File, "SP01") || strings.Contains(l.File, "NC") ||
+			strings.Contains(l.File, "Recap") || strings.Contains(l.File, "03.5") || strings.HasPrefix(l.File, "Extras/") {
+			t.Errorf("an extra is linked: %s", l.File)
+		}
+	}
+	for name, want := range map[string]bool{"[GRP] Special Forces - 05 [BD 1080p].mkv": false,
+		"Special.Forces.S01E05.1080p.DDP5.1.mkv": false, "[GRP] Kaiju Tale - 05 [BD 1080p AAC 5.1].mkv": false,
+		"[GRP] Kaiju Tale - NCED2 [BD].mkv": true, "Specials/[GRP] Kaiju Tale - 01.mkv": true, "Kaiju.Tale.NCOP1.1080p.mkv": true,
+		"[GRP] Kaiju Tale - 12.5 [BD].mkv": true} {
+		stem := strings.TrimSuffix(filepath.Base(name), filepath.Ext(name))
+		if got := packExtra(name, sonarr.ParseTitle(stem)); got != want {
+			t.Errorf("%s: extra %v, want %v", name, got, want)
+		}
+	}
+}
+
+// A narrowed pack (the download given seasons 1 and 2) is proved over the whole pack; only its own seasons are
+// linked and season 3's files stay out of scope. A proved pack with nothing it may link is rejected, not held.
+func TestAnimePackNarrowed(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.kaiju()
+	plan := e.importKaiju("[GRP] Kaiju Tale S01-S03 [BD 1080p]", kaijuFiles("SxxEyy"), kaijuClaim(decide.PackSeasons),
+		kaijuIDs(1, 2))
+	if len(plan.Links) != 6 || len(plan.Unresolved) != 4 {
+		t.Fatalf("links %d, unresolved %v, why %q", len(plan.Links), plan.Unresolved, plan.Why)
+	}
+	for f, why := range plan.Unresolved {
+		if !strings.Contains(f, "S03E") || !strings.HasPrefix(why, "out of scope") {
+			t.Errorf("%s: %s", f, why)
+		}
+	}
+
+	e2 := newEnv(t, true)
+	e2.kaiju()
+	files := map[string]float64{"[GRP] Kaiju Tale - 01-02 [BD 1080p].mkv": 2880, "[GRP] Kaiju Tale - 03-04 [BD 1080p].mkv": 2880,
+		"[GRP] Kaiju Tale - 05-06 [BD 1080p].mkv": 2880, "[GRP] Kaiju Tale - 07-08 [BD 1080p].mkv": 2880,
+		"[GRP] Kaiju Tale - 09-10 [BD 1080p].mkv": 2880}
+	plan = e2.importKaiju("[GRP] Kaiju Tale (01-10) [BD 1080p]", files, kaijuClaim(decide.PackAbsolute), []int64{621})
+	if len(plan.Links) != 0 || !strings.HasPrefix(plan.Why, "pack numbering: no file of the pack fits") {
+		t.Fatalf("links %d, why %q", len(plan.Links), plan.Why)
+	}
+	if s := e2.one(`SELECT state FROM download WHERE id = 1`); s != "failed" {
+		t.Errorf("download %s", s)
+	}
+}
+
+// A season-folder pack proved onto its episodes is left alone by the relink after a franchise mapping is accepted:
+// "Season 2/[GRP] Kaiju Tale - 01" reads there as number 1 of the entry named "Kaiju Tale".
+func TestAnimePackRelinkLeavesItAlone(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.kaiju()
+	plan := e.importKaiju("[GRP] Kaiju Tale Seasons 1-3 [BD 1080p]", kaijuFiles("folders"), kaijuClaim(decide.PackSeasons), kaijuIDs())
+	if len(plan.Links) != 10 {
+		t.Fatalf("links %d, why %q", len(plan.Links), plan.Why)
+	}
+	before := e.linkedTo()
+	e.exec(`INSERT INTO anime_franchise (slug, name, seed_anilist, created_at, updated_at) VALUES ('kaiju', 'Kaiju', 1, 0, 0)`)
+	e.exec(`INSERT INTO anime_entry (franchise, key, origin, title, body) VALUES ('kaiju', 'al:1', 'anilist', 'Kaiju Tale', '{}')`)
+	e.exec(`INSERT INTO anime_mapping (franchise, entry_key, status, tvdb_series, episodes, reason, updated_at) VALUES
+		('kaiju', 'al:1', 'override', 6006, '[[1,1],[1,2],[1,3],[2,1],[2,2],[2,3],[3,1],[3,2],[3,3],[3,4]]', '', 0)`)
+	if res, err := e.lib.RelinkAnime(e.ctx, 6006); err != nil || len(res.Moved)+len(res.Planned)+len(res.Occupied) != 0 {
+		t.Fatalf("relink %+v %v", res, err)
+	}
+	if after := e.linkedTo(); strings.Join(after, "\n") != strings.Join(before, "\n") {
+		t.Errorf("links moved:\n%s", strings.Join(after, "\n"))
+	}
+}
+
+// A listing the mount has not confirmed waits as today before the proof counts a file missing: the import neither
+// rejects nor blocklists.
+func TestAnimePackUnconfirmedListingWaits(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.kaiju()
+	release := "[GRP] Kaiju Tale S01-S03 [BD 1080p]"
+	files := kaijuFiles("SxxEyy")
+	srv := newZurgServer(t)
+	srv.torrents = []ZurgTorrent{{Name: release, Hash: hashA, Size: 50}}
+	for f := range files {
+		size := int64(5)
+		if strings.Contains(f, "S03E04") {
+			size = 6 // the mount shows 5 bytes: not confirmed
+		}
+		srv.entries[davPath(release, f)] = ZurgEntry{Hash: hashA, Name: filepath.Base(f), Size: size}
+	}
+	e.withZurg(srv)
+	plan := e.importKaiju(release, files, kaijuClaim(decide.PackSeasons), kaijuIDs())
+	if len(plan.Links) != 0 || !plan.Waiting {
+		t.Fatalf("links %d, waiting %v, why %q", len(plan.Links), plan.Waiting, plan.Why)
+	}
+	if got := e.one(`SELECT state || ' ' || (SELECT COUNT(*) FROM router_blocklist) FROM download WHERE id = 1`); got != "ready 0" {
+		t.Errorf("download, blocklist: %s", got)
 	}
 }

@@ -36,7 +36,8 @@ func (l *Library) linkOthers(ctx context.Context, d *importDownload) {
 	hash := indexer.NormalizeHash(d.InfoHash)
 	src := d.Version.Policy
 	if l.engine == nil || !l.pol.RouterSettings().Enabled || hash == "" || src == nil ||
-		strings.HasPrefix(d.Source, OtherSourcePrefix) { // linked from another library's import: that import tried them
+		strings.HasPrefix(d.Source, OtherSourcePrefix) || // linked from another library's import: that import tried them
+		d.EpisodeMap != nil && d.EpisodeMap.Pack != nil { // a claimed pack: other libraries get it by their own search
 		return
 	}
 	episodes := d.rescoped
