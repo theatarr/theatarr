@@ -98,6 +98,14 @@ for (const px of [400, 1440]) {
     expect(screen.queryByText(/the last search/)).toBeNull();
   });
 
+  it(`links an empty season to the library's last search, at ${px} px`, async () => {
+    width(px);
+    open("/title/7/releases?version=tv&season=3", none);
+    await screen.findByText("No search of season 3 is stored for TV.", { exact: false });
+    const link = screen.getByRole("link", { name: "Show the last search for TV" });
+    expect(link.getAttribute("href")).toBe("/title/7/releases?version=tv");
+  });
+
   it(`asks without a season when the link names none, and says what the whole-series search lists, at ${px} px`, async () => {
     width(px);
     const api = open("/title/7/releases?version=tv", stored);

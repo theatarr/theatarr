@@ -6,6 +6,7 @@
 // (release-grab.tsx, AddByHash).
 import { ChevronDown, ChevronRight, Loader2, Search } from "lucide-react";
 import { useState } from "react";
+import { Link } from "react-router";
 import { useReleaseOutcomes, useReleases, type Releases } from "@/api/add";
 import { usePerms } from "@/api/library";
 import { VersionStatus } from "@/components/version-status";
@@ -242,7 +243,13 @@ function Panel({ titleId, kind, initialVersion, focus, labels, season, run, onVe
           {shownFocus && !items.some((c) => c.info_hash?.toLowerCase() === shownFocus.toLowerCase()) ? (
             <p className="text-xs text-[var(--ink-3)]" data-testid="releases-focus-missing">The release you followed is not in this list: only the newest search's releases are kept here.</p>
           ) : null}
-          {items.length === 0 ? (r.source === "none" ? (runOf !== undefined ? <Empty>This search stored no release list for {labels?.[r.version] || nameOf(r.version)}.</Empty> : seasonName ? <Empty>No search of {seasonName.toLowerCase()} is stored for {labels?.[r.version] || nameOf(r.version)}.</Empty> : null) : <Empty>No releases to show for {labels?.[r.version] || nameOf(r.version)}.</Empty>) : <ReleaseGrid key={r.version} items={items} stored={storedSample(r, items.length)} kind={kind} outcomes={oc.data?.outcomes ?? r.outcomes} focus={shownFocus} />}
+          {items.length === 0 ? (r.source === "none" ? (runOf !== undefined ? <Empty>This search stored no release list for {labels?.[r.version] || nameOf(r.version)}.</Empty> : seasonName ? (
+            // A season upgraded from RSS has no search of its own: one link to the library's last search.
+            <Empty>
+              <span>No search of {seasonName.toLowerCase()} is stored for {labels?.[r.version] || nameOf(r.version)}.</span>{" "}
+              <Link className="text-primary hover:underline" to={`/title/${titleId}/releases?${new URLSearchParams({ version: r.version }).toString()}`} data-testid="releases-library-last">Show the last search for {labels?.[r.version] || nameOf(r.version)}</Link>
+            </Empty>
+          ) : null) : <Empty>No releases to show for {labels?.[r.version] || nameOf(r.version)}.</Empty>) : <ReleaseGrid key={r.version} items={items} stored={storedSample(r, items.length)} kind={kind} outcomes={oc.data?.outcomes ?? r.outcomes} focus={shownFocus} />}
         </>
       ) : null}
       {r && perms.admin ? <AddByHash key={r.version} titleId={titleId} version={r.version} label={labels?.[r.version]} /> : null}

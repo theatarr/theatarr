@@ -626,7 +626,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   or an episode has its own on the title page). The stored grid stays read-only. A season's link (its Why?'s **Show
   releases**; `?season=N`) shows that season's own stored search in each library, the newest decision whose run target
   is exactly `sNN` (an episode search of it, another season or an RSS read is not it), or "No search of season N is
-  stored for <library>."; the header names the season and Interactive search there searches that season. Without
+  stored for <library>." with one link, **Show the last search for <library>** (`?version=K`, no season: a season
+  upgraded from RSS has no search of its own); the header names the season and Interactive search there searches that season. Without
   `season` the page shows the newest stored decision of any kind, as before; the stored fallback after a failed live
   Interactive search stays the newest of any kind, labelled as such. The grid's filter box reads "Filter releases" (what it
   matches in its tooltip); an indexer is shown without the "prowlarr-" prefix of a linked Prowlarr indexer's key, the
