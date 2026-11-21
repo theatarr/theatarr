@@ -1013,6 +1013,32 @@ func TestAnimePackClaims(t *testing.T) {
 	if !d.Accepted || !d.Pack.Span() || len(d.Pack.Numbers) != 10 {
 		t.Errorf("batch on scene-offset seasons: accepted %v, claim %+v (%v)", d.Accepted, d.Pack, d.Rejections)
 	}
+	// A batch only a franchise name matches, whose entry is not importable, falls back to Sonarr's numbering (the
+	// series known): it keeps its per-number mapping and claims it, on RSS and under the query without a season.
+	alias := kaiju()
+	var aliasEps []animemeta.SE
+	for _, ep := range alias.Episodes {
+		aliasEps = append(aliasEps, animemeta.SE{ep.Season, ep.Number})
+	}
+	alias.AnimeMap = animemap.New(6006, []*animemap.Entry{{Franchise: "f", Key: "al:9", Title: "Kaiju Monogatari",
+		Names: []string{"Kaiju Monogatari"}, Status: animemeta.StatusConflict, Episodes: aliasEps}}, nil)
+	for _, ss := range []*SeriesSearch{nil, kaijuMerged(0, 1, 2, 3)} {
+		name := "[G] Kaiju Monogatari - 02-05 [BD 1080p]"
+		if ss != nil {
+			name = "[G] Kaiju Monogatari (01-10) [BD 1080p]"
+		}
+		size := int64(4 * gb)
+		if ss != nil {
+			size = 20 * gb
+		}
+		if d, err = e.DecideSearch(ctx, rel(name, "public", size), alias, v, ss); err != nil {
+			t.Fatal(err)
+		}
+		if d.Pack == nil || !d.Accepted || d.MatchType != MatchAlias {
+			t.Errorf("%s (search %v): accepted %v, match %q, claim %+v (%v)", name, ss != nil, d.Accepted, d.MatchType, d.Pack,
+				d.Rejections)
+		}
+	}
 	// A batch the franchise map places is that engine's: no claim.
 	franchised := kaiju()
 	var all []animemeta.SE

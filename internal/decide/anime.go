@@ -191,6 +191,7 @@ func (s *series) applyAnimeMap(d *Decision, p *sonarr.ParsedEpisodeInfo, rel Rel
 				return nil, err
 			}
 			r.mappedSeason, r.sceneMapping, r.episodes = known.mappedSeason, known.sceneMapping, known.episodes
+			r.byNumber = known.byNumber // an absolute batch's per-number mapping, for its pack claim
 		}
 	}
 	var fallback []AnimeFallback
