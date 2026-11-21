@@ -276,9 +276,11 @@ func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate)
 		case !s.vp.PreferSeaDex && series:
 			// A prefer-off version re-decides exactly as before standing existed (only on a revision change).
 			ss := seriesSearchFor(&t, c.Episodes)
-			if ss != nil {
-				// A merged search's candidate keeps its scope: the searched seasons its criteria carry.
-				ss.Seasons = criteriaSeasons(c.Criteria)
+			if s.req.Merged && len(c.Criteria) > 0 {
+				// A merged search's candidate is decided with the criteria it was found with: freshness may have left
+				// a season pack one episode, which an episode search would reject; its scope stays theirs.
+				d, err = decideBest(ctx, r.decideSeries, c.Release, t, v, c.Criteria, ss)
+				break
 			}
 			d, err = decideBest(ctx, r.decideSeries, c.Release, t, v, plainCriteria(ss, criteriaQueries(&t, ss, r.now())), ss)
 		case !s.vp.PreferSeaDex:
@@ -345,17 +347,6 @@ func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate)
 	}
 	s.redecided = true
 	return kept, nil
-}
-
-// criteriaSeasons are the searched seasons a merged search's criteria carry (decide.SeriesSearch.Seasons); nil for
-// any other search.
-func criteriaSeasons(cs []*decide.SeriesSearch) []int {
-	for _, c := range cs {
-		if c != nil && len(c.Seasons) > 0 {
-			return c.Seasons
-		}
-	}
-	return nil
 }
 
 // remapResumed maps a resumed series route's RSS candidates to the episodes their releases map to now, when the

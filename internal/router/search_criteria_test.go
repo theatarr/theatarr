@@ -286,3 +286,37 @@ func TestMergedSeriesSearch(t *testing.T) {
 		}
 	}
 }
+
+// The plain sources' query without a season asks by IMDb id only when there is one: Zilean adds a title query
+// otherwise, and its failure would make a clean answer partial.
+func TestWholeSeriesPlainQueryByIMDbOnly(t *testing.T) {
+	title := mergedTitle()
+	title.IMDb = "tt1234567"
+	q := indexer.Query{Type: indexer.QuerySeries, Title: title.Name, IMDb: title.IMDb, TVDB: title.TVDB}
+	p := planWhole(&title, &decide.SeriesSearch{Kind: profile.SearchSeries}, q)
+	if plain := p.forKind("zilean")[0].query; plain.Title != "" || plain.IMDb != title.IMDb || plain.Season != 0 {
+		t.Fatalf("plain query %+v", plain)
+	}
+	if crit := p.forKind("torznab")[0].query; crit.Title != title.Name || crit.Criteria != indexer.CriteriaSeries {
+		t.Fatalf("criteria query %+v", crit)
+	}
+}
+
+// The bounded cache checks of a merged search ask each member's best season pack first, then the packs of several
+// seasons: a run of spans ranked first does not take every slot.
+func TestMergedCheckOrder(t *testing.T) {
+	title := mergedTitle()
+	d := func(name string, eps ...int64) *decide.Decision {
+		return &decide.Decision{Release: name, Accepted: true, EpisodeIDs: eps}
+	}
+	span1, span2 := d("span1", 11, 12, 21, 22), d("span2", 11, 12, 21, 22, 31, 32)
+	one, two := d("one", 11, 12), d("two", 21, 22)
+	ms := []*decide.SeriesSearch{{Season: 1, Episodes: []int64{11, 12}}, {Season: 2, Episodes: []int64{21, 22}}}
+	var got []string
+	for _, x := range mergedCheckOrder(&title, []*decide.Decision{span1, span2, one, two}, ms) {
+		got = append(got, x.Release)
+	}
+	if strings.Join(got, ",") != "one,two,span1,span2" {
+		t.Fatalf("order %v", got)
+	}
+}

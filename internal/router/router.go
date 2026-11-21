@@ -300,7 +300,7 @@ func (r *Router) routeStored(ctx context.Context, req Request) (*Result, error) 
 	res, err := r.run(ctx, req, false)
 	if res != nil {
 		res.Mode = ModeActive
-		if err == nil && res.Outcome == OutcomeExhausted && missedEverywhere(res.Steps) {
+		if err == nil && !req.Merged && res.Outcome == OutcomeExhausted && missedEverywhere(res.Steps) {
 			if manualAdd(req.Candidates) {
 				// The person named this one release: when it fails, nothing else is searched for in its place.
 				r.log.Info("no re-search after a release added by hand missed everywhere", "title", req.TitleID,
@@ -314,9 +314,9 @@ func (r *Router) routeStored(ctx context.Context, req Request) (*Result, error) 
 				r.research(ctx, req.TitleID, req.VersionID, req.Version, candidateEpisodes(req.Candidates),
 					ReasonExhausted, 0)
 			}
-		} else if err == nil && len(res.research) > 0 && !manualAdd(req.Candidates) {
-			// A merged search's seasons left without a release: the re-search an exhausted route of their own would
-			// get, one for all of them.
+		} else if err == nil && req.Merged && len(res.research) > 0 && !manualAdd(req.Candidates) {
+			// A merged search's seasons left without a release (whatever the route's outcome): the re-search an
+			// exhausted route of their own would get, one for all of them.
 			if dead, _, derr := r.deadLinkRoute(ctx, req.Source); derr != nil {
 				r.log.Warn("re-search not queued", "title", req.TitleID, "version", req.Version, "err", derr)
 			} else if !dead {
@@ -615,10 +615,12 @@ func (r *Router) route(ctx context.Context, s *routeState, req Request, dry bool
 			tried++
 			if mr != nil {
 				mr.tries[bucket]++
-				if out == vContent {
-					mr.failed(c, missedEverywhere(s.res.Steps[n0:]))
-				}
 			}
+		}
+		if mr != nil && out == vContent {
+			// A fresh miss on every provider (a client's cache miss is a skipped step), counted apart from the
+			// attempts.
+			mr.failed(c, missedEverywhere(s.res.Steps[n0:]))
 		}
 		switch out {
 		case vCancelled:
@@ -672,6 +674,7 @@ func (r *Router) route(ctx context.Context, s *routeState, req Request, dry bool
 		chosen.research = mr.left()
 		return chosen, nil
 	}
+	s.res.research = mr.left()
 	return s.res, nil
 }
 
@@ -728,9 +731,10 @@ func (m *mergedRoute) seasons(eps []int64) []int {
 	return out
 }
 
-// bucket is a candidate's attempt bucket: its season, or spanBucket for a release of several seasons.
+// bucket is a candidate's attempt bucket: its season, or spanBucket for a release of several seasons, by the
+// release's own shape (its name), not the episodes scope and freshness left it.
 func (m *mergedRoute) bucket(c *Candidate) int {
-	if ss := m.seasons(c.Episodes); len(ss) == 1 {
+	if ss := m.seasons(c.Episodes); len(ss) == 1 && !indexer.HoldsSeasons(c.Release.Title) {
 		return ss[0]
 	}
 	return spanBucket

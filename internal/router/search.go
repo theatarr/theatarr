@@ -476,11 +476,16 @@ func SearchRequests(ctx context.Context, eng SearchEngine, svc *indexer.Service,
 
 // planWhole plans the query without a season of a whole-series search: for Prowlarr's feeds and keyword sources the
 // SearchSeries criteria (by id, the title only where an id search falls back), for DMM and Zilean the plain query
-// without a season (Torrentio and SeaDex need a season and are not asked). Every answer is judged with ss.
+// without a season, by IMDb id only when there is one (Torrentio and SeaDex need a season and are not asked). Every answer is judged with ss.
 func planWhole(t *decide.Title, ss *decide.SeriesSearch, q indexer.Query) *seriesPlan {
 	q.Season, q.Episode = 0, 0
 	c := q
 	c.Criteria = indexer.CriteriaSeries
+	if q.IMDb != "" {
+		// The plain sources are asked by IMDb id only (Zilean would add a title query, whose failure makes a clean
+		// answer partial).
+		q.Title, q.Aliases = "", nil
+	}
 	return &seriesPlan{base: seriesQuery{query: q}, criteria: []seriesQuery{{query: c, search: ss}},
 		plain: []*decide.SeriesSearch{ss}}
 }
@@ -498,8 +503,8 @@ func holdsSeasons(t *decide.Title, d *decide.Decision) bool {
 	return len(seasons) >= 2
 }
 
-// mergedCheckOrder is the order a merged search's bounded cache checks ask in: each member's best accepted release,
-// then the accepted packs of several seasons, then the rest in rank order.
+// mergedCheckOrder is the order a merged search's bounded cache checks ask in: each member's best accepted release
+// of one season, then the accepted packs of several seasons, then the rest in rank order.
 func mergedCheckOrder(t *decide.Title, ranked []*decide.Decision, ms []*decide.SeriesSearch) []*decide.Decision {
 	out := make([]*decide.Decision, 0, len(ranked))
 	taken := map[*decide.Decision]bool{}
@@ -511,7 +516,7 @@ func mergedCheckOrder(t *decide.Title, ranked []*decide.Decision, ms []*decide.S
 	}
 	for _, m := range ms {
 		for _, d := range ranked {
-			if d.Accepted && overlaps(d.DownloadEpisodes(), m.Episodes) {
+			if d.Accepted && !holdsSeasons(t, d) && overlaps(d.DownloadEpisodes(), m.Episodes) {
 				take(d)
 				break
 			}

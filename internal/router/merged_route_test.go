@@ -6,10 +6,15 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/theatarr/theatarr/internal/decide"
+	"github.com/theatarr/theatarr/internal/decide/profile"
+	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/provider/adder"
+	"github.com/theatarr/theatarr/internal/qbit/qbittest"
 )
 
 // mergedEnv is the router env with title 2's three seasons of two episodes (101, 102; 201, 202; 301, 302) and adds
@@ -215,5 +220,119 @@ func TestMergedRouteDeferredSeason(t *testing.T) {
 	}
 	if js != "[101,102,301,302]" {
 		t.Fatalf("span download episodes %s", js)
+	}
+}
+
+// A pack of several seasons scope left with one season's episodes is still charged to the packs' bucket: its miss
+// does not use up that season's attempts.
+func TestMergedRouteBucketByReleaseShape(t *testing.T) {
+	t.Parallel()
+	e := mergedEnv(t, h("e"))
+	e.r.set.MaxCandidates = 1
+	span := episodeCandidate("e", 101, 102)
+	span.Release.Title = "Show.S01-S02.2160p.WEB-GRP"
+	res, err := e.r.Route(e.ctx, mergedReq(span, pack(1)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(e.ad["rd"].adds, []string{h("e"), h("1")}) {
+		t.Fatalf("adds %v: %s", e.ad["rd"].adds, steps(res))
+	}
+}
+
+// researches are the re-search jobs' episodes.
+func (e *env) researches() [][]int64 {
+	e.t.Helper()
+	rows, err := e.st.Reader().Query(`SELECT payload FROM job WHERE kind = ? ORDER BY id`, JobResearch)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	defer rows.Close()
+	var out [][]int64
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			e.t.Fatal(err)
+		}
+		var rr ResearchRequest
+		_ = json.Unmarshal([]byte(p), &rr)
+		out = append(out, rr.Episodes)
+	}
+	return out
+}
+
+// A flagged route that ends exhausted searches again only the seasons that freshly missed, not those whose release
+// was only skipped (here blocklisted).
+func TestMergedRouteExhaustedResearchesMissedSeasons(t *testing.T) {
+	t.Parallel()
+	e := mergedEnv(t, h("1"))
+	q := jobs.NewQueue(e.st)
+	e.r.RegisterJobs(jobs.NewWorker(q, jobs.WorkerOptions{}), q)
+	e.exec(`INSERT INTO router_blocklist (version_key, info_hash, release_title, reason, source, created_at)
+		VALUES ('series', ?, 'pack', 'rejected', 'library', 0)`, h("2"))
+	res, err := e.r.Route(e.ctx, mergedReq(pack(1), pack(2)))
+	if err != nil || res.Outcome != OutcomeExhausted {
+		t.Fatalf("route %+v %v", res, err)
+	}
+	if got := e.researches(); len(got) != 1 || !slices.Equal(got[0], []int64{101, 102}) {
+		t.Fatalf("re-searches %v", got)
+	}
+}
+
+// A client's cache miss (a skipped step, no attempt counted) still marks its season for the re-search when another
+// season is placed.
+func TestMergedRouteClientMissResearched(t *testing.T) {
+	t.Parallel()
+	e, f := clientEnv(t, true)
+	for s := 1; s <= 2; s++ {
+		for n := 1; n <= 2; n++ {
+			e.exec(`INSERT INTO episode (id, title_id, season, number, created_at, updated_at) VALUES (?, 2, ?, ?, 0, 0)`,
+				s*100+n, s, n)
+		}
+	}
+	v := e.pol.Versions["series"]
+	v.AddVia, v.Client, v.Providers = policy.AddViaClient, "dc", nil
+	q := jobs.NewQueue(e.st)
+	e.r.RegisterJobs(jobs.NewWorker(q, jobs.WorkerOptions{}), q)
+	f.AddErr[h("1")] = []qbittest.AddError{{Status: 404, Code: "torrent_not_cached", Retryable: true}}
+	res, err := e.r.Route(e.ctx, mergedReq(pack(1), pack(2)))
+	if err != nil || res.Outcome != OutcomeAdded || !hasStep(res, codeClientMiss) {
+		t.Fatalf("route %+v %v: %s", res, err, steps(res))
+	}
+	if got := e.researches(); len(got) != 1 || !slices.Equal(got[0], []int64{101, 102}) {
+		t.Fatalf("re-searches %v", got)
+	}
+}
+
+// A flagged request's season pack that freshness left one episode is decided again (the settings changed while it
+// waited) with the criteria it was found with: still accepted, and still for that one episode.
+func TestMergedRouteRedecideKeepsCriteria(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.pol.Profiles = map[string]*policy.Profile{"tv": {Qualities: []policy.QualityItem{{Name: "WEBDL-2160p"}}, Cutoff: "WEBDL-2160p"}}
+	e.pol.Versions["series"].Profile = "tv"
+	e.exec(`UPDATE title SET runtime_minutes = 45 WHERE id = 2`)
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, air_date, air_date_utc_at, created_at, updated_at) VALUES
+		(101, 2, 1, 1, 'Pilot', '2024-01-01', 1000, 0, 0), (102, 2, 1, 2, 'Second', '2024-01-02', 1000, 0, 0),
+		(201, 2, 2, 1, 'Return', '2024-02-01', 1000, 0, 0), (202, 2, 2, 2, 'Again', '2024-02-02', 1000, 0, 0)`)
+	eng, err := decide.New(e.pol, decide.Options{Now: func() time.Time { return e.clock }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.r.SetProfiles(eng.Profile)
+	e.r.SetDecider(eng.Decide, eng.DecideSearch)
+	c := Candidate{Release: indexer.Release{Indexer: "pub", Title: "Show.S01.2160p.WEB-DL-NEW", InfoHash: h("a"),
+		Size: 20 << 30, Seeders: 10, Peers: 5}, Quality: "WEBDL-2160p", Episodes: []int64{101}, Search: true,
+		Origin: OriginSearch, Identity: RouteIdentityVersion,
+		Criteria: []*decide.SeriesSearch{{Kind: profile.SearchSeason, Season: 1, Episodes: []int64{101, 102},
+			MonitoredOnly: true, Seasons: []int{1, 2}}}}
+	req := Request{TitleID: 2, VersionID: 20, Version: "series", Source: "job", Candidates: []Candidate{c},
+		DecisionRev: "an older revision", Merged: true}
+	res, err := e.r.Route(e.ctx, req)
+	if err != nil || res.Outcome != OutcomeAdded {
+		t.Fatalf("route %+v %v: %s", res, err, steps(res))
+	}
+	if got := e.storedEpisodes(h("a")); !slices.Equal(got, []int64{101}) {
+		t.Fatalf("download episodes %v", got)
 	}
 }
