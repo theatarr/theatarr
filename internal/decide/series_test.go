@@ -1000,6 +1000,19 @@ func TestAnimePackClaims(t *testing.T) {
 			t.Errorf("%s: claim %+v", c.name, d.Pack)
 		}
 	}
+	// Scene season offsets do not exclude an absolute batch: the numbers still map one to one.
+	offset := kaiju()
+	offset.UseSceneNumbering = true
+	for i := range offset.Episodes {
+		ep := &offset.Episodes[i]
+		ep.SceneSeason, ep.SceneNumber, ep.SceneAbsolute = ip(ep.Season+1), ip(ep.Number), ip(ep.Absolute)
+	}
+	if d, err = e.DecideSearch(ctx, rel("[G] Kaiju Tale (01-10) [BD 1080p]", "public", 20*gb), offset, v, kaijuMerged(0, 1, 2, 3)); err != nil {
+		t.Fatal(err)
+	}
+	if !d.Accepted || !d.Pack.Span() || len(d.Pack.Numbers) != 10 {
+		t.Errorf("batch on scene-offset seasons: accepted %v, claim %+v (%v)", d.Accepted, d.Pack, d.Rejections)
+	}
 	// A batch the franchise map places is that engine's: no claim.
 	franchised := kaiju()
 	var all []animemeta.SE

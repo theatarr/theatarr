@@ -567,3 +567,41 @@ func TestRouteSpanSeaDexStanding(t *testing.T) {
 		t.Errorf("a release of one season lost its standing: %v", err)
 	}
 }
+
+// A deferred route's job and a requeued download keep the candidate's pack claim, so a resumed route of an anime
+// series still counts the pack in the span bucket.
+func TestResumedRouteKeepsClaimAndSpanBucket(t *testing.T) {
+	t.Parallel()
+	e := mergedEnv(t)
+	e.exec(`UPDATE title SET series_type = 'anime' WHERE id = 2`)
+	span := spanCand()
+	span.EpisodeMap = &decide.EpisodeMap{Pack: &decide.PackClaim{Mode: decide.PackSeasons, Seasons: []int{1, 2, 3},
+		Episodes: span.Episodes}}
+	// The route job's payload.
+	b, err := json.Marshal(routePayload{Request: mergedReq(span)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var p routePayload
+	if err := json.Unmarshal(b, &p); err != nil || !p.Candidates[0].claimSpan() {
+		t.Fatalf("route job payload lost the claim: %s %v", b, err)
+	}
+	// The download row a requeued route is rebuilt from.
+	m, _ := json.Marshal(span.EpisodeMap)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, episodes,
+		episode_map, state, created_at, updated_at) VALUES (7, 2, 20, 'series', ?, ?, 'pub', '[101,102,201,202,301,302]', ?,
+		'queued', 0, 0)`, h("e"), span.Release.Title, string(m))
+	req, err := DownloadRequest(e.ctx, e.st.Reader(), e.pol, 7)
+	if err != nil || req == nil || !req.Candidates[0].claimSpan() {
+		t.Fatalf("requeued download lost the claim: %+v %v", req, err)
+	}
+	mr, err := e.r.newMergedRoute(e.ctx, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	narrowed := req.Candidates[0]
+	narrowed.Episodes = []int64{101, 102} // narrowed to season 1: still the pack's bucket
+	if mr.bucket(&narrowed) != spanBucket {
+		t.Errorf("a resumed pack of several seasons left the span bucket")
+	}
+}

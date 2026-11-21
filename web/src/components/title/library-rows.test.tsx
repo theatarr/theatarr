@@ -73,7 +73,8 @@ describe("Libraries table", () => {
     document.body.innerHTML = "";
     manager();
     renderPage(<LibraryRows title={{ id: 7, kind: "series", name: "Show", series_type: "anime", anime: true } as never} versions={[tv] as never} />);
-    await waitFor(() => expect(within(rowOf("tv-web")).getByTestId("version-interactive-tv-web")).toBeTruthy());
+    await waitFor(() => expect(within(rowOf("tv-web")).getByTestId("version-search-tv-web")).toBeTruthy());
+    expect(within(rowOf("tv-web")).getByTestId("version-interactive-tv-web")).toBeTruthy();
   });
 
   it("has no row for a removed library and names its leftover links", async () => {

@@ -749,3 +749,34 @@ func TestAnimePackUnconfirmedListingWaits(t *testing.T) {
 		t.Errorf("download, blocklist: %s", got)
 	}
 }
+
+// Section 9: an anime absolute batch across a season break taken by a one-season search or RSS claims its numbers
+// with no span; well numbered it imports as on main, with a duplicate number it is rejected.
+func TestAnimeBatchAcrossBreakIsProved(t *testing.T) {
+	t.Parallel()
+	claim := decide.PackClaim{Mode: decide.PackAbsolute, Episodes: []int64{612, 613, 621, 622}}
+	for i, id := range claim.Episodes {
+		claim.Numbers = append(claim.Numbers, decide.PackNumber{N: i + 2, Episode: id})
+	}
+	b, _ := json.Marshal(decide.EpisodeMap{Pack: &claim})
+	files := map[string]float64{}
+	for n := 2; n <= 5; n++ {
+		files[fmt.Sprintf("[GRP] Kaiju Tale - %02d [BD 1080p].mkv", n)] = 1440
+	}
+	e := newEnv(t, true)
+	e.kaiju()
+	plan := e.importKaiju("[GRP] Kaiju Tale - 02-05 [BD 1080p]", files, string(b), claim.Episodes)
+	if len(plan.Links) != 4 {
+		t.Fatalf("well numbered: links %d, why %q", len(plan.Links), plan.Why)
+	}
+	if got := strings.Join(e.linkedTo(), "\n"); !strings.Contains(got, "S02E01 <- [GRP] Kaiju Tale - 04") {
+		t.Errorf("links\n%s", got)
+	}
+	files["[GRP] Kaiju Tale - 04 [BD 1080p] (v2).mkv"] = 1440
+	e2 := newEnv(t, true)
+	e2.kaiju()
+	plan = e2.importKaiju("[GRP] Kaiju Tale - 02-05 [BD 1080p]", files, string(b), claim.Episodes)
+	if len(plan.Links) != 0 || !strings.HasPrefix(plan.Why, "pack numbering: two files on S02E01") {
+		t.Fatalf("duplicate: links %d, why %q", len(plan.Links), plan.Why)
+	}
+}
