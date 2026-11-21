@@ -29,7 +29,9 @@ workaround, it is here too.
   A pack whose files are bare numbers ("Season 1/01.mkv", "001.mkv") is rejected at import and its seasons are
   searched one by one: a bare number carries no proof of what it numbers. So is a pack with an episode whose file
   name holds an extra's marker word ("S01E05 - Special Training", "- 07 - Opening Night"): the file is set aside as
-  an extra, that episode has no file, and the seasons are searched one by one.
+  an extra, that episode has no file, and the seasons are searched one by one. Under a search of several seasons an
+  anime batch named "2nd Season 01-12" or "S01-10" is read as a span of seasons and not taken; the season's own
+  search takes it.
 
 ## Media servers
 

@@ -302,7 +302,7 @@ ends exhausted, not added. Whether the failed release's blocklist row still star
 rule: take what it was for (its episodes; a film: the film), less what this route added (an add only, not a release
 found in flight, deferred or paced: those may still expire or be rejected) and, once the route has queued its own
 exhausted re-search, less that re-search's episodes. When nothing is left the row is marked (`researched_at`,
-"retried" in Activity's Blocklist) and starts no re-search of its own, so one re-search runs; otherwise it starts one
+"handled" in Activity's Blocklist) and starts no re-search of its own, so one re-search runs; otherwise it starts one
 as for any failure (`TestFailedAtOnceTriesNextRelease`, `TestSelectionErrorStillWaits`, `TestFailedAtOnceEverywhere`,
 `TestFailedAtOnceNextReleaseWaits`, `TestFailedAtOnceThenMissOneResearch`, `TestFailedAtOnceFallbackInFlight`,
 `TestFailedAtOnceMergedSplit`).

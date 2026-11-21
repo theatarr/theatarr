@@ -1224,32 +1224,92 @@ func TestAnimePackLayoutsEnd(t *testing.T) {
 	}
 }
 
-// The joined forms the parser reads as several episodes prove a multi-episode file of a pack (round 1): an episode
-// range after SxxEyy, a chain of numbers in a season folder and an NxNN range, each placed on its three episodes.
+// Every joined form of a multi-episode file, at once: each positive file sits in an otherwise complete pack and is
+// placed on exactly its episodes. Refused: numbers split by a title separator, with a dashed technical tag behind them
+// ("x264-10bit", "DDP2.0-10bit", "H265-10bit"); a joined token the parser reads as one episode ("EP01-02" and
+// "Ep01+02" read as 2 alone: episode 1 has no file); a token beside an explicit episode the parse reads alone
+// ("S02E03 - EP03-04"); a number run into a tag ("EP01-5.1ch"). Several episodes come only from the parse.
 func TestAnimePackJoinedForms(t *testing.T) {
 	t.Parallel()
-	first3 := map[int]bool{101: true, 102: true, 103: true}
-	for joined, pat := range map[string]string{
-		"Show S01E01-03.mkv":               "Show S%02dE%02d.mkv",
-		"Season 1/Show - 01-02-03.mkv":     "Season %d/Show - %02d.mkv",
-		"Show 1x01-1x03.mkv":               "Show %dx%02d.mkv",
-		"Show.S01E01-E03-1080p_x265.mkv":   "Show.S%02dE%02d-1080p_x265.mkv",
-		"Show_S01E01-E03-1080p_WEB-DL.mkv": "Show_S%02dE%02d-1080p_WEB-DL.mkv",
-		"Show.S01E01-E03-1080p.mkv":        "Show.S%02dE%02d-1080p.mkv",
-		"Season 1/Show - 01-03-720p.mkv":   "Season %d/Show - %02d.mkv",
+	brave := func(_ *decide.Title, c *decide.PackClaim) {
+		c.Episodes, c.Numbers = []int64{110, 111, 112, 201}, []decide.PackNumber{{N: 10, Episode: 110}, {N: 11, Episode: 111},
+			{N: 12, Episode: 112}, {N: 13, Episode: 201}}
+	}
+	for _, c := range []struct {
+		series, mode, file string
+		rest               string // the name of every other file: season and number, or the absolute number
+		mod                func(*decide.Title, *decide.PackClaim)
+		want               []int64 // the file's episodes; nil: the pack is refused
+		refused            bool    // the pack is refused although every other file is there
+	}{
+		{"Show", decide.PackSeasons, "Show S01E01-E02.mkv", "Show S%02dE%02d.mkv", nil, []int64{101, 102}, false},
+		{"Show", decide.PackSeasons, "Show S01E01-03.mkv", "Show S%02dE%02d.mkv", nil, []int64{101, 102, 103}, false},
+		{"Show", decide.PackSeasons, "Show.S01E01-03.mkv", "Show.S%02dE%02d.mkv", nil, []int64{101, 102, 103}, false},
+		{"Show", decide.PackSeasons, "Show 1x01-1x03.mkv", "Show %dx%02d.mkv", nil, []int64{101, 102, 103}, false},
+		{"Show", decide.PackSeasons, "Show - 1x01-1x03.mkv", "Show - %dx%02d.mkv", nil, []int64{101, 102, 103}, false},
+		{"Noragami", decide.PackSeasons, "Noragami - 2x9-2x10 - Served Code.mkv", "Noragami - %dx%02d.mkv", nil, []int64{209, 210}, false},
+		{"Show", decide.PackSeasons, "Season 1/Show - 01-02-03.mkv", "Season %d/Show - %02d.mkv", nil, []int64{101, 102, 103}, false},
+		{"Show", decide.PackAbsolute, "[Grp] Show - 01-02 [1080p].mkv", "[Grp] Show - %02d [1080p].mkv", nil, []int64{101, 102}, false},
+		{"Show", decide.PackSeasons, "Season 1/[Grp] Show - E01-E02 [1080p].mkv", "Season %d/[Grp] Show - %02d [1080p].mkv", nil, []int64{101, 102}, false},
+		{"Show", decide.PackSeasons, "Show_S01E01-E02-10bit_1080p.mkv", "Show_S%02dE%02d-10bit_1080p.mkv", nil, []int64{101, 102}, false},
+		{"Noragami", decide.PackSeasons, "Noragami.S01E01-E02-10bit.1080p.mkv", "Noragami.S%02dE%02d-10bit.1080p.mkv", nil, []int64{101, 102}, false},
+		{"Show", decide.PackSeasons, "Show.S01E01-E03-1080p_x265.mkv", "Show.S%02dE%02d-1080p_x265.mkv", nil, []int64{101, 102, 103}, false},
+		{"Show", decide.PackSeasons, "Show_S01E01-E03-1080p_WEB-DL.mkv", "Show_S%02dE%02d-1080p_WEB-DL.mkv", nil, []int64{101, 102, 103}, false},
+		{"Show", decide.PackSeasons, "Show.S01E01-E03-1080p.mkv", "Show.S%02dE%02d-1080p.mkv", nil, []int64{101, 102, 103}, false},
+		{"Show", decide.PackSeasons, "Season 1/Show - 01-03-720p.mkv", "Season %d/Show - %02d.mkv", nil, []int64{101, 102, 103}, false},
+		{"Brave Ten", decide.PackAbsolute, "Brave.10.-.13.1080p.BluRay.x264-10bit-GRP.mkv", "", brave, nil, false},
+		{"Brave Ten", decide.PackAbsolute, "Brave 10 - 13 1080p DDP2.0-10bit.mkv", "", brave, nil, false},
+		{"Brave Ten", decide.PackAbsolute, "Brave 10 - 13 H265-10bit.mkv", "", brave, nil, false},
+		// Refused: the rest of the pack is complete but for the episodes the file would hold.
+		{"Show", decide.PackAbsolute, "[Grp] Show - EP01-02 [1080p].mkv", "[Grp] Show - %02d [1080p].mkv", nil, []int64{101, 102}, true},
+		{"Show", decide.PackAbsolute, "Show - Ep01+02.mkv", "Show - %02d.mkv", nil, []int64{101, 102}, true},
+		{"Show", decide.PackSeasons, "Season 2/[Grp] Show - S02E03 - EP03-04 [1080p].mkv", "Season %[1]d/[Grp] Show - S%02[1]dE%02[2]d [1080p].mkv", nil, []int64{203, 204}, true},
+		// A plus sign in an explicit form joins nothing (the parser fills "S01E01+E03" to three episodes), nor do two seasons.
+		{"Show", decide.PackSeasons, "Show S01 E01+E02.mkv", "Show S%02d E%02d.mkv", nil, []int64{101, 102}, true},
+		{"Show", decide.PackSeasons, "Show.S01E01+E02.mkv", "Show.S%02dE%02d.mkv", nil, []int64{101, 102}, true},
+		{"Show", decide.PackSeasons, "Show - 1x01+1x02.mkv", "Show - %dx%02d.mkv", nil, []int64{101, 102}, true},
+		{"Show", decide.PackSeasons, "Show S01E01 + S01E02.mkv", "Show S%02dE%02d.mkv", nil, []int64{101, 102}, true},
+		{"Show", decide.PackSeasons, "Show 1x01 + 1x02.mkv", "Show %dx%02d.mkv", nil, []int64{101, 102}, true},
+		{"Show", decide.PackSeasons, "Show - 1x01+x02.mkv", "Show - %dx%02d.mkv", nil, []int64{101, 102}, true},
+		{"Show", decide.PackSeasons, "Show S01E01+S02E02.mkv", "Show S%02dE%02d.mkv", nil, []int64{101, 102}, true},
+		{"Show", decide.PackSeasons, "Show - 1x01+2x02.mkv", "Show - %dx%02d.mkv", nil, []int64{101, 102}, true},
+		{"Show", decide.PackSeasons, "Season 1/[Grp] Show - EP01-5.1ch [1080p].mkv", "Season %d/[Grp] Show - EP%02d [1080p].mkv", nil, []int64{101, 102, 103, 104, 105}, true},
 	} {
-		title, claim := proofTitle("Show", decide.PackSeasons)
-		var files []PlannedFile
-		for _, f := range append(proofFiles(first3, func(s, n int) string { return fmt.Sprintf(pat, s, n) }), joined) {
-			files = append(files, PlannedFile{Rel: f})
+		title, claim := proofTitle(c.series, c.mode)
+		if c.mod != nil {
+			c.mod(title, claim)
+		}
+		files := []PlannedFile{{Rel: c.file}}
+		if c.rest != "" {
+			mine := map[int64]bool{}
+			for _, id := range c.want {
+				mine[id] = true
+			}
+			for _, e := range title.Episodes {
+				if mine[e.ID] {
+					continue
+				}
+				name := fmt.Sprintf(c.rest, e.Season, e.Number)
+				if c.mode == decide.PackAbsolute {
+					name = fmt.Sprintf(c.rest, e.Absolute)
+				}
+				files = append(files, PlannedFile{Rel: name})
+			}
 		}
 		proof, why := provePack(title, claim, files)
-		if why != "" {
-			t.Errorf("%s: %s", joined, why)
+		if c.want == nil || c.refused {
+			t.Logf("%s: %s", c.file, why)
+			if why == "" {
+				t.Errorf("%s: proof holds, want refused (placed on %v)", c.file, proof.files[c.file])
+			}
 			continue
 		}
-		if got := proof.files[joined]; !slices.Equal(got, []int64{101, 102, 103}) {
-			t.Errorf("%s: placed on %v", joined, got)
+		if why != "" {
+			t.Errorf("%s: %s", c.file, why)
+			continue
+		}
+		if got := proof.files[c.file]; !slices.Equal(got, c.want) {
+			t.Errorf("%s: placed on %v, want %v", c.file, got, c.want)
 		}
 	}
 }

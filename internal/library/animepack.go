@@ -235,25 +235,28 @@ func parseFile(stem string, title *indexer.TitleMatcher) (p *sonarr.ParsedEpisod
 }
 
 // packJoinedRE is a name's token that joins several episodes with no title separator: S01E01-E02, S01E01E02,
-// S01E01-03, 1x01-1x03, 1x01-03, 01-02, 01-02-03, 01+02, 01 & 02, 01~02.
-var packJoinedRE = regexp.MustCompile(`(?i)S\d{1,2}E\d{1,4}(?:-?(?:S\d{1,2})?E\d{1,4}|-\d{1,4})+|\d{1,2}x\d{2,3}(?:-(?:\d{1,2}x)?\d{2,3})+|\d{1,4}(?:(?:-|\s*[+&~]\s*)\d{1,4})+`)
+// S01E01-03, 1x01-1x03, 1x01-03, 2x9-2x10, E01-E02, 01-02, 01-02-03, 01+02, 01 & 02, 01~02. A plus sign joins bare
+// numbers only: the parser fills "S01E01+E03" to three episodes, which a first-and-last check cannot tell apart.
+var packJoinedRE = regexp.MustCompile(`(?i)S\d{1,2}E\d{1,4}(?:-?(?:S\d{1,2})?E\d{1,4}|-\d{1,4})+|\d{1,2}x\d{1,3}(?:-(?:\d{1,2}x)?\d{1,3})+|Ep?\d{1,4}(?:-(?:Ep?)?\d{1,4})+|\d{1,4}(?:(?:-|\s*[+&~]\s*)\d{1,4})+`)
 
 var (
 	// packTokenEpisodeRE is an episode number of an SxxEyy token ("E01", "-03").
 	packTokenEpisodeRE = regexp.MustCompile(`(?i)[E-](\d{1,4})`)
-	// packTokenXRE is an episode number of an NxNN token ("x01", "-03").
-	packTokenXRE = regexp.MustCompile(`(?i)[x-](\d{2,3})`)
-	// packTokenNumberRE is a number of a bare joined token.
+	// packTokenXRE is an episode number of an NxNN token ("x01", "x9", "-03").
+	packTokenXRE = regexp.MustCompile(`(?i)[x-](\d{1,3})`)
+	// packTokenNumberRE is a number of a bare or episode-marked joined token.
 	packTokenNumberRE = regexp.MustCompile(`(\d{1,4})`)
-	// packQualityTagRE is a quality tag a joined token must not run into ("1080p", "720i", "1920x1080").
-	packQualityTagRE = regexp.MustCompile(`(?i)\d{3,4}[pi](?:[^a-z0-9]|$)|\d{3,4}x\d{3,4}`)
+	// packQualityTagRE is a technical tag blanked before a joined token is looked for: a resolution ("1080p", "720i",
+	// "1920x1080") or a bit depth between delimiters ("-10bit", "_10-bit_"; an underscore is a delimiter).
+	packQualityTagRE = regexp.MustCompile(`(?i)\d{3,4}[pi](?:[^a-z0-9]|$)|\d{3,4}x\d{3,4}|(?:^|[^a-z0-9])(?:8|10|12)-?bits?(?:[^a-z0-9]|$)`)
 	// packVersionRE is a version suffix right after a token ("01-02v2").
 	packVersionRE = regexp.MustCompile(`^[vV]\d{1,2}`)
 )
 
-// joinedToken says whether read (outside brackets) holds a joined token (packJoinedRE) that stands as its own token,
-// no letter or digit touching it (a version suffix allowed after it), whose first and last numbers are the parse's
-// first and last: "x264-10bit" or "DDP2.0-10bit" is no joined token.
+// joinedToken says whether read (outside brackets, technical tags blanked) holds a joined token (packJoinedRE) that
+// stands as its own token, no letter or digit touching it (a version suffix allowed after it; an episode marker
+// "E", "EP" is part of the token), whose first and last numbers are the parse's first and last: "x264-10bit" or
+// "DDP2.0-10bit" is no joined token. Several episodes are believed only where the parse reads them.
 func joinedToken(read string, p *sonarr.ParsedEpisodeInfo) bool {
 	nums := p.EpisodeNumbers
 	if len(nums) < 2 {
