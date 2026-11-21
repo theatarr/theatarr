@@ -3,8 +3,9 @@
 // managers when a library searches live, and the rename preview. Invented keys.
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { SearchProvider } from "@/components/search/search-context";
+import { Toaster } from "@/components/toaster";
 import { mockFetch, renderPage } from "@/test/page";
 import { TitleToolbar } from "./title-toolbar";
 
@@ -198,4 +199,42 @@ it("offers Also keep lists from adding it to any other library, off by default, 
   await user.click(screen.getByTestId("confirm-ok"));
   await waitFor(() => expect(api.calls("POST", "/titles/7/remove")).toHaveLength(1));
   expect(api.calls("POST", "/titles/7/remove")[0].body).toEqual({ versions: [], unlink: true, debrid: true, exclude: true });
+});
+
+describe("Search series' answer (F8.1, F8.3)", () => {
+  const seriesBar = (reply: object | ((r: never) => unknown)) => {
+    const api = mockFetch([
+      { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["manage"] } },
+      options([{ ...lib("tv-web", gates), searchable: true }]),
+      { method: "POST", path: "/titles/7/search", reply },
+    ]);
+    renderPage(<SearchProvider><TitleToolbar titleId={7} name="Alpha" kind="series" versions={[]} /><Toaster /></SearchProvider>);
+    return api;
+  };
+  it("says Nothing to search as a toast, so nothing stays on the page", async () => {
+    const said = { started: false, message: "Nothing to search: no monitored episode is missing or below its cutoff." };
+    seriesBar(said);
+    const user = userEvent.setup();
+    const button = await screen.findByTestId("title-search-now");
+    await waitFor(() => expect(button.hasAttribute("disabled")).toBe(false));
+    await user.click(button);
+    expect(await screen.findByText(said.message)).toBeTruthy();
+    expect(screen.queryByTestId("title-search-outcome")).toBeNull();
+  });
+  it("keeps a started search said on the page", async () => {
+    seriesBar({ started: true, message: "Searching 2 seasons in TV-WEB." });
+    const user = userEvent.setup();
+    const again = await screen.findByTestId("title-search-now");
+    await waitFor(() => expect(again.hasAttribute("disabled")).toBe(false));
+    await user.click(again);
+    expect((await screen.findByTestId("title-search-outcome")).textContent).toBe("Searching 2 seasons in TV-WEB.");
+  });
+  it("names Search series in its error", async () => {
+    seriesBar({ status: 500, body: { error: "database is locked" } });
+    const user = userEvent.setup();
+    const button = await screen.findByTestId("title-search-now");
+    await waitFor(() => expect(button.hasAttribute("disabled")).toBe(false));
+    await user.click(button);
+    expect((await screen.findByTestId("title-search-error")).textContent).toContain("Search series failed: database is locked");
+  });
 });

@@ -36,6 +36,8 @@ describe("missingLine", () => {
     expect(missingLine({}, auto, now)).toBe("Not searched yet. Automatic backlog searching is off.");
     // An account that can search is told what to do, only for an item never searched.
     expect(missingLine({}, auto, now, true)).toBe("Not searched yet. Automatic backlog searching is off. Use Search now to request a search.");
+    // In the words of the caller's button: a series' row says Search series (F8.1).
+    expect(missingLine({}, auto, now, true, { action: "Search series" })).toBe("Not searched yet. Automatic backlog searching is off. Use Search series to request a search.");
     expect(missingLine({ last_search: run("nothing", 0, 0) }, auto, now, true)).toBe("Last searched Nov 12: nothing found. Automatic backlog searching is off.");
     expect(missingLine({}, { ...auto, enabled: false }, now, true)).toBe("Not searched yet. Paused: searches, new grabs and imports stop for every library; Interactive search can still look up releases.");
     expect(missingLine({ last_search: run("nothing", 12, 0) }, { ...auto, missing: true }, now)).toBe("Last searched Nov 12: 12 results, none accepted. Theatarr searches for it automatically.");

@@ -502,6 +502,22 @@ describe("a series row's last search (F3.3)", () => {
       expect(link.getAttribute("href")).toBe("/title/7/releases?version=tv&run=162&season=2");
     });
   }
+  it("says Search series on a series row: the helper text, the phone button and its name (F8.1); a film keeps Search now", async () => {
+    width(400);
+    manager();
+    const never = { ...tv({}), last_search: undefined, control: { ...live } };
+    renderPage(<LibraryRows title={{ ...show, auto_search: { missing: false, upgrades: true, enabled: true } } as never} versions={[never] as never} />);
+    const button = await screen.findByTestId("version-search-tv");
+    expect(button.textContent).toBe("Search series");
+    expect(button.getAttribute("aria-label")).toBe("Search series in TV");
+    await waitFor(() => expect(screen.getByTestId("library-why").textContent).toBe("Not searched yet. Automatic backlog searching is off. Use Search series to request a search."));
+    document.body.innerHTML = "";
+    manager();
+    renderPage(<LibraryRows title={title as never} versions={[{ ...web, has_file: false, current: undefined }] as never} />);
+    const film = await screen.findByTestId("version-search-movie-web");
+    expect(film.textContent).toBe("Search now");
+    expect(film.getAttribute("aria-label")).toBe("Search WEB now");
+  });
   it("offers no link for a run that searched nothing (failed), and names its season", async () => {
     manager();
     renderPage(<LibraryRows title={show as never} versions={[tv({ target: "s01", state: "failed", results: 0, accepted: 0 })] as never} />);

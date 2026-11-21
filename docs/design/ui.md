@@ -464,8 +464,10 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   **Rename files** (admins, only when a library holds a file or a removed library still has links),
   **History** (opens the History tab),
   **Refresh metadata** (managers) and **Remove title** (managers). Below 768 px Search now and Interactive search keep
-  their words and the rest sit under **More**. Under the bar: Pause once for the page, the Search now outcome or its failure with **Retry**, and "No
-  library is monitored." when so. **Add to another library** stays the hero's primary action while a library is left to add.
+  their words and the rest sit under **More**. Under the bar: Pause once for the page, a started search's outcome or the failure with **Retry** ("Search
+  series failed: …" on a series), and "No library is monitored." when so. An answer with nothing to search ("Nothing
+  to search: …") is a toast, said once, so it cannot stay on the page once monitoring changes; a library row's Search
+  now answers the same way. **Add to another library** stays the hero's primary action while a library is left to add.
 - **Rename files** shows a preview first (`GET titles/{id}/rename`): one line per file, its library, then old name →
   new name (when only folders change, the path from the first folder that differs); "N files could not be checked."
   for files it could not check; "Every file already has the name the naming settings give it." only when nothing
@@ -498,7 +500,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   monitored" (the library is not monitored) or "37 of 37 episodes · none monitored" (no episode is). A missing
   library's line under the status says why and what next: the last search, or "Not searched yet. Automatic backlog
   searching is off; new releases are still picked up from RSS." (the RSS clause where the library's RSS read covers
-  it), with "Use Search now to request a search." for an account that can search an item never searched. On a
+  it), with "Use Search now to request a search." for an account that can search an item never searched ("Use Search
+  series …" on a series, whose row button below 768 px also reads **Search series**, named "Search series in 4K"). On a
   series the last search names what its run searched, since one Search series writes a run per season and the row
   reports one of them, with that run's own counts (never summed): "Last searched Season 2 today: 474 results, none
   accepted.", "Last search of Season 1 today failed."; after a run that searched, managers get **Show releases**,

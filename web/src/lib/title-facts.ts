@@ -94,16 +94,16 @@ export function searchingWords(s: string | undefined | null): string {
  * Why a missing library (or episode) is missing and what comes next, in one line: the search under way, else the last
  * targeted search or "Not searched yet", then whether Theatarr searches for missing items by itself. With it off, RSS
  * still picks up new releases where the library's RSS read covers it, and the line says so; an item never searched
- * also says what to do ("Use Search now to request a search.") when the account can search (canSearch). Search now
- * sits beside the line (the caller's button).
+ * also says what to do ("Use Search now to request a search.", in the words of the caller's button: opts.action, "Search
+ * series" on a series' row) when the account can search (canSearch). The button sits beside the line.
  */
-export function missingLine(f: { last_search?: LastSearch | null; searching?: string | null; rss?: boolean }, auto: AutoSearch | undefined | null, now: Date = new Date(), canSearch = false, opts: { scoped?: boolean } = {}): string {
+export function missingLine(f: { last_search?: LastSearch | null; searching?: string | null; rss?: boolean }, auto: AutoSearch | undefined | null, now: Date = new Date(), canSearch = false, opts: { scoped?: boolean; action?: string } = {}): string {
   const never = !f.searching && !f.last_search;
   const first = searchingWords(f.searching) || (never ? "Not searched yet" : lastSearchWords(f.last_search, now, opts.scoped));
   if (!auto) return first;
   if (!auto.enabled) return `${first}. Paused: ${PAUSE_STOPS}.`;
   if (!auto.missing) {
-    const ask = never && canSearch ? " Use Search now to request a search." : "";
+    const ask = never && canSearch ? ` Use ${opts.action ?? "Search now"} to request a search.` : "";
     return `${first}. Automatic backlog searching is off${f.rss ? "; new releases are still picked up from RSS" : ""}.${ask}`;
   }
   return `${first}. Theatarr searches for it automatically.`;

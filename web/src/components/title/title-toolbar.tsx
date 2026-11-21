@@ -9,7 +9,7 @@
 // disabled with the reason as its tooltip. Nothing here changes what is searched: the same routes as before.
 import { AlertTriangle, History as HistoryIcon, Loader2, MoreHorizontal, PencilLine, Plus, RefreshCw, RotateCcw, Search, Trash2, UserSearch } from "lucide-react";
 import { useState } from "react";
-import { useAddOptions, useSearchNow, type AddOptions, type AddTarget } from "@/api/add";
+import { useAddOptions, useSearchNow, type AddOptions, type AddTarget, type SearchOutcome } from "@/api/add";
 import { ApiError } from "@/api/client";
 import { usePerms, useRefreshTitle, type Version } from "@/api/library";
 import { useRename, useRenamePreview } from "@/api/rename";
@@ -18,6 +18,7 @@ import { Mono } from "@/components/page";
 import { useSearchUI } from "@/components/search/search-context";
 import { RemoveDialog } from "@/components/title/copy-actions";
 import { InteractiveSearch } from "@/components/title/interactive-search";
+import { toast } from "@/components/toaster";
 import { DownloadsOffNotice, nothingSearchedWords, searchOffWords } from "@/components/version-status";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -28,6 +29,12 @@ import { cn } from "@/lib/utils";
 import { globalDownloadsOff } from "@/lib/version-grab";
 import { plural } from "@/lib/format";
 
+/** A search with nothing to search ("Nothing to search: …") said once, as a toast: kept on the page it would still
+ *  read as current after monitoring changes (the season switches are another mutation). A started search is said on
+ *  the page by its caller. */
+export function nothingToast(o: SearchOutcome) {
+  if (!o.started && o.message) toast({ tone: "info", title: o.message });
+}
 
 /** The title is already in (monitored) every library that fits it, the add sheet's main list: Add to another library
  * has nothing to tick there. Libraries that do not fit (the sheet's "Show other libraries") do not count; the Libraries
@@ -132,7 +139,7 @@ export function TitleToolbar({ titleId, name, year, kind, poster, anime, version
   const live = whole && versions.some((v) => v.control?.live_releases);
   // The mutation holds the last try: its answer, its error, or nothing while a new one runs (mutate resets both).
   const outcome = searchNow.data ?? null;
-  const runSearch = () => searchNow.mutate(undefined);
+  const runSearch = () => searchNow.mutate(undefined, { onSuccess: nothingToast });
   const o = opts.data;
   const searchable = perms.manage ? (o?.versions ?? []).filter((v) => v.on && v.searchable).map((v) => v.key) : [];
   // Why nothing is searched, in the shared verdict words: the global state once, else each monitored library's
@@ -217,14 +224,16 @@ export function TitleToolbar({ titleId, name, year, kind, poster, anime, version
         <div role="alert" className="flex flex-wrap items-center gap-2 rounded-[5px] border border-[var(--th-danger-border)] bg-[var(--bad-soft)] px-3 py-2 text-xs" data-testid="title-search-error">
           <AlertTriangle className="size-3.5 shrink-0 text-[var(--bad-ink)]" />
           <span className="min-w-0 flex-1 text-[var(--bad-ink)] [overflow-wrap:anywhere]">
-            Search now failed: {searchNow.error instanceof ApiError ? searchNow.error.message : "could not reach the server"}
+            {kind === "series" ? "Search series" : "Search now"} failed: {searchNow.error instanceof ApiError ? searchNow.error.message : "could not reach the server"}
           </span>
           <Button size="xs" variant="outline" onClick={runSearch} disabled={searchNow.isPending} data-testid="title-search-retry">
             {searchNow.isPending ? <Loader2 className="animate-spin" /> : <RotateCcw />} Retry
           </Button>
         </div>
-      ) : outcome ? (
-        <p className={cn("rounded-[5px] border px-3 py-2 text-xs", outcome.started ? "border-[var(--th-info-border)] bg-[var(--accent-soft)] text-[var(--accent-ink)]" : "border-[var(--line)] text-[var(--ink-3)]")} data-testid="title-search-outcome">
+      ) : outcome?.started ? (
+        // A search that started stays said here; one with nothing to search was a toast (nothingToast), so it cannot
+        // stay on the page once monitoring changes.
+        <p className="rounded-[5px] border border-[var(--th-info-border)] bg-[var(--accent-soft)] px-3 py-2 text-xs text-[var(--accent-ink)]" data-testid="title-search-outcome">
           {outcome.message}
         </p>
       ) : searchable.length === 0 && why && !opts.isPending ? (

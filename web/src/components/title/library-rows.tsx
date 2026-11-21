@@ -17,6 +17,7 @@ import { ProviderPills } from "@/components/provider-pills";
 import { AddToProviders } from "@/components/title/add-to-providers";
 import { CopyActions, LeftoverLinks, RemoveDialog } from "@/components/title/copy-actions";
 import { InfoHash, TorrentLink } from "@/components/title/info-hash";
+import { nothingToast } from "@/components/title/title-toolbar";
 import { InteractiveSearch } from "@/components/title/interactive-search";
 import { MediaGroup } from "@/components/title/media-group";
 import { ControlNote, MonitorSwitch } from "@/components/title/manage-bits";
@@ -76,8 +77,11 @@ export function whyMissing(v: Version, title: TitleDetail, kind: Kind, canSearch
   if (!missing) return "";
   const n = nextSearchOf(v);
   const next = n && title.auto_search?.enabled ? ` Next search ${nextSearch(n)}.` : "";
-  return missingLine(v, title.auto_search, undefined, canSearch && !!v.control.can_search, { scoped: kind === "series" }) + next;
+  return missingLine(v, title.auto_search, undefined, canSearch && !!v.control.can_search, { scoped: kind === "series", action: searchLabel(kind) }) + next;
 }
+
+/** The row's search button in words: a series is searched as Search series (as the toolbar says), a film Search now. */
+const searchLabel = (kind: Kind) => (kind === "series" ? "Search series" : "Search now");
 
 /** The run a series row's last search reports, when it found something to show: its stored search is a link away. */
 function reportedRun(v: Version, kind: Kind): Version["last_search"] {
@@ -306,9 +310,9 @@ export function LibraryRows({ title, versions, pending }: { title: TitleDetail; 
           // A disabled button shows no tooltip: the wrapper carries the reason.
           <span title={searchable ? searchTip(v) : downloadReason(c)} className="inline-flex">
             <Button size={iconSize} variant="ghost" className={phone} disabled={!searchable || searchNow.isPending}
-              aria-label={`Search ${name} now`} onClick={() => searchNow.mutate([key])} data-testid={`version-search-${key}`}>
+              aria-label={kind === "series" ? `Search series in ${name}` : `Search ${name} now`} onClick={() => searchNow.mutate([key], { onSuccess: nothingToast })} data-testid={`version-search-${key}`}>
               {searchNow.isPending && searchNow.variables?.[0] === key ? <Loader2 className="animate-spin" /> : <Search />}
-              {wide ? null : "Search now"}
+              {wide ? null : searchLabel(kind)}
             </Button>
           </span>
         ) : null}
@@ -402,7 +406,7 @@ export function LibraryRows({ title, versions, pending }: { title: TitleDetail; 
           minWidth={768}
         />
       )}
-      {outcome ? <p className="text-xs text-[var(--accent-ink)]" data-testid="library-search-outcome">{outcome.message}</p> : null}
+      {outcome?.started ? <p className="text-xs text-[var(--accent-ink)]" data-testid="library-search-outcome">{outcome.message}</p> : null}
       {searchNow.error ? <p className="text-xs text-[var(--bad-ink)]" role="alert">Search failed: {(searchNow.error as Error).message}</p> : null}
       {setVersion.error ? <p className="text-xs text-[var(--bad-ink)]" role="alert">{(setVersion.error as Error).message}</p> : null}
       {leftover.length ? (
