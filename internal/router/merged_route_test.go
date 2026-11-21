@@ -244,6 +244,28 @@ func TestMergedRouteDeferredSeason(t *testing.T) {
 	}
 }
 
+// A season held by another download stays covered when the same pack also overlaps what the batch placed: season 1
+// placed, S02E01 downloading elsewhere and S02E02 missed, the span narrowed to season 3 leaves no season to search
+// again.
+func TestMergedRouteHeldSeasonWithBatchOverlap(t *testing.T) {
+	t.Parallel()
+	e := mergedEnv(t, h("c"))
+	q := jobs.NewQueue(e.st)
+	e.r.RegisterJobs(jobs.NewWorker(q, jobs.WorkerOptions{}), q)
+	e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, episodes, state,
+		created_at, updated_at) VALUES (2, 20, 'series', ?, 'other', 'pub', '[201]', 'downloading', 0, 0)`, h("f"))
+	res, err := e.r.Route(e.ctx, mergedReq(pack(1), episodeCandidate("c", 202), spanCand()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fmt.Sprint(e.storedEpisodes(h("e"))); got != "[301 302]" {
+		t.Fatalf("span episodes %s: %s", got, steps(res))
+	}
+	if got := e.researches(); len(got) != 0 {
+		t.Fatalf("re-searches %v: %s", got, steps(res))
+	}
+}
+
 // A pack of several seasons scope left with one season's episodes is still charged to the packs' bucket: its miss
 // does not use up that season's attempts.
 func TestMergedRouteBucketByReleaseShape(t *testing.T) {

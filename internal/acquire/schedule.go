@@ -528,8 +528,11 @@ func (a *Acquirer) Round(ctx context.Context, scope []int64) (*WantedSummary, er
 		left -= groupCost(group)
 	}
 	if sum.Due > 0 || full {
-		a.log.Info("search round", "full", full, "due", sum.Due, "queued", sum.Queued, "in_flight", sum.InFlight,
-			"searched_last_hour", sum.SearchedLastHour, "per_hour", a.set.PerHour)
+		args := []any{"full", full, "due", sum.Due, "queued", sum.Queued}
+		if a.set.PerHour > sum.SearchedLastHour {
+			args = append(args, "in_flight", sum.InFlight) // with the hour spent nothing was checked
+		}
+		a.log.Info("search round", append(args, "searched_last_hour", sum.SearchedLastHour, "per_hour", a.set.PerHour)...)
 	}
 	return sum, nil
 }

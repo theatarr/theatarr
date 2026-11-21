@@ -449,8 +449,8 @@ func SearchRequests(ctx context.Context, eng SearchEngine, svc *indexer.Service,
 			}
 			searched.Ranked = rank(ds)
 		}
-		// A merged search's checks ask each member's leader and the best packs of several seasons first: cache
-		// evidence decides its ranking.
+		// A merged search's checks ask the best pack of several seasons, each member's leader and the other packs
+		// first: cache evidence decides its ranking.
 		checkOrder := func() []*decide.Decision {
 			if !merged {
 				return searched.Ranked
@@ -486,10 +486,10 @@ func planWhole(t *decide.Title, ss *decide.SeriesSearch, q indexer.Query) *serie
 	c := q
 	c.Criteria = indexer.CriteriaSeries
 	// The plain sources are asked by IMDb id only (Zilean would add a title query, whose failure makes a clean answer
-	// partial); without one they are not asked.
+	// partial); without one their own checks (Supports) refuse the query.
 	q.Title, q.Aliases = "", nil
 	return &seriesPlan{base: seriesQuery{query: q}, criteria: []seriesQuery{{query: c, search: ss}},
-		plain: []*decide.SeriesSearch{ss}, noPlain: q.IMDb == ""}
+		plain: []*decide.SeriesSearch{ss}}
 }
 
 // holdsSeasons reports whether a decision maps episodes of two or more seasons above 0.
@@ -505,8 +505,9 @@ func holdsSeasons(t *decide.Title, d *decide.Decision) bool {
 	return len(seasons) >= 2
 }
 
-// mergedCheckOrder is the order a merged search's bounded cache checks ask in: each member's best accepted release
-// of one season, then the accepted packs of several seasons, then the rest in rank order.
+// mergedCheckOrder is the order a merged search's bounded cache checks ask in: the best accepted pack of several
+// seasons, each member's best accepted release of one season, then the other accepted packs of several seasons,
+// then the rest in rank order.
 func mergedCheckOrder(t *decide.Title, ranked []*decide.Decision, ms []*decide.SeriesSearch) []*decide.Decision {
 	out := make([]*decide.Decision, 0, len(ranked))
 	taken := map[*decide.Decision]bool{}
@@ -519,6 +520,12 @@ func mergedCheckOrder(t *decide.Title, ranked []*decide.Decision, ms []*decide.S
 	spans := make(map[*decide.Decision]bool, len(ranked))
 	for _, d := range ranked {
 		spans[d] = d.Accepted && holdsSeasons(t, d)
+	}
+	for _, d := range ranked {
+		if spans[d] {
+			take(d)
+			break
+		}
 	}
 	for _, m := range ms {
 		for _, d := range ranked {
@@ -577,8 +584,6 @@ type seriesPlan struct {
 	criteria []seriesQuery
 	anilist  []int
 	plain    []*decide.SeriesSearch
-	// noPlain: the plain query is not asked (a whole-series query of a title without an IMDb id).
-	noPlain bool
 }
 
 // planSeries plans a target's queries; q is the plain query (TVDB numbering). A movie has the plain query only.
@@ -611,9 +616,6 @@ var seriesQueriesByKind = map[string]seriesQueryKind{
 
 // forKind is the queries for a source of this kind.
 func (p *seriesPlan) forKind(kind string) []seriesQuery {
-	if p.noPlain && seriesQueriesByKind[kind] == queryPlain {
-		return nil
-	}
 	switch seriesQueriesByKind[kind] {
 	case queryCriteria, queryKeywords:
 		if len(p.criteria) == 0 {

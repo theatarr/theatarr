@@ -606,12 +606,22 @@ func TestWantedLoopPacing(t *testing.T) {
 	}
 	e.drain()
 	e.advance(20 * time.Minute)
+	// The round's log line leaves out in_flight when the hour was spent and nothing was checked.
+	var logged strings.Builder
+	e.a.log = slog.New(slog.NewTextHandler(&logged, nil))
 	if sum, _ = e.a.Round(e.ctx, nil); sum.Queued != 0 || sum.SearchedLastHour != 3 {
 		t.Fatalf("same hour %+v", sum)
 	}
+	if l := logged.String(); !strings.Contains(l, "search round") || strings.Contains(l, "in_flight") {
+		t.Errorf("spent hour log: %s", l)
+	}
+	logged.Reset()
 	e.advance(time.Hour)
 	if sum, _ = e.a.Round(e.ctx, nil); sum.Queued != 2 || sum.Due != 3 || sum.InFlight != 1 {
 		t.Fatalf("next hour %+v", sum)
+	}
+	if l := logged.String(); !strings.Contains(l, "in_flight=1") {
+		t.Errorf("next hour log: %s", l)
 	}
 	e.drain()
 	e.advance(time.Hour)

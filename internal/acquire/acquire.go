@@ -1350,8 +1350,9 @@ func (a *Acquirer) runFanout(ctx context.Context, rootID int64, claim, rootState
 	for i := range runs {
 		ts[i] = runs[i].target
 	}
+	merged := mergedGroup(ts)
 	// One member left (the others in flight) is that member's ordinary search.
-	if mergedGroup(ts) && len(items) >= 2 && a.searchBatch != nil {
+	if merged && len(items) >= 2 && a.searchBatch != nil {
 		return a.runMerged(ctx, rootID, claim, baseTitle, items, targets, outcomes)
 	}
 	var found map[string]*router.Searched
@@ -1413,7 +1414,7 @@ func (a *Acquirer) runFanout(ctx context.Context, rootID int64, claim, rootState
 		}
 		req := searched.Request
 		req.Source = Source(item.id)
-		if mergedGroup(ts) {
+		if merged {
 			// The lone member left of a merged group (searched alone) keeps the group's route source: the readers find
 			// a merged member's search and downloads under the root's source and its episodes.
 			req.Source = Source(rootID)

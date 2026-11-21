@@ -305,16 +305,42 @@ func TestWholeSeriesPlainQueryByIMDbOnly(t *testing.T) {
 	if crit := p.forKind("torznab")[0].query; crit.Title != title.Name || crit.Criteria != indexer.CriteriaSeries {
 		t.Fatalf("criteria query %+v", crit)
 	}
-	// Without an IMDb id DMM and Zilean are not asked the query without a season.
+	// The adapters asked: with an IMDb id Prowlarr, DMM and Zilean; without one only Prowlarr (the plain sources'
+	// own checks refuse a query with neither a title nor an IMDb id). Torrentio and SeaDex need a season.
+	pol := &policy.Policy{Indexers: map[string]*policy.Indexer{}}
+	for _, k := range []string{"torznab", "dmm", "zilean", "torrentio", "seadex"} {
+		pol.Indexers[k] = &policy.Indexer{Kind: k, URL: "http://" + k + ".test", Privacy: policy.PrivacyPublic}
+	}
+	pol.Indexers["dmm"].URL = "http://dmm.test/api/torznab/rd/cached"
+	svc, err := indexer.New(pol, &searchGateway{}, indexer.Options{CacheTTL: -1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	asked := func(q indexer.Query) []string {
+		p := planWhole(&title, &decide.SeriesSearch{Kind: profile.SearchSeries}, q)
+		var out []string
+		for _, k := range []string{"torznab", "dmm", "zilean", "torrentio", "seadex"} {
+			sr := svc.Searcher(k)
+			for _, sq := range p.forKind(sr.Kind()) {
+				if sq.query.Validate() == nil && sr.Supports(sq.query) {
+					out = append(out, k)
+				}
+			}
+		}
+		return out
+	}
+	if got := strings.Join(asked(q), ","); got != "torznab,dmm,zilean" {
+		t.Fatalf("with an IMDb id: %s", got)
+	}
 	q.IMDb = ""
-	if p := planWhole(&title, &decide.SeriesSearch{Kind: profile.SearchSeries}, q); len(p.forKind("zilean")) != 0 ||
-		len(p.forKind("dmm")) != 0 || len(p.forKind("torznab")) != 1 {
-		t.Fatalf("without an IMDb id: zilean %v dmm %v", describe(p.forKind("zilean")), describe(p.forKind("dmm")))
+	if got := strings.Join(asked(q), ","); got != "torznab" {
+		t.Fatalf("without an IMDb id: %s", got)
 	}
 }
 
-// The bounded cache checks of a merged search ask each member's best season pack first, then the packs of several
-// seasons: a run of spans ranked first does not take every slot.
+// The bounded cache checks of a merged search ask the best pack of several seasons first, then each member's best
+// season pack, then the other packs of several seasons: a run of spans ranked first does not take every slot, and
+// with more members than a check asks (TorBox asks ten) the best pack is still checked.
 func TestMergedCheckOrder(t *testing.T) {
 	title := mergedTitle()
 	d := func(name string, eps ...int64) *decide.Decision {
@@ -327,8 +353,27 @@ func TestMergedCheckOrder(t *testing.T) {
 	for _, x := range mergedCheckOrder(&title, []*decide.Decision{span1, span2, one, two}, ms) {
 		got = append(got, x.Release)
 	}
-	if strings.Join(got, ",") != "one,two,span1,span2" {
+	if strings.Join(got, ",") != "span1,one,two,span2" {
 		t.Fatalf("order %v", got)
+	}
+	// Eleven seasons: the best pack first, then one pack per season.
+	title.Episodes = nil
+	ms, ranked := nil, []*decide.Decision(nil)
+	var all []int64
+	for s := 1; s <= 11; s++ {
+		id := int64(100 + s)
+		title.Episodes = append(title.Episodes, decide.Episode{ID: id, Season: s, Number: 1})
+		ms = append(ms, &decide.SeriesSearch{Season: s, Episodes: []int64{id}})
+		ranked = append(ranked, d(fmt.Sprintf("s%02d", s), id))
+		all = append(all, id)
+	}
+	ranked = append(ranked, d("complete", all...))
+	got = nil
+	for _, x := range mergedCheckOrder(&title, ranked, ms) {
+		got = append(got, x.Release)
+	}
+	if len(got) != 12 || got[0] != "complete" || got[1] != "s01" || got[11] != "s11" {
+		t.Fatalf("eleven seasons: order %v", got)
 	}
 }
 
