@@ -157,10 +157,10 @@ function SearchConfirm({ titles, items, busy, onClose, onConfirm }: { titles: Ti
       onConfirm={onConfirm}
       scope={{
         title: `Search ${plural(titles.length, "title")}`,
-        // Titles, not searches: the server splits a series into a search per season, so a count here would be wrong;
+        // Titles, not searches: the server may split a series into several searches, so a count here would be wrong;
         // the result line says how many were queued.
         confirm: `Search ${plural(n, "title")} in ${n === 1 ? "its" : "their"} monitored libraries`,
-        does: [`Queue a search of what is missing for ${plural(n, "title")} in every library ${n === 1 ? "it is" : "each is"} monitored in; a series is searched season by season`],
+        does: [`Queue a search of what is missing for ${plural(n, "title")} in every library ${n === 1 ? "it is" : "each is"} monitored in`],
         keeps: [
           "The hourly limit: no search goes around it",
           "Monitoring and files",

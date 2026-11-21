@@ -950,7 +950,7 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
     changed. It only sets `monitored` on existing copies: nothing is searched or
     grabbed. The Libraries dialog's switch uses the same route for one copy.
   - **Search now** confirms (**Search N titles in their monitored libraries**: titles, never a count of searches,
-    since the server searches a series season by season), then sends one item per title and library it is monitored in to `POST wanted/search`
+    since the server may split a series into several searches), then sends one item per title and library it is monitored in to `POST wanted/search`
     (`only: "missing"`, 200 items a request, one request after another): no library is picked first, and a title
     monitored nowhere is left out and said so. They are made due like the Wanted page's Search now and start as
     `router.wanted.per_hour` allows; nothing goes around it. The bar shows the answers added up: searches queued,

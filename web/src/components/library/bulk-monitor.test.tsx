@@ -60,7 +60,10 @@ describe("Bulk Search now", () => {
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: "Search now" }));
     const dialog = await screen.findByRole("dialog", { name: "Search 3 titles" });
-    expect(within(dialog).getByTestId("confirm-does").textContent).toContain("for 2 titles in every library each is monitored in; a series");
+    // The old "a series is searched season by season" is gone, with nothing in its place (a series' whole seasons are
+    // searched together where they can be).
+    expect(within(dialog).getByTestId("confirm-does").textContent).toContain("for 2 titles in every library each is monitored in");
+    expect(within(dialog).getByTestId("confirm-does").textContent).not.toMatch(/series|season/);
     expect(within(dialog).getByTestId("confirm-keeps").textContent).toContain("1 title monitored in no library: not searched");
     await user.click(within(dialog).getByRole("button", { name: "Search 2 titles in their monitored libraries" }));
     await screen.findByTestId("bulk-search-result");
