@@ -804,8 +804,10 @@ account's request set: **Available** only when those copies can be watched, else
 **Waiting for a copy** (monitored, nothing yet). "On its way" and "being looked for" need a
 copy that is acquiring (`control.grab_state`, kept for every account: mode active and Pause off); with
 none, the card says **Partly available** or **Not available yet** and that the rest is not being fetched yet. The card's sentence names those copies ("What you can ask for (4K Remux) is already monitored but not ready to watch yet…"), so beside a hero that says another copy is ready to watch it reads as about this account's copies, not the title;
-**Request more seasons** when the caller's versions are all there but some series seasons are not monitored (also on
-the Episodes tab); otherwise **Request**. The sheet never ends on a disabled button. The caller's open
+**Request more seasons** when the caller's versions are all there but some series seasons are not monitored: the
+hero's (sticky on a phone) is the one button, the card keeps its sentence and requests, and the Episodes tab names the
+seasons as information ("Not every season is here. You can ask for seasons 2, 3 with Request more seasons.");
+otherwise **Request**. The sheet never ends on a disabled button. The caller's open
 requests come from one `GET requests?mine=1&status=open` (the caller's own only), matched by title id or kind and
 TMDb id. Global search reads "Search movies, series and anime"; below the `sm` width it reads "Search", so the word stays whole beside the admin's Pause and status pills.
 

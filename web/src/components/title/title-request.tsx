@@ -2,7 +2,7 @@
 // title and where they are, and one action that follows the request state (request-state.ts): Request (opens the
 // request sheet), View request (your open request, selected on the Requests page), or, when every version you could ask
 // for is monitored, what those account-applicable copies say about readiness (Available only when it can be watched,
-// else Getting ready or Waiting for a copy, or Partly available / Not available yet when nothing fetches them). On the Episodes tab RequestMoreSeasons offers the seasons a series still lacks.
+// else Getting ready or Waiting for a copy, or Partly available / Not available yet when nothing fetches them). On the Episodes tab RequestMoreSeasons names the seasons a series still lacks; the hero's Request more seasons is the one action for them.
 import { CheckCircle2, Clock, Inbox, Plus, Send } from "lucide-react";
 import { Link } from "react-router";
 import { useAuth } from "@/api/auth";
@@ -111,10 +111,10 @@ export function TitleRequest({ target, versions, heroTone }: { target: Target; v
               <Inbox /> View request
             </Link>
           </Button>
-        ) : action.kind === "request" && !opts.isPending ? (
+        ) : action.kind === "request" && !opts.isPending && !more ? (
+          // More seasons are asked for from the hero's (on a phone the sticky) Request more seasons, the page's one.
           <Button onClick={() => openAdd(target)} data-testid="title-request-button">
-            {more ? <Plus /> : <Send />}
-            {more ? "Request more seasons" : "Request"}
+            <Send /> Request
           </Button>
         ) : action.kind === "available" ? (
           <span
@@ -153,12 +153,11 @@ export function TitleRequest({ target, versions, heroTone }: { target: Target; v
 }
 
 /**
- * The Episodes tab's entry for a series the library has: when the caller may request and some wanted version still
- * lacks seasons, "Request more seasons" opens the request sheet with just those seasons to pick. Nothing otherwise
- * (the request card above says the rest).
+ * The Episodes tab's note for a series the library has: when the caller may request and some wanted version still
+ * lacks seasons, which seasons can be asked for, as information; the hero's (on a phone the sticky) "Request more
+ * seasons" is the one action. Nothing otherwise (the request card above says the rest).
  */
 export function RequestMoreSeasons({ target }: { target: Target }) {
-  const { openAdd } = useSearchUI();
   const { opts, wanted, action } = useTitleRequest(target);
   if (opts.isPending || action.kind !== "request" || !moreSeasonsOnly(wanted)) return null;
   const seasons = [...new Set(wanted.flatMap((v) => v.more ?? []))].sort((a, b) => a - b);
@@ -166,11 +165,8 @@ export function RequestMoreSeasons({ target }: { target: Target }) {
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--th-baccent)] bg-[color-mix(in_srgb,var(--accent)_8%,transparent)] px-3 py-2.5 text-sm" data-testid="request-more-seasons-entry">
       <span className="min-w-0">
         <span className="font-medium">Not every season is here.</span>
-        <span className="text-muted-foreground"> You can ask for {seasons.length === 1 ? `season ${seasons[0]}` : `seasons ${seasons.join(", ")}`}.</span>
+        <span className="text-muted-foreground"> You can ask for {seasons.length === 1 ? `season ${seasons[0]}` : `seasons ${seasons.join(", ")}`} with Request more seasons.</span>
       </span>
-      <Button size="sm" onClick={() => openAdd(target)} data-testid="request-more-seasons-button">
-        <Plus /> Request more seasons
-      </Button>
     </div>
   );
 }

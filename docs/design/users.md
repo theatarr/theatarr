@@ -168,8 +168,9 @@ and no other-requester list or count.
   applies the whole-series rule (requested seasons on, the series' other seasons off) only to versions it turns on; a request
   that named no seasons is stored with the seasons it monitored. An open request covers a version only for the
   seasons it holds, so asking for season 3 after an approved request for seasons 1-2 makes a new request.
-  The UI: the request card and hero say **Request more seasons**, the Episodes tab shows the same entry above the
-  seasons, and the sheet greys out seasons already monitored in every wanted version.
+  The UI: the hero (on a phone its sticky copy) says **Request more seasons**, the page's one button for it; the
+  request card keeps its status and history, and the Episodes tab names the seasons that can be asked for above the
+  seasons, as information; and the sheet greys out seasons already monitored in every wanted version.
 - Status: `pending` → `approved` → `processing` (a download for a requested version is in hand, an imported one not
   included, as Activity counts them; for a series request
   naming seasons, one for those seasons or the whole series, the season match the request detail uses) → `available` (every

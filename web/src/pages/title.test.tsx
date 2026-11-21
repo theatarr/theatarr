@@ -265,6 +265,36 @@ describe("Title page", () => {
     }
   });
 });
+describe("Request more seasons (F12)", () => {
+  const member = { id: 8, username: "member", permissions: ["browse", "request"], csrf_token: "t" };
+  const tv = { id: 6, key: "tv", label: "4K", state: "filled", monitored: true, has_file: true, current: { quality: "2160p" } };
+  for (const px of [400, 1440]) {
+    it(`gives a member's series one Request more seasons, the hero's (sticky on a phone), at ${px} px`, async () => {
+      width(px);
+      mockFetch([
+        { method: "GET", path: "/auth/me", reply: member },
+        { method: "GET", path: "/titles/70", reply: { ...title, kind: "series", versions: [tv] } },
+        { method: "GET", path: "/titles/70/episodes", reply: { versions: [], seasons: [], episodes: [] } },
+        { method: "GET", path: "/add/options", reply: { kind: "series", anime: false, title_id: 70, router_enabled: true, episodes_known: true, can_search: false, seasons: [1, 2, 3],
+          versions: [{ key: "tv", label: "4K", kind: "series", enable: "", fits: true, default: true, on: true, searchable: false, open_seasons: [2, 3] }] } },
+        { method: "GET", path: "/requests", reply: { items: [], total: 0, counts: {} } },
+      ]);
+      renderPage(<SearchProvider><Routes><Route path="/title/:id" element={<TitlePage />} /></Routes></SearchProvider>, "/title/70?tab=episodes");
+      // The hero's action, drawn once in the hero (wide) and once sticky (phones); each width shows one of them.
+      await waitFor(() => expect(screen.getAllByTestId("hero-request").map((b) => b.textContent?.trim())).toEqual(["Request more seasons", "Request more seasons"]));
+      expect(screen.getByTestId("title-sticky-action").className).toContain("md:hidden");
+      // The request card keeps its status and history, without a second button.
+      const card = screen.getByTestId("title-request");
+      expect(card.textContent).toContain("Some seasons are not in the library yet.");
+      expect(within(card).queryByRole("button")).toBeNull();
+      // The Episodes tab keeps the season list as information.
+      const note = await screen.findByTestId("request-more-seasons-entry");
+      expect(note.textContent).toBe("Not every season is here. You can ask for seasons 2, 3 with Request more seasons.");
+      expect(within(note).queryByRole("button")).toBeNull();
+      expect(screen.getAllByRole("button", { name: /Request more seasons/ })).toHaveLength(2);
+    });
+  }
+});
 describe("Title page facts (J5)", () => {
   const show = (t: object, path = "/title/70") => {
     mockFetch([
