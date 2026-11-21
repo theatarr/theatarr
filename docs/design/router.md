@@ -117,12 +117,13 @@ new quality, score and formats, and the accepted ones are tried in the order the
 (`decide.Rank`). Without a decision engine the route is skipped (`stale_decision`). Manual and
 interactive grabs are not decided again (`TestDeferredAutomaticRouteRedecidedAfterPolicyChange`,
 `TestRedecisionRanksCandidatesAgain`). A series release the new decision maps to other episodes than it was queued
-with (a scene/XEM mapping changed while it waited) takes the new decision's download episodes (leaving out any kept
-by rule) and is checked for freshness again before any add (`TestDeferredRouteTakesNewEpisodeMapping`); otherwise any
-episode the new decision keeps by rule is removed from the candidate's episodes, and a candidate left with none is
-skipped (`no_longer_upgrade`). A resumed series route that is not decided again (SeaDex preference off, same
-revision) still has each RSS release mapped again: on an accepted decision it takes the new download episodes or
-drops those kept by rule (`remapResumed`, `TestDeferredRemapWithoutSeaDex`, `TestKeptByRuleEpisodesLeftOut`).
+with (a scene/XEM mapping changed while it waited) takes the new episodes minus any whose held file the upgrade
+rules leave in place ([series.md](series.md)) and is checked for freshness again before any add
+(`TestDeferredRouteTakesNewEpisodeMapping`); otherwise any episode the new decision leaves in place is removed from
+the candidate's episodes, and a candidate left with none is skipped (`no_longer_upgrade`). A resumed series route
+that is not decided again (SeaDex preference off, same revision) still has each RSS release mapped again: on an
+accepted decision it takes the new episodes minus any left in place, or drops those left in place (`remapResumed`,
+`TestDeferredRemapWithoutSeaDex`, `TestKeptByRuleEpisodesLeftOut`).
 
 A resumed queued download takes its candidate as the route refreshed it (episodes the freshness check dropped, a new
 decision's quality, score, formats, episode mapping and policy revision) in the write that resumes it, before any
@@ -254,7 +255,10 @@ one fails that torrent only.
 
 The input is a `Request`:
 - the title, the version and its row id;
-- the accepted decisions, ranked by `decide.Rank`, built by `router.Candidates` (for series, `Decision.DownloadEpisodes` leaves out episodes kept by companion upgrade rules, so `download.episodes` omits them);
+- the accepted decisions, ranked by `decide.Rank`, built by `router.Candidates`; for an accepted series pack,
+  candidates, grabs by hand and copies to another library (`DecideOther`) leave out episodes whose held file the
+  upgrade rules (`UpgradeAllowed`, `Repack`, `Proper`, `AnimeVersionUpgrade`) leave in place ([series.md](series.md)),
+  so `download.episodes` omits them, whereas an override of a rejected release routes every episode;
 - `router.SearchRequest` does search, decide and candidates in one call.
 
 Candidate order is `decide.Rank`'s: the arr comparer with Theatarr's cache tie-break after the format score

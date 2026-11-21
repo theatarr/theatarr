@@ -211,6 +211,18 @@ func TestKeptByRuleEpisodesLeftOut(t *testing.T) {
 		if !slices.Equal(c.Episodes, []int64{102, 103}) {
 			t.Errorf("DecideOther episodes = %v, want [102 103]", c.Episodes)
 		}
+		res, err := e.r.Route(e.ctx, Request{TitleID: 2, VersionID: 20, Version: "series", Source: "other:source-lib",
+			Candidates: []Candidate{*c}})
+		if err != nil || res.Outcome != OutcomeAdded {
+			t.Fatalf("DecideOther route: %+v %v steps=%s", res, err, steps(res))
+		}
+		var eps string
+		if err := e.st.Reader().QueryRow(`SELECT episodes FROM download WHERE id = ?`, res.DownloadID).Scan(&eps); err != nil {
+			t.Fatal(err)
+		}
+		if eps != "[102,103]" {
+			t.Errorf("DecideOther download.episodes = %s, want [102,103]", eps)
+		}
 	})
 
 	t.Run("redecide_drops_kept_episode", func(t *testing.T) {
@@ -250,6 +262,9 @@ func TestKeptByRuleEpisodesLeftOut(t *testing.T) {
 		}
 		if res.Outcome != OutcomeCancelled || !strings.Contains(steps(res), "no_longer_upgrade") || e.writes() != 0 {
 			t.Fatalf("all queued kept: outcome=%s writes=%d steps=%s", res.Outcome, e.writes(), steps(res))
+		}
+		if last := res.Steps[len(res.Steps)-1]; last.Message != "no release is still wanted by this version" {
+			t.Errorf("cancel message = %q, want %q", last.Message, "no release is still wanted by this version")
 		}
 	})
 

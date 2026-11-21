@@ -278,9 +278,6 @@ func rawDisk(e *Engine, s *Subject) Decision {
 
 // RepackSpecification: a repack of the file on disk must come from the same release group.
 func repack(e *Engine, s *Subject) Decision {
-	if !s.Release.Quality.Revision.IsRepack || e.Config.DownloadPropersAndRepacks == DoNotPrefer {
-		return Accept()
-	}
 	return e.checkHeldFiles(s, repackFile)
 }
 
@@ -314,9 +311,6 @@ func repackFile(e *Engine, s *Subject, file *File) Decision {
 
 // AnimeVersionUpgradeSpecification (Sonarr): a new version (v2) of an anime episode must come from the same group.
 func animeVersionUpgrade(e *Engine, s *Subject) Decision {
-	if s.Media == nil || !s.Media.Anime || e.Config.DownloadPropersAndRepacks == DoNotPrefer {
-		return Accept()
-	}
 	return e.checkHeldFiles(s, animeVersionUpgradeFile)
 }
 

@@ -23,9 +23,6 @@ const (
 
 // ProperSpecification.cs:27-60: only RSS restricts revision upgrades to recently added files.
 func proper(e *Engine, s *Subject) Decision {
-	if s.Search != nil || e.Config.DownloadPropersAndRepacks == DoNotPrefer {
-		return Accept()
-	}
 	return e.checkHeldFiles(s, properFile)
 }
 

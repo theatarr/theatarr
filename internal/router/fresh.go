@@ -311,25 +311,8 @@ func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate)
 		}
 		c.Quality, c.Score, c.Formats = d.Quality, d.Score, append([]decide.FormatScore{}, d.Formats...)
 		c.EpisodeMap, c.QualityRank, c.UpgradeReason = d.EpisodeMapping(), d.QualityRank(), upgradeReason(d)
-		if series && len(d.EpisodeIDs) > 0 {
-			if !subset(c.Episodes, d.EpisodeIDs) {
-				// The release now maps to other episodes (a scene/XEM mapping changed while it waited): the
-				// download is for the new ones, checked for freshness again by the caller.
-				c.Episodes = d.DownloadEpisodes()
-				s.remapped = true
-			} else if len(d.KeptEpisodeIDs) > 0 {
-				var eps []int64
-				for _, id := range c.Episodes {
-					if !slices.Contains(d.KeptEpisodeIDs, id) {
-						eps = append(eps, id)
-					}
-				}
-				c.Episodes = eps
-			}
-			if len(c.Episodes) == 0 {
-				r.skipFresh(s, c, "no_longer_upgrade", "the targeted episodes are no longer wanted or the release does not improve their files")
-				continue
-			}
+		if series && !r.applyDecisionEpisodes(s, &c, d) {
+			continue
 		}
 		c.Release = queued
 		decisions = append(decisions, d)
@@ -339,7 +322,7 @@ func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate)
 		r.research(ctx, s.req.TitleID, s.req.VersionID, s.req.Version, unproven, "legacy_criteria", s.req.DownloadID)
 	}
 	if len(decisions) == 0 {
-		return r.finishFresh(ctx, s, "no release is accepted under the current policy")
+		return r.finishFresh(ctx, s, "no release is still wanted by this version")
 	}
 	// Tried in the order the current decisions rank them, as a fresh search would. The queued download
 	// this route resumes records the decision it is placed under when its candidate opens it (openDownload).
@@ -384,24 +367,8 @@ func (r *Router) remapResumed(ctx context.Context, s *routeState, cands []Candid
 		if err != nil {
 			return nil, fmt.Errorf("router: remap %s: %w", c.Release.Title, err)
 		}
-		if d.Accepted && len(d.EpisodeIDs) > 0 {
-			if !subset(c.Episodes, d.EpisodeIDs) {
-				c.Episodes = d.DownloadEpisodes()
-				c.EpisodeMap = d.EpisodeMapping()
-				s.remapped = true
-			} else if len(d.KeptEpisodeIDs) > 0 {
-				var eps []int64
-				for _, id := range c.Episodes {
-					if !slices.Contains(d.KeptEpisodeIDs, id) {
-						eps = append(eps, id)
-					}
-				}
-				c.Episodes = eps
-			}
-			if len(c.Episodes) == 0 {
-				r.skipFresh(s, c, "no_longer_upgrade", "the targeted episodes are no longer wanted or the release does not improve their files")
-				continue
-			}
+		if d.Accepted && !r.applyDecisionEpisodes(s, &c, d) {
+			continue
 		}
 		out = append(out, c)
 	}
@@ -409,6 +376,35 @@ func (r *Router) remapResumed(ctx context.Context, s *routeState, cands []Candid
 		return r.finishFresh(ctx, s, "no release is still wanted by this version")
 	}
 	return out, nil
+}
+
+// applyDecisionEpisodes updates a series candidate's episodes from an accepted decision: a changed mapping takes
+// the decision's download episodes and marks s.remapped; otherwise episodes kept by rule are removed. It returns
+// false when no episode remains, after recording the no_longer_upgrade skip step.
+func (r *Router) applyDecisionEpisodes(s *routeState, c *Candidate, d *decide.Decision) bool {
+	if len(d.EpisodeIDs) == 0 {
+		return true
+	}
+	if !subset(c.Episodes, d.EpisodeIDs) {
+		// The release now maps to other episodes (a scene/XEM mapping changed while it waited): the
+		// download is for the new ones, checked for freshness again by the caller.
+		c.Episodes = d.DownloadEpisodes()
+		c.EpisodeMap = d.EpisodeMapping()
+		s.remapped = true
+	} else if len(d.KeptEpisodeIDs) > 0 {
+		var eps []int64
+		for _, id := range c.Episodes {
+			if !slices.Contains(d.KeptEpisodeIDs, id) {
+				eps = append(eps, id)
+			}
+		}
+		c.Episodes = eps
+	}
+	if len(c.Episodes) == 0 {
+		r.skipFresh(s, *c, "no_longer_upgrade", "the targeted episodes are no longer wanted or the release does not improve their files")
+		return false
+	}
+	return true
 }
 
 // missingEpisodes keeps the episodes of ids the version still misses (episode_version_state wanted).
