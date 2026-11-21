@@ -107,8 +107,9 @@ func wholeSeries(t *decide.Title, now time.Time) *decide.SeriesSearch {
 	return ss
 }
 
-// DecideWhole decides one release of the whole-series Interactive search again for a version of a series, with
-// that search's criterion (returned), as a grab by hand from that window is decided.
+// DecideWhole decides one release of the whole-series Interactive search again for a version of an anime series,
+// with that search's criterion (returned), as a grab by hand from that window is decided; any other title as Decide
+// does (no criterion).
 func (a *Acquirer) DecideWhole(ctx context.Context, rel decide.Release, titleID int64, version string) (*decide.Decision,
 	*decide.SeriesSearch, error) {
 	ctx, err := decide.WithStoredSeaDex(ctx, a.st.Reader())
@@ -127,8 +128,11 @@ func (a *Acquirer) DecideWhole(ctx context.Context, rel decide.Release, titleID 
 	if err != nil {
 		return nil, nil, err
 	}
-	if t.Kind != policy.KindSeries {
-		return nil, nil, errors.New("acquire: a whole-series decision needs a series")
+	if t.Kind != policy.KindSeries || t.SeriesType != "anime" {
+		// Only an anime series reads a pack of several seasons by the whole-series criterion; anything else is
+		// decided as a grab from any search.
+		d, err := a.Decide(ctx, rel, titleID, version)
+		return d, nil, err
 	}
 	ss := wholeSeries(&t, a.now())
 	d, err := eng.DecideSearch(decide.WithSearch(ctx), rel, t, v, ss)

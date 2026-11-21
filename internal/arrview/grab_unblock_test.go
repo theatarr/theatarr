@@ -40,7 +40,7 @@ func TestManualGrabUnblocks(t *testing.T) {
 	retryTitle := "Alpha.2020.2160p.WEB-DL-RETRY"
 	routes := map[string]func(e *devEnv, unblockBy string) error{
 		"grab": func(e *devEnv, by string) error {
-			_, err := e.svc.GrabRelease(context.Background(), 1, "movie-web", rel, false, by, "ui:grab:test")
+			_, err := e.svc.GrabRelease(context.Background(), 1, "movie-web", rel, false, false, by, "ui:grab:test")
 			return err
 		},
 		"add": func(e *devEnv, by string) error {
@@ -138,7 +138,7 @@ func TestManualGrabRefusedKeepsBlock(t *testing.T) {
 	}
 	routes := map[string]func(e *devEnv) error{
 		"grab": func(e *devEnv) error {
-			_, err := e.svc.GrabRelease(context.Background(), 1, "movie-web", rel, false, "user:admin", "ui:grab:test")
+			_, err := e.svc.GrabRelease(context.Background(), 1, "movie-web", rel, false, false, "user:admin", "ui:grab:test")
 			return err
 		},
 		"add": func(e *devEnv) error {

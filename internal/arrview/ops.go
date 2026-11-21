@@ -112,24 +112,15 @@ type Grabbed struct {
 // the arrs let a person grab a rejected release from an interactive search. The router then applies every rule it
 // applies to any route: the gate (router.enabled), the blocklist, pacing and budgets. A release on the version's
 // blocklist is refused with its Block unless unblockBy names who confirmed the grab: then, when nothing else refuses
-// it, the release is taken off the blocklist (routeByHand) as the route is queued.
-func (s *Service) GrabRelease(ctx context.Context, titleID int64, version string, rel indexer.Release, override bool,
+// it, the release is taken off the blocklist (routeByHand) as the route is queued. whole: a release of the
+// whole-series Interactive search, which an anime series decides again with that search's criterion (the criterion
+// travels on the candidate); any other series and a movie as from any search.
+func (s *Service) GrabRelease(ctx context.Context, titleID int64, version string, rel indexer.Release, override, whole bool,
 	unblockBy, source string) (*Grabbed, error) {
 	if s.pol.Indexers[rel.Indexer] == nil {
 		return nil, refused("release indexer is no longer enabled: %s", rel.Indexer)
 	}
-	return s.grab(ctx, titleID, version, rel, override, unblockBy, source, false)
-}
-
-// GrabWholeRelease is GrabRelease for a release of the whole-series Interactive search: decided again with that
-// search's criterion, which travels on the candidate (a search's), so a later re-decision keeps it and an anime pack
-// of several seasons keeps its reading and its claim.
-func (s *Service) GrabWholeRelease(ctx context.Context, titleID int64, version string, rel indexer.Release, override bool,
-	unblockBy, source string) (*Grabbed, error) {
-	if s.pol.Indexers[rel.Indexer] == nil {
-		return nil, refused("release indexer is no longer enabled: %s", rel.Indexer)
-	}
-	return s.grab(ctx, titleID, version, rel, override, unblockBy, source, true)
+	return s.grab(ctx, titleID, version, rel, override, unblockBy, source, whole)
 }
 
 // AddRelease routes a release a person names by its hash for a version of a title (the release panel's "Add by

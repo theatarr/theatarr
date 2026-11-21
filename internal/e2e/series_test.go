@@ -856,7 +856,7 @@ func TestAnimeWholeSeriesGrabByHandIsProved(t *testing.T) {
 	e.mountRelease(pack)
 	rel := indexer.Release{Title: pack.name, InfoHash: pack.hash, Indexer: "public", Kind: "torznab", Privacy: "public",
 		Size: pack.size, Seeders: 20, Peers: 20}
-	g, err := e.av.GrabWholeRelease(e.ctx, id, "tv", rel, true, "", "ui:grab:key:e2e")
+	g, err := e.av.GrabRelease(e.ctx, id, "tv", rel, true, true, "", "ui:grab:key:e2e")
 	must(t, err)
 	if !g.Overridden || len(g.Decision.EpisodeIDs) != 6 || g.Decision.Pack == nil || !g.Decision.Pack.Span() {
 		t.Fatalf("grab: overridden %v, episodes %v, claim %+v (%v)", g.Overridden, g.Decision.Episodes, g.Decision.Pack,

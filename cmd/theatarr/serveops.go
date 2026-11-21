@@ -15,19 +15,9 @@ import (
 // web sees arrview.Refused as a refusal.
 type serveOps struct{ av *arrview.Service }
 
-func (o serveOps) GrabRelease(ctx context.Context, titleID int64, version string, rel indexer.Release, override bool,
+func (o serveOps) GrabRelease(ctx context.Context, titleID int64, version string, rel indexer.Release, override, whole bool,
 	unblockBy, source string) (*web.GrabbedRelease, error) {
-	g, err := o.av.GrabRelease(ctx, titleID, version, rel, override, unblockBy, source)
-	if g == nil {
-		return nil, err
-	}
-	return &web.GrabbedRelease{Decision: g.Decision, Overridden: g.Overridden, Job: g.Job}, err
-}
-
-// GrabWholeRelease is GrabRelease for the whole-series Interactive search's releases.
-func (o serveOps) GrabWholeRelease(ctx context.Context, titleID int64, version string, rel indexer.Release, override bool,
-	unblockBy, source string) (*web.GrabbedRelease, error) {
-	g, err := o.av.GrabWholeRelease(ctx, titleID, version, rel, override, unblockBy, source)
+	g, err := o.av.GrabRelease(ctx, titleID, version, rel, override, whole, unblockBy, source)
 	if g == nil {
 		return nil, err
 	}

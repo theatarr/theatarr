@@ -28,7 +28,7 @@ type fakeOps struct {
 	mu            sync.Mutex
 	grabs         []indexer.Release
 	added         []string // the source of each AddRelease that went through (its release is in grabs)
-	whole         []string // the release of each GrabWholeRelease (whole-series window)
+	whole         []string // the release of each grab from the whole-series window
 	retries       []int64
 	unlinks       []int64
 	renameApplied []int64
@@ -105,10 +105,13 @@ func (f *fakeOps) take() error {
 	return err
 }
 
-func (f *fakeOps) GrabRelease(_ context.Context, _ int64, version string, rel indexer.Release, override bool,
+func (f *fakeOps) GrabRelease(_ context.Context, _ int64, version string, rel indexer.Release, override, whole bool,
 	unblockBy, _ string) (*GrabbedRelease, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if whole {
+		f.whole = append(f.whole, rel.Title)
+	}
 	d := &decide.Decision{Release: rel.Title, Version: version, Accepted: !f.reject}
 	if f.reject {
 		d.Rejections = []decide.Rejection{{Reason: "QualityNotWanted", Message: "WEBDL-1080p is not wanted"}}
@@ -126,17 +129,9 @@ func (f *fakeOps) GrabRelease(_ context.Context, _ int64, version string, rel in
 	return &GrabbedRelease{Decision: d, Overridden: f.reject, Job: 1}, nil
 }
 
-func (f *fakeOps) GrabWholeRelease(ctx context.Context, id int64, version string, rel indexer.Release, override bool,
-	unblockBy, source string) (*GrabbedRelease, error) {
-	f.mu.Lock()
-	f.whole = append(f.whole, rel.Title)
-	f.mu.Unlock()
-	return f.GrabRelease(ctx, id, version, rel, override, unblockBy, source)
-}
-
 func (f *fakeOps) AddRelease(ctx context.Context, id int64, version string, rel indexer.Release, override bool,
 	unblockBy, source string) (*GrabbedRelease, error) {
-	g, err := f.GrabRelease(ctx, id, version, rel, override, unblockBy, source)
+	g, err := f.GrabRelease(ctx, id, version, rel, override, false, unblockBy, source)
 	if err == nil {
 		f.mu.Lock()
 		f.added = append(f.added, source)

@@ -28,7 +28,7 @@ func TestGrabReleaseByHand(t *testing.T) {
 	ctx := context.Background()
 	good := indexer.Release{Indexer: "prowlarr-public", Kind: "torznab", Privacy: policy.PrivacyPublic,
 		Title: "Alpha.2020.2160p.WEB-DL.H265-GRP", InfoHash: strings.Repeat("9", 40), Size: 10 << 30}
-	g, err := e.svc.GrabRelease(ctx, 1, "movie-web", good, false, "", "ui:grab:test")
+	g, err := e.svc.GrabRelease(ctx, 1, "movie-web", good, false, false, "", "ui:grab:test")
 	if err != nil || !g.Decision.Accepted || g.Overridden || g.Job == 0 {
 		t.Fatalf("grab: %+v %v", g, err)
 	}
@@ -46,14 +46,14 @@ func TestGrabReleaseByHand(t *testing.T) {
 
 	bad := good
 	bad.Title, bad.InfoHash = "Alpha.2020.1080p.WEB-DL-GRP", strings.Repeat("8", 40)
-	g, err = e.svc.GrabRelease(ctx, 1, "movie-web", bad, false, "", "ui:grab:test")
+	g, err = e.svc.GrabRelease(ctx, 1, "movie-web", bad, false, false, "", "ui:grab:test")
 	if !isRefused(err) || g == nil || g.Decision.Accepted || !strings.Contains(err.Error(), "not wanted") {
 		t.Fatalf("rejected without override: %+v %v", g, err)
 	}
 	if n := e.str(`SELECT COUNT(*) FROM job WHERE kind = 'router.route' AND state = 'queued'`); n != "0" {
 		t.Errorf("a refused grab queued %s routes", n)
 	}
-	g, err = e.svc.GrabRelease(ctx, 1, "movie-web", bad, true, "", "ui:grab:test")
+	g, err = e.svc.GrabRelease(ctx, 1, "movie-web", bad, true, false, "", "ui:grab:test")
 	if err != nil || !g.Overridden {
 		t.Fatalf("override: %+v %v", g, err)
 	}
@@ -65,7 +65,7 @@ func TestGrabReleaseByHand(t *testing.T) {
 	private := good
 	private.Title, private.InfoHash = "Alpha.2020.2160p.WEB-DL-PRIV", strings.Repeat("6", 40)
 	private.Privacy = policy.PrivacyPrivate
-	if _, err := e.svc.GrabRelease(ctx, 1, "movie-web", private, false, "", "ui:grab:test"); err != nil {
+	if _, err := e.svc.GrabRelease(ctx, 1, "movie-web", private, false, false, "", "ui:grab:test"); err != nil {
 		t.Fatal(err)
 	}
 	e.drain()
@@ -75,11 +75,11 @@ func TestGrabReleaseByHand(t *testing.T) {
 
 	nohash := good
 	nohash.InfoHash = ""
-	if _, err := e.svc.GrabRelease(ctx, 1, "movie-web", nohash, true, "", "ui:grab:test"); !isRefused(err) {
+	if _, err := e.svc.GrabRelease(ctx, 1, "movie-web", nohash, true, false, "", "ui:grab:test"); !isRefused(err) {
 		t.Errorf("no hash: %v", err)
 	}
 	e.pol.Router.Enabled = false
-	if _, err := e.svc.GrabRelease(ctx, 1, "movie-web", good, true, "", "ui:grab:test"); !isRefused(err) ||
+	if _, err := e.svc.GrabRelease(ctx, 1, "movie-web", good, true, false, "", "ui:grab:test"); !isRefused(err) ||
 		!strings.Contains(err.Error(), "Theatarr is paused") {
 		t.Errorf("disabled grab: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestAddReleaseByHand(t *testing.T) {
 	ctx := context.Background()
 	good := indexer.Release{Title: "Alpha.2020.2160p.WEB-DL.H265-GRP", InfoHash: strings.Repeat("9", 40), Seeders: -1,
 		Peers: -1}
-	if _, err := e.svc.GrabRelease(ctx, 1, "movie-web", good, true, "", "ui:grab:test"); !isRefused(err) ||
+	if _, err := e.svc.GrabRelease(ctx, 1, "movie-web", good, true, false, "", "ui:grab:test"); !isRefused(err) ||
 		!strings.Contains(err.Error(), "no longer enabled") {
 		t.Fatalf("grab without an indexer: %v", err)
 	}
@@ -284,7 +284,7 @@ func TestGrabSaysWhyNothingStarts(t *testing.T) {
 	lib := policy.LibraryNames(e.pol)["movie-web"]
 	e.exec(`INSERT INTO router_blocklist (version_key, info_hash, title_id, release_title, reason, source, created_at)
 		VALUES ('movie-web', ?, 1, 'x', 'sample', 'library', 0)`, rel.InfoHash)
-	g, err := e.svc.GrabRelease(ctx, 1, "movie-web", rel, false, "", "ui:grab:test")
+	g, err := e.svc.GrabRelease(ctx, 1, "movie-web", rel, false, false, "", "ui:grab:test")
 	if !isRefused(err) || g != nil || err.Error() != "On "+lib+"'s blocklist: sample" || blockedRefusal(err) == nil {
 		t.Fatalf("blocklisted: %+v %v", g, err)
 	}
@@ -348,7 +348,7 @@ func TestGrabPackLeavesOutKeptEpisode(t *testing.T) {
 		Seeders:  10,
 		Peers:    5,
 	}
-	g, err := e.svc.GrabRelease(ctx, 10, "tv-2160p", pack, false, "", "ui:grab:test")
+	g, err := e.svc.GrabRelease(ctx, 10, "tv-2160p", pack, false, false, "", "ui:grab:test")
 	if err != nil || !g.Decision.Accepted || g.Overridden || g.Job == 0 {
 		t.Fatalf("grab accepted pack: %+v %v", g, err)
 	}
@@ -362,7 +362,7 @@ func TestGrabPackLeavesOutKeptEpisode(t *testing.T) {
 	tiny := pack
 	tiny.InfoHash = strings.Repeat("b", 40)
 	tiny.Size = 1024
-	g, err = e.svc.GrabRelease(ctx, 10, "tv-2160p", tiny, true, "", "ui:grab:test")
+	g, err = e.svc.GrabRelease(ctx, 10, "tv-2160p", tiny, true, false, "", "ui:grab:test")
 	if err != nil || g.Decision.Accepted || !g.Overridden || g.Job == 0 {
 		t.Fatalf("grab overridden tiny pack: %+v %v", g, err)
 	}

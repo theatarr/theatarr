@@ -43,11 +43,8 @@ import (
 type Ops interface {
 	// GrabRelease and RetryDownload refuse a release on the library's blocklist (blockedErr) unless unblockBy names
 	// who confirmed taking it off; then, when nothing else refuses it, it is taken off as the route is queued.
-	GrabRelease(ctx context.Context, titleID int64, version string, rel indexer.Release, override bool,
-		unblockBy, source string) (*GrabbedRelease, error)
-	// GrabWholeRelease is GrabRelease for a release of the whole-series Interactive search, decided again with its
-	// criterion.
-	GrabWholeRelease(ctx context.Context, titleID int64, version string, rel indexer.Release, override bool,
+	// whole: a release of the whole-series Interactive search (GrabRequest.Whole).
+	GrabRelease(ctx context.Context, titleID int64, version string, rel indexer.Release, override, whole bool,
 		unblockBy, source string) (*GrabbedRelease, error)
 	RetryDownload(ctx context.Context, id int64, unblockBy, source string) (*RetriedDownload, error)
 	UnlinkLink(ctx context.Context, linkID int64, reason string) (*UnlinkedLink, error)
@@ -265,7 +262,8 @@ type GrabRequest struct {
 	// Unblock takes the release off the library's blocklist and grabs it (the person saw the 409's Blocked and
 	// confirmed); without it a blocklisted release is refused.
 	Unblock bool `json:"unblock,omitempty"`
-	// Whole grabs a release of the whole-series Interactive search: decided again with that search's criterion.
+	// Whole grabs a release of the whole-series Interactive search: an anime series decides it again with that
+	// search's criterion.
 	Whole bool `json:"whole,omitempty"`
 }
 
@@ -321,11 +319,7 @@ func (w *Web) apiGrab(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	by := actor(r)
-	grab := w.ops.GrabRelease
-	if req.Whole {
-		grab = w.ops.GrabWholeRelease
-	}
-	g, err := grab(ctx, id, req.Version, rel, req.Override, unblockBy(req.Unblock, by), "ui:grab:"+by)
+	g, err := w.ops.GrabRelease(ctx, id, req.Version, rel, req.Override, req.Whole, unblockBy(req.Unblock, by), "ui:grab:"+by)
 	w.grabbed(rw, r, id, req.Version, rel, g, err, "")
 }
 

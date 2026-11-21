@@ -24,14 +24,9 @@ func grabbed(g *arrview.Grabbed, err error) (*web.GrabbedRelease, error) {
 	return &web.GrabbedRelease{Decision: g.Decision, Overridden: g.Overridden, Job: g.Job}, err
 }
 
-func (o viewOps) GrabRelease(ctx context.Context, id int64, version string, rel indexer.Release, override bool,
+func (o viewOps) GrabRelease(ctx context.Context, id int64, version string, rel indexer.Release, override, whole bool,
 	unblockBy, source string) (*web.GrabbedRelease, error) {
-	return grabbed(o.av.GrabRelease(ctx, id, version, rel, override, unblockBy, source))
-}
-
-func (o viewOps) GrabWholeRelease(ctx context.Context, id int64, version string, rel indexer.Release, override bool,
-	unblockBy, source string) (*web.GrabbedRelease, error) {
-	return grabbed(o.av.GrabWholeRelease(ctx, id, version, rel, override, unblockBy, source))
+	return grabbed(o.av.GrabRelease(ctx, id, version, rel, override, whole, unblockBy, source))
 }
 
 func (o viewOps) AddRelease(ctx context.Context, id int64, version string, rel indexer.Release, override bool,
@@ -137,7 +132,7 @@ func TestFailedManualAddStartsNoSearch(t *testing.T) {
 			}
 		} else {
 			_, err := e.av.GrabRelease(e.ctx, id, "movie", indexer.Release{Title: rel.name, InfoHash: rel.hash,
-				Indexer: "public", Kind: "torznab", Privacy: "public", Size: 20 << 30, Seeders: 20, Peers: 20}, false,
+				Indexer: "public", Kind: "torznab", Privacy: "public", Size: 20 << 30, Seeders: 20, Peers: 20}, false, false,
 				"", "ui:grab:key:e2e")
 			must(t, err)
 		}

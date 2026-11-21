@@ -479,3 +479,38 @@ func TestAnimeSeasonsStayUnmerged(t *testing.T) {
 		}
 	}
 }
+
+// A grab from the whole-series window is decided with that window's criterion on an anime series only: a standard
+// series' pack holding an unmonitored episode is decided as from any search (rejected without override), as on main.
+func TestDecideWholeAnimeOnly(t *testing.T) {
+	t.Parallel()
+	for _, typ := range []string{"standard", "anime"} {
+		e := newEnv(t, true, nil)
+		e.addSeries(40, 401, 3)
+		e.exec(`UPDATE title SET series_type = ? WHERE id = 40`, typ)
+		e.exec(`UPDATE episode_version_state SET monitored = 0 WHERE episode_id = 4021`)
+		e.pol.Profiles = map[string]*policy.Profile{"web": {Qualities: []policy.QualityItem{{Name: "WEBDL-2160p"}}, Cutoff: "WEBDL-2160p"}}
+		e.pol.Versions["series"].Profile = "web"
+		var err error
+		if e.a.eng, err = decide.New(e.pol, decide.Options{Now: e.clock}); err != nil {
+			t.Fatal(err)
+		}
+		rel := decide.Release{Release: indexer.Release{Title: "Series40.S01-S03.2160p.WEB-DL-GRP", Indexer: "pub", Size: 30 << 30,
+			Privacy: policy.PrivacyPublic, Seeders: 10}}
+		d, ss, err := e.a.DecideWhole(e.ctx, rel, 40, "series")
+		if err != nil {
+			t.Fatal(err)
+		}
+		plain, err := e.a.Decide(e.ctx, rel, 40, "series")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if typ == "standard" && (ss != nil || d.Accepted != plain.Accepted || fmt.Sprint(d.Rejections) != fmt.Sprint(plain.Rejections)) {
+			t.Errorf("standard: criterion %v, accepted %v (%v), as from any search %v (%v)", ss, d.Accepted, d.Rejections,
+				plain.Accepted, plain.Rejections)
+		}
+		if typ == "anime" && (ss == nil || ss.Kind != profile.SearchSeries) {
+			t.Errorf("anime: criterion %+v", ss)
+		}
+	}
+}
