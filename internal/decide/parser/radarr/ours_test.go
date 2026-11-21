@@ -69,8 +69,10 @@ func TestJapaneseAndSubtitleLanguages(t *testing.T) {
 		"Akira.1988.1080p.BluRay.JPN.English Subtitles-GRP":     "Japanese",
 		"Akira.1988.1080p.BluRay.JPN.Eng.Subbed-GRP":            "Japanese",
 		"Akira.1988.1080p.BluRay.JPN.ENG.SUBFRENCH-GRP":         "Japanese,English",
-		"Akira.1988.1080p.BluRay.JPN.English.Subs (Forced)-GRP": "Japanese", // the marker stays for the rule above
-		"Movie.2019.1080p.WEB-DL.Sub (Rus Eng).EN-GRP":          "English",  // the kept marker does not take the audio tag after it
+		"Akira.1988.1080p.BluRay.JPN.English.Subs (Forced)-GRP": "Japanese",  // the marker stays for the rule above
+		"Movie.2019.1080p.WEB-DL.Sub (Rus Eng).EN-GRP":          "English",   // the kept marker does not take the audio tag after it
+		"Movie.2019.1080p.WEB-DL.Ukr.Sub (Rus Eng)-GRP":         "Ukrainian", // the audio tag in front of a listed Sub stays
+		"Movie.2019.1080p.WEB-DL.Rus.Eng.Sub (Rus Eng)-GRP":     "Russian,English",
 		// An explicit "Sub (…)" list is subtitles: live download 327 reads Ukrainian, Original (Eng) and English, not
 		// the Russian of its subtitle list; with the only Eng in that list there is no English.
 		"Достать ножи / Knives Out [2019 WEB-DL 2160p HDR10 HDR10+ Dolby Vision] [Hybrid] Dub + 2x MVO + 2x DVO + AVO + Ukr + Kaz + Original (Eng) + Sub (Rus Eng)": "Ukrainian,Original,English",

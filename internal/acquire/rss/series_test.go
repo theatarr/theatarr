@@ -129,6 +129,8 @@ func TestRSSSeriesByFranchiseName(t *testing.T) {
 	}{
 		{"sequel placed", placed, "auto", "", true},
 		{"sequel named with S01E02", "Show.Sequel.S01E02.2160p.WEB-DL-GRP", "auto", "", false},
+		// The entry holds two episodes: its "- 03" is not placed and must not become absolute 3, S01E03.
+		{"sequel number the entry lacks", "[GRP] Show Sequel - 03 (2160p WEB-DL)", "auto", "", false},
 		{"conflict entry", placed, "conflict", "", false},
 		{"rejected entry", placed, "rejected", "", false},
 		{"name of another catalogue title", placed, "auto",
@@ -160,6 +162,10 @@ func TestRSSSeriesByFranchiseName(t *testing.T) {
 			e.seedShow(t)
 			at := store.Millis(t0)
 			e.exec(t, `UPDATE title SET series_type = 'anime' WHERE id = 5`)
+			for n := 1; n <= 3; n++ { // series-wide absolute numbers 1-3 on S01
+				e.exec(t, `INSERT INTO episode_number (episode_id, title_id, scheme, season, number)
+					VALUES (?, 5, 'absolute_tvdb', NULL, ?)`, n, n)
+			}
 			for n := 1; n <= 2; n++ {
 				air := time.Date(2026, 9, 10+n, 2, 0, 0, 0, time.UTC)
 				e.exec(t, `INSERT INTO episode (id, title_id, season, number, name, air_date, air_date_utc_at,
