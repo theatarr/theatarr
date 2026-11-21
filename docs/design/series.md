@@ -97,8 +97,8 @@ from ordinary matching loads.
   first at equal quality and score. In a merged search (below, "Seasons searched together") a pack of several seasons is
   for the searched seasons only: its download leaves out every episode of a season nobody searched (one that fills
   or upgrades no episode of the searched seasons is rejected; its upgrade reason, the Why's, names the searched
-  seasons' files and missing episodes, while the specifications still judge the whole pack), and between full-season releases a known-cached one ranks first, then the one that
-  fills more searched episodes. Anime series keep the rule: no span, no complete-series reading. A season pack, or any multi-episode release, is taken when it fills or
+  seasons' files and missing episodes, while the specifications still judge the whole pack), and packs rank before other releases as a step of their own; between packs a known-cached one ranks first, then the
+  one that fills more searched episodes. Anime series keep the rule: no span, no complete-series reading. A season pack, or any multi-episode release, is taken when it fills or
   upgrades at least one episode (the actuallyevan fork's `ACCEPT_RELEASE_ANY_UPGRADABLE`, taken further than Sonarr
   and the fork). Two kinds of episode keep their file. An episode that already has a better file (`UpgradeDisk`)
   stays in the download's episodes, and the import upgrade check (library.md) leaves its file in place. An episode

@@ -405,8 +405,10 @@ a sanitised message and `retry_at`.
 The request of a merged search of several seasons (series.md "Seasons searched together") carries a flag, kept with
 its route job and continuation. Its candidates are scoped: a pack of several seasons is for the searched seasons only
 (`decide.SeriesSearch.Seasons` on every criterion, `Decision.DownloadEpisodes`). They are ranked by
-`decide.RankMerged`: quality, format score and protocol as always; then, between full-season releases only, one with
-cache evidence before one without, then the one with more scoped episodes; everything else in the usual order. So a
+`decide.RankMerged`: quality, format score and protocol as always; then a pack (a full season, or a span of several
+seasons such as an anime batch that fills whole seasons) before any other release; then, between packs only, one
+with cache evidence before one without, then the one with more scoped episodes; everything else in the usual order.
+Pack status is a step of its own, so three releases never rank in a circle. So a
 pack of several seasons is taken for exactly the seasons where nothing found for that season ranks above it. Only a
 flagged request changes the batch, which RSS batches and single-season searches keep as above:
 

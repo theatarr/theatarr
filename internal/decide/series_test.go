@@ -677,6 +677,39 @@ func TestRankMerged(t *testing.T) {
 			t.Errorf("%s (other order): %s first", c.name, got)
 		}
 	}
+	// Pack status is one step of its own (C5): a cached absolute batch filling seasons 1 and 2 (a pack, no full
+	// season), an uncached season pack and an uncached batch across breaks with more episodes rank the same in every
+	// input order: the two packs first, the cached one ahead, then the batch. Without that step the three ranked in a
+	// circle (the cached batch over the season pack, the season pack over the batch across breaks, that batch over
+	// the cached one by its episode count).
+	av := tvVersion(e, "anime-tv")
+	member := kaijuMerged(1, 1, 2, 3)
+	anime := func(name string, cached bool, hash int) *Decision {
+		r := rel(name, "public", 6*gb)
+		r.InfoHash = fmt.Sprintf("%040x", hash)
+		if cached {
+			r.CachedOn = []string{"rd"}
+		}
+		d, err := e.DecideSearch(ctx, r, kaiju(), av, member)
+		if err != nil || !d.Accepted {
+			t.Fatalf("%s: %v %s", name, err, reasons(d))
+		}
+		return d
+	}
+	a, b, c := anime("[G] Kaiju Tale - 01-06 [BD 1080p]", true, 1), anime("[G] Kaiju Tale S01 [BD 1080p]", false, 2),
+		anime("[G] Kaiju Tale - 02-08 [BD 1080p]", false, 3)
+	// The profile's "Season Pack" format (+10) aside: the three tie on quality, score and protocol.
+	a.subject.Release.FormatScore, c.subject.Release.FormatScore = b.subject.Release.FormatScore, b.subject.Release.FormatScore
+	want := []string{a.Release, b.Release, c.Release}
+	for _, in := range [][]*Decision{{a, b, c}, {a, c, b}, {b, a, c}, {b, c, a}, {c, a, b}, {c, b, a}} {
+		var got []string
+		for _, d := range RankMerged(in) {
+			got = append(got, d.Release)
+		}
+		if !slices.Equal(got, want) {
+			t.Errorf("merged order from %s, %s, %s: %v", in[0].Release, in[1].Release, in[2].Release, got)
+		}
+	}
 }
 
 // A pack of several seasons accepted only because an unsearched season misses episodes fills or upgrades nothing

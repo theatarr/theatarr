@@ -40,9 +40,10 @@ func (e *Engine) Compare(x, y *Subject) int {
 }
 
 // compareMerged is Compare for the releases of a merged search of several seasons (Theatarr): quality, format score
-// and protocol as Compare; then, between full-season releases only, a release with cache evidence before one
-// without, then more scoped episodes (scoped: what the release is for in this search) first; everything else in
-// Compare's order.
+// and protocol as Compare; then a pack (a full season or a span of several seasons) before any other release; then,
+// between packs only, a release with cache evidence before one without, then more scoped episodes (scoped: what the
+// release is for in this search) first; everything else in Compare's order. Pack status is its own step, so the order
+// is a proper one (Compare's season-pack step reads FullSeason only).
 func (e *Engine) compareMerged(x, y *Subject, scoped func(*Subject) int) int {
 	if c, ok := SeaDexOrder(e.Config.PreferSeaDex, x.Release.Quality.SeaDexPreference, y.Release.Quality.SeaDexPreference); ok {
 		return c
@@ -52,7 +53,10 @@ func (e *Engine) compareMerged(x, y *Subject, scoped func(*Subject) int) int {
 			return r
 		}
 	}
-	if x.Release.pack() && y.Release.pack() {
+	if c := cmpBool(x.Release.pack(), y.Release.pack()); c != 0 {
+		return c
+	}
+	if x.Release.pack() {
 		if c := cmpBool(x.Cached.Count > 0, y.Cached.Count > 0); c != 0 {
 			return c
 		}
