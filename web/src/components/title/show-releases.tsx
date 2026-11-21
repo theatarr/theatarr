@@ -192,11 +192,11 @@ function Panel({ titleId, kind, initialVersion, focus, labels, season, run }: { 
   const [version, setVersion] = useState<string | undefined>(initialVersion);
   // The run belongs to the library it was linked from; another tab shows that library's own Last search.
   const runOf = run !== undefined && version === initialVersion ? run : undefined;
-  const q = useReleases(titleId, version, false, season, runOf);
+  const q = useReleases(titleId, version, season, runOf);
   const seasonName = season === undefined ? "" : season === 0 ? "Specials" : `Season ${season}`;
   const r: Releases | undefined = q.data;
   // What came of each release now; the list's own outcomes until it answers.
-  const oc = useReleaseOutcomes(titleId, r?.version, undefined, !!r);
+  const oc = useReleaseOutcomes(titleId, r?.version, undefined, !!r && (r.candidates?.length ?? 0) > 0);
   const versions = r?.versions ?? [];
   const items = r?.candidates ?? [];
   // The followed release is picked out in the library it was followed for only.

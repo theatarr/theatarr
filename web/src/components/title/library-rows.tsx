@@ -200,6 +200,7 @@ function RowDetails({ v, kind, minimumShown, statusShown, onRemove }: { v: Versi
   const c = v.current;
   const key = v.key ?? "";
   const titleId = v.title_id ?? 0;
+  const reported = reportedRun(v, kind);
   const rows: [ReactNode, ReactNode][] = [];
   // The path once: Library files lists each linked file's; a file with no link (an arr's) shows it here.
   if (c?.path && unlinkable(v.links).length === 0) rows.push(["Path", <Mono key="p" className="text-muted-foreground [overflow-wrap:anywhere]">{c.path}</Mono>]);
@@ -241,7 +242,8 @@ function RowDetails({ v, kind, minimumShown, statusShown, onRemove }: { v: Versi
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
         {listed && (v.state === "wanted" || !!v.episodes?.missing) ? <Link className="text-primary hover:underline" to={`/wanted?version=${encodeURIComponent(key)}${titleId ? `&title=${titleId}` : ""}`}>See in Wanted</Link> : null}
         {listed && v.upgrade?.quality_met !== true && (v.state === "filled" || !!v.upgrade?.below) ? <Link className="text-primary hover:underline" to={`/wanted/cutoff?version=${encodeURIComponent(key)}${titleId ? `&title=${titleId}` : ""}`}>See in Cutoff unmet</Link> : null}
-        {perms.manage && titleId ? <Link className="text-primary hover:underline" to={releasesHref(titleId, key)}>Last search results</Link> : null}
+        {/* The run the row reports, when it does (as its Show releases), so the row never gives two answers. */}
+        {perms.manage && titleId ? <Link className="text-primary hover:underline" to={reported ? runReleasesHref(titleId, key, reported) : releasesHref(titleId, key)} data-testid="library-details-releases">Last search results</Link> : null}
       </div>
       {perms.manage ? <CopyActions v={v} label={nameOf(v)} onRemove={onRemove} movie={kind === "movie"} /> : null}
     </div>

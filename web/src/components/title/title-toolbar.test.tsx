@@ -218,7 +218,11 @@ describe("Search series' answer (F8.1, F8.3)", () => {
     const button = await screen.findByTestId("title-search-now");
     await waitFor(() => expect(button.hasAttribute("disabled")).toBe(false));
     await user.click(button);
-    expect(await screen.findByText(said.message)).toBeTruthy();
+    // A short title, one line on a phone, and the reason in the body, which wraps (never cut with an ellipsis).
+    const title = await screen.findByText("Nothing to search");
+    const body = screen.getByText("No monitored episode is missing or below its cutoff.");
+    expect(body.className).not.toMatch(/truncate|line-clamp/);
+    expect(title.closest("[data-toaster]")?.contains(body) ?? title.parentElement?.parentElement?.contains(body)).toBe(true);
     expect(screen.queryByTestId("title-search-outcome")).toBeNull();
   });
   it("keeps a started search said on the page", async () => {

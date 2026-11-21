@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Forbidden } from "./library";
 import { currentLibraries } from "@/lib/library-rows";
 import { titleReleaseAccess } from "@/lib/title-layout";
-import { titleWithYear } from "@/lib/format";
+import { fmtDay, titleWithYear } from "@/lib/format";
 
 export function TitleReleasesPage() {
   const rawID = useParams().id ?? "";
@@ -41,6 +41,12 @@ export function TitleReleasesPage() {
   // One run's stored search (?run=R, the Libraries row's link to the run whose counts it shows).
   const rawRun = params.get("run");
   const run = rawRun !== null && /^\d+$/.test(rawRun) && Number(rawRun) > 0 ? Number(rawRun) : undefined;
+  // A pinned run is that search, not the library's last one (a later search may exist): its season and day.
+  const rawAt = params.get("at");
+  const ranOn = rawAt && /^\d{4}-\d{2}-\d{2}$/.test(rawAt) ? fmtDay(rawAt) : "";
+  const subject = run !== undefined
+    ? `: the search${seasonName ? ` of ${seasonName}` : ""}${ranOn ? ` on ${ranOn}` : ""} that the Libraries row reports. `
+    : seasonName ? `, ${seasonName}: the last search of this season Theatarr decided for each library. ` : ": the last search Theatarr decided for each library. ";
   return (
     <div>
       <PageHeader
@@ -51,7 +57,7 @@ export function TitleReleasesPage() {
             <TitleThumb id={id} className="w-10" />
             <span>
               {titleWithYear(name, t.year)}
-              {seasonName ? `, ${seasonName}: the last search of this season Theatarr decided for each library. ` : ": the last search Theatarr decided for each library. "}
+              {subject}
               {t.kind !== "series"
                 ? "Interactive search searches the indexers now."
                 : seasonName

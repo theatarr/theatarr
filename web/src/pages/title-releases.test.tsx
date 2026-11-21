@@ -51,11 +51,16 @@ for (const px of [400, 1440]) {
 
   it(`opens the run a Libraries row reports, or says it stored none, at ${px} px`, async () => {
     width(px);
-    const api = open("/title/7/releases?version=tv&run=162&season=2", none);
+    const api = open("/title/7/releases?version=tv&run=162&season=2&at=2025-11-12", none);
     expect((await screen.findByTestId("releases-source")).textContent).toBe("Nothing stored");
     const q = new URLSearchParams(api.calls("GET", "/titles/7/releases")[0].search);
-    expect([q.get("run"), q.get("season")]).toEqual(["162", "2"]);
+    expect([q.get("run"), q.get("season"), q.has("at")]).toEqual(["162", "2", false]);
     expect(screen.getByText("This search stored no release list for TV.")).toBeTruthy();
+    // That search, not the library's last one (a later search of the season may exist).
+    expect(screen.getByText(/Show \(2020\): the search of Season 2 on Nov 12, 2025 that the Libraries row reports\./)).toBeTruthy();
+    expect(screen.queryByText(/the last search/)).toBeNull();
+    // An empty stored list asks for no outcomes.
+    expect(api.calls("GET", "/titles/7/release-outcomes")).toHaveLength(0);
   });
 
   it(`asks without a season when the link names none, and says what the whole-series search lists, at ${px} px`, async () => {

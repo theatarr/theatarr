@@ -490,7 +490,7 @@ describe("a series row's last search (F3.3)", () => {
   const show = { id: 7, kind: "series", name: "Show", auto_search: { missing: true, upgrades: true, enabled: true } };
   const tv = (last: object) => ({
     id: 3, title_id: 7, key: "tv", label: "TV", monitored: true, has_file: false, state: "wanted", control: live,
-    episodes: { total: 20, have: 0, missing: 20, monitored: 20 }, last_search: { at: new Date().toISOString(), run_id: 162, ...last },
+    episodes: { total: 20, have: 0, missing: 20, monitored: 20 }, last_search: { at: new Date(2026, 10, 12, 10).toISOString(), run_id: 162, ...last },
   });
   for (const px of [400, 1440]) {
     it(`names the season the reported run searched and links its own stored search, at ${px} px`, async () => {
@@ -498,8 +498,11 @@ describe("a series row's last search (F3.3)", () => {
       manager();
       renderPage(<LibraryRows title={show as never} versions={[tv({ target: "s02", state: "nothing", results: 474, accepted: 0 })] as never} />);
       const link = await screen.findByTestId("library-why-releases");
-      expect(screen.getByTestId("library-why").textContent).toBe("Last searched Season 2 today: 474 results, none accepted. Theatarr searches for it automatically. Show releases");
-      expect(link.getAttribute("href")).toBe("/title/7/releases?version=tv&run=162&season=2");
+      expect(screen.getByTestId("library-why").textContent).toMatch(/^Last searched Season 2 .+: 474 results, none accepted\. Theatarr searches for it automatically\. Show releases$/);
+      expect(link.getAttribute("href")).toBe("/title/7/releases?version=tv&run=162&season=2&at=2026-11-12");
+      // Details' Last search results opens the same run, so the row gives one answer.
+      await userEvent.setup().click(screen.getByRole("button", { name: /Details/ }));
+      expect((await screen.findByTestId("library-details-releases")).getAttribute("href")).toBe("/title/7/releases?version=tv&run=162&season=2&at=2026-11-12");
     });
   }
   it("says Search series on a series row: the helper text, the phone button and its name (F8.1); a film keeps Search now", async () => {
@@ -523,7 +526,10 @@ describe("a series row's last search (F3.3)", () => {
     renderPage(<LibraryRows title={show as never} versions={[tv({ target: "s01", state: "failed", results: 0, accepted: 0 })] as never} />);
     await screen.findByTestId("version-search-tv"); // the account is read
     const why = screen.getByTestId("library-why");
-    expect(why.textContent).toBe("Last search of Season 1 today failed. Theatarr searches for it automatically.");
+    expect(why.textContent).toMatch(/^Last search of Season 1 .+ failed\. Theatarr searches for it automatically\.$/);
     expect(within(why).queryByTestId("library-why-releases")).toBeNull();
+    // Without a reported run, Details keeps the library's Last search.
+    await userEvent.setup().click(screen.getByRole("button", { name: /Details/ }));
+    expect((await screen.findByTestId("library-details-releases")).getAttribute("href")).toBe("/title/7/releases?version=tv");
   });
 });

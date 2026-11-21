@@ -138,16 +138,13 @@ export function useSearchNow(titleId: number) {
   });
 }
 
-/** A library's release list: live (an indexer search now) or the stored Last search; season keeps the stored one to
- *  that season's own search, run to that run's (or nothing). */
-export function useReleases(titleId: number, version: string | undefined, live: boolean, season?: number, run?: number) {
+/** A library's stored Last search (Interactive search's live answers are useLiveSearch's); season keeps it to that
+ *  season's own search, run to that run's (or nothing). */
+export function useReleases(titleId: number, version: string | undefined, season?: number, run?: number) {
   return useQuery({
-    queryKey: qk.releases(titleId, version ?? "", live, season, run),
-    queryFn: () => api<Releases>(`/titles/${titleId}/releases` + qs({ version, live: live ? 1 : undefined, season, run })),
-    // A live answer is a fresh indexer search: never refetched or retried on its own.
-    staleTime: live ? Infinity : 30_000,
-    refetchOnWindowFocus: !live,
-    ...(live ? { retry: false } : {}),
+    queryKey: qk.releases(titleId, version ?? "", false, season, run),
+    queryFn: () => api<Releases>(`/titles/${titleId}/releases` + qs({ version, season, run })),
+    staleTime: 30_000,
   });
 }
 

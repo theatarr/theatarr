@@ -465,8 +465,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   **History** (opens the History tab),
   **Refresh metadata** (managers) and **Remove title** (managers). Below 768 px Search now and Interactive search keep
   their words and the rest sit under **More**. Under the bar: Pause once for the page, a started search's outcome or the failure with **Retry** ("Search
-  series failed: …" on a series), and "No library is monitored." when so. An answer with nothing to search ("Nothing
-  to search: …") is a toast, said once, so it cannot stay on the page once monitoring changes; a library row's Search
+  series failed: …" on a series), and "No library is monitored." when so. An answer with nothing to search is a toast,
+  "Nothing to search" with the reason in its wrapping body, said once, so it cannot stay on the page once monitoring changes; a library row's Search
   now answers the same way. **Add to another library** stays the hero's primary action while a library is left to add.
 - **Rename files** shows a preview first (`GET titles/{id}/rename`): one line per file, its library, then old name →
   new name (when only folders change, the path from the first folder that differs); "N files could not be checked."
@@ -505,7 +505,9 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   series the last search names what its run searched, since one Search series writes a run per season and the row
   reports one of them, with that run's own counts (never summed): "Last searched Season 2 today: 474 results, none
   accepted.", "Last search of Season 1 today failed."; after a run that searched, managers get **Show releases**,
-  which opens that run's stored search (`?run=`) or says it stored none, never an older search.
+  which opens that run's stored search (`?run=`) or says it stored none, never an older search; the row's Details
+  **Last search results** then opens the same run, so the row gives one answer. That page heads it as that search,
+  not the last one ("the search of Season 2 on Nov 12 that the Libraries row reports"; `at=` carries the day).
   **Row actions:** **Search now** (icon, managers; disabled with the reason; when other libraries want the
   title, its tooltip says they may use the results too), **Interactive search** (icon, a movie's library) and
   **Details**, which opens a panel under the row: path, edition, a series' episode counts, one **Upgrade** line (the

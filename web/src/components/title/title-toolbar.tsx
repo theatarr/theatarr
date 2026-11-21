@@ -33,7 +33,11 @@ import { plural } from "@/lib/format";
  *  read as current after monitoring changes (the season switches are another mutation). A started search is said on
  *  the page by its caller. */
 export function nothingToast(o: SearchOutcome) {
-  if (!o.started && o.message) toast({ tone: "info", title: o.message });
+  if (o.started || !o.message) return;
+  // A short title (one line on a phone) and the reason in the body, which wraps: "Nothing to search" and "Nothing
+  // monitored is wanted in 4K WEB and 4K Remux".
+  const why = o.message.replace(/^Nothing to search:\s*/, "");
+  toast({ tone: "info", title: "Nothing to search", body: why === o.message ? o.message : why.charAt(0).toUpperCase() + why.slice(1) });
 }
 
 /** The title is already in (monitored) every library that fits it, the add sheet's main list: Add to another library
