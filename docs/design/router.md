@@ -114,7 +114,10 @@ release/push keep honouring the blocklist. Tests: `TestManualGrabUnblocks`, `Tes
 under (`decision_rev`). A deferred automatic route that runs under another revision decides its candidates again
 with the running decision engine: a candidate now rejected is skipped (`rejected_now`), an accepted one carries the
 new quality, score and formats, and the accepted ones are tried in the order the new decisions rank them
-(`decide.Rank`). Without a decision engine the route is skipped (`stale_decision`). Manual and
+(`decide.Rank`). With the SeaDex preference off, an RSS candidate is decided as on the RSS path (no search
+criteria), so a waiting season pack left one missing episode is not refused as a full season pack
+(`TestRedecidedRSSPackKeepsRSSRules`); a search candidate is decided with its stored criteria, and one queued by an
+older build (no origin) or without criteria with the episodes' own search criteria, as before. Without a decision engine the route is skipped (`stale_decision`). Manual and
 interactive grabs are not decided again (`TestDeferredAutomaticRouteRedecidedAfterPolicyChange`,
 `TestRedecisionRanksCandidatesAgain`). A series release the new decision maps to other episodes than it was queued
 with (a scene/XEM mapping changed while it waited) takes the new episodes minus any whose held file the upgrade

@@ -430,6 +430,41 @@ func TestMergedRouteRedecideKeepsCriteria(t *testing.T) {
 	}
 }
 
+// An RSS season pack that waited while other imports left one episode missing, decided again after a settings save
+// (another policy revision): it is decided as on the RSS path, with no criteria, so it is not refused as a full season
+// pack against an invented single-episode search, and it is still for that one episode.
+func TestRedecidedRSSPackKeepsRSSRules(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.pol.Profiles = map[string]*policy.Profile{"tv": {Qualities: []policy.QualityItem{{Name: "WEBDL-2160p"}}, Cutoff: "WEBDL-2160p"}}
+	e.pol.Versions["series"].Profile = "tv"
+	e.exec(`UPDATE title SET runtime_minutes = 45 WHERE id = 2`)
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, air_date, air_date_utc_at, created_at, updated_at) VALUES
+		(101, 2, 1, 1, 'Pilot', '2024-01-01', 1000, 0, 0), (102, 2, 1, 2, 'Second', '2024-01-02', 1000, 0, 0)`)
+	e.link(2, 20, 102, "WEBDL-2160p", 0, 1000)
+	eng, err := decide.New(e.pol, decide.Options{Now: func() time.Time { return e.clock }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.r.SetProfiles(eng.Profile)
+	e.r.SetDecider(eng.Decide, eng.DecideSearch)
+	c := Candidate{Release: indexer.Release{Indexer: "pub", Title: "Show.S01.2160p.WEB-DL-NEW", InfoHash: h("a"),
+		Size: 10 << 30, Seeders: 10, Peers: 5}, Quality: "WEBDL-2160p", Episodes: []int64{101, 102},
+		Origin: OriginRSS, Identity: RouteIdentityVersion}
+	req := Request{TitleID: 2, VersionID: 20, Version: "series", Source: "rss", Candidates: []Candidate{c},
+		DecisionRev: "an older revision"}
+	res, err := e.r.Route(e.ctx, req)
+	if err != nil || res.Outcome != OutcomeAdded {
+		t.Fatalf("route %+v %v: %s", res, err, steps(res))
+	}
+	if strings.Contains(steps(res), "Full season pack") {
+		t.Fatalf("refused as a full season pack: %s", steps(res))
+	}
+	if got := e.storedEpisodes(h("a")); !slices.Equal(got, []int64{101}) {
+		t.Fatalf("download episodes %v", got)
+	}
+}
+
 // A requeued download's route (no merged flag) is decided again with its candidate's stored criteria: an anime
 // "Seasons 1-2" stays the pack of both seasons with its claim, not absolute 1 to 2 of season 1.
 func TestRequeuedRouteRedecidesWithStoredCriteria(t *testing.T) {

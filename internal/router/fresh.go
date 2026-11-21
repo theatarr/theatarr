@@ -284,6 +284,12 @@ func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate)
 				d, err = decideBest(ctx, r.decideSeries, c.Release, t, v, c.Criteria, ss)
 				break
 			}
+			if c.Origin == OriginRSS {
+				// An RSS candidate is decided as on the RSS path (no criteria), as on a resume without a policy
+				// change (remapResumed): a single-episode search would refuse its season pack.
+				d, err = r.decideSeries(ctx, decide.Release{Release: c.Release}, t, v, nil)
+				break
+			}
 			d, err = decideBest(ctx, r.decideSeries, c.Release, t, v, plainCriteria(ss, criteriaQueries(&t, ss, r.now())), ss)
 		case !s.vp.PreferSeaDex:
 			d, err = r.decide(ctx, decide.Release{Release: c.Release}, t, v, existing)
