@@ -506,11 +506,13 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   reports one of them, with that run's own counts (never summed): "Last searched Season 2 today: 474 results, none
   accepted.", "Last search of Season 1 today failed."; after a run that searched and found results, managers get **Show releases** (a run that found nothing stores no list, so it has none),
   which opens that run's stored search (`?run=`) or says it stored none, never an older search; the row's Details
-  **Last search results** then opens the same run, so the row gives one answer (a row that shows no such line, such
+  **Last search results** opens the same run, also after a run that found nothing (it then says the run stored no
+  list), so the row gives one answer (a row that shows no such line, such
   as an available or unmonitored series, keeps the library's Last search there). That page heads it as that search,
   not the last one ("the search of Season 2 on Nov 12 that the Libraries row reports", "the search of S02E05 on Nov 8 …" for an episode run, which links without a season; `at=` carries the day and `episode=` the episode, for the heading only), while
-  the linked library's tab is open; another library's tab is headed as its own Last search. The page keeps the picked tab above the collapsible panel,
-  so closing and opening the panel keeps the heading and the rows on the same library.
+  the linked library's tab is open; another library's tab is headed as its own Last search. The picked tab is the address's `version` (a tab
+  replaces it, keeping a season and dropping the run, its day and episode and a followed release), so the heading,
+  the panel closed and opened again, and Back all show the same library.
   **Row actions:** **Search now** (icon, managers; disabled with the reason; when other libraries want the
   title, its tooltip says they may use the results too), **Interactive search** (icon, a movie's library) and
   **Details**, which opens a panel under the row: path, edition, a series' episode counts, one **Upgrade** line (the
@@ -611,8 +613,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   "→ imported, without a file for this episode" when its records hold none for it. Files are recorded per import
   since `download_file` existed; a pack imported before that, with later partial corrections, may read as lacking
   an episode it held. Above the table one line says what the shown stored search did
-  (`Releases.grabbed`, for an episode its downloads of that episode): "Grabbed #1 via rd → imported" or "Nothing
-  grabbed: <reason>" ("Nothing grabbed for this episode" when a season search routed only others); it describes
+  (`Releases.grabbed`, for an episode its downloads of that episode): "Grabbed #1 via rd → imported" ("Queued #2" for a
+  release still waiting behind provider pacing) or "Nothing grabbed: <reason>" ("Nothing grabbed for this episode" when a season search routed only others); it describes
   the downloads that search opened. A search that accepted nothing reads "Nothing grabbed: no accepted release among
   351 results", with "; partial answer: due again sooner" for a partial run, built from the run's count when read (so
   older rows, whose stored message carries the indexers' notes, read the same); the notes stay in the lines below

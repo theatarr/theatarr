@@ -532,7 +532,7 @@ describe("a series row's last search (F3.3)", () => {
     expect(film.getAttribute("aria-label")).toBe("Search WEB now");
   });
   for (const px of [400, 1440]) {
-    it(`offers no link for a run that found nothing (it stores no list), at ${px} px`, async () => {
+    it(`offers no Show releases for a run that found nothing; Details still opens that run, at ${px} px`, async () => {
       width(px);
       manager();
       renderPage(<LibraryRows title={show as never} versions={[tv({ target: "s02", state: "nothing", results: 0, accepted: 0 })] as never} />);
@@ -540,8 +540,9 @@ describe("a series row's last search (F3.3)", () => {
       const why = screen.getByTestId("library-why");
       expect(why.textContent).toMatch(/^Last searched Season 2 /);
       expect(within(why).queryByTestId("library-why-releases")).toBeNull();
+      // Details stays on the run the row reports (it then says that run stored no list), never an older search.
       await userEvent.setup().click(screen.getByRole("button", { name: /Details/ }));
-      expect((await screen.findByTestId("library-details-releases")).getAttribute("href")).toBe("/title/7/releases?version=tv");
+      expect((await screen.findByTestId("library-details-releases")).getAttribute("href")).toBe("/title/7/releases?version=tv&run=162&season=2&at=2026-11-12");
     });
   }
   it("offers no link for a run that searched nothing (failed), and names its season", async () => {

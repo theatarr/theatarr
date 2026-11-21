@@ -1,6 +1,5 @@
 // /title/:id/releases: a title's versions (on/off, add, search now) and its "Last search" panel (the stored decision,
 // read-only) on one page, for managers and admins.
-import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { usePerms, useTitle } from "@/api/library";
 import { Empty, ErrorState, Loading, PageHeader } from "@/components/page";
@@ -18,9 +17,9 @@ export function TitleReleasesPage() {
   const perms = usePerms();
   const access = titleReleaseAccess(rawID, perms.manage);
   const q = useTitle(rawID, access.kind === "page");
-  const [params] = useSearchParams();
-  // The library tab picked on the page (none yet: the one the link named); the panel shows it, closed and opened again too.
-  const [tab, setTab] = useState<string | undefined>();
+  // The library shown is the address's `version`: a tab replaces it, so the heading, the panel (closed and opened
+  // again too) and Back all read the same one.
+  const [params, setParams] = useSearchParams();
   if (access.kind === "not-found") {
     return (
       <Card className="mt-6">
@@ -44,10 +43,17 @@ export function TitleReleasesPage() {
   // One run's stored search (?run=R, the Libraries row's link to the run whose counts it shows).
   const rawRun = params.get("run");
   const run = rawRun !== null && /^\d+$/.test(rawRun) && Number(rawRun) > 0 ? Number(rawRun) : undefined;
-  // The run belongs to the library the link named; another tab is headed as that library's own Last search.
-  const pinned = run !== undefined && (tab === undefined || tab === (params.get("version") ?? undefined));
-  // The tab shown, kept here above the collapsible panel so the heading and the rows read the same library.
-  const shown = tab ?? params.get("version") ?? undefined;
+  // The run belongs to the library the link named; picking another drops it (below), so that tab is headed as its own
+  // Last search.
+  const pinned = run !== undefined;
+  const version = params.get("version") ?? undefined;
+  // Another library: the run, its day and episode and the followed release were the linked library's; a season stays.
+  const pick = (k: string) => {
+    if (k === version) return;
+    const next = new URLSearchParams({ version: k });
+    if (rawSeason !== null) next.set("season", rawSeason);
+    setParams(next, { replace: true });
+  };
   // A pinned run is that search, not the library's last one (a later search may exist): its season and day.
   const rawAt = params.get("at");
   const ranOn = rawAt && /^\d{4}-\d{2}-\d{2}$/.test(rawAt) ? fmtDay(rawAt) : "";
@@ -80,7 +86,7 @@ export function TitleReleasesPage() {
       />
       <div className="space-y-5">
         <TitleToolbar titleId={id} name={name} year={t.year} kind={t.kind === "series" ? "series" : "movie"} poster={t.poster} anime={t.anime} versions={currentLibraries(t.versions ?? [])} page="releases" />
-        <ShowReleases titleId={id} kind={t.kind === "series" ? "series" : "movie"} labels={labels} defaultOpen initialVersion={params.get("version") ?? undefined} focus={params.get("hash") ?? undefined} season={season} run={run} version={shown} onVersion={setTab} />
+        <ShowReleases titleId={id} kind={t.kind === "series" ? "series" : "movie"} labels={labels} defaultOpen initialVersion={version} focus={params.get("hash") ?? undefined} season={season} run={run} version={version} onVersion={pick} />
       </div>
     </div>
   );

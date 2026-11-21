@@ -19,6 +19,7 @@ import { Card } from "@/components/ui/card";
 import { fmtAgo, fmtNumber, plural } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useLibraryName } from "@/lib/library-names";
+import { releasesHref } from "@/components/title/versions";
 import { wholeSeriesSearch } from "@/lib/library-rows";
 import { rejectionWords } from "@/lib/rejection-words";
 
@@ -168,10 +169,10 @@ export function ShowReleases({
   run?: number;
   /** Library names by settings key (from the title), for the tabs. */
   labels?: Record<string, string>;
-  /** The library tab shown, kept by the page (above this collapsible panel) so its heading and the rows read the same
-   *  one; unset: the panel keeps its own, from initialVersion. */
+  /** The library shown, owned by the page (in its address, above this collapsible panel) so its heading and the rows
+   *  read the same one; with onVersion the panel keeps none of its own. */
   version?: string;
-  /** Told the library tab picked, so the page can head a pinned run only in its own library. */
+  /** A tab picked: the page shows that library (initialVersion's run and followed release then no longer apply). */
   onVersion?: (key: string) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -197,10 +198,12 @@ export function ShowReleases({
 function Panel({ titleId, kind, initialVersion, focus, labels, season, run, shown, onVersion }: { titleId: number; kind: "movie" | "series"; initialVersion?: string; focus?: string; labels?: Record<string, string>; season?: number; run?: number; shown?: string; onVersion?: (key: string) => void }) {
   const perms = usePerms();
   const nameOf = useLibraryName();
-  const [own, setVersion] = useState<string | undefined>(initialVersion);
-  const version = shown ?? own;
+  const [own, setOwn] = useState<string | undefined>(initialVersion);
+  // The page owns the library when it passes onVersion; the run and the followed release are then always its.
+  const version = onVersion ? shown : own;
+  const linked = onVersion ? shown : initialVersion;
   // The run belongs to the library it was linked from; another tab shows that library's own Last search.
-  const runOf = run !== undefined && version === initialVersion ? run : undefined;
+  const runOf = run !== undefined && version === linked ? run : undefined;
   const q = useReleases(titleId, version, season, runOf);
   const seasonName = season === undefined ? "" : season === 0 ? "Specials" : `Season ${season}`;
   const r: Releases | undefined = q.data;
@@ -209,7 +212,7 @@ function Panel({ titleId, kind, initialVersion, focus, labels, season, run, show
   const versions = r?.versions ?? [];
   const items = r?.candidates ?? [];
   // The followed release is picked out in the library it was followed for only.
-  const shownFocus = focus && r?.version === initialVersion ? focus : undefined;
+  const shownFocus = focus && r?.version === linked ? focus : undefined;
   return (
     <div className="space-y-4 border-t border-[var(--line)] p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -220,10 +223,7 @@ function Panel({ titleId, kind, initialVersion, focus, labels, season, run, show
               type="button"
               role="tab"
               aria-selected={r?.version === k}
-              onClick={() => {
-                setVersion(k);
-                onVersion?.(k);
-              }}
+              onClick={() => (onVersion ? onVersion(k) : setOwn(k))}
               className={cn("rounded-md p-0.5 ring-offset-0 transition", r?.version === k ? "ring-2 ring-[var(--line-focus)]" : "opacity-70 hover:opacity-100")}
             >
               <VersionTag k={k} label={labels?.[k]} className="text-[12px]" />
@@ -252,7 +252,7 @@ function Panel({ titleId, kind, initialVersion, focus, labels, season, run, show
             // A season upgraded from RSS has no search of its own: one link to the library's last search.
             <Empty>
               <span>No search of {seasonName.toLowerCase()} is stored for {labels?.[r.version] || nameOf(r.version)}.</span>{" "}
-              <Link className="text-primary hover:underline" to={`/title/${titleId}/releases?${new URLSearchParams({ version: r.version }).toString()}`} data-testid="releases-library-last">Show the last search for {labels?.[r.version] || nameOf(r.version)}</Link>
+              <Link className="text-primary hover:underline" to={releasesHref(titleId, r.version)} data-testid="releases-library-last">Show the last search for {labels?.[r.version] || nameOf(r.version)}</Link>
             </Empty>
           ) : null) : <Empty>No releases to show for {labels?.[r.version] || nameOf(r.version)}.</Empty>) : <ReleaseGrid key={r.version} items={items} stored={storedSample(r, items.length)} kind={kind} outcomes={oc.data?.outcomes ?? r.outcomes} focus={shownFocus} />}
         </>

@@ -3,7 +3,7 @@
 // and says so; a season with nothing stored says that; without season the page is as before. Invented keys.
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Route, Routes } from "react-router";
+import { Route, Routes, useLocation, useNavigate } from "react-router";
 import { expect, it, vi } from "vitest";
 import { SearchProvider } from "@/components/search/search-context";
 import { mockFetch, renderPage } from "@/test/page";
@@ -32,6 +32,13 @@ const open = (path: string, releases: object) => {
   renderPage(<SearchProvider><Routes><Route path="/title/:id/releases" element={<TitleReleasesPage />} /></Routes></SearchProvider>, path);
   return api;
 };
+
+/** Back, as the browser's, and the page's address. */
+function Nav() {
+  const navigate = useNavigate();
+  const loc = useLocation();
+  return <><button type="button" onClick={() => navigate(-1)}>Back</button><span data-testid="at">{loc.search}</span></>;
+}
 
 for (const px of [400, 1440]) {
   it(`asks for a season's own stored search and says it is that season's, at ${px} px`, async () => {
@@ -83,9 +90,11 @@ for (const px of [400, 1440]) {
     await waitFor(() => expect(screen.getAllByRole("tab")[1].getAttribute("aria-selected")).toBe("true"));
     expect(screen.queryByText(/that the Libraries row reports/)).toBeNull();
     expect(screen.getByText(/Show \(2020\), Season 2: the last search of this season Theatarr decided for each library\./)).toBeTruthy();
-    // Back on the linked library's tab, the pinned run is headed as that search again.
+    // The run belongs to the linked library: a change of library drops it from the address, so back on that tab the
+    // page shows its own last search of the season.
     await user.click(screen.getAllByRole("tab")[0]);
-    expect(await screen.findByText(/that the Libraries row reports/)).toBeTruthy();
+    await waitFor(() => expect(screen.getAllByRole("tab")[0].getAttribute("aria-selected")).toBe("true"));
+    expect(screen.queryByText(/that the Libraries row reports/)).toBeNull();
   });
 
   it(`heads an episode run as the search of that episode, not as a whole-series search, at ${px} px`, async () => {
@@ -131,6 +140,29 @@ for (const px of [400, 1440]) {
     expect(screen.getByText(/Show \(2020\), Season 2: the last search of this season Theatarr decided for each library\./)).toBeTruthy();
     const last = new URLSearchParams(api.calls("GET", "/titles/7/releases").at(-1)!.search);
     expect([last.get("version"), last.has("run")]).toEqual(["tv4k", false]);
+  });
+
+  it(`keeps the library with the address, so Back shows the library the page names, at ${px} px`, async () => {
+    width(px);
+    const two = { ...show, versions: [...show.versions, { id: 2, key: "tv4k", label: "TV 4K", control: { can_edit: true, can_search: true, live_releases: true } }] };
+    mockFetch([
+      { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["browse", "see_files", "manage"] } },
+      { method: "GET", path: "/titles/7", reply: two },
+      { method: "GET", path: "/titles/7/releases", reply: (r: { search: string }) => ({ ...none, versions: ["tv", "tv4k"], version: new URLSearchParams(r.search).get("version") ?? "tv" }) },
+      { method: "GET", path: "/titles/7/release-outcomes", reply: { outcomes: {} } },
+      { method: "GET", path: "/add/options", reply: { kind: "series", anime: false, title_id: 7, router_enabled: true, episodes_known: true, can_search: true, seasons: [], versions: [] } },
+    ]);
+    renderPage(<SearchProvider><Routes><Route path="/title/:id/releases" element={<><TitleReleasesPage /><Nav /></>} /></Routes></SearchProvider>, "/title/7/releases?version=tv&season=3");
+    await screen.findByText("No search of season 3 is stored for TV.");
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("link", { name: "Show the last search for TV" }));
+    await waitFor(() => expect(screen.getByTestId("at").textContent).toBe("?version=tv"));
+    await user.click(await screen.findByRole("tab", { name: /TV 4K/ }));
+    await waitFor(() => expect(screen.getByTestId("at").textContent).toBe("?version=tv4k"));
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    await waitFor(() => expect(screen.getByTestId("at").textContent).toBe("?version=tv&season=3"));
+    await screen.findByText("No search of season 3 is stored for TV.");
+    expect(screen.getAllByRole("tab")[0].getAttribute("aria-selected")).toBe("true");
   });
 
   it(`asks without a season when the link names none, and says what the whole-series search lists, at ${px} px`, async () => {
