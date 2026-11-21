@@ -104,9 +104,9 @@ func acceptableSize(e *Engine, s *Subject) Decision {
 		def := e.definition(q)
 		msg := func() string {
 			if len(s.Episodes) == 1 {
-				return fmt.Sprintf("%dmin", runtime)
+				return fmt.Sprintf("%d min", runtime)
 			}
-			return fmt.Sprintf("%d episodes totalling %dmin", len(s.Episodes), runtime)
+			return fmt.Sprintf("%d episodes totalling %d min", len(s.Episodes), runtime)
 		}
 		if def.MinSize != nil {
 			minSize := Megabytes(*def.MinSize) * int64(runtime)

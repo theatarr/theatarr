@@ -38,7 +38,7 @@ scores) and adds the quality part.
   |---|:-:|:-:|---|
   | `QualityAllowedByProfile` | yes | yes | |
   | `CustomFormatAllowedbyProfile` | yes | yes | minimum format score |
-  | `AcceptableSize` | yes | yes | Radarr: movie runtime, 110 min when unknown (written back to the movie, as in the arr). Sonarr: sum of the episode runtimes, else the series runtime, 45 min within a day of the premiere; specials skipped; "2 episodes totalling 120min" messages, as Sonarr v5 words them |
+  | `AcceptableSize` | yes | yes | Radarr: movie runtime, 110 min when unknown (written back to the movie, as in the arr). Sonarr: sum of the episode runtimes, else the series runtime, 45 min within a day of the premiere; specials skipped; "2 episodes totalling 120 min" messages, as Sonarr v5 words them with a space added (reasons stored before keep "120min") |
   | `MaximumSize` | yes | yes | the global indexer setting |
   | `NotSample` | yes | yes | |
   | `RawDisk` | yes | yes | |

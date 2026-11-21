@@ -120,7 +120,7 @@ func TestSonarrRuntimeMessage(t *testing.T) {
 	}
 	s.Release.Size = 100 << 20
 	d = e.Run(sp, s)
-	if want := "100.0 MB is smaller than minimum allowed 360.0 MB (for 2 episodes totalling 120min)"; d.Message != want {
+	if want := "100.0 MB is smaller than minimum allowed 360.0 MB (for 2 episodes totalling 120 min)"; d.Message != want {
 		t.Errorf("got %q, want %q", d.Message, want)
 	}
 	// No runtime and no pilot: the arr throws, which becomes a DecisionError.
@@ -135,7 +135,7 @@ func TestSonarrRuntimeMessage(t *testing.T) {
 	at := now.Add(24 * time.Hour)
 	s.Episodes[1].AirDateUtc = &at // Before is <=
 	d = e.Run(sp, s)
-	if want := "100.0 MB is smaller than minimum allowed 270.0 MB (for 2 episodes totalling 90min)"; d.Message != want {
+	if want := "100.0 MB is smaller than minimum allowed 270.0 MB (for 2 episodes totalling 90 min)"; d.Message != want {
 		t.Errorf("got %q, want %q", d.Message, want)
 	}
 }
