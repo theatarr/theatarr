@@ -673,3 +673,49 @@ func TestRankMerged(t *testing.T) {
 		}
 	}
 }
+
+// A pack of several seasons accepted only because an unsearched season misses episodes fills or upgrades nothing
+// in the searched seasons: a merged search rejects it.
+func TestSeriesSearchScopeNeedsASearchedEpisode(t *testing.T) {
+	t.Parallel()
+	e := seriesEngine(t)
+	v := tvVersion(e, "tv")
+	tt := fourSeasons()
+	for i := range tt.Episodes {
+		if s := tt.Episodes[i].Season; s == 1 || s == 2 {
+			tt.Episodes[i].FileID = tt.Episodes[i].ID
+			tt.Episodes[i].File = &ExistingFile{Quality: "Bluray-2160p Remux", Revision: 1, SceneName: "The.Show.2160p.REMUX-X",
+				Size: 30 * gb}
+		}
+	}
+	member := &SeriesSearch{Kind: profile.SearchSeason, Season: 1, Episodes: []int64{511, 512}, MonitoredOnly: true, Seasons: []int{1, 2}}
+	pack := rel("The.Show.Complete.Series.2160p.WEB-DL.DDP5.1.H.265-GRP", "public", 40*gb)
+	d, err := e.DecideSearch(context.Background(), pack, tt, v, member)
+	if err != nil || d.Accepted {
+		t.Fatalf("accepted for unsearched seasons only: %v %s %v", d.Accepted, reasons(d), err)
+	}
+	member.Seasons = nil
+	if d, _ := e.DecideSearch(context.Background(), pack, tt, v, member); !d.Accepted {
+		t.Fatalf("without the merge the pack is accepted as today: %s", reasons(d))
+	}
+}
+
+// A whole-series search of a scene-numbered series judges a span by the seasons its episodes map to: scene seasons
+// 2 and 3 are TVDB seasons 1 and 2, so a search of TVDB season 1 takes it.
+func TestSeriesSearchSceneNumberedSpan(t *testing.T) {
+	t.Parallel()
+	e := seriesEngine(t)
+	tt := ended()
+	tt.UseSceneNumbering = true
+	for i := range tt.Episodes {
+		if tt.Episodes[i].Season > 0 {
+			tt.Episodes[i].SceneSeason, tt.Episodes[i].SceneNumber = ip(tt.Episodes[i].Season+1), ip(tt.Episodes[i].Number)
+		}
+	}
+	whole := &SeriesSearch{Kind: profile.SearchSeries, Episodes: []int64{511, 512}, MonitoredOnly: true}
+	d, err := e.DecideSearch(context.Background(), rel("The.Show.S02-S03.2160p.WEB-DL.DDP5.1.H.265-GRP", "public", 30*gb), tt,
+		tvVersion(e, "tv"), whole)
+	if err != nil || !d.Accepted || !slices.Contains(d.EpisodeIDs, 511) {
+		t.Fatalf("scene span: %v %s %v %v", d.Accepted, reasons(d), d.Episodes, err)
+	}
+}

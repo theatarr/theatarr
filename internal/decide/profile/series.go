@@ -211,15 +211,18 @@ func episodeRequested(e *Engine, s *Subject) Decision {
 }
 
 // seasonMatch is Search/SeasonMatchSpecification. A search of the whole series (SearchSeries) takes a release of
-// two or more seasons (a read span or the complete-series reading) with a season of a searched episode.
+// two or more seasons (a read span or the complete-series reading) that maps an episode of a searched season.
 func seasonMatch(e *Engine, s *Subject) Decision {
 	if s.Search != nil && s.Search.Kind == SearchSeries {
 		if len(s.Release.Seasons) < 2 {
 			return Reject(ReasonWrongSeason, "Holds one season")
 		}
+		// The mapped episodes' seasons (TVDB numbering, as the searched episodes'), not the name's scene seasons.
 		for _, ep := range s.Search.Episodes {
-			if slices.Contains(s.Release.Seasons, ep.SeasonNumber) {
-				return Accept()
+			for _, got := range s.Episodes {
+				if got.SeasonNumber == ep.SeasonNumber {
+					return Accept()
+				}
 			}
 		}
 		return Reject(ReasonWrongSeason, "Wrong season")
