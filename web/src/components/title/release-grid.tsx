@@ -268,7 +268,7 @@ function Cell({ id, c, outcomes }: { id: ReleaseColumnId; c: Candidate; outcomes
  *  then (0: none); "Sent" stands until an outcome of another download answers. In flight: the download's words, with
  *  a spinner while something works on it; imported or current: Imported; failed: Failed, with the button back
  *  ("Try again") and what each provider answered, with a note when it is blocklisted (the grab asks first); replaced or nothing: the button. */
-export function GrabCell({ c, target, o, sentFrom, onSent, card }: { c: Candidate; target: GrabTarget; o?: ReleaseOutcome; sentFrom?: number; onSent: () => void; card?: boolean }) {
+export function GrabCell({ c, target, o, sentFrom, onSent, card, paused }: { c: Candidate; target: GrabTarget; o?: ReleaseOutcome; sentFrom?: number; onSent: () => void; card?: boolean; paused?: boolean }) {
   const grab = useGrab(target.titleId);
   const [dialog, setDialog] = useState<{ late?: string[]; blocked?: BlockedRelease }>();
   const library = target.label ?? target.version;
@@ -346,8 +346,8 @@ export function GrabCell({ c, target, o, sentFrom, onSent, card }: { c: Candidat
       size="xs"
       variant={c.accepted ? "outline" : "ghost"}
       onClick={click}
-      disabled={!c.info_hash || grab.isPending}
-      title={!c.info_hash ? "No info hash" : failed ? errText(grab.error) : ask ? "Asks first" : "Grab this release"}
+      disabled={!c.info_hash || grab.isPending || paused}
+      title={!c.info_hash ? "No info hash" : paused ? "Paused" : failed ? errText(grab.error) : ask ? "Asks first" : "Grab this release"}
       data-testid="release-grab"
     >
       {grab.isPending ? <Loader2 className="animate-spin" /> : <Download />} {failed ? "Not sent" : failure ? "Try again" : ask ? "Grab…" : "Grab"}
@@ -411,7 +411,8 @@ export function ReleaseGrid({
   /** Grab for each row (interactive search, managers); none: no Grab column. sent holds the hashes (lower case)
    *  already sent for this library, each with the download id its outcome showed then (0: none), kept by the dialog
    *  so they survive a library switch; onSent adds one. */
-  grab?: GrabTarget & { sent: ReadonlyMap<string, number>; onSent: (hash: string, download: number) => void };
+  /** paused: Pause is on, ordinary or locked: Grab and Try again stay off (the window says why). */
+  grab?: GrabTarget & { paused?: boolean; sent: ReadonlyMap<string, number>; onSent: (hash: string, download: number) => void };
   /** A hash to pick out and scroll to. */
   focus?: string;
   /** The search's result count, when a live answer holds only the best of them. */
@@ -569,7 +570,7 @@ export function ReleaseGrid({
                     ))}
                     {grab ? (
                       <TableCell className="align-top text-right">
-                        <GrabCell c={c} target={grab} o={outcomeOf(c, outcomes)} sentFrom={sentFrom(c)} onSent={markSent(c)} />
+                        <GrabCell c={c} target={grab} o={outcomeOf(c, outcomes)} sentFrom={sentFrom(c)} onSent={markSent(c)} paused={grab.paused} />
                       </TableCell>
                     ) : null}
                   </TableRow>
@@ -629,7 +630,7 @@ export function ReleaseGrid({
                   <Status c={c} card />
                   <Outcome o={outcomeOf(c, outcomes)} card />
                 </div>
-                {grab ? <div className="mt-2"><GrabCell c={c} target={grab} o={outcomeOf(c, outcomes)} sentFrom={sentFrom(c)} onSent={markSent(c)} card /></div> : null}
+                {grab ? <div className="mt-2"><GrabCell c={c} target={grab} o={outcomeOf(c, outcomes)} sentFrom={sentFrom(c)} onSent={markSent(c)} card paused={grab.paused} /></div> : null}
               </li>
               );
             })}

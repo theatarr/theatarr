@@ -666,3 +666,26 @@ it("shows the whole-series window's texts whole on a phone", async () => {
     vi.unstubAllGlobals();
   }
 });
+
+it("under Pause, ordinary or locked, keeps Grab and Try again off and says why once; looking up stays possible", async () => {
+  for (const [state, words] of [
+    [{ paused: true, pause_forced: false, will_grab: false }, "Paused: no grabs until Pause is turned off at the top of the page."],
+    [{ paused: false, pause_forced: true, will_grab: false }, "Paused by the environment (THEATARR_FORCE_OFF): no grabs."],
+  ] as const) {
+    const paused: Route = { ...TITLE, reply: { ...(TITLE.reply as object), versions: (TITLE.reply as { versions: object[] }).versions.map((v) => ({ ...v, control: { ...(v as { control: object }).control, grab_state: state } })) } };
+    const api = mockFetch([ME, paused, CURRENT, CURRENT, { method: "GET", path: "/titles/7/releases", reply: answer() }]);
+    const { unmount } = renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
+    open();
+    const t = await table();
+    const buttons = within(t).getAllByTestId("release-grab");
+    expect(buttons.map((b) => b.textContent?.trim())).toEqual(["Try again", "Grab…"]);
+    expect(buttons.every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
+    expect(screen.getAllByTestId("interactive-paused").map((p) => p.textContent)).toEqual([words]);
+    const again = screen.getByTestId("interactive-again") as HTMLButtonElement;
+    expect(again.disabled).toBe(false);
+    fireEvent.click(again);
+    await waitFor(() => expect(api.calls("GET", "/titles/7/releases")).toHaveLength(2));
+    expect(api.calls("POST", "/titles/7/releases/grab")).toHaveLength(0);
+    unmount();
+  }
+});

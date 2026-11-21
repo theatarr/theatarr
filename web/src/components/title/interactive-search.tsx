@@ -20,6 +20,7 @@ import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
 import { fmtNumber, titleWithYear } from "@/lib/format";
 import { noneOfTitle, scopeTarget, searchTargetWords } from "@/lib/release-columns";
+import { globalDownloadsOff } from "@/lib/version-grab";
 
 export type SearchScope = { titleId: number; version?: string; season?: number; episode?: { id: number; code: string } };
 
@@ -80,8 +81,11 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
   // Grabs sent in this window, by library and hash, with the download each one's outcome showed then: the grid
   // remounts per library, the dialog keeps them.
   const [sent, setSent] = useState<Record<string, ReadonlyMap<string, number>>>({});
+  // Pause (ordinary or locked by the environment) refuses every grab: Grab and Try again stay off and one line says
+  // why; looking releases up stays possible (docs/design/router.md).
+  const paused = globalDownloadsOff([lib?.control?.grab_state]);
   const grab = r && live && r.grab && perms.manage && lib ? {
-    titleId, version: r.version, label: library, whole: wholeSeries, sent: sent[r.version] ?? new Map<string, number>(),
+    titleId, version: r.version, label: library, whole: wholeSeries, paused: !!paused, sent: sent[r.version] ?? new Map<string, number>(),
     onSent: (hash: string, download: number) => setSent((s) => ({ ...s, [r.version]: new Map(s[r.version]).set(hash, download) })),
   } : undefined;
   // What came of each release now (a grab's progress); the search's own outcomes until it answers.
@@ -160,6 +164,11 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
                     <Summary r={{ ...r, message: undefined }} />
                   </>
                 )}
+                {grab && paused ? (
+                  <p className="text-sm font-medium text-[var(--warn-ink)]" data-testid="interactive-paused">
+                    {paused === "locked" ? "Paused by the environment (THEATARR_FORCE_OFF): no grabs." : "Paused: no grabs until Pause is turned off at the top of the page."}
+                  </p>
+                ) : null}
                 {current ? (
                   <p className="text-sm text-[var(--ink-2)]" data-testid="interactive-current">
                     {current.held ? `Current file: ${current.quality || "unknown quality"}${current.score != null ? `, score ${fmtNumber(current.score)}` : ""}` : "No file held"}
