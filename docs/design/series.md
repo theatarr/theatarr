@@ -180,11 +180,11 @@ where the runs start: `Submit` before its `MaxBulk` cut, `Round` after busy and 
 per-hour loop. Each member keeps its own run row (one root, the others its children), schedule row and stored search.
 The merged search costs one search per member of `router.wanted.per_hour` and `MaxBulk`, and starts while one is
 left (it may overdraw; a series is never split). A group with one member left when it runs (the others in flight)
-is that member's ordinary search.
+is that member's ordinary search, recorded under the group's route source like any member.
 
 Each member asks exactly its own queries, plus one query without a season (criteria kind `series`): Torznab
 `tvsearch` by id, by title only where the id search falls back; Cardigann the series name, by id first; DMM and
-Zilean by IMDb id alone; Torrentio and SeaDex need a season and are not asked. From that query's answer only releases
+Zilean by IMDb id alone (not asked without one); Torrentio and SeaDex need a season and are not asked. From that query's answer only releases
 whose name reads as two or more seasons are kept (`indexer.HoldsSeasons`); how many were left out is a note on every
 member. Every result is decided with the criteria of the queries that returned it: a `series` criterion takes only a
 release of two or more seasons that maps an episode of a searched season ("Wrong season" or "Holds one season"
