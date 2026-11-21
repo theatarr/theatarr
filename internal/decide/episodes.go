@@ -224,21 +224,41 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 	// first file's. A release whose episodes have no file fills them. A series version takes a pack that upgrades or
 	// fills any episode (AcceptReleaseAnyUpgradable), so an accepted pack may keep some files: the reason is the first
 	// upgraded file's, or the episodes it fills.
+	// A pack scoped to a merged search's seasons (scopeSeasons) is judged whole; its reason is the searched seasons'.
+	shown, missing := episodes, d.Missing
+	if scoped(search, r) {
+		shown, missing = nil, 0
+		for _, ep := range episodes {
+			if slices.Contains(search.Seasons, ep.SeasonNumber) {
+				shown = append(shown, ep)
+				if ep.File == nil {
+					missing++
+				}
+			}
+		}
+	}
 	if firstFile != nil {
-		file, kept := firstFile, []string(nil)
+		var file *profile.File
+		var kept []string
+		for _, ep := range shown {
+			if ep.File != nil {
+				file = ep.File
+				break
+			}
+		}
 		if p.Engine.Config.AcceptReleaseAnyUpgradable && len(d.Rejections) == 0 {
 			d.KeptEpisodeIDs = p.Engine.KeptByRule(subj)
-			file, kept = firstUpgraded(p, episodes, qm, matched, d.KeptEpisodeIDs)
+			file, kept = firstUpgraded(p, shown, qm, matched, d.KeptEpisodeIDs)
 		}
 		if file == nil {
-			d.Upgrade, d.UpgradeReason = true, fmt.Sprintf("fills %d episode(s) with no file", d.Missing)
+			d.Upgrade, d.UpgradeReason = true, fmt.Sprintf("fills %d episode(s) with no file", missing)
 		} else {
 			d.Upgrade, d.UpgradeReason = upgradeOf(p, file, qm, matched, d.Rejections)
 			if len(d.Rejections) > 0 && d.Upgrade {
 				d.Upgrade, d.UpgradeReason = false, "the release is rejected; it would upgrade the file ("+d.UpgradeReason+")"
 			}
-			if d.Upgrade && d.Missing > 0 {
-				d.UpgradeReason += fmt.Sprintf("; fills %d episode(s) with no file", d.Missing)
+			if d.Upgrade && missing > 0 {
+				d.UpgradeReason += fmt.Sprintf("; fills %d episode(s) with no file", missing)
 			}
 		}
 		if d.Upgrade && len(kept) > 0 {
@@ -258,7 +278,7 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 // only for a season nobody searched, and is no grab for this search (nor an upgrade).
 func scopeSeasons(d *Decision, search *SeriesSearch, r *remoteEpisode, episodes []*profile.Episode,
 	usable func(*profile.Episode) bool) {
-	if search == nil || len(search.Seasons) == 0 || len(r.seasons) < 2 {
+	if !scoped(search, r) {
 		return
 	}
 	needed := false
@@ -275,6 +295,11 @@ func scopeSeasons(d *Decision, search *SeriesSearch, r *remoteEpisode, episodes 
 	d.Rejections = append(d.Rejections, Rejection{Reason: string(profile.ReasonWrongSeason),
 		Message: "Nothing to download for the searched seasons"})
 	d.Upgrade, d.UpgradeReason = false, ""
+}
+
+// scoped says whether a release of several seasons is limited to a merged search's seasons.
+func scoped(search *SeriesSearch, r *remoteEpisode) bool {
+	return search != nil && len(search.Seasons) > 0 && len(r.seasons) >= 2
 }
 
 // upgradesFile says whether the release upgrades episode ep's file: not kept by rule, cutoff not met and an upgrade,

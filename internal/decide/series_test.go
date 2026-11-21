@@ -700,6 +700,34 @@ func TestSeriesSearchScopeNeedsASearchedEpisode(t *testing.T) {
 	}
 }
 
+// The Why of a scoped pack names the searched seasons: searched seasons 1 and 2 without files and an upgradable file
+// only in unsearched season 3 read as filling the searched episodes, not as an upgrade of the season 3 file; the
+// pack is still judged whole.
+func TestSeriesSearchScopedUpgradeReason(t *testing.T) {
+	t.Parallel()
+	e := seriesEngine(t)
+	v := tvVersion(e, "tv")
+	tt := fourSeasons()
+	for i := range tt.Episodes {
+		if tt.Episodes[i].Season == 3 {
+			tt.Episodes[i].FileID = tt.Episodes[i].ID
+			tt.Episodes[i].File = &ExistingFile{Quality: "WEBDL-1080p", Revision: 1, SceneName: "The.Show.1080p.WEB-DL-X",
+				Size: 3 * gb}
+		}
+	}
+	member := &SeriesSearch{Kind: profile.SearchSeason, Season: 1, Episodes: []int64{511, 512}, MonitoredOnly: true, Seasons: []int{1, 2}}
+	pack := rel("The.Show.Complete.Series.2160p.WEB-DL.DDP5.1.H.265-GRP", "public", 40*gb)
+	d, err := e.DecideSearch(context.Background(), pack, tt, v, member)
+	if err != nil || !d.Accepted || !d.Upgrade || d.UpgradeReason != "fills 4 episode(s) with no file" {
+		t.Fatalf("scoped: %v %s upgrade %v %q %v", d.Accepted, reasons(d), d.Upgrade, d.UpgradeReason, err)
+	}
+	member.Seasons = nil
+	if d, _ := e.DecideSearch(context.Background(), pack, tt, v, member); !d.Accepted ||
+		!strings.HasPrefix(d.UpgradeReason, "better quality: WEBDL-2160p over WEBDL-1080p") {
+		t.Fatalf("without the merge the reason is the whole pack's: %v %q", d.Accepted, d.UpgradeReason)
+	}
+}
+
 // A whole-series search of a scene-numbered series judges a span by the seasons its episodes map to: scene seasons
 // 2 and 3 are TVDB seasons 1 and 2, so a search of TVDB season 1 takes it.
 func TestSeriesSearchSceneNumberedSpan(t *testing.T) {

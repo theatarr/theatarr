@@ -324,9 +324,10 @@ func (b *builder) cache(e *Entry, hash string) error {
 }
 
 // snapshotPick says which of a source's stored searches a reader wants: a merged search of several seasons stores
-// one per member under its route's source. run picks a member's own (0: none); hash and episodes (a download's
-// info hash and stored episode ids, JSON) the member whose list holds the hash and whose season holds one of the
-// episodes. Without a match the newest is read, as for any other source.
+// one per member under its route's source. run picks a member's own (0: none): a member under the root's source
+// reads its own or none. hash and episodes (a download's info hash and stored episode ids, JSON) pick the member
+// whose list holds the hash and whose season holds one of the episodes, else the member of one of the episodes'
+// seasons. Without a match the newest is read, as for any other source.
 type snapshotPick struct {
 	run      int64
 	hash     string
@@ -347,23 +348,31 @@ func (b *builder) snapshotFor(source string, titleID int64, version string, at i
 			ORDER BY created_at DESC, id DESC LIMIT 1`, append([]any{source, titleID, version, at}, args...)...).Scan(&cj,
 			&rj, &notes, &target, &results, &accepted, &trimmed, &rev)
 	}
-	// A merged search's members share the source: the run's own, else the one whose list holds the hash and whose
-	// season holds one of the episodes; else (and for any other source) the newest.
+	// A merged search's members share the source: the run's own (a member under the root's source has no other),
+	// else the one whose list holds the hash and whose season holds one of the episodes, else the one of the
+	// episodes' seasons; else (and for any other source) the newest.
 	var picks []func() error
+	shared := false
 	if strings.HasPrefix(source, "acquire:") {
 		if pick.run > 0 {
 			picks = append(picks, func() error { return read(` AND run_id = ?`, pick.run) })
+			shared = source != "acquire:"+strconv.FormatInt(pick.run, 10)
 		}
-		if pick.hash != "" && pick.episodes != "" {
-			picks = append(picks, func() error {
-				return read(` AND EXISTS (SELECT 1 FROM json_each(candidates) c
-					WHERE lower(json_extract(c.value, '$.info_hash')) = lower(?))
-					AND EXISTS (SELECT 1 FROM episode e JOIN json_each(?) de ON e.id = de.value
-					WHERE 's' || printf('%02d', e.season) = lower(target))`, pick.hash, pick.episodes)
-			})
+		if pick.episodes != "" {
+			season := ` AND EXISTS (SELECT 1 FROM episode e JOIN json_each(?) de ON e.id = de.value
+				WHERE 's' || printf('%02d', e.season) = lower(target))`
+			if pick.hash != "" {
+				picks = append(picks, func() error {
+					return read(` AND EXISTS (SELECT 1 FROM json_each(candidates) c
+						WHERE lower(json_extract(c.value, '$.info_hash')) = lower(?))`+season, pick.hash, pick.episodes)
+				})
+			}
+			picks = append(picks, func() error { return read(season, pick.episodes) })
 		}
 	}
-	picks = append(picks, func() error { return read(``) })
+	if !shared {
+		picks = append(picks, func() error { return read(``) })
+	}
 	var err error
 	for _, p := range picks {
 		if err = p(); !errors.Is(err, sql.ErrNoRows) {

@@ -1128,4 +1128,31 @@ func TestMergedSearchWhy(t *testing.T) {
 		len(g.Reasoning.RunnersUp) != 1 || g.Reasoning.RunnersUp[0].Release != span.Release {
 		t.Fatalf("reasoning: %+v", g.Reasoning)
 	}
+	// A grabbed release beyond the stored rows: the member of the download's season, not the newest.
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, episodes, state,
+		source, created_at, updated_at) VALUES (2, 3, 3, 'tv-2160p', ?, 'Gamma.S01.720p.WEB-DL-GRP', 'dmm', '[103]',
+		'downloading', 'acquire:5', ?, ?)`, "dddddddddddddddddddddddddddddddddddddddd", msOf(at.Add(time.Minute)),
+		msOf(at.Add(time.Minute)))
+	g = e.get("dl:2")
+	if g.Reasoning == nil || len(g.Reasoning.RunnersUp) != 2 || g.Reasoning.RunnersUp[1].Release != one.Release {
+		t.Fatalf("beyond the rows: %+v", g.Reasoning)
+	}
+	// A member with no stored search of its own (its season found nothing) shows its own counts, not another
+	// member's list; the root keeps the newest of its own source.
+	for _, r := range []struct{ id, season int }{{5, 1}, {6, 2}, {7, 3}} {
+		var parent any
+		if r.id != 5 {
+			parent = 5
+		}
+		e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, season, search_run, state,
+			message, results, accepted, created_at, updated_at) VALUES (?, 'wanted', 3, 3, 'tv-2160p', ?, ?, ?, 'nothing',
+			'', 0, 0, ?, ?)`, r.id, fmt.Sprintf("s%02d", r.season), r.season, parent, msOf(at.Add(-time.Minute)), msOf(at))
+	}
+	if g := e.get("run:7"); g.Reasoning == nil || len(g.Reasoning.RunnersUp) != 0 || g.Reasoning.Chosen != nil {
+		t.Fatalf("member without a stored search: %+v", g.Reasoning)
+	}
+	if g := e.get("run:6"); g.Reasoning == nil || g.Reasoning.Chosen == nil || g.Reasoning.Chosen.Release != span.Release ||
+		len(g.Reasoning.RunnersUp) != 1 || g.Reasoning.RunnersUp[0].Release != two.Release {
+		t.Fatalf("member: %+v", g.Reasoning)
+	}
 }
