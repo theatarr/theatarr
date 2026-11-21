@@ -405,6 +405,9 @@ type routeState struct {
 	// waitRelease: provider deferred the whole release, not only itself (heldReadPaced): no other provider is tried
 	// for it in this route.
 	waitRelease bool
+	// held is the stored episodes of the download of the same hash that answered the current candidate ("holds it
+	// already"; nil when none did, empty for a download of the whole title).
+	held *[]int64
 	// ttl is how long this route's miss verdicts live (verdictTTL), read once.
 	ttl     time.Duration
 	ttlRead bool
@@ -571,6 +574,7 @@ func (r *Router) route(ctx context.Context, s *routeState, req Request, dry bool
 		// Each candidate gets its own download and provider result; the steps span the batch.
 		s.res.DownloadID, s.res.TorrentID, s.res.Reused, s.res.Provider, s.res.Client = 0, "", false, "", ""
 		n0 := len(s.res.Steps)
+		s.held = nil
 		out, retryAt, err := r.candidate(ctx, s, c)
 		if err != nil {
 			return s.res, err
@@ -606,8 +610,13 @@ func (r *Router) route(ctx context.Context, s *routeState, req Request, dry bool
 			}
 		}
 		if out == vAccepted || out == vUnavailable {
-			covered = append(covered, c.Episodes...)
-			whole = len(c.Episodes) == 0
+			eps := c.Episodes
+			if s.held != nil {
+				// A download of the same hash holds it already: it covers the episodes it is for, not the candidate's.
+				eps = *s.held
+			}
+			covered = append(covered, eps...)
+			whole = len(eps) == 0
 		}
 		// A miss (or a release that cannot go to debrid): the next candidate, without searching again.
 	}
@@ -777,6 +786,9 @@ func (r *Router) candidate(ctx context.Context, s *routeState, c *Candidate) (ve
 		if inFlight {
 			step(Step{Outcome: "skipped", Code: "in_flight", Message: fmt.Sprintf("download %d holds it already", id)})
 			s.res.Outcome, s.res.DownloadID, s.res.Release, s.res.Hash = OutcomeInFlight, id, rel.Title, hash
+			if s.held, err = r.downloadEpisodes(ctx, id); err != nil {
+				return 0, time.Time{}, err
+			}
 			return vAccepted, time.Time{}, nil
 		}
 		// A release every usable provider is known to miss (or to hold uncached under cached_only) opens no

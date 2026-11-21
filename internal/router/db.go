@@ -51,6 +51,17 @@ func (r *Router) inFlight(ctx context.Context, req Request, hash string) (int64,
 	return id, true, nil
 }
 
+// downloadEpisodes are the episodes download id is stored for (empty: the whole title).
+func (r *Router) downloadEpisodes(ctx context.Context, id int64) (*[]int64, error) {
+	var js string
+	if err := r.st.Writer().QueryRowContext(ctx, `SELECT episodes FROM download WHERE id = ?`, id).Scan(&js); err != nil {
+		return nil, fmt.Errorf("router: download %d episodes: %w", id, err)
+	}
+	eps := []int64{}
+	_ = json.Unmarshal([]byte(js), &eps)
+	return &eps, nil
+}
+
 // openDownload returns the download row for a candidate: the queued row being resumed when it holds this hash, or a
 // new row in state queued. A resumed row takes the candidate as this route refreshed it (freshness narrowed its
 // episodes, a new decision its quality, score, formats and episode mapping) in the same write that resumes it, before

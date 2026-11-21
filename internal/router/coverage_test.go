@@ -196,3 +196,31 @@ func TestSeriesCoverageUnsettledAddReservesEpisodes(t *testing.T) {
 		t.Fatalf("rd adds %v ad adds %v: %s", e.ad["rd"].adds, e.ad["ad"].adds, steps(res))
 	}
 }
+
+// A candidate a download of the same hash holds already covers only the episodes that download is for: a pack
+// narrowed to one season leaves the batch's other seasons to the next candidates. A download stored without
+// episodes still means the whole title.
+func TestSameHashCoversItsDownloadEpisodes(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, stored string
+		want         []string
+	}{
+		{"narrowed", "[101,102]", []string{h("b")}},
+		{"whole title", "[]", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newEnv(t, true)
+			e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, episodes, state,
+				created_at, updated_at) VALUES (2, 20, 'series', ?, 'Show.a.2160p.WEB', 'pub', ?, 'downloading', 0, 0)`, h("a"),
+				tc.stored)
+			res, err := e.r.Route(e.ctx, seriesReq(episodeCandidate("a", 101, 102, 201, 202), episodeCandidate("b", 201, 202)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(e.ad["rd"].adds, tc.want) {
+				t.Fatalf("adds %v want %v: %s", e.ad["rd"].adds, tc.want, steps(res))
+			}
+		})
+	}
+}
