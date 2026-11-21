@@ -633,7 +633,7 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   on the Last search page, in the episode window and in Interactive search's fallback to the stored list; "the best N
   of M" is a live search's only); with a filter on it counts what the grid shows ("1 of 6 stored results matches the
   filter."), and says nothing beside "No release matches the filter"; in the episode window a stored season, series or RSS
-  search counts the stored candidates for the episode, "N stored candidates for this episode", and its "Nothing
+  search counts the stored indexer entries for the episode, "11 stored indexer entries for this episode, 8 accepted" (each indexer's copy; the grid merges copies of one torrent into one row, so it can show fewer), and its "Nothing
   grabbed" line names the count as the search's: "no accepted release among N results of the season search" (or "of
   the series search"), built from the run's count (`storedGrabbed`'s scope; the search's notes stay in the panel's own
   lines), with "; partial answer: due again sooner" when the run was partial. The badge says what the answer is: "Live search", "Last decided search", "Last

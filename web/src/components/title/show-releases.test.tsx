@@ -436,9 +436,13 @@ it("names a stored RSS read as such, and says nothing about counts when nothing 
 it("counts a season search's stored candidates for the episode in an episode's window, and an episode search's results as returned", () => {
   mockFetch([ME]);
   const base = { title_id: 7, version: "tv", versions: ["tv"], live_allowed: false, candidates: [], rejections: {}, outcomes: {}, grab: false, grab_state: { paused: false, pause_forced: false, will_grab: false } };
-  const season = renderPage(<Summary episode r={{ ...base, source: "journal", target: "S02", results: 4, accepted: 0 }} />);
-  expect(screen.getByTestId("releases-facts").textContent).toBe("4 stored candidates for this episode, 0 accepted");
+  // The count is of indexer entries (every copy), so it says so beside the grid's merged rows (F5).
+  const season = renderPage(<Summary episode r={{ ...base, source: "journal", target: "S02", results: 11, accepted: 8 }} />);
+  expect(screen.getByTestId("releases-facts").textContent).toBe("11 stored indexer entries for this episode, 8 accepted");
   season.unmount();
+  const one = renderPage(<Summary episode r={{ ...base, source: "journal", target: "S02", results: 1, accepted: 1 }} />);
+  expect(screen.getByTestId("releases-facts").textContent).toBe("1 stored indexer entry for this episode, 1 accepted");
+  one.unmount();
   const own = renderPage(<Summary episode r={{ ...base, source: "journal", target: "s02e01", results: 30, accepted: 2 }} />);
   expect(screen.getByTestId("releases-facts").textContent).toBe("30 releases returned by the indexers, 2 accepted");
   own.unmount();

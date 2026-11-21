@@ -81,11 +81,12 @@ export function searchIncomplete(notes: string): string {
 
 /** The count in the facts line. A live answer counts its rows (one per torrent); a stored one keeps the search's own
  *  count of every indexer's copy, so it says so rather than read as the number of rows. In an episode's window a
- *  stored season or series search counts only the stored candidates for the episode. */
+ *  stored season or series search counts only the stored indexer entries for the episode (each indexer's copy, so
+ *  more than the rows when copies of one torrent merge). */
 function resultsWords(r: Releases, episode: boolean): string {
   const n = r.results ?? 0;
   if (r.source !== "journal") return plural(n, "result");
-  if (episode && !/^s\d+e\d+$/i.test(r.target ?? "")) return `${plural(n, "stored candidate")} for this episode`;
+  if (episode && !/^s\d+e\d+$/i.test(r.target ?? "")) return `${fmtNumber(n)} stored indexer ${n === 1 ? "entry" : "entries"} for this episode`;
   return `${plural(n, "release")} returned by the indexers`;
 }
 
