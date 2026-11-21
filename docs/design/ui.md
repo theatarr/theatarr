@@ -498,7 +498,11 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   monitored" (the library is not monitored) or "37 of 37 episodes · none monitored" (no episode is). A missing
   library's line under the status says why and what next: the last search, or "Not searched yet. Automatic backlog
   searching is off; new releases are still picked up from RSS." (the RSS clause where the library's RSS read covers
-  it), with "Use Search now to request a search." for an account that can search an item never searched.
+  it), with "Use Search now to request a search." for an account that can search an item never searched. On a
+  series the last search names what its run searched, since one Search series writes a run per season and the row
+  reports one of them, with that run's own counts (never summed): "Last searched Season 2 today: 474 results, none
+  accepted.", "Last search of Season 1 today failed."; after a run that searched, managers get **Show releases**,
+  which opens that run's stored search (`?run=`) or says it stored none, never an older search.
   **Row actions:** **Search now** (icon, managers; disabled with the reason; when other libraries want the
   title, its tooltip says they may use the results too), **Interactive search** (icon, a movie's library) and
   **Details**, which opens a panel under the row: path, edition, a series' episode counts, one **Upgrade** line (the

@@ -478,3 +478,36 @@ describe("a file's media (Y6)", () => {
     expect(within(screen.getByTestId("library-row-details-movie-remux")).queryByTestId("media-group")).toBeNull();
   });
 });
+
+describe("a series row's last search (F3.3)", () => {
+  /** The window's width for useMinWidth (matchMedia's min-width and max-width queries). */
+  const width = (px: number) =>
+    vi.stubGlobal("matchMedia", (q: string) => {
+      const min = /min-width:\s*(\d+)px/.exec(q);
+      const max = /max-width:\s*(\d+)px/.exec(q);
+      return { matches: (!min || px >= Number(min[1])) && (!max || px <= Number(max[1])), media: q, addEventListener() {}, removeEventListener() {} };
+    });
+  const show = { id: 7, kind: "series", name: "Show", auto_search: { missing: true, upgrades: true, enabled: true } };
+  const tv = (last: object) => ({
+    id: 3, title_id: 7, key: "tv", label: "TV", monitored: true, has_file: false, state: "wanted", control: live,
+    episodes: { total: 20, have: 0, missing: 20, monitored: 20 }, last_search: { at: new Date().toISOString(), run_id: 162, ...last },
+  });
+  for (const px of [400, 1440]) {
+    it(`names the season the reported run searched and links its own stored search, at ${px} px`, async () => {
+      width(px);
+      manager();
+      renderPage(<LibraryRows title={show as never} versions={[tv({ target: "s02", state: "nothing", results: 474, accepted: 0 })] as never} />);
+      const link = await screen.findByTestId("library-why-releases");
+      expect(screen.getByTestId("library-why").textContent).toBe("Last searched Season 2 today: 474 results, none accepted. Theatarr searches for it automatically. Show releases");
+      expect(link.getAttribute("href")).toBe("/title/7/releases?version=tv&run=162&season=2");
+    });
+  }
+  it("offers no link for a run that searched nothing (failed), and names its season", async () => {
+    manager();
+    renderPage(<LibraryRows title={show as never} versions={[tv({ target: "s01", state: "failed", results: 0, accepted: 0 })] as never} />);
+    await screen.findByTestId("version-search-tv"); // the account is read
+    const why = screen.getByTestId("library-why");
+    expect(why.textContent).toBe("Last search of Season 1 today failed. Theatarr searches for it automatically.");
+    expect(within(why).queryByTestId("library-why-releases")).toBeNull();
+  });
+});

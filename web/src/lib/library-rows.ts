@@ -203,5 +203,14 @@ export function seasonReleasesHref(titleId: number, version: string, season: num
   return `/title/${titleId}/releases?${new URLSearchParams({ version, season: String(season) }).toString()}`;
 }
 
+/** The stored search of the run a library row reports (the row's last search), with its season when it searched one:
+ *  the releases page shows that run's own decision, or says it stored none. */
+export function runReleasesHref(titleId: number, version: string, l: { run_id: number; target?: string | null }): string {
+  const q = new URLSearchParams({ version, run: String(l.run_id) });
+  const s = /^s(\d+)$/i.exec(l.target ?? "");
+  if (s) q.set("season", String(Number(s[1])));
+  return `/title/${titleId}/releases?${q.toString()}`;
+}
+
 /** A series whose whole-series interactive search is offered: every series (anime too since phase AC). */
 export const wholeSeriesSearch = (kind: string | undefined) => kind === "series";

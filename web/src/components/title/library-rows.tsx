@@ -30,7 +30,7 @@ import { Card } from "@/components/ui/card";
 import { ColumnPicker } from "@/components/ui/column-picker";
 import { DataTable, type DataColumn } from "@/components/ui/data-table";
 import { fmtAgo, fmtBytes, fmtNumber, fmtTime } from "@/lib/format";
-import { currentLibraries, DEFAULT_LIBRARY_COLUMNS, fileName, LIBRARY_COLUMNS, lastSearchAt, libraryColumns, libraryStatus, nextSearch, nextSearchOf, type LibraryColumn, wholeSeriesSearch } from "@/lib/library-rows";
+import { currentLibraries, DEFAULT_LIBRARY_COLUMNS, fileName, LIBRARY_COLUMNS, lastSearchAt, libraryColumns, libraryStatus, nextSearch, nextSearchOf, runReleasesHref, type LibraryColumn, wholeSeriesSearch } from "@/lib/library-rows";
 import { leftoverLinks, unlinkable } from "@/lib/ops";
 import { useColumnPrefs } from "@/lib/prefs";
 import { belowCount, nextLine } from "@/lib/upgrade";
@@ -76,7 +76,13 @@ export function whyMissing(v: Version, title: TitleDetail, kind: Kind, canSearch
   if (!missing) return "";
   const n = nextSearchOf(v);
   const next = n && title.auto_search?.enabled ? ` Next search ${nextSearch(n)}.` : "";
-  return missingLine(v, title.auto_search, undefined, canSearch && !!v.control.can_search) + next;
+  return missingLine(v, title.auto_search, undefined, canSearch && !!v.control.can_search, { scoped: kind === "series" }) + next;
+}
+
+/** The run a series row's last search reports, when it found something to show: its stored search is a link away. */
+function reportedRun(v: Version, kind: Kind): Version["last_search"] {
+  const l = v.last_search;
+  return kind === "series" && !v.searching && l && l.results != null && (l.state === "routed" || l.state === "nothing") ? l : undefined;
 }
 
 /** The Status cell: the stage linked to Activity, the upgrade badge with Why?, or the words; a second line under it,
@@ -87,6 +93,7 @@ function StatusCell({ v, title, kind }: { v: Version; title: TitleDetail; kind: 
   const titleId = v.title_id ?? 0;
   const last = latestEvent(v);
   const why = whyMissing(v, title, kind, perms.manage);
+  const run = reportedRun(v, kind);
   return (
     <span className="flex flex-col items-start gap-0.5" data-testid="library-status">
       {s.stage ? (
@@ -103,7 +110,17 @@ function StatusCell({ v, title, kind }: { v: Version; title: TitleDetail; kind: 
         kind === "movie" && v.has_file && v.acquisition ? <StageLink a={{ ...v.acquisition, upgrade: true }} className="text-[11.5px]" /> : <span className="text-[11.5px] text-[var(--ink-3)]">{s.sub}</span>
       ) : null}
       {last?.event === "failed" && !v.acquisition ? <span className="max-w-[22rem] text-[11.5px] text-[var(--warn-ink)]" data-testid="library-failed">{last.words}</span> : null}
-      {why ? <span className="max-w-[22rem] text-[11.5px] text-[var(--ink-3)]" data-testid="library-why">{why}</span> : null}
+      {why ? (
+        <span className="max-w-[22rem] text-[11.5px] text-[var(--ink-3)]" data-testid="library-why">
+          {why}
+          {run && perms.manage && titleId ? (
+            <>
+              {" "}
+              <Link className="text-primary hover:underline" to={runReleasesHref(titleId, v.key ?? "", run)} data-testid="library-why-releases">Show releases</Link>
+            </>
+          ) : null}
+        </span>
+      ) : null}
     </span>
   );
 }

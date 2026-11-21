@@ -47,6 +47,16 @@ describe("missingLine", () => {
     expect(missingLine({ last_search: run("routed") }, null, now)).toBe("Last searched Nov 12");
     expect(missingLine({ searching: "queued" }, { ...auto, enabled: false }, now)).toBe("Search queued. Paused: searches, new grabs and imports stop for every library; Interactive search can still look up releases.");
   });
+  it("names what the reported run searched on a series' row (scoped), and nothing for a film's run", () => {
+    const of = (target: string, state = "nothing", results?: number) => ({ at: "2026-11-12T10:00:00Z", run_id: 1, target, state, results, accepted: 0 }) as never;
+    expect(missingLine({ last_search: of("s02", "nothing", 474) }, null, now, false, { scoped: true })).toBe("Last searched Season 2 Nov 12: 474 results, none accepted");
+    expect(missingLine({ last_search: of("s00", "nothing", 0) }, null, now, false, { scoped: true })).toBe("Last searched Specials Nov 12: nothing found");
+    expect(missingLine({ last_search: of("s02e05", "nothing", 3) }, null, now, false, { scoped: true })).toBe("Last searched S02E05 Nov 12: 3 results, none accepted");
+    expect(missingLine({ last_search: of("s2025", "skipped", 0) }, null, now, false, { scoped: true })).toBe("Last search of Season 2025 Nov 12 was skipped");
+    expect(missingLine({ last_search: of("movie", "nothing", 3) }, null, now, false, { scoped: true })).toBe("Last searched Nov 12: 3 results, none accepted");
+    // Unscoped (the episode window) keeps its words.
+    expect(missingLine({ last_search: of("s02", "nothing", 474) }, null, now)).toBe("Last searched Nov 12: 474 results, none accepted");
+  });
 });
 
 describe("acquiringStatus", () => {

@@ -963,6 +963,22 @@ func TestReleasesStoredAnswer(t *testing.T) {
 		t.Errorf("a season with nothing stored: %+v", r)
 	}
 	e.call("GET", APIBase+"/titles/10/releases?version=tv-2160p&season=x", nil, 400, nil)
+
+	// The Libraries row's link (F3.3): ?run=R answers the decision that run stored, or Nothing stored when it stored
+	// none; never an older search of the season.
+	e.exec(`INSERT INTO journal_decision (source, run_id, title_id, version_key, target, results, accepted, candidates, created_at)
+		VALUES ('search', 71, 10, 'tv-2160p', 's02', 474, 0, '[]', 1500)`)
+	r = Releases{}
+	e.call("GET", APIBase+"/titles/10/releases?version=tv-2160p&season=2&run=71", nil, 200, &r)
+	if r.Source != "journal" || r.Results != 474 {
+		t.Errorf("run 71's stored search: %+v", r)
+	}
+	r = Releases{}
+	e.call("GET", APIBase+"/titles/10/releases?version=tv-2160p&season=2&run=72", nil, 200, &r)
+	if r.Source != "none" || r.Results != 0 {
+		t.Errorf("run 72 stored nothing, so nothing is shown: %+v", r)
+	}
+	e.call("GET", APIBase+"/titles/10/releases?version=tv-2160p&run=x", nil, 400, nil)
 }
 
 // TestReleasesOneRowPerTorrent: a release list has one row per info hash: the best-ranked copy shown, every indexer

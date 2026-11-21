@@ -535,11 +535,14 @@ func (w *Web) versionHistory(ctx context.Context, db *sql.DB, titleID int64, kin
 // what it found. For an episode, Results and Accepted are set only when the run searched that episode alone: a
 // season's counts are not the episode's. For callers who see files.
 type LastSearch struct {
-	At       time.Time `json:"at"`
-	RunID    int64     `json:"run_id"`
-	State    string    `json:"state"`
-	Results  *int      `json:"results,omitempty"`
-	Accepted *int      `json:"accepted,omitempty"`
+	At    time.Time `json:"at"`
+	RunID int64     `json:"run_id"`
+	// Target is what the run searched: "movie", a season ("s02") or an episode ("s02e05"). One Search series can
+	// write a run per season at once; the row reports one of them and names it.
+	Target   string `json:"target,omitempty"`
+	State    string `json:"state"`
+	Results  *int   `json:"results,omitempty"`
+	Accepted *int   `json:"accepted,omitempty"`
 }
 
 // AutoSearch is whether Theatarr searches by itself (router.wanted): for missing items, for upgrades, and whether
@@ -605,14 +608,14 @@ func (w *Web) searchFacts(ctx context.Context, db *sql.DB, titleID int64, versio
 		cond, args = " AND "+coverSQL, append(args, ep.id, ep.season)
 	}
 	stale := store.Millis(w.now().Add(-time.Hour))
-	err := scanAll(ctx, db, `SELECT r.version_id, r.id, r.created_at, r.state, r.results, r.accepted, r.episodes
+	err := scanAll(ctx, db, `SELECT r.version_id, r.id, r.created_at, r.state, r.results, r.accepted, r.episodes, r.target
 		FROM acquire_run r WHERE r.version_id IN (`+store.Placeholders(len(versionIDs))+`)`+cond+`
 		ORDER BY r.created_at DESC, r.id DESC`, args, func(rows *sql.Rows) error {
 		var vid, at int64
 		var l LastSearch
 		var results, accepted int
 		var eps string
-		if err := rows.Scan(&vid, &l.RunID, &at, &l.State, &results, &accepted, &eps); err != nil {
+		if err := rows.Scan(&vid, &l.RunID, &at, &l.State, &results, &accepted, &eps, &l.Target); err != nil {
 			return err
 		}
 		f := fact(vid)

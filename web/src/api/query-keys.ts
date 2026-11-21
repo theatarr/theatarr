@@ -78,8 +78,8 @@ export const qk = {
    *  that refresh the title refresh it. */
   releaseOutcomes: (t: Id, version: string, episode?: number) => ["title", id(t), "release-outcomes", version, episode ?? 0] as const,
   // Not under title(): a live answer is an indexer search, which an invalidation of the title must never re-run.
-  // season: a season's Last search (its own stored search), "all" without.
-  releases: (t: Id, version: string, live: boolean, season?: number) => ["releases", id(t), version, live, season ?? "all"] as const,
+  // season: a season's Last search (its own stored search), "all" without; run: one run's stored search, 0 without.
+  releases: (t: Id, version: string, live: boolean, season?: number, run?: number) => ["releases", id(t), version, live, season ?? "all", run ?? 0] as const,
   /** One interactive search (one opening of the window, one library and scope): never refetched by an invalidation.
    *  interactive(t, session) is every library's answer of one opening. */
   liveSearch: (t: Id, version: string, session: number, scope: string) => ["releases", id(t), "interactive", session, version, scope] as const,

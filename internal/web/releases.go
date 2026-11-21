@@ -216,14 +216,24 @@ func (w *Web) apiReleases(rw http.ResponseWriter, r *http.Request) {
 	}
 	// A season's Last search (?season=N, without live): the newest decision stored for that season's own search.
 	// The fallback after a failed live search stays the newest of any kind, labelled as such by the window.
-	scope := ""
+	// A run's own stored search (?run=R, the Libraries row's link to the run whose counts it shows): that run's
+	// decision or nothing, never an older search.
+	scope := storedScope{}
 	if s := r.URL.Query().Get("season"); s != "" && !live {
 		n, err := strconv.Atoi(s)
 		if err != nil || n < 0 {
 			badRequest(rw, "season must be a non-negative number")
 			return
 		}
-		scope = fmt.Sprintf("s%02d", n)
+		scope.target = fmt.Sprintf("s%02d", n)
+	}
+	if s := r.URL.Query().Get("run"); s != "" && !live {
+		n, err := strconv.ParseInt(s, 10, 64)
+		if err != nil || n <= 0 {
+			badRequest(rw, "run must be a positive number")
+			return
+		}
+		scope.run = n
 	}
 	if err := w.storedReleases(ctx, &out, scope); err != nil {
 		w.internal(rw, err)
@@ -427,17 +437,27 @@ func rankedInto(out *Releases, sr *router.Searched, now time.Time) {
 	out.Indexers = sr.Indexers
 }
 
+// storedScope narrows the stored answer: target, a season's own search ("s02"); run, one acquire run's decision.
+type storedScope struct {
+	target string
+	run    int64
+}
+
 // storedReleases fills the answer from the newest stored decision for the title and version; with a season target
-// ("s02") from the newest decision of that target only (never an episode's "s02e05" or an RSS read).
-func (w *Web) storedReleases(ctx context.Context, out *Releases, season string) error {
+// ("s02") from the newest decision of that target only (never an episode's "s02e05" or an RSS read); with a run
+// from that run's decision only.
+func (w *Web) storedReleases(ctx context.Context, out *Releases, scope storedScope) error {
 	db := w.st.Reader()
 	var jAt int64
 	var run sql.NullInt64
 	var cj, rj, notes, target, jSource string
 	var results, accepted int
 	cond, args := "", []any{out.TitleID, out.Version}
-	if season != "" {
-		cond, args = " AND target = ?", append(args, season)
+	if scope.target != "" {
+		cond, args = cond+" AND target = ?", append(args, scope.target)
+	}
+	if scope.run != 0 {
+		cond, args = cond+" AND run_id = ?", append(args, scope.run)
 	}
 	err := db.QueryRowContext(ctx, `SELECT created_at, candidates, rejections, notes, target, results, accepted,
 		run_id, source FROM journal_decision WHERE title_id = ? AND version_key = ?`+cond+` ORDER BY created_at DESC, id DESC

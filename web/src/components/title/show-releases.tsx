@@ -151,6 +151,7 @@ export function ShowReleases({
   focus,
   labels,
   season,
+  run,
 }: {
   titleId: number;
   kind?: "movie" | "series";
@@ -159,6 +160,8 @@ export function ShowReleases({
   focus?: string;
   /** A season's Last search: its own stored search in each library (Interactive search of that season). */
   season?: number;
+  /** One run's stored search in initialVersion (the Libraries row's link): that run's, or none. */
+  run?: number;
   /** Library names by settings key (from the title), for the tabs. */
   labels?: Record<string, string>;
 }) {
@@ -177,16 +180,18 @@ export function ShowReleases({
         {defaultOpen ? null : <span className="hidden text-xs text-muted-foreground sm:inline">the last search Theatarr decided for each library</span>}
         <ChevronDown className={cn("size-4 transition-transform", !open && "-rotate-90")} />
       </button>
-      {open ? <Panel titleId={titleId} kind={kind} initialVersion={initialVersion} focus={focus} labels={labels} season={season} /> : null}
+      {open ? <Panel titleId={titleId} kind={kind} initialVersion={initialVersion} focus={focus} labels={labels} season={season} run={run} /> : null}
     </Card>
   );
 }
 
-function Panel({ titleId, kind, initialVersion, focus, labels, season }: { titleId: number; kind: "movie" | "series"; initialVersion?: string; focus?: string; labels?: Record<string, string>; season?: number }) {
+function Panel({ titleId, kind, initialVersion, focus, labels, season, run }: { titleId: number; kind: "movie" | "series"; initialVersion?: string; focus?: string; labels?: Record<string, string>; season?: number; run?: number }) {
   const perms = usePerms();
   const nameOf = useLibraryName();
   const [version, setVersion] = useState<string | undefined>(initialVersion);
-  const q = useReleases(titleId, version, false, season);
+  // The run belongs to the library it was linked from; another tab shows that library's own Last search.
+  const runOf = run !== undefined && version === initialVersion ? run : undefined;
+  const q = useReleases(titleId, version, false, season, runOf);
   const seasonName = season === undefined ? "" : season === 0 ? "Specials" : `Season ${season}`;
   const r: Releases | undefined = q.data;
   // What came of each release now; the list's own outcomes until it answers.
@@ -230,7 +235,7 @@ function Panel({ titleId, kind, initialVersion, focus, labels, season }: { title
           {shownFocus && !items.some((c) => c.info_hash?.toLowerCase() === shownFocus.toLowerCase()) ? (
             <p className="text-xs text-[var(--ink-3)]" data-testid="releases-focus-missing">The release you followed is not in this list: only the newest search's releases are kept here.</p>
           ) : null}
-          {items.length === 0 ? (r.source === "none" ? (seasonName ? <Empty>No search of {seasonName.toLowerCase()} is stored for {labels?.[r.version] || nameOf(r.version)}.</Empty> : null) : <Empty>No releases to show for {labels?.[r.version] || nameOf(r.version)}.</Empty>) : <ReleaseGrid key={r.version} items={items} stored={storedSample(r, items.length)} kind={kind} outcomes={oc.data?.outcomes ?? r.outcomes} focus={shownFocus} />}
+          {items.length === 0 ? (r.source === "none" ? (runOf !== undefined ? <Empty>This search stored no release list for {labels?.[r.version] || nameOf(r.version)}.</Empty> : seasonName ? <Empty>No search of {seasonName.toLowerCase()} is stored for {labels?.[r.version] || nameOf(r.version)}.</Empty> : null) : <Empty>No releases to show for {labels?.[r.version] || nameOf(r.version)}.</Empty>) : <ReleaseGrid key={r.version} items={items} stored={storedSample(r, items.length)} kind={kind} outcomes={oc.data?.outcomes ?? r.outcomes} focus={shownFocus} />}
         </>
       ) : null}
       {r && perms.admin ? <AddByHash key={r.version} titleId={titleId} version={r.version} label={labels?.[r.version]} /> : null}

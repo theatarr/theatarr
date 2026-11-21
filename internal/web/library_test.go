@@ -965,6 +965,18 @@ func TestTitlePageSearchFacts(t *testing.T) {
 	if e.getKey(APIBase+"/titles/4", key, &d); !sameCounts(*d.Versions[0].Episodes, 3, 2, 0, 2, 2) {
 		t.Errorf("Delta counts: %+v", d.Versions[0].Episodes)
 	}
+	// One Search series wrote two member runs at the same time (F3.3): the row reports one of them, so it names that
+	// run's season (target) beside its own counts and run id; nothing is summed.
+	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, season, state, results, accepted,
+		message, created_at, updated_at) VALUES (161, 'command', 4, 4, 'anime-tv', 's01', 1, 'routed', 252, 3, '', ?, ?),
+		(162, 'command', 4, 4, 'anime-tv', 's02', 2, 'nothing', 474, 0, '', ?, ?)`, now-30, now-30, now-30, now-30)
+	d = TitleDetail{}
+	e.getKey(APIBase+"/titles/4", key, &d)
+	if l := d.Versions[0].LastSearch; l == nil || l.RunID != 162 || l.Target != "s02" || l.Results == nil || *l.Results != 474 ||
+		l.Accepted == nil || *l.Accepted != 0 {
+		t.Errorf("Delta's last search, one member run with its season: %+v", l)
+	}
+	e.exec(`DELETE FROM acquire_run WHERE id IN (161, 162)`)
 
 	// A failed first download of an episode is no upgrade because another episode is held; one of a held episode is.
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, error,

@@ -38,6 +38,9 @@ export function TitleReleasesPage() {
   const rawSeason = params.get("season");
   const season = t.kind === "series" && rawSeason !== null && /^\d+$/.test(rawSeason) ? Number(rawSeason) : undefined;
   const seasonName = season === undefined ? "" : season === 0 ? "Specials" : `Season ${season}`;
+  // One run's stored search (?run=R, the Libraries row's link to the run whose counts it shows).
+  const rawRun = params.get("run");
+  const run = rawRun !== null && /^\d+$/.test(rawRun) && Number(rawRun) > 0 ? Number(rawRun) : undefined;
   return (
     <div>
       <PageHeader
@@ -60,7 +63,7 @@ export function TitleReleasesPage() {
       />
       <div className="space-y-5">
         <TitleToolbar titleId={id} name={name} year={t.year} kind={t.kind === "series" ? "series" : "movie"} poster={t.poster} anime={t.anime} versions={currentLibraries(t.versions ?? [])} page="releases" />
-        <ShowReleases titleId={id} kind={t.kind === "series" ? "series" : "movie"} labels={labels} defaultOpen initialVersion={params.get("version") ?? undefined} focus={params.get("hash") ?? undefined} season={season} />
+        <ShowReleases titleId={id} kind={t.kind === "series" ? "series" : "movie"} labels={labels} defaultOpen initialVersion={params.get("version") ?? undefined} focus={params.get("hash") ?? undefined} season={season} run={run} />
       </div>
     </div>
   );

@@ -60,18 +60,29 @@ export function latestEvent(v: Pick<Version, "history">, now: Date = new Date())
  * The last targeted search by its state: "Never searched"; "Last search Nov 12 failed" (no indexer answered, or the
  * search errored) and "Last search Nov 12 was skipped" (paused, a download in flight) say no results; a
  * completed one "Last searched Nov 12: nothing found" or "…: 12 results, none accepted". Without counts (an episode
- * covered by a season's search) only when.
+ * covered by a season's search) only when. scoped names what the run searched ("Last searched Season 2 Nov 12: …").
  */
-export function lastSearchWords(l: LastSearch | undefined | null, now: Date = new Date()): string {
+export function lastSearchWords(l: LastSearch | undefined | null, now: Date = new Date(), scoped = false): string {
   if (!l) return "Never searched";
   const day = dayWords(l.at, now);
-  if (l.state === "failed") return `Last search ${day} failed`;
-  if (l.state === "skipped") return `Last search ${day} was skipped`;
+  // scoped (a series' Libraries row): one Search series writes a run per season, so the row names the one it reports.
+  const what = scoped ? runTargetWords(l.target) : "";
+  if (l.state === "failed") return `Last search${what ? ` of ${what}` : ""} ${day} failed`;
+  if (l.state === "skipped") return `Last search${what ? ` of ${what}` : ""} ${day} was skipped`;
   if (l.state === "queued" || l.state === "searching") return `Searching since ${day}`;
-  if (l.results == null) return `Last searched ${day}`;
+  const searched = `Last searched${what ? ` ${what}` : ""} ${day}`;
+  if (l.results == null) return searched;
   const accepted = l.accepted ?? 0;
   const found = l.results === 0 ? "nothing found" : `${fmtNumber(l.results)} ${l.results === 1 ? "result" : "results"}, ${accepted === 0 ? "none" : fmtNumber(accepted)} accepted`;
-  return `Last searched ${day}: ${found}`;
+  return `${searched}: ${found}`;
+}
+
+/** What a run searched, in words: "Season 2", "Specials", "S02E05"; "" for a film's run or an unknown target. */
+export function runTargetWords(target: string | undefined | null): string {
+  const t = (target ?? "").toLowerCase();
+  const season = /^s(\d+)$/.exec(t);
+  if (season) return Number(season[1]) === 0 ? "Specials" : `Season ${Number(season[1])}`;
+  return /^s\d+e\d+$/.test(t) ? t.toUpperCase() : "";
 }
 
 /** A search under way, in words: "Searching now", "Search queued"; "" for none. */
@@ -86,9 +97,9 @@ export function searchingWords(s: string | undefined | null): string {
  * also says what to do ("Use Search now to request a search.") when the account can search (canSearch). Search now
  * sits beside the line (the caller's button).
  */
-export function missingLine(f: { last_search?: LastSearch | null; searching?: string | null; rss?: boolean }, auto: AutoSearch | undefined | null, now: Date = new Date(), canSearch = false): string {
+export function missingLine(f: { last_search?: LastSearch | null; searching?: string | null; rss?: boolean }, auto: AutoSearch | undefined | null, now: Date = new Date(), canSearch = false, opts: { scoped?: boolean } = {}): string {
   const never = !f.searching && !f.last_search;
-  const first = searchingWords(f.searching) || (never ? "Not searched yet" : lastSearchWords(f.last_search, now));
+  const first = searchingWords(f.searching) || (never ? "Not searched yet" : lastSearchWords(f.last_search, now, opts.scoped));
   if (!auto) return first;
   if (!auto.enabled) return `${first}. Paused: ${PAUSE_STOPS}.`;
   if (!auto.missing) {
