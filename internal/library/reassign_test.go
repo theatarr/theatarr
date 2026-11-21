@@ -3,11 +3,15 @@ package library
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/theatarr/theatarr/internal/decide/format"
+	"github.com/theatarr/theatarr/internal/decide/profile"
 )
 
 // reassignEnv imports the two-episode pack (links 1: E01, 2: E02 in version tv) and adds E03 without a file.
@@ -619,5 +623,43 @@ func TestEmptyFileNameRefusedLinkKept(t *testing.T) {
 	}
 	if after := tree(t, e.shows); strings.Join(before, "|") != strings.Join(after, "|") {
 		t.Errorf("the import changed the library:\n%v\n%v", before, after)
+	}
+}
+
+// TestReassignSeaDexStateAcrossEntries: on a library that prefers SeaDex the stored state of an episode follows the
+// SeaDex entry it now belongs to as soon as the change of episodes commits, before any sweep. The pack is the best
+// release of E01's entry and is not listed for the entry of E02 and E03, whose best is another eligible pack: the
+// file moved from E01 to E03 is filled, not the cutoff_met E01 had.
+func TestReassignSeaDexStateAcrossEntries(t *testing.T) {
+	t.Parallel()
+	e, byEp := reassignEnv(t)
+	vp := e.pol.Versions["tv"]
+	vp.PreferSeaDex = true
+	p := e.lib.engine.Profile(vp.Profile, format.Sonarr)
+	p.Profile.CutoffFormatScore = 0
+	maxSize := float64(1)
+	p.Engine.Definitions = profile.DefaultDefinitions(format.Sonarr)
+	p.Engine.Definitions.Set(profile.Definition{Quality: profile.MustQuality(format.Sonarr, "Bluray-2160p Remux"), MaxSize: &maxSize})
+	for _, q := range []string{
+		`INSERT INTO anime_franchise(slug,name,seed_anilist,created_at,updated_at) VALUES('f','F',11,0,0)`,
+		`INSERT INTO anime_entry(franchise,key,origin,anilist_id,tmdb_movie,body) VALUES('f','al:11','anilist',11,'[]','{}'),('f','al:12','anilist',12,'[]','{}')`,
+		`INSERT INTO anime_mapping(franchise,entry_key,status,tvdb_series,episodes,updated_at) VALUES('f','al:11','auto',5,'[[1,1]]',0),('f','al:12','auto',5,'[[1,2],[1,3]]',0)`,
+	} {
+		e.exec(q)
+	}
+	a := fmt.Sprintf(`{"anilist":11,"torrents":[{"info_hash":"%s","preference":2,"is_best":true,"facts":{"isBest":true,"files":[{"name":"Show.S01E01.mkv","length":10000000},{"name":"Show.S01E02.mkv","length":10000000}]}}]}`, strings.Repeat("b", 40))
+	b := fmt.Sprintf(`{"anilist":12,"torrents":[{"info_hash":"%s","quality":"Bluray-2160p Remux","preference":2,"is_best":true,"size":10000000,"facts":{"isBest":true,"files":[{"name":"Show.S01E02.mkv","length":5000000},{"name":"Show.S01E03.mkv","length":5000000}]}}]}`, strings.Repeat("c", 40))
+	e.exec(`INSERT INTO metadata_cache(source,key,status,body,fetched_at,expires_at) VALUES('seadex-standing','11',200,?,0,253402214400000),('seadex-standing','12',200,?,0,253402214400000)`, a, b)
+	if _, err := e.lib.RecomputeLinkStates(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.epStates(); got != "201:cutoff_met 202:filled 203:wanted" {
+		t.Fatalf("states before %s", got)
+	}
+	if _, err := e.lib.ReassignEpisodes(e.ctx, e.linkOf(byEp[201]), []int64{203}, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.epStates(); got != "201:wanted 202:filled 203:filled" {
+		t.Fatalf("states after %s", got)
 	}
 }

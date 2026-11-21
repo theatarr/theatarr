@@ -719,6 +719,9 @@ later imports and retries of that download, relinks and verifies keep the mappin
 links, states and recorded choice as they were (`TestReassignRenameFailureRollsBack`); a destination name that
 exists and is not the replaced link, or another active link's row there, is refused. An unlinked or dead row left
 at the new name by an earlier unlink makes way, as for an import (`TestReassignReplaceStaleRowAtDestination`). Plex scans of the old and new folders are queued as for a rename.
+On a library that prefers SeaDex the copied state does not hold when the file's SeaDex entry changes with its
+episodes: the version is judged again once the move commits (a failed recompute is logged and the move stays done;
+the next state pass judges it; `TestReassignSeaDexStateAcrossEntries`). The anime re-link after review gets the same.
 The action is recorded in `library_action` (kind `link`, detail `episodes changed by hand: S01E01 -> S01E03`)
 and the log; it has no journal entry (the journal's action names are fixed by 00039). Tests:
 `internal/library/reassign_test.go`. The anime re-link after review moves links the same way (docs/design/anime.md):

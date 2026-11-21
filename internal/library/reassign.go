@@ -289,7 +289,17 @@ func (l *Library) reassignEpisodes(ctx context.Context, linkID int64, episodeIDs
 		}
 		return out, err
 	}
-	l.storeCutoffs(ctx, []stateVersion{{id: v.VersionID, titleID: v.Title.ID, key: v.Key}})
+	sv := stateVersion{id: v.VersionID, titleID: v.Title.ID, key: v.Key}
+	l.storeCutoffs(ctx, []stateVersion{sv})
+	// The copied state does not hold on a prefer-SeaDex library, where the file's standing depends on the SeaDex
+	// entry of the episodes it holds now: the version is judged again. A failure is logged (the move is done; the next
+	// state pass judges it).
+	if vp := l.pol.Versions[v.Key]; vp != nil && vp.PreferSeaDex {
+		if _, err := l.recomputeVersion(ctx, sv); err != nil {
+			l.log.Warn("library: state not recomputed after a change of episodes", "version", v.Key, "title", v.Title.ID,
+				"err", err)
+		}
+	}
 	for _, c := range conflicts {
 		out.Replaced = append(out.Replaced, c.path)
 		if err := l.EnqueueScan(ctx, v.Key, filepath.Dir(c.path)); err != nil {
