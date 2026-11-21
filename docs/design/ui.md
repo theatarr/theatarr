@@ -80,7 +80,7 @@ calls them. The UI shares two things with them (§3, §6): the add path (`catalo
   confirmation), else just below the modal's header row (the row with its Close), so no toast lies over a dialog's
   button row or its Close; over a full-height sheet it may cover the sheet's first control for the seconds it shows
   (accepted: it is dismissible by a tap). The stack follows which modal is on top (`topModal`), so it is placed
-  again when a confirmation over a sheet closes; it goes back to the corner when the last modal closes. A toast stays while it is hovered or focused and gets its full time
+  again when a confirmation over a sheet closes; it goes back to the corner when the last modal closes. A toast's title wraps whole (never cut with an ellipsis; its point is often at the end), Dismiss stays beside it, and a very long toast scrolls inside the screen. A toast stays while it is hovered or focused and gets its full time
   again after; the same toast again (same words, tone and link) while it shows counts on it ("×2") instead of stacking
   a copy.
 - **Phone:** a bottom tab bar: Home, Browse (a sheet with Movies, Series, Anime, Collections for managers), Activity,

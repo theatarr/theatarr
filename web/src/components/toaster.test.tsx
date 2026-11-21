@@ -242,3 +242,25 @@ it("places the toasts again when a confirmation over a sheet closes, clear of th
   expect(box.top).toBe(66);
   sheet.unmount();
 });
+
+// On a phone (400 px) a long title wraps whole instead of being cut with an ellipsis: its point is often at the end
+// ("… is in the library"). Dismiss stays beside it, and a very long toast scrolls inside the screen instead of growing
+// past it.
+it("wraps a long toast title in full, keeps Dismiss reachable, and keeps the toast inside the screen", () => {
+  fresh();
+  const title = "Saltmarsh Rangers and the Very Long Subtitle of the Northern Coast: The Complete Collection is in the library";
+  act(() => {
+    toast({ tone: "ok", title, to: "/title/7" });
+  });
+  const card = screen.getByTestId("toast");
+  const line = within(card).getByText(title);
+  const cut = (el: Element) => el.className.split(/\s+/).some((c) => c === "truncate" || /^line-clamp-\d/.test(c));
+  expect(cut(line)).toBe(false);
+  expect(line.className).toContain("break-words");
+  const close = within(card).getByRole("button", { name: "Dismiss" });
+  expect(close.className).toContain("shrink-0");
+  expect(card.className).toMatch(/max-h-\[/);
+  expect(card.className).toContain("overflow-y-auto");
+  fireEvent.click(close);
+  expect(screen.queryAllByTestId("toast")).toHaveLength(0);
+});

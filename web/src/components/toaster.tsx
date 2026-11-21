@@ -71,9 +71,10 @@ function ToastCard({ t }: { t: Toast }) {
         <Icon className={cn("mt-0.5 size-5 shrink-0", TONE[t.tone])} />
       )}
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5 text-[13.5px] font-semibold text-[var(--ink)]">
-          {t.image ? <Icon className={cn("size-4 shrink-0", TONE[t.tone])} /> : null}
-          <span className="truncate">{t.title}</span>
+        <div className="flex items-start gap-1.5 text-[13.5px] font-semibold text-[var(--ink)]">
+          {t.image ? <Icon className={cn("mt-0.5 size-4 shrink-0", TONE[t.tone])} /> : null}
+          {/* Whole, wrapping: a title's point is often at its end ("… is in the library"). */}
+          <span className="min-w-0 break-words">{t.title}</span>
           {(t.count ?? 1) > 1 ? <span className="shrink-0 rounded-[3px] bg-[var(--hover)] px-1 text-[11.5px] font-medium tabular-nums text-[var(--ink-2)]" data-testid="toast-count" aria-label={`${t.count} times`}>×{t.count}</span> : null}
         </div>
         {t.body ? <div className="mt-0.5 text-[13px] text-muted-foreground">{t.body}</div> : null}
@@ -88,7 +89,7 @@ function ToastCard({ t }: { t: Toast }) {
       onMouseLeave={() => setHovered(false)}
       onFocus={() => setFocused(true)}
       onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false); }}
-      className="pointer-events-auto flex w-full items-start gap-3 rounded-[8px] border border-[var(--line)] bg-[var(--surface)] p-3 text-[var(--ink)] shadow-[var(--shadow-2)] animate-in fade-in slide-in-from-bottom-2"
+      className="pointer-events-auto flex max-h-[calc(100dvh-8rem)] w-full items-start gap-3 overflow-y-auto rounded-[8px] border border-[var(--line)] bg-[var(--surface)] p-3 text-[var(--ink)] shadow-[var(--shadow-2)] animate-in fade-in slide-in-from-bottom-2"
     >
       {t.to ? (
         <Link to={t.to} onClick={() => dismiss(t.id)} className="flex min-w-0 flex-1 items-start gap-3 outline-none">
@@ -101,7 +102,7 @@ function ToastCard({ t }: { t: Toast }) {
         type="button"
         aria-label="Dismiss"
         onClick={() => dismiss(t.id)}
-        className="-m-1 rounded-md p-1 text-muted-foreground hover:bg-[var(--hover)] hover:text-foreground"
+        className="-m-1 shrink-0 rounded-md p-1 text-muted-foreground hover:bg-[var(--hover)] hover:text-foreground"
       >
         <X className="size-4" />
       </button>
