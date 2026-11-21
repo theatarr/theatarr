@@ -281,8 +281,15 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
               </div>
             )}
           </div>
-          {seeded ? (
-            <SecretField label={create ? "API key (required)" : "API key"} set={!!view?.secret_set} action={action} value={apiKey} onAction={setAction} onValue={setApiKey} disabled={off}
+          {create ? (
+            // A new app: one key field, always open (nothing is stored to keep, so no state badge and no Cancel of its own).
+            <Field wide label="API key (required)"
+              help={<>Write-only: never shown again. Clients send it as X-Api-Key. Keys made under <Link className="underline" to="/admin/users">Users &amp; access</Link> work too.</>}>
+              <Input type="password" autoComplete="new-password" ignorePasswordManagers value={apiKey} onChange={(e) => setApiKey(e.target.value)} disabled={off}
+                className="sm:max-w-sm" data-testid="secret-input" />
+            </Field>
+          ) : seeded ? (
+            <SecretField label="API key" set={!!view?.secret_set} action={action} value={apiKey} onAction={setAction} onValue={setApiKey} disabled={off}
               hint={<>Clients send it as X-Api-Key. Keys made under <Link className="underline" to="/admin/users">Users &amp; access</Link> work too.</>} />
           ) : null}
         </div>

@@ -369,6 +369,26 @@ it("checks a new app's key as typed and holds Save while it is not one", async (
 });
 
 
+it("gives a new app one always-open key field: no state badge, no Cancel of its own, a blank key refused", async () => {
+  const fetch = mockFetch(routes([]));
+  const user = userEvent.setup();
+  renderPage(<ViewsCard readOnly={false} />);
+  await user.click(await screen.findByRole("button", { name: "Add app" }));
+  const sheet = await screen.findByTestId("view-editor");
+  const input = within(sheet).getByLabelText("API key (required)") as HTMLInputElement;
+  expect(input.type).toBe("password");
+  expect(input).toBe(within(sheet).getByTestId("secret-input"));
+  expect(within(sheet).queryByTestId("secret-state")).toBeNull();
+  expect(within(sheet).queryByTestId("secret-replace")).toBeNull();
+  // The footer's Cancel is the only one: the field cannot be closed.
+  expect(screen.getAllByRole("button", { name: "Cancel" })).toHaveLength(1);
+  await user.type(within(sheet).getByRole("textbox", { name: "Key" }), "radarr2");
+  await user.click(within(sheet).getByRole("button", { name: "Save" }));
+  expect((await within(sheet).findByTestId("settings-error")).textContent).toContain("needs its API key");
+  expect(fetch.calls("POST", "/settings/view-bindings")).toHaveLength(0);
+  expect(within(sheet).getByTestId("secret-input")).toBe(input);
+});
+
 it("says an app without its own key uses the admin API keys, with its address", async () => {
   mockFetch(routes([{ ...radarr, secret_set: false }]));
   renderPage(<GeneralSettingsPage />);
