@@ -110,40 +110,60 @@ var (
 	// extraWordRE is a marker word of a name without " - " segments; extraNumberedRE one that needs a number with it.
 	extraWordRE     = regexp.MustCompile(`(?i)^(?:OVA|OAD|ONA|SP|NCOP|NCED|NC|creditless|recap|preview|PV|CM|menu|trailer|teaser|specials?)\d{0,3}(?:v\d)?$`)
 	extraNumberedRE = regexp.MustCompile(`(?i)^(?:OP|ED)\d{0,2}$`)
-	// episodeWordRE is a word that is an episode token itself: S01E05, 1x05, a bare number (not a resolution).
-	episodeWordRE = regexp.MustCompile(`(?i)^(?:S\d{1,2}E\d{1,3}.*|\d{1,2}x\d{2,3}|\d{1,4}(?:v\d)?)$`)
+	// explicitEpisodeRE is an explicit episode token: S01E05 (S00E01 too: a special, read by the parser), 1x05.
+	explicitEpisodeRE = regexp.MustCompile(`(?i)^(?:S\d{1,2}E\d{1,3}.*|\d{1,2}x\d{2,3})$`)
 	// numberWordRE is a number after a marker ("OVA 01"); resolutionWordRE a resolution ("NCOP1.1080p").
-	numberWordRE     = regexp.MustCompile(`^\d{1,3}(?:v\d)?$`)
+	numberWordRE     = regexp.MustCompile(`^\d{1,4}(?:v\d)?$`)
 	resolutionWordRE = regexp.MustCompile(`(?i)^\d{3,4}[pi]$`)
 )
 
 // ExtraEpisodeToken says whether a file name's episode token is an extra marker: OVA, OAD, ONA, SP, Special, NCOP,
 // NCED, NC OP/ED, creditless or clean opening or ending, OP/ED with a number, recap, preview, PV, CM, menu, trailer,
-// teaser, or a decimal episode number ("12.5"). Only the episode token is read: in a name with " - " segments the
-// first segment after the series title ("Show - Recap 01 2160p", "Show - OVA - 01"; "Show - 05 - Special Training" is
-// episode 5); without segments the first word that is an episode token or a marker, a marker counting only with a
-// number, a resolution or nothing after it ("Show OVA 01", "Show.NCOP1.1080p", "NCED"), so "Show.S01E05.Special.1080p"
-// is episode 5 and a series title with "Special" in it is no extra. The anime pack proof uses it (library/animepack.go).
+// teaser, or a decimal episode number ("12.5"). The rule:
+//   - an explicit episode token (S01E05, 1x05) anywhere makes the file a regular file, whatever words follow
+//     ("S01E01 - Special Training", "Special.7.S01E05");
+//   - in a name with " - " segments the first segment after the title is the token ("Show - Recap 01 2160p",
+//     "Show - OVA - 01"; "Show - 05 - Special Training" is episode 5);
+//   - otherwise the words are read in order: a marker (also split, "NC.OP") with a number, a resolution or nothing
+//     after it is an extra ("Show OVA 01", "Show.NC.OP.1080p", "NCED"); a bare number is the episode token unless a
+//     marker follows it, as after a series name ending in a number ("Mob Psycho 100 NCOP1").
+//
+// "5.1" audio and a series title with "Special" in it are no extras. The anime pack proof uses it
+// (library/animepack.go); SeaDexExtra keeps its own rule.
 func ExtraEpisodeToken(name string) bool {
 	stem := strings.TrimSuffix(name, path.Ext(name))
 	plain := strings.TrimSpace(extraBracketRE.ReplaceAllString(stem, " "))
+	words := strings.FieldsFunc(plain, func(r rune) bool { return r == ' ' || r == '.' || r == '_' || r == '-' })
+	for _, w := range words {
+		if explicitEpisodeRE.MatchString(w) {
+			return false
+		}
+	}
 	if segs := strings.Split(plain, " - "); len(segs) > 1 {
 		return extraSegmentRE.MatchString(strings.TrimSpace(segs[1]))
 	}
-	words := strings.FieldsFunc(plain, func(r rune) bool { return r == ' ' || r == '.' || r == '_' })
-	for i, w := range words {
-		next := ""
+	marker := func(i int) bool {
+		w, next := words[i], ""
 		if i+1 < len(words) {
 			next = words[i+1]
 		}
 		after := next == "" || numberWordRE.MatchString(next) || resolutionWordRE.MatchString(next)
 		switch {
-		case i > 0 && episodeWordRE.MatchString(w):
-			return false // the episode token is a number: whatever follows is a title or quality text
+		case strings.EqualFold(w, "NC") && extraNumberedRE.MatchString(next):
+			return true // "NC.OP", "NC ED2"
 		case extraWordRE.MatchString(w) && after:
 			return true
 		case extraNumberedRE.MatchString(w) && (numberWordRE.MatchString(next) || strings.IndexAny(w, "0123456789") > 0):
 			return true
+		}
+		return false
+	}
+	for i, w := range words {
+		switch {
+		case marker(i):
+			return true
+		case i > 0 && numberWordRE.MatchString(w) && !(i+1 < len(words) && marker(i+1)):
+			return false // the episode token is a number: whatever follows is a title or quality text
 		}
 	}
 	return false

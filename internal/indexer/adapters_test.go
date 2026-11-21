@@ -748,7 +748,7 @@ func TestAnimePackSeasons(t *testing.T) {
 	}
 }
 
-// The episode token of a file name that marks an extra, shared by SeaDex batches and the anime pack proof.
+// The episode token of a file name that marks an extra, for the anime pack proof (SeaDexExtra keeps its own rule).
 func TestExtraEpisodeToken(t *testing.T) {
 	for name, want := range map[string]bool{
 		"[GRP] Show - Recap 01 2160p [WEB].mkv": true, "[GRP] Show OVA 01.mkv": true, "[GRP] Show NCOP 01.mkv": true,
