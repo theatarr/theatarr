@@ -748,20 +748,23 @@ func TestAnimePackSeasons(t *testing.T) {
 	}
 }
 
-// The episode token of a file name that marks an extra, for the anime pack proof (SeaDexExtra keeps its own rule).
+// Rule S of the anime pack proof's extras check: a marker anywhere sets a file aside, after the library title.
 func TestExtraEpisodeToken(t *testing.T) {
-	for name, want := range map[string]bool{
-		"[GRP] Show - Recap 01 2160p [WEB].mkv": true, "[GRP] Show OVA 01.mkv": true, "[GRP] Show NCOP 01.mkv": true,
-		"[GRP] Show - OVA - 01.mkv": true, "[GRP] Show - NCED2 [BD].mkv": true, "[GRP] Show - 12.5 [BD].mkv": true,
-		"Show.NCOP1.1080p.mkv": true, "[GRP] Show - SP01 [BD].mkv": true, "[GRP] Show - OP1 [BD].mkv": true,
-		"[GRP] Show - 05 [BD 1080p AAC 5.1].mkv": false, "Special.Forces.S01E05.1080p.DDP5.1.mkv": false,
-		"[GRP] Special Forces - 05 [BD].mkv": false, "[GRP] Show - 05 [ED].mkv": false, "Show.S01E05.1080p-ED.mkv": false,
-		"[GRP] Show - 05.mkv": false, "[GRP] Show - 05 - Special Training [BD 1080p].mkv": false,
-		"Show - 02 - Preview of the Future.mkv": false, "[GRP] Show - S01E05 - Preview [1080p].mkv": false,
-		"Show.S01E05.Special.1080p.mkv": false, "NCED.mkv": true, "NCOP1.mkv": true, "Recap.mkv": true,
+	for _, c := range []struct {
+		name, title string
+		want        bool
+	}{
+		{"[GRP] Show - Recap 01 2160p [WEB].mkv", "Show", true}, {"[GRP] Show OVA 01.mkv", "Show", true},
+		{"[GRP] Show - 12.5 [BD].mkv", "Show", true}, {"Show.NC.OP.1080p.mkv", "Show", true}, {"Show - NC-OP 01.mkv", "Show", true},
+		{"[GRP] Show - 05 [ED].mkv", "Show", true}, {"Show - 05 - Special Training.mkv", "Show", true},
+		{"Show S01E05 - Preview.mkv", "Show", true}, {"NCED.mkv", "Show", true},
+		{"[GRP] Show - 05 [BD 1080p AAC 5.1].mkv", "Show", false}, {"Special.Forces.S01E05.1080p.DDP5.1.mkv", "Special Forces", false},
+		{"[GRP] Special Forces - 05 [BD].mkv", "Special Forces", false}, {"[GRP] Special Forces - 05 [BD].mkv", "Show", true},
+		{"[NC-Raws] Show - 05.mkv", "Show", false}, {"Show - 05 - Ed and Al.mkv", "Show", false}, {"[GRP] Show - 05.mkv", "Show", false},
+		{"Shows OVA - 05.mkv", "Show", true}, {"Show - 05 [OPUS].mkv", "Show", false},
 	} {
-		if got := ExtraEpisodeToken(name); got != want {
-			t.Errorf("%q: %v, want %v", name, got, want)
+		if got := ExtraEpisodeToken(c.name, c.title); got != c.want {
+			t.Errorf("%q (%s): %v, want %v", c.name, c.title, got, c.want)
 		}
 	}
 }

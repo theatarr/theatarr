@@ -27,7 +27,9 @@ workaround, it is here too.
   as many episodes as the library's, equal numbers are not proof of equal content (another cour can sit there) and
   such a pack is taken as named. Any pack whose name does not prove the seasons between ("S01.S03") is rejected.
   A pack whose files are bare numbers ("Season 1/01.mkv", "001.mkv") is rejected at import and its seasons are
-  searched one by one: a bare number carries no proof of what it numbers.
+  searched one by one: a bare number carries no proof of what it numbers. So is a pack with an episode whose file
+  name holds an extra's marker word ("S01E05 - Special Training", "- 07 - Opening Night"): the file is set aside as
+  an extra, that episode has no file, and the seasons are searched one by one.
 
 ## Media servers
 

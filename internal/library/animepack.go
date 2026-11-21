@@ -48,15 +48,18 @@ var (
 	// packSeasonFolderRE is a folder named as one season ("Season 2", "S02", "Show 2nd Season").
 	packSeasonFolderRE = regexp.MustCompile(`(?i)^(?:(?:season|s)[ ._]?0*(\d{1,2})|.*\b(\d)(?:st|nd|rd|th)[ ._]season)$`)
 	// packTitleSeasonRE is a season at the end of a parsed series title ("Show S2" of "Show S2 - 05").
+	// packOrdinalRE is an ordinal ("2nd"); packTrailingTagsRE release tags after a folder's name ("[BD 1080p]").
+	packOrdinalRE      = regexp.MustCompile(`(?i)\b\d(?:st|nd|rd|th)\b`)
+	packTrailingTagsRE = regexp.MustCompile(`(?:\s*(?:\[[^\]]*\]|\([^)]*\)))+\s*$`)
+	// leadingGroupRE is a leading release group bracket.
+	leadingGroupRE    = regexp.MustCompile(`^\s*\[[^\]]*\]\s*`)
 	packTitleSeasonRE = regexp.MustCompile(`(?i)(?:^|[ ._])(?:(?:S|Season[ ._]?)0*(\d{1,2})|(\d)(?:st|nd|rd|th)[ ._]Season)$`)
 )
 
 // packExtra says whether a file of a pack is an extra: below an extras folder ("Extras", "Specials", "Bonus", "NC",
-// "Season 0", "S00"), named with an extra marker as its episode token (indexer.ExtraEpisodeToken), or parsed as a
-// special or on season 0.
-// Markers are matched on the episode token or a folder name, never anywhere in the name: "5.1" audio and a series
-// title with "Special" in it are no extras.
-func packExtra(rel string, p *sonarr.ParsedEpisodeInfo) bool {
+// "Season 0", "S00"), with a marker word anywhere in its name after the library title (indexer.ExtraEpisodeToken: a
+// marker only ever sets a file aside), or parsed as a special or on season 0.
+func packExtra(rel string, p *sonarr.ParsedEpisodeInfo, title string) bool {
 	if isExtraFile(rel) {
 		return true
 	}
@@ -65,7 +68,7 @@ func packExtra(rel string, p *sonarr.ParsedEpisodeInfo) bool {
 			return true
 		}
 	}
-	if indexer.ExtraEpisodeToken(filepath.Base(rel)) {
+	if indexer.ExtraEpisodeToken(filepath.Base(rel), title) {
 		return true
 	}
 	if p == nil {
@@ -87,7 +90,10 @@ func folderSeason(rel string) (int, bool) {
 		if _, _, _, span := indexer.AnimePackSeasons(name); span {
 			continue // a folder that names a range ("Show S01-S02") names no season, as the release name does
 		}
-		if m := packSeasonFolderRE.FindStringSubmatch(name); m != nil {
+		if len(packOrdinalRE.FindAllString(name, 2)) > 1 {
+			continue // "Show 1st & 2nd Season" names no one season
+		}
+		if m := packSeasonFolderRE.FindStringSubmatch(strings.TrimSpace(packTrailingTagsRE.ReplaceAllString(name, ""))); m != nil {
 			n, _ = strconv.Atoi(m[1] + m[2])
 		} else if p := sonarr.ParseTitle(name); p != nil && p.FullSeason && len(p.EpisodeNumbers) == 0 &&
 			len(p.AbsoluteEpisodeNumbers) == 0 && !p.IsMultiSeason {
@@ -172,32 +178,26 @@ func (p *packProof) places(allowed map[int64]episodeInfo) bool {
 	return false
 }
 
-// parseFile parses a pack file's name; when that reads no episode and the name starts with the series' name or one
-// of its scene names ("Mob Psycho 100 - 01", whose number the parser takes into the title), the rest is read after
-// a neutral name. A name that starts with neither reads as before.
+// parseFile parses a pack file's name with the known title dropped first: when the name (after a leading group
+// bracket) starts with the library title or a scene name of a season above 0, word boundary after it, the longest
+// such title is dropped and the rest is parsed after a neutral name, so a number in the title is never read as an
+// episode ("Brave 10 - 11" is episode 11, "Mob Psycho 100 - 05" episode 5). Otherwise the name is parsed as it is.
 func parseFile(stem string, t *decide.Title) *sonarr.ParsedEpisodeInfo {
-	p := sonarr.ParseTitle(stem)
-	if p != nil && (len(p.EpisodeNumbers) > 0 || len(p.AbsoluteEpisodeNumbers) > 0) {
-		return p
-	}
-	plain := strings.TrimSpace(stem)
-	if strings.HasPrefix(plain, "[") {
-		if i := strings.Index(plain, "]"); i > 0 {
-			plain = strings.TrimSpace(plain[i+1:])
-		}
-	}
-	names := []string{t.Name}
+	titles := []string{t.Name}
 	for _, m := range t.SceneMappings {
-		names = append(names, m.Title)
-	}
-	for _, n := range names {
-		if n != "" && len(plain) > len(n) && strings.EqualFold(plain[:len(n)], n) {
-			if q := sonarr.ParseTitle("Series" + plain[len(n):]); q != nil && (len(q.EpisodeNumbers) > 0 || len(q.AbsoluteEpisodeNumbers) > 0) {
-				return q
-			}
+		if m.SeasonNumber == nil || *m.SeasonNumber > 0 {
+			titles = append(titles, m.Title)
 		}
 	}
-	return p
+	if rest, ok := indexer.StripTitle(stem, titles...); ok {
+		// The group bracket stays: the parser reads "[Grp] Series S1 - 01" as season 1's episode 1.
+		group := ""
+		if m := leadingGroupRE.FindString(stem); m != "" {
+			group = m
+		}
+		return sonarr.ParseTitle(group + "Series" + rest)
+	}
+	return sonarr.ParseTitle(stem)
 }
 
 func cmpOr(a, b int) int {
@@ -231,7 +231,7 @@ func provePack(t *decide.Title, claim *decide.PackClaim, files []PlannedFile) (*
 	for _, f := range files {
 		stem := strings.TrimSuffix(filepath.Base(f.Rel), filepath.Ext(f.Rel))
 		p := parseFile(stem, t)
-		if packExtra(f.Rel, p) {
+		if packExtra(f.Rel, p, t.Name) {
 			proof.extras[f.Rel] = true
 			continue
 		}

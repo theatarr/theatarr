@@ -619,16 +619,17 @@ func TestAnimePackExtras(t *testing.T) {
 			t.Errorf("an extra is linked: %s", l.File)
 		}
 	}
-	for name, want := range map[string]bool{"[GRP] Special Forces - 05 [BD 1080p].mkv": false,
-		"Special.Forces.S01E05.1080p.DDP5.1.mkv": false, "[GRP] Kaiju Tale - 05 [BD 1080p AAC 5.1].mkv": false,
+	// Rule S: a marker anywhere after the library title sets a file aside ("Special Forces" is not this title).
+	for name, want := range map[string]bool{"[GRP] Special Forces - 05 [BD 1080p].mkv": true,
+		"Special.Forces.S01E05.1080p.DDP5.1.mkv": true, "[GRP] Kaiju Tale - 05 [BD 1080p AAC 5.1].mkv": false,
 		"[GRP] Kaiju Tale - NCED2 [BD].mkv": true, "Specials/[GRP] Kaiju Tale - 01.mkv": true, "Kaiju.Tale.NCOP1.1080p.mkv": true,
 		"[GRP] Kaiju Tale - 12.5 [BD].mkv": true, "Season 1/[GRP] Kaiju Tale - Recap 01 2160p [WEB].mkv": true,
 		"[GRP] Kaiju Tale OVA 01.mkv": true, "[GRP] Kaiju Tale NCOP 01.mkv": true, "[GRP] Kaiju Tale - OVA - 01.mkv": true,
-		"Kaiju Tale S02 1080p.mkv": false, "[GRP] Kaiju Tale - 05 [ED].mkv": false,
-		"[GRP] Kaiju Tale - 05 - Special Training [BD 1080p].mkv": false, "Kaiju.Tale.S01E05.Special.1080p.mkv": false,
-		"[GRP] Kaiju Tale - S01E05 - Preview [1080p].mkv": false, "Extras/NCED.mkv": true, "NCOP1.mkv": true} {
+		"Kaiju Tale S02 1080p.mkv": false, "[GRP] Kaiju Tale - 05 [ED].mkv": true,
+		"[GRP] Kaiju Tale - 05 - Special Training [BD 1080p].mkv": true, "Kaiju.Tale.S01E05.Special.1080p.mkv": true,
+		"[GRP] Kaiju Tale - S01E05 - Preview [1080p].mkv": true, "Extras/NCED.mkv": true, "NCOP1.mkv": true} {
 		stem := strings.TrimSuffix(filepath.Base(name), filepath.Ext(name))
-		if got := packExtra(name, sonarr.ParseTitle(stem)); got != want {
+		if got := packExtra(name, sonarr.ParseTitle(stem), "Kaiju Tale"); got != want {
 			t.Errorf("%s: extra %v, want %v", name, got, want)
 		}
 	}
@@ -937,10 +938,18 @@ func TestAnimePackLayouts(t *testing.T) {
 		{"07 numeric prefix vs explicit token", "Show", decide.PackSeasons, false, append(proofFiles(map[int]bool{101: true, 102: true, 201: true, 202: true},
 			func(s, n int) string { return fmt.Sprintf("Season %d/Show S%02dE%02d.mkv", s, s, n) }), "Season 1/01-02 - Show S02E01-E02.mkv", "Season 2/Show S02E01-E02.mkv"), "", 0},
 		{"08 numeric title, unnumbered file", "12 Kingdoms", decide.PackSeasons, false, append(proofFiles(map[int]bool{112: true}, sf("Season %d/12 Kingdoms - %02d.mkv")), "Season 1/12 Kingdoms - Digest.mkv"), "", 0},
+		{"09b numeric title 'Brave 10'", "Brave 10", decide.PackSeasons, true, proofFiles(no, sf("Season %d/Brave 10 - %02d.mkv")), "Season 1/Brave 10 - 11.mkv", 111},
+		{"09c 'Brave 10' without episode 10's file", "Brave 10", decide.PackSeasons, false, proofFiles(map[int]bool{110: true}, sf("Season %d/Brave 10 - %02d.mkv")), "", 0},
 		{"09 numeric title, normal files", "12 Kingdoms", decide.PackSeasons, true, proofFiles(no, sf("Season %d/12 Kingdoms - %02d.mkv")), "Season 1/12 Kingdoms - 05.mkv", 105},
 		{"10 extras beside episodes", "Show", decide.PackSeasons, true, append(proofFiles(no, sf("Show S%02dE%02d.mkv")), "Show - NCOP1.mkv", "Show - OVA 01.mkv", "Extras/Show - 01.mkv"), "Show S01E01.mkv", 101},
 		{"11 dotted creditless opening", "Show", decide.PackSeasons, true, append(proofFiles(no, sf("Show.S%02dE%02d.1080p.mkv")), "Show.NC.OP.1080p.mkv"), "Show.S02E03.1080p.mkv", 203},
-		{"12 episode title 'Special Training'", "Show", decide.PackSeasons, true, append(proofFiles(map[int]bool{105: true}, sf("Show S%02dE%02d.mkv")), "Show S01E05 - Special Training.mkv"), "Show S01E05 - Special Training.mkv", 105},
+		// Rule S: an episode titled with a marker word is set aside, its episode has no file: rejected.
+		{"12 episode title 'Special Training'", "Show", decide.PackSeasons, false, append(proofFiles(map[int]bool{105: true}, sf("Show S%02dE%02d.mkv")), "Show S01E05 - Special Training.mkv"), "", 0},
+		{"12b extra '(NCOP)' in place of episode 5", "Show", decide.PackSeasons, false, append(proofFiles(map[int]bool{105: true}, sf("[Grp] Show S%dE%02d [1080p].mkv")), "[Grp] Show - 05 (NCOP) [1080p].mkv"), "", 0},
+		{"12c 'OVA 01 - S01E01' in place of episode 1", "Show", decide.PackSeasons, false, append(proofFiles(map[int]bool{101: true}, sf("Show S%02dE%02d.mkv")), "Show - OVA 01 - S01E01.mkv"), "", 0},
+		{"12d 'NC-OP 01' in place of episode 1", "Show", decide.PackSeasons, false, append(proofFiles(map[int]bool{101: true}, sf("Season %d/Show - %02d.mkv")), "Season 1/Show - NC-OP 01.mkv"), "", 0},
+		{"12e those extras beside a full pack", "Show", decide.PackSeasons, true, append(proofFiles(no, sf("Season %d/Show - %02d.mkv")), "[Grp] Show - 05 (NCOP) [1080p].mkv",
+			"Show - OVA 01 - S01E01.mkv", "Season 1/Show - NC-OP 01.mkv"), "Season 1/Show - 05.mkv", 105},
 		{"13 two files on one episode", "Show", decide.PackSeasons, false, append(proofFiles(no, sf("Show S%02dE%02d.mkv")), "Show S01E01 v2.mkv"), "", 0},
 		{"14 one episode missing", "Show", decide.PackSeasons, false, proofFiles(map[int]bool{207: true}, sf("Show S%02dE%02d.mkv")), "", 0},
 		{"15 season name, absolute files", "Show", decide.PackSeasons, false, absFiles(nil, "Show - %02d.mkv"), "", 0},
@@ -955,7 +964,8 @@ func TestAnimePackLayouts(t *testing.T) {
 		{"24 absolute name, numbers restart in folders", "Show", decide.PackAbsolute, false, proofFiles(no, sf("Season %d/Show - %02d.mkv")), "", 0},
 		{"24b absolute batch in season folders", "Show", decide.PackAbsolute, true, proofFiles(no, func(s, n int) string { return fmt.Sprintf("Season %d/Show - %02d.mkv", s, 12*(s-1)+n) }), "Season 2/Show - 15.mkv", 203},
 		{"25 absolute, one number beyond the batch", "Show", decide.PackAbsolute, false, append(absFiles(nil, "Show - %02d.mkv"), "Show - 25.mkv"), "", 0},
-		{"26 absolute with v2 and episode titles", "Show", decide.PackAbsolute, true, append(absFiles(map[int]bool{7: true, 9: true}, "Show - %02d.mkv"), "Show - 07v2.mkv", "Show - 09 - Opening Night.mkv"), "Show - 09 - Opening Night.mkv", 109},
+		{"26 absolute with v2 and episode titles", "Show", decide.PackAbsolute, false, append(absFiles(map[int]bool{7: true, 9: true}, "Show - %02d.mkv"), "Show - 07v2.mkv", "Show - 09 - Opening Night.mkv"), "", 0},
+		{"26b absolute with v2", "Show", decide.PackAbsolute, true, append(absFiles(map[int]bool{7: true}, "Show - %02d.mkv"), "Show - 07v2.mkv"), "Show - 07v2.mkv", 107},
 		{"30 wrapper 'Show (Seasons 1-2) [BD]'", "Show", decide.PackSeasons, true, proofFiles(no, sf("Show (Seasons 1-2) [BD]/Show S%02dE%02d.mkv")), "Show (Seasons 1-2) [BD]/Show S02E03.mkv", 203},
 		{"31 wrapper 'Show S01-S02' + season folders", "Show", decide.PackSeasons, true, proofFiles(no, sf("Show S01-S02/Season %d/Show - %02d.mkv")), "Show S01-S02/Season 2/Show - 03.mkv", 203},
 		{"32 wrapper 'Show S01+S02'", "Show", decide.PackSeasons, true, proofFiles(no, sf("Show S01+S02/Show S%02dE%02d.mkv")), "Show S01+S02/Show S02E03.mkv", 203},
@@ -963,6 +973,10 @@ func TestAnimePackLayouts(t *testing.T) {
 		{"34 folders 'S01' / 'S02'", "Show", decide.PackSeasons, true, proofFiles(no, sf("S%02d/Show - %02d.mkv")), "S02/Show - 03.mkv", 203},
 		{"35 folders 'Season 01' with SxxEyy files", "Show", decide.PackSeasons, true, proofFiles(no, func(s, n int) string { return fmt.Sprintf("Season %02d/Show S%02dE%02d.mkv", s, s, n) }), "Season 02/Show S02E03.mkv", 203},
 		{"36 absolute batch inside one wrapper folder", "Show", decide.PackAbsolute, true, absFiles(nil, "Show (01-24) [1080p]/Show - %02d.mkv"), "Show (01-24) [1080p]/Show - 15.mkv", 203},
+		{"37b '2nd Season [BD 1080p]' folder", "Show", decide.PackSeasons, true, append(proofFiles(season2, sf("Season %d/Show - %02d.mkv")),
+			proofFiles(map[int]bool{101: true, 102: true, 103: true, 104: true, 105: true, 106: true, 107: true, 108: true, 109: true, 110: true, 111: true, 112: true},
+				func(_, n int) string { return fmt.Sprintf("Show 2nd Season [BD 1080p]/Show - %02d.mkv", n) })...), "Show 2nd Season [BD 1080p]/Show - 02.mkv", 202},
+		{"37c 'Show 1st & 2nd Season' wrapper names no season", "Show", decide.PackSeasons, false, absFiles(nil, "Show 1st & 2nd Season/Show - %02d.mkv"), "", 0},
 		{"37 '2nd Season' folder", "Show", decide.PackSeasons, true, append(proofFiles(season2, sf("Season %d/Show - %02d.mkv")),
 			absFiles(first12, "Show 2nd Season/Show 2nd Season - %02d.mkv")...), "Show 2nd Season/Show 2nd Season - 03.mkv", 203},
 	} {
@@ -982,32 +996,82 @@ func TestAnimePackLayouts(t *testing.T) {
 	}
 }
 
-// File names the proof sets aside as extras, and names that are regular episodes (the coordinator's table).
+// File names the proof sets aside as extras, and names that are regular episodes, under rule S (the coordinator's
+// table): a marker anywhere after the library title sets a file aside, so an episode titled with a marker word is set
+// aside too (its episode then has no file and the pack is rejected).
 func TestAnimePackExtraNames(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct {
 		series, rel string
 		extra       bool
 	}{
-		{"Show", "Show - NCOP1.mkv", true}, {"Show", "Show - NCED 01.mkv", true}, {"Show", "Show.NC.OP.1080p.mkv", true},
-		{"Mob Psycho 100", "Mob Psycho 100 NCOP1.mkv", true}, {"Show", "Show NCED2.mkv", true},
-		{"Show", "[Group] Show - NCOP [1080p].mkv", true}, {"Show", "Show - OVA 01.mkv", true}, {"Show", "Show - OVA.mkv", true},
-		{"Show", "Show - Special 1.mkv", true}, {"Show", "Show - SP1.mkv", true}, {"Show", "Show - Recap.mkv", true},
-		{"Show", "Extras/Show - 01.mkv", true}, {"Show", "Specials/Show - 01.mkv", true}, {"Show", "Season 0/Show - 01.mkv", true},
-		{"Show", "Show - Creditless OP.mkv", true}, {"Show", "Show - PV1.mkv", true}, {"Show", "Show - Menu 1.mkv", true},
-		{"Show", "Show S00E01.mkv", true}, {"Show", "[Group] Show - Creditless Ending 2 [BD 1080p].mkv", true},
-		{"Show", "Show - OP1.mkv", true}, {"Show", "Show - ED2 [1080p].mkv", true},
-		{"Show", "Show S01E01 - Special Training.mkv", false}, {"Show", "Show - 05 - Special Training.mkv", false},
-		{"Special 7", "Special 7 - 05.mkv", false}, {"Special 7", "Special.7.S01E05.1080p.mkv", false},
-		{"Show", "Show - 05 [5.1 AAC].mkv", false}, {"Show", "Show S02E03 - Recap of Love.mkv", false},
-		{"Mob Psycho 100", "Mob Psycho 100 - 05.mkv", false}, {"Show", "Show - 07 - Opening Night.mkv", false},
-		{"Show", "Season 2/Show - 05.mkv", false}, {"Show", "[Group] Show - 01 [BD 1080p][OPUS].mkv", false},
-		{"Show", "Show - 12 - The Menu.mkv", false}, {"OVA Girls", "OVA Girls - 03.mkv", false},
-		{"Show", "Show S01E12 - The Special.mkv", false}, {"Show", "Show - 01v2 [NCED fixed].mkv", false},
+		{"Show", "Show - NCOP1.mkv", true},
+		{"Show", "Show - NCED 01.mkv", true},
+		{"Show", "Show.NC.OP.1080p.mkv", true},
+		{"Show", "Show - NC-OP 01.mkv", true},
+		{"Show", "Show - NC-OP.mkv", true},
+		{"Mob Psycho 100", "Mob Psycho 100 NCOP1.mkv", true},
+		{"Show", "Show NCED2.mkv", true},
+		{"Show", "Show 01 NCOP1a.mkv", true},
+		{"Show", "Show - 02 (NCED2b).mkv", true},
+		{"Show", "[Group] Show - NCOP [1080p].mkv", true},
+		{"Show", "[Grp] Show - 05 (NCOP) [1080p].mkv", true},
+		{"Show", "[Grp] Show - 05 [NCOP].mkv", true},
+		{"Show", "[Grp] Show (OVA) - 05 [1080p].mkv", true},
+		{"Show", "Kaiju Tale - OVA 01 - S01E01 [BD 1080p].mkv", true},
+		{"Show", "Show - 13 (OVA).mkv", true},
+		{"Show", "Show - OVA 01.mkv", true},
+		{"Show", "Show - OAV 01.mkv", true},
+		{"Show", "Show - OVA.mkv", true},
+		{"Show", "Show - Special 1.mkv", true},
+		{"Show", "Show - SP1.mkv", true},
+		{"Show", "Show - Recap.mkv", true},
+		{"Show", "Extras/Show - 01.mkv", true},
+		{"Show", "Specials/Show - 01.mkv", true},
+		{"Show", "Season 0/Show - 01.mkv", true},
+		{"Show", "Show - Creditless OP.mkv", true},
+		{"Show", "Show - 01 - Creditless OP.mkv", true},
+		{"Show", "Show - Textless OP 01.mkv", true},
+		{"Show", "Show - Opening 01.mkv", true},
+		{"Show", "Show - Ending 02.mkv", true},
+		{"Show", "Show - Omake 01.mkv", true},
+		{"Show", "Show - Extra 01.mkv", true},
+		{"Show", "Show - Bonus 01.mkv", true},
+		{"Show", "Show - 05 (Commentary).mkv", true},
+		{"Show", "Show - 05 Preview.mkv", true},
+		{"Show", "Show - PV1.mkv", true},
+		{"Show", "Show - Menu 1.mkv", true},
+		{"Show", "Show S00E01.mkv", true},
+		{"Show", "[Group] Show - Creditless Ending 2 [BD 1080p].mkv", true},
+		{"Show", "Show - OP1.mkv", true},
+		{"Show", "Show - ED2 [1080p].mkv", true},
+		{"Show", "Show S01E01 - Special Training.mkv", true},
+		{"Show", "Show - 05 - Special Training.mkv", true},
+		{"Show", "Show [S02E05] - Special.mkv", true},
+		{"Show", "Kaiju Tale 05 Special [BD 1080p].mkv", true},
+		{"Show", "Show.05.Recap.1080p.mkv", true},
+		{"Show", "Show S02E03 - Recap of Love.mkv", true},
+		{"Show", "Show - 07 - Opening Night.mkv", true},
+		{"Show", "Show - 12 - The Menu.mkv", true},
+		{"Show", "Show S01E12 - The Special.mkv", true},
+		{"Show", "Show - 01v2 [NCED fixed].mkv", true},
+		{"Special 7", "Special 7 - 05.mkv", false},
+		{"Special 7", "Special.7.S01E05.1080p.mkv", false},
+		{"OVA Girls", "OVA Girls - 03.mkv", false},
+		{"Show", "Show - 05 [5.1 AAC].mkv", false},
+		{"Show", "Show - 05 [BD 1080p FLAC 5.1].mkv", false},
+		{"Show", "Show - 05 (AAC 2.0).mkv", false},
+		{"Show", "[NC-Raws] Show - 05 (B-Global 1920x1080 HEVC AAC MKV).mkv", false},
+		{"Show", "[Group] Show - 01 [BD 1080p][OPUS].mkv", false},
+		{"Show", "Show - 05 - Ed and Al.mkv", false},
+		{"Show", "Show.S01E05.The.Speed.Run.1080p.CR.WEB-DL.mkv", false},
+		{"Mob Psycho 100", "Mob Psycho 100 - 05.mkv", false},
+		{"Show", "Season 2/Show - 05.mkv", false},
+		{"Show", "Show - 05v2 (Uncensored).mkv", false},
 	} {
 		title, _ := proofTitle(c.series, decide.PackSeasons)
 		stem := strings.TrimSuffix(filepath.Base(c.rel), filepath.Ext(c.rel))
-		if got := packExtra(c.rel, parseFile(stem, title)); got != c.extra {
+		if got := packExtra(c.rel, parseFile(stem, title), title.Name); got != c.extra {
 			t.Errorf("%s (%s): extra %v, want %v", c.rel, c.series, got, c.extra)
 		}
 	}
