@@ -265,18 +265,25 @@ func (r *Router) continuation(ctx context.Context, s *routeState, c *Candidate, 
 	if next.DecisionRev == "" { // decided under the running policy: a later run under another revision decides again
 		next.DecisionRev = r.pol.Revision
 	}
-	hash := indexer.NormalizeHash(c.Release.InfoHash)
-	next.Candidates = []Candidate{*c}
-	for i, x := range s.req.Candidates {
-		if indexer.NormalizeHash(x.Release.InfoHash) == hash {
-			next.Candidates = s.req.Candidates[i:]
-			break
-		}
-	}
+	next.Candidates = continueFrom(s.req.Candidates, c)
 	return func(tx *sql.Tx) error {
 		_, _, err := enqueueRoute(ctx, r.q, tx, next, at)
 		return err
 	}
+}
+
+// continueFrom is a continuation's candidates: the request's from candidate c on, found by indexer, hash and release
+// title (one SeaDex torrent can be two candidates, "Show S01" and "Show S02", each with its own mapping); c alone when
+// the request does not hold it.
+func continueFrom(cands []Candidate, c *Candidate) []Candidate {
+	hash := indexer.NormalizeHash(c.Release.InfoHash)
+	for i, x := range cands {
+		if indexer.NormalizeHash(x.Release.InfoHash) == hash && x.Release.Indexer == c.Release.Indexer &&
+			x.Release.Title == c.Release.Title {
+			return cands[i:]
+		}
+	}
+	return []Candidate{*c}
 }
 
 // strayAfter is how long a queued download may sit with no route job to resume it before the poller resumes it.

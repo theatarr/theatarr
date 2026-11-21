@@ -426,3 +426,15 @@ func TestMergedSeaDexTorrentForTwoSeasons(t *testing.T) {
 		})
 	}
 }
+
+// A deferred route's continuation resumes from its own candidate: two rows of one SeaDex torrent ("Show S01",
+// "Show S02") are told apart by their release title, so season 2 does not resume with season 1's mapping.
+func TestContinuationFindsItsOwnRowOfOneTorrent(t *testing.T) {
+	t.Parallel()
+	s1, s2 := episodeCandidate("a", 101, 102), episodeCandidate("a", 201, 202)
+	s1.Release.Title, s2.Release.Title = "Show S01 Bluray 1080p (sam1)", "Show S02 Bluray 1080p (sam1)"
+	got := continueFrom([]Candidate{s1, s2, pack(3)}, &s2)
+	if len(got) != 2 || got[0].Release.Title != s2.Release.Title || !slices.Equal(got[0].Episodes, []int64{201, 202}) {
+		t.Fatalf("continuation starts at %q %v", got[0].Release.Title, got[0].Episodes)
+	}
+}
