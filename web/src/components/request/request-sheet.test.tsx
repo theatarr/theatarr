@@ -152,3 +152,20 @@ it("says what happens in plain words: approval with no role, Already added, and 
     unmount();
   }
 });
+
+it("counts the seasons to request in the footer with the noun in the number it needs: 1 of 1 season", async () => {
+  const gs = { paused: false, pause_forced: false, library_writes: true, will_grab: true };
+  const series = (open: number[]) => ({ ...options, kind: "series", anime: false, in_library: true, seasons: [{ season: 1, episodes: 8 }, { season: 2, episodes: 8 }, { season: 3, episodes: 8 }],
+    versions: [{ key: "tv-web", label: "TV", kind: "series", enable: "", fits: true, default: true, on: true, open_seasons: open, searchable: true, grab_state: gs }] });
+  for (const [open, words] of [[[3], "1 of 1 season"], [[2, 3], "2 of 2 seasons"]] as const) {
+    mockFetch([
+      { method: "GET", path: "/auth/me", reply: { id: 3, permissions: ["browse", "request"] } },
+      { method: "GET", path: "/add/options", reply: series([...open]) },
+      { method: "GET", path: "/requests", reply: { items: [], total: 0, counts: {} } },
+    ]);
+    const { unmount } = renderPage(<RequestSheet target={{ kind: "series", name: "Kappa", title_id: 5 }} onClose={() => {}} />);
+    await screen.findByTestId("request-seasons");
+    await waitFor(() => expect(screen.getByTestId("request-season-count").textContent).toBe(words));
+    unmount();
+  }
+});

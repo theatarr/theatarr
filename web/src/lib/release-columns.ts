@@ -5,6 +5,7 @@
 import type { Candidate, Releases } from "@/api/add";
 import { grabScope, rejectionWarning, unblockGrabScope, type BlockedRelease, type Scope } from "@/lib/ops";
 import { wordMatcher } from "@/lib/words";
+import { fmtNumber } from "@/lib/format";
 
 export type ReleaseColumnId =
   | "source"
@@ -227,7 +228,7 @@ export function filterChoices(items: Candidate[]): { indexer: string[]; quality:
   };
 }
 
-/** How long ago it was published: "12 min", "5 h", "468 d"; "—" when unknown. */
+/** How long ago it was published: "12 min", "5 h", "468 d", "1,411 d"; "—" when unknown. */
 export function fmtAge(published: string | undefined, now: Date | number = Date.now()): string {
   const t = published ? Date.parse(published) : NaN;
   if (Number.isNaN(t)) return "—";
@@ -235,7 +236,7 @@ export function fmtAge(published: string | undefined, now: Date | number = Date.
   if (min < 60) return `${min} min`;
   const h = Math.floor(min / 60);
   if (h < 24) return `${h} h`;
-  return `${Math.floor(h / 24)} d`;
+  return `${fmtNumber(Math.floor(h / 24))} d`;
 }
 
 /** Seeders / leechers: "120 / 8", "120" without leechers, "—" when the indexer gave no count. */

@@ -288,3 +288,17 @@ describe("Pause in a household account's words", () => {
     cleanup();
   });
 });
+
+it("keeps a request's thumbnail at its own 2:3 box at the top of the row, not stretched to the row's height", async () => {
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { username: "admin", permissions: ["admin", "manage_requests"], csrf_token: "fixture" } },
+    { method: "GET", path: "/requests", reply: { items: [{ id: 1, kind: "series", name: "A series whose name is long enough to wrap", anime: false, tmdb_id: 1, status: "pending", mine: false, seasons: [1, 2, 3], versions: [], created_at: "2026-10-30T12:00:00Z", updated_at: "2026-10-30T12:00:00Z" }], total: 1, counts: { pending: 1 } } },
+  ]);
+  renderPage(<Routes><Route path="/requests/:tab?" element={<RequestsPage />} /></Routes>, "/requests");
+  const row = (await screen.findAllByTestId("request-row"))[0];
+  // The row is a flex row whose items stretch by default: the poster aligns itself to the start so its aspect
+  // ratio, not the text beside it, sets its height (a stretched box crops the artwork).
+  const poster = row.querySelector<HTMLElement>(".aspect-\\[2\\/3\\]")!;
+  expect(poster.parentElement!.className.split(" ")).toContain("flex");
+  expect(poster.className.split(" ")).toEqual(expect.arrayContaining(["aspect-[2/3]", "self-start", "shrink-0"]));
+});

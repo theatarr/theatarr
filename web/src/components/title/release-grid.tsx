@@ -16,7 +16,7 @@ import { useAuth } from "@/api/auth";
 import { useGrab } from "@/api/ops";
 import { ColumnPicker } from "@/components/library/view-options";
 import { ProviderPills, ProviderTag, providerLabel } from "@/components/provider-pills";
-import { Formats } from "@/components/title/formats";
+import { Formats, signedScore } from "@/components/title/formats";
 import { GrabDialog, lateRejections, type GrabTarget } from "@/components/title/release-grab";
 import { blockedRelease, type BlockedRelease } from "@/lib/ops";
 import { ReleaseName } from "@/components/title/release-name";
@@ -28,7 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { readPref, writePref } from "@/lib/copies";
-import { fmtBytes, fmtNumber, plural } from "@/lib/format";
+import { fmtBytes, plural } from "@/lib/format";
 import {
   allIndexersText,
   BEST_MATCH,
@@ -122,9 +122,6 @@ export function retryNote(o: ReleaseOutcome): string | undefined {
   return undefined;
 }
 
-/** A score with its sign and the thousands separator: "+4,450", "-10", "0". */
-const signed = (n: number) => (n > 0 ? `+${fmtNumber(n)}` : fmtNumber(n));
-
 /** An accepted pack that replaces no held file, only fills episodes with none: the decision's upgrade reason is then
  *  only "fills N episode(s) with no file" (internal/decide/episodes.go); one that also replaces a file starts with
  *  why that file is bettered. */
@@ -185,18 +182,18 @@ function Copies({ c }: { c: Candidate }) {
 /** The score; with open (the table), a button that opens the row's matched formats when it matched any. */
 function Score({ c, open }: { c: Candidate; open?: { on: boolean; toggle: () => void } }) {
   const s = c.score ?? 0;
-  const title = (c.formats ?? []).map((f) => `${f.name} ${signed(f.score ?? 0)}`).join("\n");
+  const title = (c.formats ?? []).map((f) => `${f.name} ${signedScore(f.score ?? 0)}`).join("\n");
   const cls = cn("font-semibold tabular-nums", s > 0 ? "text-[var(--ok-ink)]" : s < 0 ? "text-[var(--bad-ink)]" : "text-[var(--ink-2)]");
   if (open && c.formats?.length) {
     return (
       <button type="button" className={cn(cls, "underline decoration-dotted underline-offset-2")} title={title} aria-expanded={open.on} onClick={open.toggle} data-testid="release-score">
-        {signed(s)}
+        {signedScore(s)}
       </button>
     );
   }
   return (
     <span className={cls} title={title || undefined} data-testid="release-score">
-      {signed(s)}
+      {signedScore(s)}
     </span>
   );
 }
@@ -578,7 +575,7 @@ export function ReleaseGrid({
                     <TableRow data-testid="release-formats-detail">
                       <TableCell colSpan={shown.length + 1 + (grab ? 1 : 0)} className="bg-[var(--bg)] py-2">
                         <span className="flex flex-wrap items-center gap-2 text-xs text-[var(--ink-2)]">
-                          Matched formats <Formats c={c} zeros /> <span>Score {signed(c.score ?? 0)}</span>
+                          Matched formats <Formats c={c} zeros /> <span>Score {signedScore(c.score ?? 0)}</span>
                         </span>
                       </TableCell>
                     </TableRow>

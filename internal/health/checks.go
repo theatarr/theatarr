@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -694,7 +695,7 @@ func TorrentLimits(st *store.Store, limits func(ctx context.Context) map[string]
 			}
 			n := *sum.Torrents
 			detail[k] = map[string]any{"limit": lim[k], "count": n}
-			line := fmt.Sprintf("%s %d of %d (%d%%)", providerLabel(k), n, lim[k], n*100/lim[k])
+			line := fmt.Sprintf("%s %s of %s (%d%%)", providerLabel(k), grouped(n), grouped(lim[k]), n*100/lim[k])
 			counted = append(counted, line)
 			if n*100 >= lim[k]*warnPercent {
 				near = append(near, line)
@@ -1085,4 +1086,21 @@ func plural(n int, one, many string) string {
 		return "1 " + one
 	}
 	return fmt.Sprintf("%d %s", n, many)
+}
+
+// grouped is a count with comma separators, as the UI writes counts: 5000 reads "5,000".
+func grouped(n int) string {
+	s := strconv.Itoa(n)
+	sign := ""
+	if n < 0 {
+		sign, s = "-", s[1:]
+	}
+	var b strings.Builder
+	for i, r := range s {
+		if i > 0 && (len(s)-i)%3 == 0 {
+			b.WriteByte(',')
+		}
+		b.WriteRune(r)
+	}
+	return sign + b.String()
 }

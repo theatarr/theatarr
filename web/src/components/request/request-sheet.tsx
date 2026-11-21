@@ -39,7 +39,7 @@ import {
 } from "@/lib/request-state";
 import { syncedBy } from "@/lib/sync-groups";
 import { cn } from "@/lib/utils";
-import { nameWithoutYear } from "@/lib/format";
+import { nameWithoutYear, plural } from "@/lib/format";
 
 function seasonLabel(n: number) {
   return n === 0 ? "Specials" : `Season ${n}`;
@@ -219,7 +219,7 @@ export function RequestSheet({ target, onClose, onLeave }: { target: AddTarget; 
                   <span className="truncate">{create.error instanceof ApiError ? create.error.message : "Could not request"}</span>
                 </span>
               ) : (
-                <span className="text-xs text-[var(--ink-3)]">{o?.kind === "series" && sendSeasons ? `${picked.length} of ${open.length} seasons` : ""}</span>
+                <span className="text-xs text-[var(--ink-3)]" data-testid="request-season-count">{o?.kind === "series" && sendSeasons ? `${picked.length} of ${plural(open.length, "season")}` : ""}</span>
               )}
               <div className="flex shrink-0 gap-2">
                 <Button variant="ghost" onClick={onClose}>Cancel</Button>

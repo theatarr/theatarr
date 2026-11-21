@@ -418,6 +418,17 @@ it("opens a row's matched formats with each one's score from its score", async (
   expect(within(t).queryByTestId("release-formats-detail")).toBeNull();
 });
 
+it("groups the digits of a format's score in its chip, as the score itself", async () => {
+  const formats = [{ name: "English", score: 1500 }, { name: "Dubbed", score: -10000 }];
+  mockFetch([ME, TITLE, CURRENT, CURRENT, { method: "GET", path: "/titles/7/releases",
+    reply: answer("movie-web", { candidates: [{ ...accepted, score: -8500, formats }, rejected] }) }]);
+  renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
+  open();
+  const t = await table();
+  fireEvent.click(within(t).getAllByTestId("release-score")[0]);
+  expect((await within(t).findByTestId("release-formats-detail")).textContent).toBe("Matched formats English+1,500Dubbed-10,000 Score -8,500");
+});
+
 const outcomesRoute = (reply: Route["reply"]): Route => ({ method: "GET", path: "/titles/7/release-outcomes", reply });
 const rowOf = async (hash: string) => within(await table()).getAllByRole("row").find((r) => r.dataset.releaseHash === hash)!;
 

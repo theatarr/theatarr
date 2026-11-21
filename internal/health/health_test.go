@@ -443,13 +443,13 @@ func TestTorrentLimits(t *testing.T) {
 	at := store.Millis(t0.Add(-10 * time.Minute))
 	exec(t, st, `INSERT INTO provider_sync_run (provider, started_at, finished_at, ok, summary) VALUES
 		('ad', ?, ?, 1, '{"torrents": 4400}'), ('rd', ?, ?, 1, '{"torrents": 99999}')`, at, at, at, at)
-	if r := f(ctx); r.Type != OK || r.Message != "Torrent limits: AD 4400 of 5000 (88%)" {
+	if r := f(ctx); r.Type != OK || r.Message != "Torrent limits: AD 4,400 of 5,000 (88%)" {
 		t.Errorf("under 90%%: %+v", r)
 	}
 	later := store.Millis(t0)
 	exec(t, st, `INSERT INTO provider_sync_run (provider, started_at, finished_at, ok, summary) VALUES
 		('ad', ?, ?, 1, '{"torrents": 4500}'), ('ad', ?, ?, 0, '{}')`, later, later, later, later)
-	if r := f(ctx); r.Type != Warning || !strings.Contains(r.Message, "AD 4500 of 5000 (90%)") {
+	if r := f(ctx); r.Type != Warning || !strings.Contains(r.Message, "AD 4,500 of 5,000 (90%)") {
 		t.Errorf("at 90%%: %+v", r)
 	}
 	lim = map[string]int{"rd": 0}

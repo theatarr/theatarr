@@ -153,6 +153,8 @@ describe("cell words", () => {
     expect(fmtAge("2026-11-12T11:48:00Z", now)).toBe("12 min");
     expect(fmtAge("2026-11-12T07:00:00Z", now)).toBe("5 h");
     expect(fmtAge("2025-08-01T12:00:00Z", now)).toBe("468 d");
+    // Grouped digits past a thousand days, as every other count.
+    expect(fmtAge("2023-01-01T12:00:00Z", now)).toBe("1,411 d");
     expect(fmtAge(undefined, now)).toBe("—");
   });
   it("peersText and episodesText", () => {

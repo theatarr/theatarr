@@ -466,7 +466,7 @@ describe("Acting on the libraries in view", () => {
     };
     const want: Record<string, string> = {
       "Video codec": "x265", "Dynamic range": "DV HDR10", Audio: "EAC3 Atmos 5.1", "Audio languages": "English, Korean",
-      Subtitles: "English, French +4", Languages: "English, Korean", Formats: "DV Boost+1500",
+      Subtitles: "English, French +4", Languages: "English, Korean", Formats: "DV Boost+1,500",
     };
     for (const name of added) {
       expect(at("1x12", name).textContent, name).toBe(want[name]);
