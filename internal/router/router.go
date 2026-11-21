@@ -745,11 +745,16 @@ func (m *mergedRoute) seasons(eps []int64) []int {
 // bucket is a candidate's attempt bucket: its season, or spanBucket for a release of several seasons, by the
 // release's own shape (its name), not the episodes scope and freshness left it.
 func (m *mergedRoute) bucket(c *Candidate) int {
-	several := indexer.HoldsSeasons(c.Release.Title)
+	ss := m.seasons(c.Episodes)
 	if m.anime {
-		several = c.claimSpan()
+		// Only a claim with a span is a pack of several seasons; any other candidate (a batch across a season break)
+		// counts against its first season's attempts.
+		if c.claimSpan() || len(ss) == 0 {
+			return spanBucket
+		}
+		return ss[0]
 	}
-	if ss := m.seasons(c.Episodes); len(ss) == 1 && !several {
+	if len(ss) == 1 && !indexer.HoldsSeasons(c.Release.Title) {
 		return ss[0]
 	}
 	return spanBucket

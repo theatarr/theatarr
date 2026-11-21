@@ -311,6 +311,28 @@ func TestMergedRouteAnimeBucketByClaim(t *testing.T) {
 	}
 }
 
+// On an anime series only a claim with a span takes the span bucket: a failed batch across a season break ("02-03",
+// a claim without a span) counts against its first season's attempts, so the pack of all three seasons is still tried.
+func TestMergedRouteAnimeBatchAcrossBreakKeepsSpanBucket(t *testing.T) {
+	t.Parallel()
+	e := mergedEnv(t, h("e"))
+	e.exec(`UPDATE title SET series_type = 'anime' WHERE id = 2`)
+	e.r.set.MaxCandidates = 1
+	batch := episodeCandidate("e", 102, 201)
+	batch.Release.Title = "[GRP] Show - 02-03 [WEB 2160p]"
+	batch.EpisodeMap = &decide.EpisodeMap{Pack: &decide.PackClaim{Mode: decide.PackAbsolute, Episodes: []int64{102, 201}}}
+	span := episodeCandidate("f", 101, 102, 201, 202, 301, 302)
+	span.EpisodeMap = &decide.EpisodeMap{Pack: &decide.PackClaim{Mode: decide.PackSeasons, Seasons: []int{1, 2, 3},
+		Episodes: span.Episodes}}
+	res, err := e.r.Route(e.ctx, mergedReq(batch, span))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(e.ad["rd"].adds, []string{h("e"), h("f")}) {
+		t.Fatalf("adds %v: %s", e.ad["rd"].adds, steps(res))
+	}
+}
+
 // researches are the re-search jobs' episodes.
 func (e *env) researches() [][]int64 {
 	e.t.Helper()
