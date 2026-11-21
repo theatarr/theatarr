@@ -30,9 +30,9 @@ it("says the global state once when Pause is forced", async () => {
 });
 
 const control = (live: boolean) => ({ can_edit: true, can_search: live, live_releases: live });
-const bar = (permissions: string[], live: boolean, kind: "movie" | "series" = "movie", seriesType?: string) => {
+const bar = (permissions: string[], live: boolean, kind: "movie" | "series" = "movie") => {
   const api = mockFetch([{ method: "GET", path: "/auth/me", reply: { id: 1, permissions } }, options([])]);
-  renderPage(<SearchProvider><TitleToolbar titleId={7} name="Alpha" kind={kind} seriesType={seriesType} versions={[{ id: 1, key: "movie-web", label: "WEB", control: control(live) }] as never} /></SearchProvider>);
+  renderPage(<SearchProvider><TitleToolbar titleId={7} name="Alpha" kind={kind} versions={[{ id: 1, key: "movie-web", label: "WEB", control: control(live) }] as never} /></SearchProvider>);
   return api;
 };
 
@@ -49,13 +49,11 @@ it("offers no whole-title Interactive search to a non-manager", async () => {
   expect(screen.queryByTestId("interactive-search-open")).toBeNull();
 });
 
-it("offers a series' Interactive search of the whole series, an anime series' too, and says Search series", async () => {
-  for (const type of ["standard", "daily", "anime"]) {
-    document.body.innerHTML = "";
-    bar(["manage", "add"], true, "series", type);
-    expect(await screen.findByTestId("interactive-search-open")).toBeTruthy();
-    expect((await screen.findByTestId("title-search-now")).textContent?.trim()).toBe("Search series");
-  }
+it("offers a series' Interactive search of the whole series and says Search series", async () => {
+  // The series type does not matter: every series (anime too) has it.
+  bar(["manage", "add"], true, "series");
+  expect(await screen.findByTestId("interactive-search-open")).toBeTruthy();
+  expect((await screen.findByTestId("title-search-now")).textContent?.trim()).toBe("Search series");
   document.body.innerHTML = "";
   bar(["manage", "add"], true);
   expect((await screen.findByTestId("title-search-now")).textContent?.trim()).toBe("Search now");

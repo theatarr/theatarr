@@ -398,7 +398,8 @@ flagged request changes the batch, which RSS batches and single-season searches 
   is opened for the others. There is no re-ranking after narrowing.
 - **Attempts.** `max_candidates` bounds failed attempts per season, plus one more bucket of the same size shared by
   the releases of several seasons (by the release's name, whatever scope and freshness left it; for an anime series
-  by the candidate's stored pack claim, `decide.PackClaim`, instead); a candidate whose bucket is used up is skipped.
+  by the pack claim stored with the candidate instead, and a batch across a season break counts against its first
+  season); a candidate whose bucket is used up is skipped.
 - **Seasons left without a release.** Each pass of a route (the first, and each continuation of a deferred
   download), whatever its outcome, queues one re-search for the seasons that had a release missed on every provider
   in that pass (a client's cache miss too) and nothing placed, deferred or in flight: the exhausted re-search an
@@ -421,7 +422,8 @@ S02"); a merged search keeps both rows (SeaDex results fold by indexer, hash and
 decision its own search gives. For every route on a library that prefers SeaDex, a candidate with SeaDex standing
 whose hash a download already holds for other episodes covers its own episodes (not only that download's, as for
 any other candidate): its season waits for that torrent and takes it with its next search, nothing worse is taken
-for it. A pack of several seasons (its claim a span) keeps the general rule.
+for it. A pack of several seasons keeps the general rule, and keeps only the SeaDex standing it is listed for over
+its own episodes (series.md, "Anime packs of several seasons") wherever the route refreshes standing.
 
 ## Cache evidence
 

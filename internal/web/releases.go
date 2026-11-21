@@ -55,7 +55,7 @@ type Releases struct {
 	// Current is the file the requested film or episode holds in this library now (interactive search's "Current
 	// file" line); absent for a season or a whole series.
 	Current *HeldFile `json:"current,omitempty"`
-	// LeftOut, for a live search of a whole standard or daily series (only packs of several seasons are kept),
+	// LeftOut, for a live search of a whole series (only packs of several seasons are kept),
 	// counts the results left out: a season search finds those.
 	LeftOut *int `json:"left_out,omitempty"`
 }

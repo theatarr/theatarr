@@ -1,7 +1,7 @@
 // The title page's Libraries table (docs/design/ui.md, Title page): one row per library the title is in, for a movie
 // and a series alike, on the shared DataTable. Monitored and Library always show, then the columns
 // the user chose (lib/library-rows.ts, kept per user in this browser), then the row's actions: Search now, Interactive
-// search (a movie's library, or a standard or daily series': the whole series) and Details, which opens a panel with what has no column: the library key, path,
+// search (a movie's library, or a series': the whole series) and Details, which opens a panel with what has no column: the library key, path,
 // hash, edition, upgrade explanation, minimum availability, the hand-offs to Wanted, the last search's results, each
 // linked file with Unlink, and Remove from this library. Below 768 px each library is a stacked block. A library the
 // title was removed from has no row; one that still has linked files gets one line under the table. Only for callers

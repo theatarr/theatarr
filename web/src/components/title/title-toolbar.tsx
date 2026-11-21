@@ -109,8 +109,6 @@ export function TitleToolbar({ titleId, name, year, kind, poster, anime, version
   kind: "movie" | "series";
   poster?: string;
   anime?: boolean;
-  /** A series' type in force (standard, daily, anime). */
-  seriesType?: string;
   /** The libraries the title is in now (not removed). */
   versions: Version[];
   /** Libraries it was removed from: their leftover links can still be renamed, under their names. */

@@ -20,10 +20,12 @@ workaround, it is here too.
   what release profiles are used for.
 - **Some anime packs of several seasons.** Every series takes a pack of several seasons, which Sonarr does not, and
   searches two or more wanted seasons together with one query without a season (docs/design/series.md); an anime
-  pack is proved file by file at import. Still not taken for anime: "Complete Series" names; packs whose seasons
-  are the tracker's and not the library's (they fail the proof, and the seasons are fetched one by one); named packs
-  of scene-numbered seasons; one download for a SeaDex torrent shared by two seasons (the second season takes it with
-  its next search). Any pack whose name does not prove the seasons between ("S01.S03") is rejected.
+  pack is proved file by file at import. Still not taken for anime: "Complete Series" names; named packs of
+  scene-numbered seasons; one download for a SeaDex torrent shared by two seasons (the second season takes it with
+  its next search). A pack whose seasons are the tracker's and not the library's usually fails the proof (its files
+  do not match the library's episodes) and the seasons are then fetched one by one; but where a tracker's season has
+  as many episodes as the library's, equal numbers are not proof of equal content (another cour can sit there) and
+  such a pack is taken as named. Any pack whose name does not prove the seasons between ("S01.S03") is rejected.
 
 ## Media servers
 
