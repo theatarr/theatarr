@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -110,5 +111,85 @@ func TestRSSCategoriesIncludeAnimeForConfiguredAnimeVersion(t *testing.T) {
 	e.r.pol.Versions["tv"].Anime = &anime
 	if got := e.r.rssCategories("prowlarr"); fmt.Sprint(got) != "[2000 5000 5070]" {
 		t.Fatalf("RSS categories %v", got)
+	}
+}
+
+// An RSS item without ids that names a mapped sequel (an anime_entry name no series or scene mapping has) is matched
+// by that name when it points to exactly one series across the catalogue and every anime mapping, and routed only
+// when the decision placed it through the franchise: "Show Sequel - 01" is the sequel's first episode, S02E01. The
+// name proves the series, not the season: the same name with "S01E02", an entry not approved, and a name another
+// catalogue title or another series' mapping also has are dropped, never numbered series-wide.
+func TestRSSSeriesByFranchiseName(t *testing.T) {
+	t.Parallel()
+	const placed = "[GRP] Show Sequel - 01 (2160p WEB-DL)"
+	for _, tc := range []struct {
+		name, title, status string
+		setup               string // extra SQL
+		routed              bool
+	}{
+		{"sequel placed", placed, "auto", "", true},
+		{"sequel named with S01E02", "Show.Sequel.S01E02.2160p.WEB-DL-GRP", "auto", "", false},
+		{"conflict entry", placed, "conflict", "", false},
+		{"rejected entry", placed, "rejected", "", false},
+		{"name of another catalogue title", placed, "auto",
+			`INSERT INTO title (id, kind, name, sort_name, year, tvdb_id, monitored, series_type, created_at, updated_at)
+			VALUES (6, 'series', 'Show Sequel', 'show sequel', 2024, 1002, 0, 'anime', 0, 0)`, false},
+		{"scene name of another catalogue title", placed, "auto",
+			`INSERT INTO title (id, kind, name, sort_name, year, tvdb_id, monitored, series_type, created_at, updated_at)
+			VALUES (6, 'series', 'Another Show', 'another show', 2024, 1002, 0, 'anime', 0, 0);
+			INSERT INTO title_scene_mapping (title_id, source, name, scene_season_number, scene_origin, comment)
+			VALUES (6, 'test', 'Show Sequel', -1, '', '')`, false},
+		{"entry name in another series' mapping", placed, "auto",
+			`INSERT INTO title (id, kind, name, sort_name, year, tvdb_id, monitored, series_type, created_at, updated_at)
+			VALUES (6, 'series', 'Another Show', 'another show', 2024, 1002, 0, 'anime', 0, 0);
+			INSERT INTO anime_franchise (slug, name, seed_anilist, created_at, updated_at) VALUES ('g', 'G', 31, 0, 0);
+			INSERT INTO anime_entry (franchise, key, origin, anilist_id, title, tmdb_movie, body)
+			VALUES ('g', 'al:31', 'anilist', 31, 'Show Sequel', '[]', '{}');
+			INSERT INTO anime_mapping (franchise, entry_key, status, tvdb_series, episodes, updated_at)
+			VALUES ('g', 'al:31', 'conflict', 1002, '[[1,1]]', 0)`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newEnv(t, false)
+			e.seed(t)
+			e.seedShow(t)
+			at := store.Millis(t0)
+			e.exec(t, `UPDATE title SET series_type = 'anime' WHERE id = 5`)
+			for n := 1; n <= 2; n++ {
+				air := time.Date(2026, 9, 10+n, 2, 0, 0, 0, time.UTC)
+				e.exec(t, `INSERT INTO episode (id, title_id, season, number, name, air_date, air_date_utc_at,
+					runtime_minutes, monitored, created_at, updated_at) VALUES (?, 5, 2, ?, ?, ?, ?, 45, 1, ?, ?)`,
+					3+n, n, fmt.Sprint("S2 Ep ", n),
+					air.Format(time.DateOnly), store.Millis(air), at, at)
+				e.exec(t, `INSERT INTO episode_version_state (version_id, episode_id, monitored, state, cutoff_met,
+					updated_at) VALUES (9, ?, 1, 'wanted', 0, ?)`, 3+n, at)
+			}
+			e.exec(t, `INSERT INTO anime_franchise (slug, name, seed_anilist, created_at, updated_at) VALUES ('f', 'F', 21, 0, 0)`)
+			e.exec(t, `INSERT INTO anime_entry (franchise, key, origin, anilist_id, title, tmdb_movie, body)
+				VALUES ('f', 'al:21', 'anilist', 21, 'Show Sequel', '[]', '{}')`)
+			e.exec(t, `INSERT INTO anime_mapping (franchise, entry_key, status, tvdb_series, episodes, updated_at)
+				VALUES ('f', 'al:21', ?, 1001, '[[2,1],[2,2]]', 0)`, tc.status)
+			for _, q := range strings.Split(tc.setup, ";") {
+				if strings.TrimSpace(q) != "" {
+					e.exec(t, q)
+				}
+			}
+			e.prow.setRSS(item{title: tc.title, hash: hShowE03, size: 8e9, pub: t0, tv: true})
+			rs, err := e.r.RSS(e.ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !tc.routed {
+				if rs.Routed != 0 || len(e.rec.reqs) != 0 {
+					t.Fatalf("rss %+v, reqs %+v", rs, e.rec.reqs)
+				}
+				return
+			}
+			if rs.Routed != 1 || len(e.rec.reqs) != 1 {
+				t.Fatalf("rss %+v", rs)
+			}
+			if req := e.rec.reqs[0]; req.Version != "tv" || fmt.Sprint(req.Candidates[0].Episodes) != "[4]" {
+				t.Errorf("route %+v, want episode 4 (S02E01)", req.Candidates[0])
+			}
+		})
 	}
 }

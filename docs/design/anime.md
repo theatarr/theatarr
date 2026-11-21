@@ -107,7 +107,9 @@ created, and Settings › Anime mappings shows it; playlists leave such an entry
    resolution runs as it would for the series (series-wide absolute numbers, scene and XEM mappings), exactly as the
    import's file resolution places it: "2nd Season - 02" of a rejected entry is absolute 2, S01E02; "2nd Season -
    05" of a two-episode entry is S01E05, whatever the entry's status; `UnknownEpisode` only where Sonarr cannot place
-   it. An alternate cut's missing number stays `UnknownEpisode`.
+   it. An alternate cut's missing number stays `UnknownEpisode`. RSS differs for an item it found only by a
+   franchise name (no ids, `docs/design/rss.md`): it routes such an item only when this step or step 1 placed it, and
+   drops it otherwise.
 3. Otherwise Sonarr's mapping (`sonarr`).
 
 SeaDex season packs carry their AniList entry id. When the franchise maps that entry into only part of a TVDB

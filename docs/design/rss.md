@@ -55,7 +55,13 @@ index is reloaded all the same.
   must identify one movie across the library. Series match by TVDB id, else by the title and its scene mappings, else
   (an item with no TVDB id, as DMM's) by its IMDb id when exactly one catalog series has it (ids compared normalised) and that series is
   monitored in an RSS library; the decision then checks the
-  episode as usual. The film index (shared with the decision engine, which searches with it) is reloaded at the start of every run, so a
+  episode as usual. Last, an item with no id at all that nothing else finds is matched by an anime franchise entry's
+  name (a sequel or romaji title, `anime_entry`), only when that name points to exactly one series across the whole
+  catalogue and every anime mapping (titles, scene names and entry names of every series, monitored or not) and the
+  entry is importable with regular episodes; the item is then kept only when the decision placed it through the
+  franchise or an alternate cut (`[Grp] Show Sequel - 01` is the sequel's first episode). A name proves the series,
+  not the season: an item the franchise does not place (`Show.Sequel.S01E02`, an entry not reviewed) is dropped,
+  never numbered series-wide (`TestRSSSeriesByFranchiseName`). The film index (shared with the decision engine, which searches with it) is reloaded at the start of every run, so a
   film added since is matched.
 - **Decided** for every monitored library of the title, including `cutoff_met`, with the library's current file.
   Per-file upgrade checks reject replacements that do not improve the full quality/score cutoff. Movies must reach

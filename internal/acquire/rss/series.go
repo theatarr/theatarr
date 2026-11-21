@@ -2,13 +2,13 @@ package rss
 
 import (
 	"context"
-	"encoding/json"
 	"slices"
 	"strings"
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/decide/parser/sonarr"
 	"github.com/theatarr/theatarr/internal/indexer"
+	"github.com/theatarr/theatarr/internal/metadata/anime/animemap"
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
@@ -68,37 +68,40 @@ type seriesIndex struct {
 	// byIMDb is every catalog series by normalised IMDb id: the fallback for an item with no TVDB id whose name
 	// finds none, when the id names one series and that series is a candidate.
 	byIMDb map[string][]int64
-	loaded map[int64]decide.Title
+	// byFranchise is an anime franchise entry's name (a sequel, a romaji title) to its series: the last fallback for
+	// an item with no ids that nothing else finds. Only importable entries with regular episodes of a candidate
+	// series, and only a name that no other series has as its title, a scene name or an entry name (every catalog
+	// series and every anime mapping counted, as byIMDb is built over everything).
+	byFranchise map[string]int64
+	loaded      map[int64]decide.Title
 }
 
 func (r *Runner) seriesIndex(ctx context.Context, cands map[int64][]seriesCandidate, all map[int64]decide.Title) (*seriesIndex, error) {
 	ix := &seriesIndex{byClean: map[string][]int64{}, byTVDB: map[int]int64{}, byIMDb: map[string][]int64{},
-		loaded: map[int64]decide.Title{}}
+		byFranchise: map[string]int64{}, loaded: map[int64]decide.Title{}}
 	if len(cands) == 0 {
 		return ix, nil
 	}
-	// The scene mapping names of every candidate series, in one query.
-	ids := make([]int64, 0, len(cands))
-	for id := range cands {
-		ids = append(ids, id)
-	}
-	list, _ := json.Marshal(ids)
-	scene := map[int64][]string{}
-	// A "Limited matching" alias (Sonarr limits it to some releases; the regex is not evaluated) finds no series.
-	rows, err := r.st.Reader().QueryContext(ctx, `SELECT title_id, name FROM title_scene_mapping
-		WHERE title_id IN (SELECT value FROM json_each(?)) AND comment != 'Limited matching' ORDER BY title_id, source, rowid`,
-		string(list))
+	// The scene mapping names of every series, in one query: a candidate's find it, every one counts against a
+	// franchise name. A "Limited matching" alias (Sonarr limits it to some releases; the regex is not evaluated)
+	// finds no series.
+	scene, sceneAll := map[int64][]string{}, map[int64][]string{}
+	rows, err := r.st.Reader().QueryContext(ctx, `SELECT title_id, name, comment FROM title_scene_mapping
+		ORDER BY title_id, source, rowid`)
 	if err != nil {
 		return nil, err
 	}
 	for rows.Next() {
 		var id int64
-		var name string
-		if err := rows.Scan(&id, &name); err != nil {
+		var name, comment string
+		if err := rows.Scan(&id, &name, &comment); err != nil {
 			rows.Close()
 			return nil, err
 		}
-		scene[id] = append(scene[id], name)
+		sceneAll[id] = append(sceneAll[id], name)
+		if _, cand := cands[id]; cand && comment != "Limited matching" {
+			scene[id] = append(scene[id], name)
+		}
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
@@ -121,16 +124,88 @@ func (r *Runner) seriesIndex(ctx context.Context, cands map[int64][]seriesCandid
 			ix.byIMDb[imdb] = append(ix.byIMDb[imdb], id)
 		}
 	}
-	return ix, nil
+	return ix, r.franchiseNames(ctx, ix, cands, all, sceneAll)
+}
+
+// franchiseNames fills ix.byFranchise.
+func (r *Runner) franchiseNames(ctx context.Context, ix *seriesIndex, cands map[int64][]seriesCandidate,
+	all map[int64]decide.Title, scene map[int64][]string) error {
+	byTVDB := map[int][]int64{}
+	var tvdbs []int
+	for id, t := range all {
+		if t.TVDB > 0 {
+			if len(byTVDB[t.TVDB]) == 0 {
+				tvdbs = append(tvdbs, t.TVDB)
+			}
+			byTVDB[t.TVDB] = append(byTVDB[t.TVDB], id)
+		}
+	}
+	maps, err := animemap.LoadMany(ctx, r.st.Reader(), tvdbs)
+	if err != nil || len(maps) == 0 {
+		return err
+	}
+	owners := map[string]map[int64]bool{}
+	own := func(name string, id int64) {
+		if c := sonarr.CleanSeriesTitle(name); c != "" {
+			if owners[c] == nil {
+				owners[c] = map[int64]bool{}
+			}
+			owners[c][id] = true
+		}
+	}
+	for id, t := range all {
+		own(t.Name, id)
+		for _, n := range scene[id] {
+			own(n, id)
+		}
+	}
+	for tvdb, m := range maps {
+		for _, e := range m.Entries {
+			for _, n := range e.Names {
+				for _, id := range byTVDB[tvdb] {
+					own(n, id)
+				}
+			}
+		}
+	}
+	for tvdb, m := range maps {
+		ids := byTVDB[tvdb]
+		if len(ids) != 1 || len(cands[ids[0]]) == 0 {
+			continue
+		}
+		for _, e := range m.Entries {
+			if !e.Importable() || len(e.Regular()) == 0 {
+				continue
+			}
+			for _, n := range e.Names {
+				if c := sonarr.CleanSeriesTitle(n); c != "" && len(owners[c]) == 1 && owners[c][ids[0]] {
+					ix.byFranchise[c] = ids[0]
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// placedByFranchise reports whether a decision took its episodes from the franchise: an entry's own numbering or an
+// alternate cut's table.
+func placedByFranchise(d *decide.Decision) bool {
+	return len(d.EpisodeIDs) > 0 && (d.AnimeMapping == decide.AnimeMapFranchise ||
+		strings.HasPrefix(d.AnimeMapping, decide.AnimeMapAltCut+":"))
 }
 
 // decideSeriesItem maps an RSS item to our series (the indexer's TVDB id, else the parsed series title against the
-// titles and scene mappings, else, with no TVDB id, the one series with the item's IMDb id) and decides it for every candidate version with the RSS path (no search criteria).
+// titles and scene mappings, else, with no TVDB id, the one series with the item's IMDb id, else, with no id at all,
+// the one series a franchise entry of that name maps into) and decides it for every candidate version with the RSS
+// path (no search criteria). An item found by a franchise name is kept only when the decision placed it through
+// the franchise: the name proves the series, not the season, so series-wide numbering ("Sequel - 01" as S01E01) is
+// never used for it.
 // ranked is rel with the cache evidence the decision ranks by, as for decideItem.
 func (r *Runner) decideSeriesItem(ctx context.Context, rel, ranked indexer.Release, cands map[int64][]seriesCandidate,
 	ix *seriesIndex, sum *RSSSummary) (bool, error) {
 	ctx = decide.WithParseMemo(ctx)
 	var ids []int64
+	franchise := false
 	if id, ok := ix.byTVDB[rel.TVDB]; ok && rel.TVDB > 0 {
 		ids = append(ids, id)
 	}
@@ -158,6 +233,18 @@ func (r *Runner) decideSeriesItem(ctx context.Context, rel, ranked indexer.Relea
 				ids = ix.byIMDb[imdb]
 			}
 		}
+		// No id at all and nothing found: a franchise entry's name, when every spelling points to one series.
+		if len(ids) == 0 && rel.TVDB == 0 && rel.TMDb == 0 && sonarr.NormalizeImdbID(rel.IMDb) == "" {
+			for _, n := range titles {
+				if id, ok := ix.byFranchise[sonarr.CleanSeriesTitle(n)]; ok && !slices.Contains(ids, id) {
+					ids = append(ids, id)
+				}
+			}
+			if len(ids) > 1 {
+				ids = nil
+			}
+			franchise = len(ids) == 1
+		}
 	}
 	matched := false
 	for _, id := range ids {
@@ -179,6 +266,10 @@ func (r *Runner) decideSeriesItem(ctx context.Context, rel, ranked indexer.Relea
 				continue
 			}
 			sum.Decided++
+			if franchise && !placedByFranchise(d) {
+				sum.remember = false // a review may approve the entry later
+				continue
+			}
 			if !d.Accepted || d.MatchType == decide.MatchNone {
 				sum.remember = sum.remember && permanentRSS(d)
 				continue
