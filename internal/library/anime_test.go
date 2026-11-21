@@ -839,3 +839,23 @@ func TestAnimeSpanImportSeaDex(t *testing.T) {
 		}
 	}
 }
+
+// A release with explicit season and episode numbers across a season break ("S01E03-S02E01") claims nothing and
+// imports as on main (section 9).
+func TestAnimeExplicitAcrossBreakImportsAsBefore(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.kaiju()
+	release := "Kaiju.Tale.S01E03-S02E01.1080p.BluRay.x264-GRP"
+	e.release(release, map[string]float64{"Kaiju.Tale.S01E03.1080p.BluRay.x264-GRP.mkv": 1440,
+		"Kaiju.Tale.S02E01.1080p.BluRay.x264-GRP.mkv": 1440})
+	e.videoSize(release, 1920, 1080)
+	e.seriesDownload(1, 6, 60, hashA, release, "[613, 621]", nil)
+	plan, err := e.lib.Import(e.ctx, 1, false)
+	if err != nil || len(plan.Links) != 2 {
+		t.Fatalf("links %d %v (%q)", len(plan.Links), err, plan.Why)
+	}
+	if got := strings.Join(e.linkedTo(), "\n"); !strings.Contains(got, "S01E03 <- Kaiju.Tale.S01E03") || !strings.Contains(got, "S02E01 <- Kaiju.Tale.S02E01") {
+		t.Errorf("links\n%s", got)
+	}
+}

@@ -472,7 +472,8 @@ func TestRequeuedRouteRedecidesWithStoredCriteria(t *testing.T) {
 // and season 2's decision of the same hash. Season 1's opens the download; season 2's finds it held for season 1
 // only. Season 2 then waits for that torrent (its episodes count as covered) instead of taking a worse release, and
 // its own next search takes the torrent once the first download is done. Without SeaDex standing part 1's rule
-// stays: the season falls to the next candidate.
+// stays: the season falls to the next candidate. The scheduler side (season 2's own row coming due through an acquire
+// round) is not covered here: season 2's route is run directly.
 func TestMergedSeaDexTorrentForTwoSeasons(t *testing.T) {
 	t.Parallel()
 	for _, standing := range []bool{true, false} {
@@ -543,8 +544,11 @@ func TestRouteSpanSeaDexStanding(t *testing.T) {
 		span.Release.Extras = map[string]string{"anilist": "1", "seadex_id": "x"}
 		span.EpisodeMap = &decide.EpisodeMap{Pack: &decide.PackClaim{Mode: decide.PackSeasons, Seasons: []int{1, 2, 3},
 			Episodes: span.Episodes}}
+		// Season 1 is held by another download in flight: the span is narrowed to seasons 2 and 3.
+		e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, episodes, state,
+			created_at, updated_at) VALUES (2, 20, 'series', ?, 'Show.S01.WEB', 'pub', '[101,102]', 'downloading', 0, 0)`, h("z"))
 		res, err := e.r.Route(e.ctx, mergedReq(span))
-		if err != nil || !slices.Equal(e.ad["rd"].adds, []string{h("e")}) {
+		if err != nil || !slices.Equal(e.ad["rd"].adds, []string{h("e")}) || len(e.storedEpisodes(h("e"))) != 4 {
 			t.Fatalf("prefer=%v: adds %v %v: %s", prefer, e.ad["rd"].adds, err, steps(res))
 		}
 		var data string

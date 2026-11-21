@@ -128,10 +128,14 @@ func (a *Acquirer) DecideWhole(ctx context.Context, rel decide.Release, titleID 
 	if err != nil {
 		return nil, nil, err
 	}
-	if t.Kind != policy.KindSeries || t.SeriesType != "anime" {
-		// Only an anime series reads a pack of several seasons by the whole-series criterion; anything else is
-		// decided as a grab from any search.
+	if t.Kind != policy.KindSeries {
 		d, err := a.Decide(ctx, rel, titleID, version)
+		return d, nil, err
+	}
+	if t.SeriesType != "anime" {
+		// Only an anime series reads a pack of several seasons by the whole-series criterion; any other series is
+		// decided as a grab from any search (Decide's series path, without loading the title again).
+		d, err := eng.DecideSearch(ctx, rel, t, v, nil)
 		return d, nil, err
 	}
 	ss := wholeSeries(&t, a.now())
