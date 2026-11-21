@@ -2429,7 +2429,13 @@ func TestReleasesWholeSeries(t *testing.T) {
 	}
 	r = Releases{}
 	e.call("GET", APIBase+"/titles/10/releases?version=tv-2160p&live=1&season=1", nil, 200, &r)
-	if r.LeftOut != nil {
-		t.Fatalf("a season search carries no count: %+v", r)
+	if r.LeftOut != nil || r.Target != "s01" {
+		t.Fatalf("a season search carries no count, and names its season: %+v", r)
+	}
+	// A year-numbered season keeps every digit (C21): s2025, not s125.
+	r = Releases{}
+	e.call("GET", APIBase+"/titles/10/releases?version=tv-2160p&live=1&season=2025", nil, 200, &r)
+	if r.Target != "s2025" {
+		t.Fatalf("season 2025: target %q", r.Target)
 	}
 }

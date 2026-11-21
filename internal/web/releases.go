@@ -361,7 +361,7 @@ func (w *Web) liveReleases(ctx context.Context, out *Releases, r *http.Request) 
 		out.LeftOut = &n
 	}
 	if season != nil {
-		out.Target = "s" + strconv.Itoa(100 + *season)[1:]
+		out.Target = fmt.Sprintf("s%02d", *season)
 	}
 	return nil
 }
