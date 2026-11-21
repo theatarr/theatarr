@@ -73,12 +73,13 @@ func (l *Library) renameLink(ctx context.Context, linkID int64, newPath string, 
 		}
 		return err
 	}
-	// A destination that already points at the target, with no row of its own, is this rename's own link from a
-	// run that stopped before its commit: the retry takes it.
+	// A destination that already points at the target, with no row of its own (an unlinked row left there does not
+	// count), is this rename's own link from a run that stopped before its commit: the retry takes it.
 	made := false
 	if _, err := os.Lstat(newPath); err == nil {
 		var rows int
-		if err := l.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM link WHERE path = ?`, newPath).Scan(&rows); err != nil {
+		if err := l.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM link WHERE path = ? AND state <> 'unlinked'`,
+			newPath).Scan(&rows); err != nil {
 			return err
 		}
 		if rows > 0 || !linkPointsAt(newPath, target) {
@@ -111,6 +112,20 @@ func (l *Library) renameLink(ctx context.Context, linkID int64, newPath string, 
 				if err := also(tx); err != nil {
 					return err
 				}
+			}
+			// An unlinked row left at the new path (an earlier upgrade's or unlink's) makes way, as for an import
+			// (takePathTx). A dead row keeps it (its link comes back when its file returns), as an active one does.
+			if _, err := tx.ExecContext(ctx, `DELETE FROM link WHERE path = ? AND id <> ? AND state = 'unlinked'`,
+				newPath, linkID); err != nil {
+				return err
+			}
+			var held int
+			if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM link WHERE path = ? AND id <> ?`, newPath,
+				linkID).Scan(&held); err != nil {
+				return err
+			}
+			if held > 0 {
+				return fmt.Errorf("library: rename destination already exists: %s", newPath)
 			}
 			res, err := tx.ExecContext(ctx, `UPDATE link SET path = ?, updated_at = ? WHERE id = ? AND path = ?
 				AND target = ? AND state = 'active'`, newPath, store.Millis(l.now()), linkID, oldPath, target)

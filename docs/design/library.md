@@ -1001,7 +1001,10 @@ updated, and the old symlink and any empty theatarr-made folders are removed thr
 Arr and native admin previews rebuild each link's path from its saved `file_metadata`, probe and episode rows; links
 with incomplete metadata are counted and skipped. Applying a preview writes the new link first, updates its row,
 then removes the old link, while the gate refuses the whole operation when library writes are closed. Each move is a compare-and-swap (above): a link a relink or
-refresh changed meanwhile is left, the new link removed, and the rename answers `ErrLinkChanged`. Every completed
+refresh changed meanwhile is left, the new link removed, and the rename answers `ErrLinkChanged`. A row left
+`unlinked` at the new path (an earlier upgrade's or unlink's) makes way in the move's transaction, as for an import,
+also on a retry whose own new link is already there; a `dead` row there still refuses (its link comes back when its
+file returns), as an active row or another file at the name does (`TestRenameLink`). Every completed
 move queues debounced Plex partial scans of the old and the new folder, also when a later link of the batch fails
 (`TestRenameQueuesPlexScans`). The web UI's title page reaches it through `serveOps` (`GET`/`POST
 /api/theatarr/v1/titles/{id}/rename`; a gate refusal or a changed link is 409, `TestServeOpsRename`); the page says
