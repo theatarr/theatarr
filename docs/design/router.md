@@ -422,8 +422,8 @@ S02"); a merged search keeps both rows (SeaDex results fold by indexer, hash and
 decision its own search gives. For every route on a library that prefers SeaDex, a candidate with SeaDex standing
 whose hash a download already holds for other episodes covers its own episodes (not only that download's, as for
 any other candidate): its season waits for that torrent and takes it with its next search, nothing worse is taken
-for it. A pack of several seasons keeps the general rule, and keeps only the SeaDex standing it is listed for over
-its own episodes (series.md, "Anime packs of several seasons") wherever the route refreshes standing.
+for it. A pack of several seasons keeps the general rule and carries no SeaDex standing at all (series.md, "Anime
+packs of several seasons"): the route clears it on the candidate's release after its own refresh, on every library.
 
 ## Cache evidence
 

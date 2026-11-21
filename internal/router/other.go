@@ -77,6 +77,9 @@ func DecideOther(ctx context.Context, pol *policy.Policy, eng *decide.Engine, re
 		}
 		return nil, "rejected: " + strings.Join(why, ", "), nil
 	}
+	if d.Pack.Span() {
+		r = decide.ClearSeaDex(r)
+	}
 	return &Candidate{Search: series, Criteria: crit, Release: r, Quality: d.Quality, Score: d.Score,
 			Episodes: d.DownloadEpisodes(), Formats: append([]decide.FormatScore{}, d.Formats...), EpisodeMap: d.EpisodeMapping()}, "",
 		nil
@@ -102,6 +105,7 @@ func ScreenOther(ctx context.Context, st *store.Store, pol *policy.Policy, profi
 	if vp.PreferSeaDex {
 		req.Candidates[0].Release = decide.RefreshSeaDexRelease(ctx, req.Candidates[0].Release)
 	}
+	req.Candidates[0].Release = decide.ClearSpanSeaDex(req.Candidates[0].Release, req.Candidates[0].EpisodeMap)
 	s := &routeState{req: req, vp: vp, dry: true, res: &Result{Version: req.Version, Steps: []Step{}},
 		pace: map[string]pace{}}
 	why := func() string {

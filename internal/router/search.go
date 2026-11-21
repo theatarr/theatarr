@@ -463,6 +463,9 @@ func SearchRequests(ctx context.Context, eng SearchEngine, svc *indexer.Service,
 				searched.Notes = append(searched.Notes, fmt.Sprintf("%s: %s %s", rel.Indexer, rel.Title,
 					d.Rejections[0].Message))
 			}
+			if d.Pack.Span() {
+				rel = decide.ClearSeaDex(rel) // a pack of several seasons travels without SeaDex standing
+			}
 			byDecision[d] = rel
 			ds = append(ds, d)
 			if merged {

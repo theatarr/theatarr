@@ -527,44 +527,33 @@ func TestContinuationFindsItsOwnRowOfOneTorrent(t *testing.T) {
 	}
 }
 
-// The route refreshes SeaDex standing by hash; a candidate whose claim is a span then keeps only the standing it is
-// listed for over its own episodes: a pack listed for season 1 only has none for seasons 1 to 3 (a narrowed one to
-// season 1 keeps it); a release of one season keeps the hash's standing.
+// A candidate whose claim is a span travels without SeaDex standing on every library: the route clears its SeaDex
+// flags and extras after its own refresh, so the download stores none; a release of one season keeps them.
 func TestRouteSpanSeaDexStanding(t *testing.T) {
 	t.Parallel()
-	e := mergedEnv(t)
-	e.exec(`UPDATE title SET series_type = 'anime', tvdb_id = 77 WHERE id = 2`)
-	e.pol.Versions["series"].PreferSeaDex = true
-	e.exec(`INSERT INTO title_external_id VALUES(2,'anilist','1')`)
-	e.exec(`INSERT INTO metadata_cache(source,key,status,body,fetched_at,expires_at) VALUES('seadex-standing','1',200,?,0,253402214400000)`,
-		fmt.Sprintf(`{"anilist":1,"torrents":[{"info_hash":"%s","preference":2,"is_best":true,"facts":{"isBest":true}}]}`, h("a")))
-	ctx, err := decide.WithStoredSeaDex(e.ctx, e.st.Reader())
-	if err != nil {
-		t.Fatal(err)
-	}
-	vp := e.pol.Versions["series"]
-	ctx = decide.WithSeaDexTitle(decide.WithSeaDexPolicy(ctx, e.pol, vp), 2)
-	s := &routeState{vp: vp, req: Request{TitleID: 2, VersionID: 20, Version: "series"}}
-	claim := func(eps ...int64) *decide.EpisodeMap {
-		return &decide.EpisodeMap{Pack: &decide.PackClaim{Mode: decide.PackSeasons, Seasons: []int{1, 2, 3},
-			Episodes: []int64{101, 102, 201, 202, 301, 302}}}
-	}
-	one := episodeCandidate("a", 101, 102)
-	one.Release = decide.RefreshSeaDexRelease(ctx, one.Release)
-	if indexer.SeaDexPreference(&one.Release) == 0 {
-		t.Skip("no SeaDex standing for the hash in this setup")
-	}
-	span := episodeCandidate("a", 101, 102, 201, 202, 301, 302)
-	span.Release, span.EpisodeMap = one.Release, claim()
-	if err := e.r.spanStanding(ctx, s, &span); err != nil {
-		t.Fatal(err)
-	}
-	if indexer.SeaDexPreference(&span.Release) != 0 {
-		t.Errorf("a span listed for season 1 only kept standing %d for seasons 1 to 3", indexer.SeaDexPreference(&span.Release))
-	}
-	kept := one
-	if err := e.r.spanStanding(ctx, s, &kept); err != nil || indexer.SeaDexPreference(&kept.Release) == 0 {
-		t.Errorf("a release of one season lost its standing: %v", err)
+	for _, prefer := range []bool{false, true} {
+		e := mergedEnv(t)
+		e.exec(`UPDATE title SET series_type = 'anime' WHERE id = 2`)
+		e.pol.Versions["series"].PreferSeaDex = prefer
+		e.exec(`INSERT INTO title_external_id VALUES(2,'anilist','1')`)
+		e.exec(`INSERT INTO metadata_cache(source,key,status,body,fetched_at,expires_at) VALUES('seadex-standing','1',200,?,0,253402214400000)`,
+			fmt.Sprintf(`{"anilist":1,"torrents":[{"info_hash":"%s","preference":2,"is_best":true,"facts":{"isBest":true}}]}`, h("e")))
+		span := episodeCandidate("e", 101, 102, 201, 202, 301, 302)
+		span.Release.Flags = []string{indexer.FlagSeaDex, indexer.FlagSeaDexBest}
+		span.Release.Extras = map[string]string{"anilist": "1", "seadex_id": "x"}
+		span.EpisodeMap = &decide.EpisodeMap{Pack: &decide.PackClaim{Mode: decide.PackSeasons, Seasons: []int{1, 2, 3},
+			Episodes: span.Episodes}}
+		res, err := e.r.Route(e.ctx, mergedReq(span))
+		if err != nil || !slices.Equal(e.ad["rd"].adds, []string{h("e")}) {
+			t.Fatalf("prefer=%v: adds %v %v: %s", prefer, e.ad["rd"].adds, err, steps(res))
+		}
+		var data string
+		if err := e.st.Reader().QueryRow(`SELECT release_data FROM download WHERE info_hash = ?`, h("e")).Scan(&data); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(data, "seadex") || strings.Contains(data, `"anilist"`) {
+			t.Errorf("prefer=%v: the span's download stores SeaDex standing: %s", prefer, data)
+		}
 	}
 }
 

@@ -189,6 +189,9 @@ func (s *Service) grab(ctx context.Context, titleID int64, version string, rel i
 		// Decided with the whole-series criterion: a search's candidate, which a re-decision decides with it again.
 		c.Search, c.Criteria = true, []*decide.SeriesSearch{ss}
 	}
+	if d.Pack.Span() {
+		c.Release = decide.ClearSeaDex(c.Release) // a pack of several seasons travels without SeaDex standing
+	}
 	if vp := s.pol.Versions[version]; len(c.Episodes) == 0 && vp != nil && vp.Kind == policy.KindSeries {
 		return out, refused("the release matches no episode of the title")
 	}

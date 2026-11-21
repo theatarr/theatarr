@@ -324,10 +324,7 @@ func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate)
 			anyAllKept = true
 			continue
 		}
-		c.Release = queued
-		if err := r.spanStanding(ctx, s, &c); err != nil {
-			return nil, err
-		}
+		c.Release = decide.ClearSpanSeaDex(queued, c.EpisodeMap) // a pack of several seasons: no SeaDex standing
 		decisions = append(decisions, d)
 		byDecision[d] = c
 	}

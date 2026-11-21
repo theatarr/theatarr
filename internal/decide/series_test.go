@@ -1112,9 +1112,9 @@ func kaijuSeaDex(snaps []indexer.SeaDexSnapshot) (Title, context.Context) {
 	return tt, WithSeaDexTitle(context.WithValue(context.Background(), seaDexContext{}, state), 6)
 }
 
-// A span has SeaDex standing only for what SeaDex lists it for: the weakest across the episodes it is downloaded
-// for, none when one of them is outside every entry actively listing it, Best only when it holds for every episode.
-// So season 2's own pick keeps season 2 in a merged search; a span listed for all its seasons keeps its standing.
+// A span carries no SeaDex standing (section 13 point 3): listed for season 1 only or for every season, it is decided
+// and ranked as an ordinary release, so season 2's own SeaDex pick keeps season 2 in a merged search. A span over
+// files held from the same torrent is no upgrade of them (not grabbed again).
 func TestAnimeSpanSeaDexStanding(t *testing.T) {
 	t.Parallel()
 	e := seriesEngine(t)
@@ -1123,16 +1123,12 @@ func TestAnimeSpanSeaDexStanding(t *testing.T) {
 	v := Version{ID: 9, Key: "anime-tv", Policy: &vp}
 	span, pick := strings.Repeat("a", 40), strings.Repeat("b", 40)
 	whole := kaijuMerged(0, 1, 2, 3)
-	type listing struct {
-		pref int
-		best bool
-	}
-	decided := func(listed map[int]listing) (*Decision, *Decision) {
+	decided := func(seasons []int, held bool) (*Decision, *Decision) {
 		var snaps []indexer.SeaDexSnapshot
 		for s := 1; s <= 3; s++ {
 			snap := indexer.SeaDexSnapshot{AniList: s}
-			if l, ok := listed[s]; ok {
-				snap.Torrents = append(snap.Torrents, indexer.SeaDexStanding{InfoHash: span, IsBest: l.best, Preference: l.pref})
+			if slices.Contains(seasons, s) {
+				snap.Torrents = append(snap.Torrents, indexer.SeaDexStanding{InfoHash: span, IsBest: true, Preference: 2})
 			}
 			if s == 2 {
 				snap.Torrents = append(snap.Torrents, indexer.SeaDexStanding{InfoHash: pick, IsBest: true, Preference: 2})
@@ -1140,11 +1136,19 @@ func TestAnimeSpanSeaDexStanding(t *testing.T) {
 			snaps = append(snaps, snap)
 		}
 		tt, ctx := kaijuSeaDex(snaps)
+		if held {
+			for i := range tt.Episodes {
+				tt.Episodes[i].File = &ExistingFile{Quality: "Bluray-1080p", Revision: 1, InfoHash: span, SceneName: "[G] Kaiju Tale S01-S03 [BD 1080p]"}
+				tt.Episodes[i].FileID = 1
+			}
+		}
 		r := rel("[G] Kaiju Tale S01-S03 [BD 1080p]", "public", 20*gb)
 		r.InfoHash = span
+		r.Flags = []string{indexer.FlagSeaDex, indexer.FlagSeaDexBest}
+		r.Extras = map[string]string{"anilist": "1", "seadex_id": "x", indexer.ExtraSeaDexEntries: "1,2", "other": "kept"}
 		d, err := e.DecideSearch(ctx, r, tt, v, whole)
-		if err != nil || !d.Accepted {
-			t.Fatalf("span: %v %v", err, d.Rejections)
+		if err != nil {
+			t.Fatal(err)
 		}
 		r2 := rel("[G] Kaiju Tale S02 [BD 1080p]", "public", 6*gb)
 		r2.InfoHash = pick
@@ -1154,40 +1158,23 @@ func TestAnimeSpanSeaDexStanding(t *testing.T) {
 		}
 		return d, d2
 	}
-	d, d2 := decided(map[int]listing{1: {2, true}})
-	if d.SeaDexPreference() != 0 || RankMerged([]*Decision{d, d2})[0] != d2 {
-		t.Errorf("listed for season 1 only: standing %d, %s first", d.SeaDexPreference(), RankMerged([]*Decision{d, d2})[0].Release)
-	}
-	all, d2 := decided(map[int]listing{1: {2, true}, 2: {2, true}, 3: {2, true}})
-	if all.SeaDexPreference() == 0 || RankMerged([]*Decision{all, d2})[0] != all {
-		t.Errorf("listed for every season: standing %d, %s first", all.SeaDexPreference(), RankMerged([]*Decision{all, d2})[0].Release)
-	}
-	// Mixed ranks across the seasons: TestSpanSeaDexWeakest (the configured view rescores each entry's torrents).
-}
-
-// A span's standing over raw listings: the lowest among the episodes it is downloaded for (SpanSeaDexRelease).
-func TestSpanSeaDexWeakest(t *testing.T) {
-	t.Parallel()
-	hash := strings.Repeat("a", 40)
-	tt, ctx := kaijuSeaDex([]indexer.SeaDexSnapshot{
-		{AniList: 1, Torrents: []indexer.SeaDexStanding{{InfoHash: hash, IsBest: true, Preference: 3}}},
-		{AniList: 2, Torrents: []indexer.SeaDexStanding{{InfoHash: hash, Preference: 1}}},
-		{AniList: 3, Torrents: []indexer.SeaDexStanding{{InfoHash: hash, IsBest: true, Preference: 3}}}})
-	r := indexer.Release{InfoHash: hash, Flags: []string{indexer.FlagSeaDex, indexer.FlagSeaDexBest, indexer.FlagSeaDexPreferred}}
-	var eps, s13 [][2]int
-	for _, e := range tt.Episodes {
-		eps = append(eps, [2]int{e.Season, e.Number})
-		if e.Season != 2 {
-			s13 = append(s13, [2]int{e.Season, e.Number})
+	for _, seasons := range [][]int{{1}, {1, 2, 3}} {
+		d, d2 := decided(seasons, false)
+		if !d.Accepted || d.SeaDexPreference() != 0 || d.subject.Release.Quality.SeaDexPreference != 0 {
+			t.Errorf("listed for seasons %v: accepted %v, standing %d", seasons, d.Accepted, d.SeaDexPreference())
+		}
+		if got := RankMerged([]*Decision{d, d2})[0]; got != d2 {
+			t.Errorf("listed for seasons %v: %s first, want season 2's pick", seasons, got.Release)
 		}
 	}
-	got := SpanSeaDexRelease(ctx, r, 6, eps)
-	if indexer.SeaDexPreference(&got) != 1 || slices.Contains(got.Flags, indexer.FlagSeaDexBest) {
-		t.Errorf("all seasons: standing %d %v, want season 2's 1 and no Best", indexer.SeaDexPreference(&got), got.Flags)
+	if d, _ := decided([]int{1, 2, 3}, true); d.Accepted || d.Upgrade {
+		t.Errorf("a span over files held from the same torrent: accepted %v, upgrade %v (%s)", d.Accepted, d.Upgrade, d.UpgradeReason)
 	}
-	got = SpanSeaDexRelease(ctx, r, 6, s13)
-	if indexer.SeaDexPreference(&got) != 3 || !slices.Contains(got.Flags, indexer.FlagSeaDexBest) {
-		t.Errorf("seasons 1 and 3: standing %d %v, want 3 and Best", indexer.SeaDexPreference(&got), got.Flags)
+	// The release as it travels: no SeaDex flags or SeaDex extras, the rest kept.
+	cleared := ClearSeaDex(indexer.Release{Flags: []string{indexer.FlagSeaDex, indexer.FlagSeaDexBest, indexer.FlagSeaDexPreferred, "freeleech"},
+		Extras: map[string]string{"anilist": "1", "seadex_id": "x", indexer.ExtraSeaDexEntries: "1,2", "other": "kept"}})
+	if !slices.Equal(cleared.Flags, []string{"freeleech"}) || len(cleared.Extras) != 1 || cleared.Extras["other"] != "kept" {
+		t.Errorf("cleared release: %v %v", cleared.Flags, cleared.Extras)
 	}
 }
 

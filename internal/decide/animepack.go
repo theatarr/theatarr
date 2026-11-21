@@ -6,7 +6,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/theatarr/theatarr/internal/decide/format"
 	"github.com/theatarr/theatarr/internal/decide/parser/sonarr"
 	"github.com/theatarr/theatarr/internal/decide/profile"
 	"github.com/theatarr/theatarr/internal/indexer"
@@ -225,21 +224,6 @@ func (s *series) claimPack(d *Decision, p *sonarr.ParsedEpisodeInfo, rel indexer
 	}
 }
 
-// spanDownload is a span's episodes this search downloads: the searched seasons' of a merged search (scoped), else
-// all.
-func spanDownload(r *remoteEpisode, search *SeriesSearch) []*Episode {
-	if !scoped(search, r) {
-		return r.episodes
-	}
-	var out []*Episode
-	for _, e := range r.episodes {
-		if slices.Contains(search.Seasons, e.Season) {
-			out = append(out, e)
-		}
-	}
-	return out
-}
-
 // seasonsClaim is the claim of a named span: every regular episode of its seasons by the library's numbering.
 func seasonsClaim(seasons []int, eps []*Episode) *PackClaim {
 	claim := &PackClaim{Mode: PackSeasons, Seasons: slices.Clone(seasons)}
@@ -251,48 +235,32 @@ func seasonsClaim(seasons []int, eps []*Episode) *PackClaim {
 	return claim
 }
 
-// SpanSeaDexRelease is the SeaDex standing a pack of several seasons keeps (docs/design/series.md), wherever the
-// standing is refreshed by hash (deciding, the route, the import): the weakest across the episodes it is downloaded
-// for (eps, by season and number), each episode resolved as an incoming file of that episode alone is (the active
-// listings of the entries whose importable mapping covers it), in place of the standing of the hash as a whole (which
-// a pack listed under several entries at different ranks does not have). None when one episode has none; rank (Best)
-// and preference are tracked apart, Best only when it holds for every episode. The release comes back with its SeaDex
-// flags set to it. Only for a library that prefers SeaDex (the caller's).
-func SpanSeaDexRelease(ctx context.Context, rel indexer.Release, titleID int64, eps [][2]int) indexer.Release {
-	if len(eps) == 0 {
-		return rel
-	}
-	state := seaDexView(ctx)
-	hash := indexer.NormalizeHash(rel.InfoHash)
-	pref, best := 3, true
-	for _, ep := range eps {
-		x := resolveStanding(state, titleID, &ExistingFile{InfoHash: hash, seaDexEpisodes: [][2]int{ep}}, resolveImport)
-		pref = min(pref, x.SeaDexPreference)
-		best = best && x.SeaDex >= format.SeaDexBest
-		if pref == 0 {
-			break
-		}
-	}
+// ClearSeaDex is the release of a pack of several seasons as it travels (docs/design/series.md): no SeaDex standing at
+// all, its SeaDex flags (preference, rank, best) and the extras anilist, seadex_id and seadex_entries cleared. A
+// span is decided, ranked, stored and imported as an ordinary release on every library; when SeaDex lists the
+// torrent for a season, the SeaDex feed returns it as that season's own row, which carries the standing. Applied
+// before ranking and storing and after every RefreshSeaDexRelease; the per-file standing an import stores and held
+// files are untouched.
+func ClearSeaDex(rel indexer.Release) indexer.Release {
 	rel.Flags = slices.DeleteFunc(slices.Clone(rel.Flags), func(f string) bool {
 		return f == indexer.FlagSeaDex || f == indexer.FlagSeaDexBest || f == indexer.FlagSeaDexPreferred
 	})
-	if pref > 0 {
-		rel.Flags = append(rel.Flags, indexer.FlagSeaDex)
-		if best {
-			rel.Flags = append(rel.Flags, indexer.FlagSeaDexBest)
+	if rel.Extras != nil {
+		extras := make(map[string]string, len(rel.Extras))
+		for k, v := range rel.Extras {
+			if k != "anilist" && k != "seadex_id" && k != indexer.ExtraSeaDexEntries {
+				extras[k] = v
+			}
 		}
-		if pref >= 3 {
-			rel.Flags = append(rel.Flags, indexer.FlagSeaDexPreferred)
-		}
+		rel.Extras = extras
 	}
 	return rel
 }
 
-// spanNumbers are a span's episodes as (season, number).
-func spanNumbers(eps []*Episode) [][2]int {
-	out := make([][2]int, 0, len(eps))
-	for _, e := range eps {
-		out = append(out, [2]int{e.Season, e.Number})
+// ClearSpanSeaDex is ClearSeaDex for a release whose stored mapping claims a span, the release unchanged otherwise.
+func ClearSpanSeaDex(rel indexer.Release, m *EpisodeMap) indexer.Release {
+	if m == nil || !m.Pack.Span() {
+		return rel
 	}
-	return out
+	return ClearSeaDex(rel)
 }

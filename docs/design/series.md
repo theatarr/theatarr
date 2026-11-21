@@ -228,10 +228,12 @@ route and is the whole pack's, also when the download is narrowed. For anime, wh
 several seasons" (the route's attempts for packs, the order of the cache checks, the release rows' "Seasons 1 to
 3", the journal's checks) reads the claim, not the name; a batch across a season break counts against its first
 season's attempts. A pack of several seasons counts as a season pack in the merged order and in the rule that a
-season pack waits until every episode has aired. It keeps only the SeaDex standing it is listed for: each episode it
-brings is resolved on its own (the entries SeaDex actively lists the torrent under whose mapping covers that
-episode), and the pack takes the weakest, Best only when every episode is Best, none when one episode has none. This
-holds when deciding, in the route and at import, so a season's own SeaDex pick keeps winning that season. An anime absolute batch across seasons gets the same claim
+season pack waits until every episode has aired. It carries no SeaDex standing at all, on every library: its SeaDex
+marks and SeaDex ids are cleared on the release wherever it is decided, ranked, stored, routed or imported. When
+SeaDex lists the torrent for a season, the SeaDex feed returns it as that season's own row, which carries the
+standing, so a season's own SeaDex pick keeps winning that season; the pack is only taken where no SeaDex row won.
+The standing an import stores for each proved file, and held files, are untouched. Known cost: where the SeaDex feed
+gives no row (the whole-series window, a failed SeaDex query) a SeaDex-listed pack shows no SeaDex mark. An anime absolute batch across seasons gets the same claim
 (no span) in every search and RSS: its decision is today's, its import is proved.
 
 At import (`library/animepack.go`) a download with a claim, and no files chosen by hand, is proved before any link.

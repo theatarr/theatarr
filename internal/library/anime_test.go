@@ -800,3 +800,42 @@ func TestAnimeBatchAcrossBreakIsProved(t *testing.T) {
 		t.Fatalf("duplicate: links %d, why %q", len(plan.Links), plan.Why)
 	}
 }
+
+// A span carries no SeaDex standing as a release (section 13 point 3). On a library that does not prefer SeaDex, a
+// span whose stored release carries a SeaDex feed row's marks (listed for season 1 only) stores no SeaDex label on any
+// file; on a library that prefers SeaDex the import still stores each proved file's own standing.
+func TestAnimeSpanImportSeaDex(t *testing.T) {
+	t.Parallel()
+	for _, prefer := range []bool{false, true} {
+		e := newEnv(t, true)
+		e.kaiju()
+		e.pol.Versions["tv"].PreferSeaDex = prefer
+		e.exec(`INSERT INTO title_external_id VALUES(6,'anilist','11')`)
+		e.exec(`INSERT INTO metadata_cache(source,key,status,body,fetched_at,expires_at) VALUES('seadex-standing','11',200,?,0,253402214400000)`,
+			fmt.Sprintf(`{"anilist":11,"torrents":[{"info_hash":"%s","preference":2,"is_best":true,"facts":{"isBest":true}}]}`, hashA))
+		release := "[GRP] Kaiju Tale S01-S03 [WEB-DL 1080p]"
+		files := map[string]float64{}
+		for f := range kaijuFiles("SxxEyy") {
+			files[strings.Replace(f, "BluRay.x264", "WEB-DL.H264", 1)] = 1440
+		}
+		e.release(release, files)
+		e.videoSize(release, 1920, 1080)
+		js, _ := json.Marshal(kaijuIDs())
+		e.seriesDownload(1, 6, 60, hashA, release, string(js), kaijuClaim(decide.PackSeasons))
+		raw, _ := json.Marshal(indexer.Release{InfoHash: hashA, Flags: []string{indexer.FlagSeaDex, indexer.FlagSeaDexBest},
+			Extras: map[string]string{"anilist": "11"}})
+		e.exec(`UPDATE download SET release_data = ? WHERE id = 1`, string(raw))
+		plan, err := e.lib.Import(e.ctx, 1, false)
+		if err != nil || len(plan.Links) != 10 {
+			t.Fatalf("prefer=%v: links %d %v (%q)", prefer, len(plan.Links), err, plan.Why)
+		}
+		labelled := e.one(`SELECT COUNT(*) FROM link WHERE title_id = 6 AND state = 'active' AND
+			(COALESCE(json_extract(file_metadata,'$.SeaDexPreference'), 0) > 0 OR COALESCE(json_extract(file_metadata,'$.SeaDex'), 0) > 0)`)
+		if !prefer && labelled != "0" {
+			t.Errorf("not prefer: %s files carry a SeaDex label: %s", labelled, e.one(`SELECT file_metadata FROM link WHERE title_id = 6 LIMIT 1`))
+		}
+		if prefer && labelled == "0" {
+			t.Errorf("prefer: no proved file stored its own SeaDex standing")
+		}
+	}
+}
