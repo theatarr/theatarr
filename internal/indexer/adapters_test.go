@@ -748,6 +748,22 @@ func TestAnimePackSeasons(t *testing.T) {
 	}
 }
 
+// The episode token of a file name that marks an extra, shared by SeaDex batches and the anime pack proof.
+func TestExtraEpisodeToken(t *testing.T) {
+	for name, want := range map[string]bool{
+		"[GRP] Show - Recap 01 2160p [WEB].mkv": true, "[GRP] Show OVA 01.mkv": true, "[GRP] Show NCOP 01.mkv": true,
+		"[GRP] Show - OVA - 01.mkv": true, "[GRP] Show - NCED2 [BD].mkv": true, "[GRP] Show - 12.5 [BD].mkv": true,
+		"Show.NCOP1.1080p.mkv": true, "[GRP] Show - SP01 [BD].mkv": true, "[GRP] Show - OP1 [BD].mkv": true,
+		"[GRP] Show - 05 [BD 1080p AAC 5.1].mkv": false, "Special.Forces.S01E05.1080p.DDP5.1.mkv": false,
+		"[GRP] Special Forces - 05 [BD].mkv": false, "[GRP] Show - 05 [ED].mkv": false, "Show.S01E05.1080p-ED.mkv": false,
+		"[GRP] Show - 05.mkv": false,
+	} {
+		if got := ExtraEpisodeToken(name); got != want {
+			t.Errorf("%q: %v, want %v", name, got, want)
+		}
+	}
+}
+
 func TestZileanMerge(t *testing.T) {
 	loadFixtures(t, "zilean_imdb.json", "zilean_title.json")
 	n := newNet(t)

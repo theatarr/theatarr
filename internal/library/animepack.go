@@ -10,6 +10,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/decide/parser/sonarr"
+	"github.com/theatarr/theatarr/internal/indexer"
 )
 
 // The proof of an anime pack's numbering (docs/design/series.md, "Anime packs of several seasons"). A download whose
@@ -44,14 +45,6 @@ func claimed(d *importDownload) *decide.PackClaim {
 var (
 	// packExtraFolderRE is a folder of extras inside a pack.
 	packExtraFolderRE = regexp.MustCompile(`(?i)^(?:extras?|specials?|bonus|nc|nced|ncop|creditless|season[ ._]?0+|s0+|menus?|ovas?|oads?)$`)
-	// packExtraTokenRE is an episode token that marks an extra: OVA, OAD, ONA, SP with or without a number,
-	// Special, NCOP, NCED, NC OP/ED, creditless or clean opening or ending, OP/ED with a number, recap, preview, PV,
-	// CM, menu, trailer, teaser, or a decimal episode number ("12.5").
-	packExtraTokenRE = regexp.MustCompile(`(?i)^(?:(?:OVA|OAD|ONA|SP|Specials?)[ ._]?\d{0,3}|NC[ ._]?(?:OP|ED)[ ._]?\d{0,2}|` +
-		`creditless(?:[ ._].*)?|clean[ ._](?:opening|ending).*|(?:OP|ED)[ ._]?\d{1,2}|recap[ ._]?\d{0,3}|preview[ ._]?\d{0,3}|` +
-		`PV[ ._]?\d{0,2}|CM[ ._]?\d{0,2}|menu[ ._]?\d{0,2}|trailer[ ._]?\d{0,2}|teaser[ ._]?\d{0,2}|\d{1,4}\.\d)(?:v\d)?$`)
-	// packBracketRE is a bracketed group of a file name ("[1080p]", "(BD)"), dropped before the episode token is read.
-	packBracketRE = regexp.MustCompile(`\[[^\]]*\]|\([^)]*\)|\{[^}]*\}`)
 	// packSeasonFolderRE is a folder named as one season ("Season 2", "S02").
 	packSeasonFolderRE = regexp.MustCompile(`(?i)^(?:season|s)[ ._]?0*(\d{1,2})$`)
 	// packTitleSeasonRE is a season at the end of a parsed series title ("Show S2" of "Show S2 - 05").
@@ -59,7 +52,8 @@ var (
 )
 
 // packExtra says whether a file of a pack is an extra: below an extras folder ("Extras", "Specials", "Bonus", "NC",
-// "Season 0", "S00"), named with an extra marker as its episode token, or parsed as a special or a whole season.
+// "Season 0", "S00"), named with an extra marker as its episode token (indexer.ExtraEpisodeToken), or parsed as a
+// special or on season 0.
 // Markers are matched on the episode token or a folder name, never anywhere in the name: "5.1" audio and a series
 // title with "Special" in it are no extras.
 func packExtra(rel string, p *sonarr.ParsedEpisodeInfo) bool {
@@ -71,25 +65,15 @@ func packExtra(rel string, p *sonarr.ParsedEpisodeInfo) bool {
 			return true
 		}
 	}
-	stem := strings.TrimSuffix(filepath.Base(rel), filepath.Ext(rel))
-	plain := strings.TrimSpace(packBracketRE.ReplaceAllString(stem, " "))
-	if i := strings.LastIndex(plain, " - "); i >= 0 {
-		if packExtraTokenRE.MatchString(strings.TrimSpace(plain[i+3:])) {
-			return true
-		}
-	} else if p == nil || len(p.EpisodeNumbers) == 0 && len(p.AbsoluteEpisodeNumbers) == 0 {
-		// No episode numbers: a marker among the name's words is its episode token ("Show.NCOP1.1080p").
-		for _, w := range strings.FieldsFunc(plain, func(r rune) bool { return r == ' ' || r == '.' || r == '_' }) {
-			if packExtraTokenRE.MatchString(w) {
-				return true
-			}
-		}
+	if indexer.ExtraEpisodeToken(filepath.Base(rel)) {
+		return true
 	}
 	if p == nil {
 		return false
 	}
+	// A whole-season name with no number is a regular video without a number: it fails the proof, not set aside.
 	return p.Special || p.IsSeasonExtra || len(p.SpecialAbsoluteEpisodeNumbers) > 0 || p.SeasonNumber == 0 &&
-		len(p.EpisodeNumbers) > 0 || p.FullSeason && len(p.EpisodeNumbers) == 0 && len(p.AbsoluteEpisodeNumbers) == 0
+		len(p.EpisodeNumbers) > 0
 }
 
 // folderSeason is the one season the folders above a file name (inside the release), 0 for none; ok is false when

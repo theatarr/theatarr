@@ -98,7 +98,53 @@ var seadexExtraRE = regexp.MustCompile(`(?i)\b(?:OVA|OAD|ONA|specials?|SP\d*|NC 
 // path): the one classification the 1..N proof (seadexNumbered) and the import's season numbering
 // (decide.fileFranchise) both use, so an extra the proof left out is never placed as an episode.
 func SeaDexExtra(name string) bool {
-	return seadexExtraRE.MatchString(path.Base(strings.ReplaceAll(name, `\`, "/")))
+	base := path.Base(strings.ReplaceAll(name, `\`, "/"))
+	return seadexExtraRE.MatchString(base) || ExtraEpisodeToken(base)
+}
+
+var (
+	// extraBracketRE is a bracketed group of a file name ("[1080p]", "(BD)"), dropped before the episode token is read.
+	extraBracketRE = regexp.MustCompile(`\[[^\]]*\]|\([^)]*\)|\{[^}]*\}`)
+	// extraSegmentRE is an extra marker opening a name's segment ("Recap 01 2160p", "NCOP1", "OVA", "12.5").
+	extraSegmentRE = regexp.MustCompile(`(?i)^(?:(?:OVA|OAD|ONA|SP|Specials?|NC[ ._]?OP|NC[ ._]?ED|NCOP|NCED|creditless|` +
+		`clean[ ._](?:opening|ending)|recap|preview|PV|CM|menu|trailer|teaser)(?:[ ._]?\d{1,3})?|(?:OP|ED)[ ._]?\d{1,2}|\d{1,4}\.\d)(?:v\d)?(?:$|[ ._])`)
+	// extraWordRE is a marker word of a name without " - " segments; extraNumberedRE one that needs a number beside it.
+	extraWordRE     = regexp.MustCompile(`(?i)^(?:OVA|OAD|ONA|SP|NCOP|NCED|NC|creditless|recap|preview|PV|CM|menu|trailer|teaser)\d{0,3}(?:v\d)?$`)
+	extraNumberedRE = regexp.MustCompile(`(?i)^(?:OP|ED|Specials?)\d{0,2}$`)
+)
+
+// ExtraEpisodeToken says whether a file name's episode token is an extra marker: OVA, OAD, ONA, SP, Special, NCOP,
+// NCED, NC OP/ED, creditless or clean opening or ending, OP/ED with a number, recap, preview, PV, CM, menu, trailer,
+// teaser, or a decimal episode number ("12.5"). The token is a " - " segment after the first one, read before any
+// quality text after it ("Show - Recap 01 2160p"); in a name without segments a marker word after the first word with
+// a number or nothing after it ("Show OVA 01", "Show.NCOP1.1080p"). A marker anywhere else in the name is not read:
+// "5.1" audio and a series title with "Special" in it are no extras. SeaDex batches and the anime pack proof share it.
+func ExtraEpisodeToken(name string) bool {
+	stem := strings.TrimSuffix(name, path.Ext(name))
+	plain := strings.TrimSpace(extraBracketRE.ReplaceAllString(stem, " "))
+	if segs := strings.Split(plain, " - "); len(segs) > 1 {
+		for _, seg := range segs[1:] {
+			if extraSegmentRE.MatchString(strings.TrimSpace(seg)) {
+				return true
+			}
+		}
+		return false
+	}
+	words := strings.FieldsFunc(plain, func(r rune) bool { return r == ' ' || r == '.' || r == '_' })
+	for i := 1; i < len(words); i++ {
+		next := ""
+		if i+1 < len(words) {
+			next = words[i+1]
+		}
+		numbered := next != "" && next[0] >= '0' && next[0] <= '9'
+		switch {
+		case extraWordRE.MatchString(words[i]) && (next == "" || numbered):
+			return true
+		case extraNumberedRE.MatchString(words[i]) && (numbered || strings.IndexAny(words[i], "0123456789") > 0):
+			return true
+		}
+	}
+	return false
 }
 
 // seadexNumbered is N when the feature files (extras excluded) are numbered exactly 1..N, each once, read as the

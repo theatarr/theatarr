@@ -551,11 +551,19 @@ func TestAnimePackProofFails(t *testing.T) {
 	delete(missing, "Kaiju.Tale.S03E04.1080p.BluRay.x264-GRP.mkv")
 	outside := kaijuFiles("absolute")
 	outside["[GRP] Kaiju Tale - 11 [BD 1080p].mkv"] = 1440
+	recap := kaijuFiles("folders")
+	delete(recap, "Season 1/[GRP] Kaiju Tale - 01 [BD 1080p].mkv")
+	recap["Season 1/[GRP] Kaiju Tale - Recap 01 2160p [WEB].mkv"] = 1440
+	seasonVideo := kaijuFiles("SxxEyy")
+	seasonVideo["Kaiju Tale S02 1080p.mkv"] = 1440
 	for _, c := range []struct {
 		name, release, mode string
 		files               map[string]float64
 		why                 string
 	}{
+		{"a recap in place of an episode", "[GRP] Kaiju Tale Seasons 1-3 [BD 1080p]", decide.PackSeasons, recap, "no file for S01E01"},
+		{"a whole-season video without a number", "[GRP] Kaiju Tale S01-S03 [BD 1080p]", decide.PackSeasons, seasonVideo,
+			"reads as no episode: Kaiju Tale S02 1080p.mkv"},
 		{"two files on one episode", "[GRP] Kaiju Tale S01-S03 [BD 1080p]", decide.PackSeasons, dup, "two files on S02E01"},
 		{"restarting files under an absolute name", "[GRP] Kaiju Tale (01-10) [BD 1080p]", decide.PackAbsolute, restart,
 			"season-numbered file under an absolute name"},
@@ -614,7 +622,9 @@ func TestAnimePackExtras(t *testing.T) {
 	for name, want := range map[string]bool{"[GRP] Special Forces - 05 [BD 1080p].mkv": false,
 		"Special.Forces.S01E05.1080p.DDP5.1.mkv": false, "[GRP] Kaiju Tale - 05 [BD 1080p AAC 5.1].mkv": false,
 		"[GRP] Kaiju Tale - NCED2 [BD].mkv": true, "Specials/[GRP] Kaiju Tale - 01.mkv": true, "Kaiju.Tale.NCOP1.1080p.mkv": true,
-		"[GRP] Kaiju Tale - 12.5 [BD].mkv": true} {
+		"[GRP] Kaiju Tale - 12.5 [BD].mkv": true, "Season 1/[GRP] Kaiju Tale - Recap 01 2160p [WEB].mkv": true,
+		"[GRP] Kaiju Tale OVA 01.mkv": true, "[GRP] Kaiju Tale NCOP 01.mkv": true, "[GRP] Kaiju Tale - OVA - 01.mkv": true,
+		"Kaiju Tale S02 1080p.mkv": false, "[GRP] Kaiju Tale - 05 [ED].mkv": false} {
 		stem := strings.TrimSuffix(filepath.Base(name), filepath.Ext(name))
 		if got := packExtra(name, sonarr.ParseTitle(stem)); got != want {
 			t.Errorf("%s: extra %v, want %v", name, got, want)
