@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 
@@ -226,7 +227,8 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 	if firstFile != nil {
 		file, kept := firstFile, []string(nil)
 		if p.Engine.Config.AcceptReleaseAnyUpgradable && len(d.Rejections) == 0 {
-			file, kept = firstUpgraded(p, episodes, qm, matched)
+			d.KeptEpisodeIDs = p.Engine.KeptByRule(subj)
+			file, kept = firstUpgraded(p, episodes, qm, matched, d.KeptEpisodeIDs)
 		}
 		if file == nil {
 			d.Upgrade, d.UpgradeReason = true, fmt.Sprintf("fills %d episode(s) with no file", d.Missing)
@@ -247,11 +249,11 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 	return nil
 }
 
-// firstUpgraded is the first episode file the release upgrades (cutoff not met and an upgrade, as UpgradeDisk
-// judges each file), nil when it upgrades none; kept are the codes (as Decision.Episodes) of the episodes whose file
-// it does not upgrade.
+// firstUpgraded is the first episode file the release upgrades (not kept by rule, cutoff not met and an upgrade,
+// as UpgradeDisk judges each file), nil when it upgrades none; kept are the codes (as Decision.Episodes) of the
+// episodes whose file it keeps.
 func firstUpgraded(p *Profile, episodes []*profile.Episode, qm profile.QualityModel,
-	formats []*format.Format) (*profile.File, []string) {
+	formats []*format.Format, keptByRule []int64) (*profile.File, []string) {
 	var first *profile.File
 	var kept []string
 	for _, ep := range episodes {
@@ -259,7 +261,8 @@ func firstUpgraded(p *Profile, episodes []*profile.Episode, qm profile.QualityMo
 		if f == nil {
 			continue
 		}
-		if p.Engine.CutoffNotMet(p.Profile, f.Quality, f.Formats, &qm) &&
+		if !slices.Contains(keptByRule, ep.ID) &&
+			p.Engine.CutoffNotMet(p.Profile, f.Quality, f.Formats, &qm) &&
 			p.Engine.IsUpgradable(p.Profile, f.Quality, f.Formats, qm, formats) == profile.UpgradeNone {
 			if first == nil {
 				first = f

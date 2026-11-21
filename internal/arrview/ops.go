@@ -172,7 +172,7 @@ func (s *Service) grab(ctx context.Context, titleID int64, version string, rel i
 	if err := s.refuseDryRunRoute(version); err != nil {
 		return out, err
 	}
-	c := router.Candidate{Release: rel, Quality: d.Quality, Score: d.Score, Episodes: d.EpisodeIDs,
+	c := router.Candidate{Release: rel, Quality: d.Quality, Score: d.Score, Episodes: d.DownloadEpisodes(),
 		Formats: append([]decide.FormatScore{}, d.Formats...), EpisodeMap: d.EpisodeMapping()}
 	if vp := s.pol.Versions[version]; len(c.Episodes) == 0 && vp != nil && vp.Kind == policy.KindSeries {
 		return out, refused("the release matches no episode of the title")

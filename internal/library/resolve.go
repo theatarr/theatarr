@@ -143,7 +143,7 @@ func (l *Library) rescope(ctx context.Context, d *importDownload, files []Planne
 			return err
 		}
 		if dec != nil {
-			for _, id := range dec.EpisodeIDs {
+			for _, id := range dec.DownloadEpisodes() {
 				next[id] = true
 			}
 		}

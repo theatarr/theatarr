@@ -3,6 +3,7 @@ package decide
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -325,6 +326,77 @@ func TestSeasonPackRule(t *testing.T) {
 		if got := strings.Join(d.Kept, ","); got != c.kept {
 			t.Errorf("%s: kept %q, want %q", c.name, got, c.kept)
 		}
+	}
+
+	// Kept by companion rule (upgrades off, E01 at the profile's first allowed quality): E01 is kept both ways
+	// (UpgradeAllowed and UpgradeDisk), counted once in Kept, never quoted as upgraded, and left out of
+	// DownloadEpisodes while EpisodeIDs still holds it. When the same pack is rejected for its size,
+	// DownloadEpisodes returns every episode (an override routes the whole release).
+	pol, err := policy.Load("testdata/series")
+	if err != nil {
+		t.Fatalf("policy: %v", err)
+	}
+	no := false
+	pol.Profiles["tv"].Upgrades = &no
+	eNoUp, err := New(pol, Options{Now: func() time.Time { return seriesClock }})
+	if err != nil {
+		t.Fatalf("build upgrades-off engine: %v", err)
+	}
+	tt := show()
+	ep(&tt, 101).File, ep(&tt, 101).FileID = webFile, 101
+	d, err := eNoUp.Decide(ctx, pack, tt, tvVersion(eNoUp, "tv"), nil)
+	if err != nil {
+		t.Fatalf("upgrades off pack: %v", err)
+	}
+	if !d.Accepted {
+		t.Fatalf("upgrades off pack: expected accepted, got rejections %v", d.Rejections)
+	}
+	if !slices.Equal(d.Kept, []string{"S01E01"}) {
+		t.Errorf("upgrades off pack: kept %v, want [S01E01]", d.Kept)
+	}
+	wantReason := "fills 2 episode(s) with no file; 1 episode(s) keep their file"
+	if !d.Upgrade || d.UpgradeReason != wantReason {
+		t.Errorf("upgrades off pack: upgrade=%v reason=%q, want %q", d.Upgrade, d.UpgradeReason, wantReason)
+	}
+	if !slices.Equal(d.EpisodeIDs, []int64{101, 102, 103}) {
+		t.Errorf("upgrades off pack: EpisodeIDs %v, want [101 102 103]", d.EpisodeIDs)
+	}
+	if got := d.DownloadEpisodes(); !slices.Equal(got, []int64{102, 103}) {
+		t.Errorf("upgrades off pack: DownloadEpisodes %v, want [102 103]", got)
+	}
+
+	tiny := rel("The.Show.S01.2160p.UHD.BluRay.x265.HDR-GRP", "public", 1024)
+	dRej, err := eNoUp.Decide(ctx, tiny, tt, tvVersion(eNoUp, "tv"), nil)
+	if err != nil {
+		t.Fatalf("tiny pack: %v", err)
+	}
+	if dRej.Accepted || !strings.Contains(reasons(dRej), "BelowMinimumSize") {
+		t.Fatalf("tiny pack: accepted=%v reasons=%s, want BelowMinimumSize", dRej.Accepted, reasons(dRej))
+	}
+	if !slices.Equal(dRej.EpisodeIDs, []int64{101, 102, 103}) {
+		t.Errorf("tiny pack: EpisodeIDs %v, want [101 102 103]", dRej.EpisodeIDs)
+	}
+	if got := dRej.DownloadEpisodes(); !slices.Equal(got, []int64{101, 102, 103}) {
+		t.Errorf("tiny pack: DownloadEpisodes %v, want [101 102 103]", got)
+	}
+
+	// Kept by companion rule alone (repack of another group over E01, while UpgradeDisk would treat v2 over v1 as
+	// an upgrade): E01 is still in Kept, never quoted in UpgradeReason, and left out of DownloadEpisodes.
+	ttRepack := show()
+	ep(&ttRepack, 101).File, ep(&ttRepack, 101).FileID = webFile, 101
+	repackPack := rel("The.Show.S01.REPACK.2160p.WEB-DL-OTHER", "public", 30*gb)
+	dRepack, err := e.Decide(ctx, repackPack, ttRepack, tvVersion(e, "tv"), nil)
+	if err != nil {
+		t.Fatalf("repack pack: %v", err)
+	}
+	if !dRepack.Accepted || !slices.Equal(dRepack.Kept, []string{"S01E01"}) {
+		t.Fatalf("repack pack: accepted=%v kept=%v rjs=%v", dRepack.Accepted, dRepack.Kept, dRepack.Rejections)
+	}
+	if !dRepack.Upgrade || dRepack.UpgradeReason != wantReason {
+		t.Errorf("repack pack: upgrade=%v reason=%q, want %q", dRepack.Upgrade, dRepack.UpgradeReason, wantReason)
+	}
+	if got := dRepack.DownloadEpisodes(); !slices.Equal(got, []int64{102, 103}) {
+		t.Errorf("repack pack: DownloadEpisodes %v, want [102 103]", got)
 	}
 }
 

@@ -6,7 +6,9 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/policy"
@@ -296,5 +298,76 @@ func TestGrabSaysWhyNothingStarts(t *testing.T) {
 	}
 	if n := e.str(`SELECT COUNT(*) FROM job WHERE kind = 'router.route'`); n != "0" {
 		t.Errorf("%s routes queued for grabs that cannot start", n)
+	}
+}
+
+// TestGrabPackLeavesOutKeptEpisode checks AA2.3 and AA2.5: a grab by hand of an accepted pack whose E01 is kept by
+// rule routes only the remaining episodes; the same pack rejected for its size and grabbed with an override routes
+// every episode.
+func TestGrabPackLeavesOutKeptEpisode(t *testing.T) {
+	t.Parallel()
+	e := buildDevEnv(t, true, func(pol *policy.Policy) *decide.Engine {
+		pol.Profiles = map[string]*policy.Profile{
+			"tv-2160p": {
+				Qualities: []policy.QualityItem{{Name: "WEBDL-2160p"}},
+				Cutoff:    "WEBDL-2160p",
+				Propers:   policy.PropersPreferAndUpgrade,
+			},
+		}
+		for _, v := range pol.Versions {
+			v.Profile = "tv-2160p"
+		}
+		eng, err := decide.New(pol, decide.Options{Now: func() time.Time { return testNow }})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return eng
+	})
+	e.startDev(e.searcher.(Decider))
+	ctx := context.Background()
+	now := ms(testNow)
+	// Make S01E03 aired so the S01 pack covers all three aired episodes, with E01 held by another group.
+	e.exec(`UPDATE title SET runtime_minutes = 45, original_language = 'en' WHERE id = 10`)
+	e.exec(`UPDATE episode SET air_date = '2019-01-21', air_date_utc_at = ? WHERE id = 103`,
+		ms(time.Date(2019, 1, 22, 2, 0, 0, 0, time.UTC)))
+	e.exec(`INSERT INTO link (id, path, target, title_id, release_title, quality, score, file_metadata, state, created_at, updated_at)
+		VALUES (10, '/media/tv/The Show (2019)/Season 01/The Show - S01E01.mkv', '/zurg/Show/E01.mkv', 10,
+		'The.Show.S01E01.2160p.WEB-DL-OLD', 'WEBDL-2160p', 0,
+		'{"Revision":1,"ReleaseGroup":"OLD","SceneName":"The.Show.S01E01.2160p.WEB-DL-OLD","Languages":["English"],"Size":8000000000,"ReleaseType":"singleEpisode"}',
+		'active', ?, ?)`, now, now)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (10, 10)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (10, 101)`)
+
+	pack := indexer.Release{
+		Indexer:  "prowlarr-public",
+		Kind:     "torznab",
+		Privacy:  policy.PrivacyPublic,
+		Title:    "The.Show.S01.REPACK.2160p.WEB-DL-NEW",
+		InfoHash: strings.Repeat("a", 40),
+		Size:     30 << 30,
+		Seeders:  10,
+		Peers:    5,
+	}
+	g, err := e.svc.GrabRelease(ctx, 10, "tv-2160p", pack, false, "", "ui:grab:test")
+	if err != nil || !g.Decision.Accepted || g.Overridden || g.Job == 0 {
+		t.Fatalf("grab accepted pack: %+v %v", g, err)
+	}
+	e.drain()
+	if got := e.str(`SELECT episodes FROM download WHERE info_hash = ?`, pack.InfoHash); got != "[102,103]" {
+		t.Errorf("accepted pack download.episodes = %s, want [102,103]", got)
+	}
+
+	// Same pack rejected for its size (BelowMinimumSize) and grabbed with an override: routed for every episode.
+	e.exec(`DELETE FROM download`)
+	tiny := pack
+	tiny.InfoHash = strings.Repeat("b", 40)
+	tiny.Size = 1024
+	g, err = e.svc.GrabRelease(ctx, 10, "tv-2160p", tiny, true, "", "ui:grab:test")
+	if err != nil || g.Decision.Accepted || !g.Overridden || g.Job == 0 {
+		t.Fatalf("grab overridden tiny pack: %+v %v", g, err)
+	}
+	e.drain()
+	if got := e.str(`SELECT episodes FROM download WHERE info_hash = ?`, tiny.InfoHash); got != "[101,102,103]" {
+		t.Errorf("overridden pack download.episodes = %s, want [101,102,103]", got)
 	}
 }

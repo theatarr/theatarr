@@ -118,7 +118,7 @@ func Candidates(ranked []*decide.Decision, releases map[*decide.Decision]indexer
 		if !ok {
 			continue
 		}
-		out = append(out, Candidate{Release: rel, Quality: d.Quality, Score: d.Score, Episodes: d.EpisodeIDs,
+		out = append(out, Candidate{Release: rel, Quality: d.Quality, Score: d.Score, Episodes: d.DownloadEpisodes(),
 			Formats: append([]decide.FormatScore{}, d.Formats...), EpisodeMap: d.EpisodeMapping(),
 			QualityRank: d.QualityRank(), UpgradeReason: upgradeReason(d)})
 	}

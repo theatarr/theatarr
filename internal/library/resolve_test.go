@@ -371,3 +371,45 @@ func TestImportRecordsRepack(t *testing.T) {
 		t.Errorf("repack and revision %s", got)
 	}
 }
+
+// TestImportPackOutOfScopeKeepsHeldLink (control): a download whose episodes leave E01 out imports a pack with a file
+// per episode; E01's held link stays untouched, its file is unmatched as out of scope, and the other episodes link.
+func TestImportPackOutOfScopeKeepsHeldLink(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, created_at, updated_at) VALUES (203, 2, 1, 3, 'Third', 0, 0)`)
+	heldRel := "Show.S01E01.2160p.WEB-DL-OLD"
+	e.release(heldRel, map[string]float64{heldRel + ".mkv": 2700})
+	e.seriesDownload(1, 2, 20, hashA, heldRel, "[201]", nil)
+	if plan, err := e.lib.Import(e.ctx, 1, false); err != nil || len(plan.Links) != 1 {
+		t.Fatalf("seed E01: %+v %v", plan, err)
+	}
+	heldTarget := e.one(`SELECT target FROM link WHERE download_id = 1 AND state = 'active'`)
+	heldID := e.one(`SELECT id FROM link WHERE download_id = 1 AND state = 'active'`)
+
+	pack := "Show.S01.REPACK.2160p.WEB-DL-NEW"
+	hashB := strings.Repeat("b", 40)
+	e.release(pack, map[string]float64{
+		"Show.S01E01.REPACK.2160p.WEB-DL-NEW.mkv": 2700,
+		"Show.S01E02.REPACK.2160p.WEB-DL-NEW.mkv": 2700,
+		"Show.S01E03.REPACK.2160p.WEB-DL-NEW.mkv": 2700,
+	})
+	e.seriesDownload(2, 2, 20, hashB, pack, "[202, 203]", nil)
+	plan, err := e.lib.Import(e.ctx, 2, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Links) != 2 {
+		t.Fatalf("expected 2 links (E02, E03), got %d:\n%s", len(plan.Links), e.links(plan))
+	}
+	if len(plan.Unmatched) != 1 || plan.Unmatched[0] != "Show.S01E01.REPACK.2160p.WEB-DL-NEW.mkv" ||
+		!strings.HasPrefix(plan.Unresolved["Show.S01E01.REPACK.2160p.WEB-DL-NEW.mkv"], "out of scope: maps to S01E01") {
+		t.Errorf("unmatched=%v unresolved=%v", plan.Unmatched, plan.Unresolved)
+	}
+	if got := e.one(`SELECT id || '|' || target || '|' || state FROM link WHERE id = ?`, heldID); got != heldID+"|"+heldTarget+"|active" {
+		t.Errorf("E01 held link changed: %s", got)
+	}
+	if got := e.one(`SELECT group_concat(episode_id, ',') FROM (SELECT le.episode_id FROM link_episode le JOIN link l ON l.id = le.link_id WHERE l.download_id = 2 AND l.state = 'active' ORDER BY le.episode_id)`); got != "202,203" {
+		t.Errorf("pack linked episodes = %s, want 202,203", got)
+	}
+}

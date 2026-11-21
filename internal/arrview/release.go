@@ -707,7 +707,7 @@ func (s *Service) routeRelease(ctx context.Context, f *found, ds []*decide.Decis
 		if d.VersionID == 0 {
 			continue
 		}
-		c := router.Candidate{Release: f.rel, Quality: d.Quality, Score: d.Score, Episodes: d.EpisodeIDs,
+		c := router.Candidate{Release: f.rel, Quality: d.Quality, Score: d.Score, Episodes: d.DownloadEpisodes(),
 			Formats: append([]decide.FormatScore{}, d.Formats...), EpisodeMap: d.EpisodeMapping()}
 		req := router.Request{TitleID: f.titleID, VersionID: d.VersionID, Version: d.Version,
 			Candidates: []router.Candidate{c}, Source: source}

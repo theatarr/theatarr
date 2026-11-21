@@ -207,7 +207,7 @@ func (s *Service) prepareImport(ctx context.Context, r importRow) library.NewImp
 			b, _ := json.Marshal(d.Formats)
 			formats = string(b)
 			if len(r.episodes) == 0 && len(r.files) == 0 && r.kind == policy.KindSeries {
-				r.episodes = d.EpisodeIDs
+				r.episodes = d.DownloadEpisodes()
 			}
 			if m := d.EpisodeMapping(); m != nil {
 				b, _ := json.Marshal(m)

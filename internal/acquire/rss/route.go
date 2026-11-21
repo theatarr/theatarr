@@ -42,7 +42,7 @@ func (r *Runner) routeActive(ctx context.Context, sum *RSSSummary) error {
 			Candidates: router.Candidates(ranked, g.rels), Source: "rss"}
 		busy := true
 		for _, d := range g.ds {
-			inFlight, err := router.InFlight(ctx, r.st.Reader(), g.title.ID, g.version.ID, d.EpisodeIDs)
+			inFlight, err := router.InFlight(ctx, r.st.Reader(), g.title.ID, g.version.ID, d.DownloadEpisodes())
 			if err != nil {
 				return err
 			}
