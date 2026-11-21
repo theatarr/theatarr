@@ -85,15 +85,18 @@ from ordinary matching loads.
   specifications apply over the whole span: every episode aired, every episode monitored on RSS and automatic
   searches, at least one missing or upgradable episode, size by the summed runtime; a single-season pack still ranks
   first at equal quality and score. Anime series keep the rule: no span, no complete-series reading. A season pack, or any multi-episode release, is taken when it fills or
-  upgrades at least one usable episode (the actuallyevan fork's `ACCEPT_RELEASE_ANY_UPGRADABLE`, extended past both
-  Sonarr and the fork): episodes that already have a better file keep it (`UpgradeDisk`), and episodes whose held
-  file fails `UpgradeAllowed`, `Repack`, `Proper` or `AnimeVersionUpgrade` are kept by rule instead of refusing the
-  whole release whenever another episode is missing or upgradable and passes all four checks (with none usable, each
-  check rejects as before). Episodes kept by rule join `Decision.Kept`, are never quoted as upgraded, and are left
-  out of download episodes (`Decision.DownloadEpisodes`), so the import leaves their held files in place as out of
-  scope; a single-file multi-episode release (`S01E01E02`) with one episode kept by rule and one usable is accepted
-  and held for review on import ("no file matched the download's episodes"), as when one episode is plainly kept. The
-  decision's upgrade reason ends `; N episode(s) keep their file`.
+  upgrades at least one episode (the actuallyevan fork's `ACCEPT_RELEASE_ANY_UPGRADABLE`, taken further than Sonarr
+  and the fork). Two kinds of episode keep their file. An episode that already has a better file (`UpgradeDisk`)
+  stays in the download's episodes, and the import upgrade check (library.md) leaves its file in place. An episode
+  whose file fails `UpgradeAllowed`, `Repack`, `Proper` or `AnimeVersionUpgrade` (a better quality with upgrades
+  off, a repack or anime v2 of another or an unknown group, a proper for a file older than 7 days) no longer refuses
+  the whole release, as long as another episode of the release is usable: it has no file, or a file the release
+  upgrades that passes all four checks. With no usable episode each check rejects as before. An episode kept this
+  way is counted in `Decision.Kept`, is never quoted as upgraded, and is left out of the download's episodes
+  (`Decision.DownloadEpisodes`), so the import leaves its file in place as out of scope. A release that is one file
+  for two episodes (`S01E01E02`) with one episode kept this way and the other usable is accepted and then held for
+  review on import ("no file matched the download's episodes"). The decision's upgrade reason ends
+  `; N episode(s) keep their file`.
 
 ### RSS for series
 

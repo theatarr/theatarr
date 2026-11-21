@@ -42,11 +42,11 @@ scores) and adds the quality part.
   | `MaximumSize` | yes | yes | the global indexer setting |
   | `NotSample` | yes | yes | |
   | `RawDisk` | yes | yes | |
-  | `Proper` | yes | yes | RSS only; for series packs that fill or upgrade at least one episode, a failing held file is left in place instead of refusing the release ([series.md](series.md)) |
-  | `Repack` | yes | yes | for series packs that fill or upgrade at least one episode, a failing held file is left in place instead of refusing the release ([series.md](series.md)) |
+  | `Proper` | yes | yes | only when the release is judged without a search (RSS and a grab by hand); for a series release of several episodes, a held file that fails this check keeps its episode instead of refusing the release when another episode is usable ([series.md](series.md)) |
+  | `Repack` | yes | yes | for a series release of several episodes, a held file that fails this check keeps its episode instead of refusing the release when another episode is usable ([series.md](series.md)) |
   | `Language` | yes | n/a | the profile language, Any or Original |
-  | `AnimeVersionUpgrade` | n/a | yes | for series packs that fill or upgrade at least one episode, a failing held file is left in place instead of refusing the release ([series.md](series.md)) |
-  | `UpgradeAllowed`, `UpgradeDisk` | yes | yes | over `UpgradableSpecification`: `IsUpgradable`, `QualityCutoffNotMet`, `CutoffNotMet`, `IsRevisionUpgrade`, `IsUpgradeAllowed`; for series packs that fill or upgrade at least one episode, a held file failing `UpgradeAllowed` is left in place instead of refusing the release ([series.md](series.md)) |
+  | `AnimeVersionUpgrade` | n/a | yes | for a series release of several episodes, a held file that fails this check keeps its episode instead of refusing the release when another episode is usable ([series.md](series.md)) |
+  | `UpgradeAllowed`, `UpgradeDisk` | yes | yes | over `UpgradableSpecification`: `IsUpgradable`, `QualityCutoffNotMet`, `CutoffNotMet`, `IsRevisionUpgrade`, `IsUpgradeAllowed`; for a series release of several episodes, a held file that fails `UpgradeAllowed` keeps its episode instead of refusing the release when another episode is usable ([series.md](series.md)) |
 
 - **Ranking.** `Engine.Compare` and `Engine.Prioritize` port `DownloadDecisionComparer`.
   - Radarr order: quality and revision, format score, preferred protocol, indexer priority, indexer flags (when
