@@ -225,6 +225,17 @@ describe("Search series' answer (F8.1, F8.3)", () => {
     expect(title.closest("[data-toaster]")?.contains(body) ?? title.parentElement?.parentElement?.contains(body)).toBe(true);
     expect(screen.queryByTestId("title-search-outcome")).toBeNull();
   });
+  it("says a search that searched nothing once: no Nothing searched prefix under the Nothing to search title", async () => {
+    seriesBar({ started: false, message: "Nothing searched: no library can search this title." });
+    const user = userEvent.setup();
+    const button = await screen.findByTestId("title-search-now");
+    await waitFor(() => expect(button.hasAttribute("disabled")).toBe(false));
+    await user.click(button);
+    // The toaster is shared: an earlier test's "Nothing to search" may still be up, so find this toast by its body.
+    const body = await screen.findByText(/no library can search this title\./i);
+    expect(body.textContent).toBe("No library can search this title.");
+    expect(body.parentElement?.textContent).toContain("Nothing to search");
+  });
   it("keeps a started search said on the page", async () => {
     seriesBar({ started: true, message: "Searching 2 seasons in TV-WEB." });
     const user = userEvent.setup();

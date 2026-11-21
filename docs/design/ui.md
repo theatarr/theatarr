@@ -506,8 +506,10 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   reports one of them, with that run's own counts (never summed): "Last searched Season 2 today: 474 results, none
   accepted.", "Last search of Season 1 today failed."; after a run that searched, managers get **Show releases**,
   which opens that run's stored search (`?run=`) or says it stored none, never an older search; the row's Details
-  **Last search results** then opens the same run, so the row gives one answer. That page heads it as that search,
-  not the last one ("the search of Season 2 on Nov 12 that the Libraries row reports"; `at=` carries the day).
+  **Last search results** then opens the same run, so the row gives one answer (a row that shows no such line, such
+  as an available or unmonitored series, keeps the library's Last search there). That page heads it as that search,
+  not the last one ("the search of Season 2 on Nov 12 that the Libraries row reports"; `at=` carries the day), while
+  the linked library's tab is open; another library's tab is headed as its own Last search.
   **Row actions:** **Search now** (icon, managers; disabled with the reason; when other libraries want the
   title, its tooltip says they may use the results too), **Interactive search** (icon, a movie's library) and
   **Details**, which opens a panel under the row: path, edition, a series' episode counts, one **Upgrade** line (the
@@ -1531,7 +1533,7 @@ All under `/api/theatarr/v1` unless noted. Every list pages with `limit` (≤ 20
 | `PUT titles/{id}/versions/{key}` | turn a version on/off, monitor; one created or restored brings the libraries kept in sync with it (§2 "Keep in sync"), listed as `synced` |
 | `POST titles/{id}/search` | search now for versions (records a command like the arr views' `MoviesSearch`) |
 | `GET activity?state=now|history|blocked&title_id=&title=&version=&offset=&user=` | download rows with plain-words state, progress, provider, attempts (admin), library import results and (admin) `formats`; history rows (journal History, `history.go`) with `event` and `words`, and (admin) `episodes`, `files`, the row's `release`, `quality`, `score` (absent when unknown, never 0), `indexer`, `size`, `formats`, `reason` and a deleted file's `replaced_by`; `events=` filters them (the copy events only for callers who see files); blocked rows filtered by part of the title's name (`title`) and library (`version`), `total` the filtered count, each with the blocked download's `quality` and `indexer` when known; from `download`, `download_attempt`, `library_import`, `router_plan`, `acquire_run`, `router_blocklist` (moved out of `arrview/queue.go` into a shared reader) |
-| `GET titles/{id}/releases?version=&live=&season=` | Interactive search (`live=1`) and the stored "Last search" (decision engine results with reasons; manager); without `live`, `season` keeps the stored answer to that season's own search (target `sNN`) |
+| `GET titles/{id}/releases?version=&live=&season=&run=` | Interactive search (`live=1`) and the stored "Last search" (decision engine results with reasons; manager); without `live`, `season` keeps the stored answer to that season's own search (target `sNN`) |
 | `GET titles/{id}/release-outcomes?version=&episode=` | What came of each release of a library (or one episode) now, by info hash: the release lists' outcomes read again, with an in-flight download's state and words and whether a failed one can be grabbed again (manager) |
 | `GET requests?status=&mine=1`, `POST requests`, `POST requests/{id}/approve` (body may change versions/seasons), `POST requests/{id}/decline`, `DELETE requests/{id}` (cancel own) | requests (§3) |
 | `GET users`, `POST users`, `PATCH users/{id}` (role, permissions, disable), `POST users/{id}/reset-password`, `DELETE users/{id}/sessions` | users |

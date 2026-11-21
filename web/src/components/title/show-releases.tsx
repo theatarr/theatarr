@@ -153,6 +153,7 @@ export function ShowReleases({
   labels,
   season,
   run,
+  onVersion,
 }: {
   titleId: number;
   kind?: "movie" | "series";
@@ -165,6 +166,8 @@ export function ShowReleases({
   run?: number;
   /** Library names by settings key (from the title), for the tabs. */
   labels?: Record<string, string>;
+  /** Told the library tab picked, so the page can head a pinned run only in its own library. */
+  onVersion?: (key: string) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
@@ -181,12 +184,12 @@ export function ShowReleases({
         {defaultOpen ? null : <span className="hidden text-xs text-muted-foreground sm:inline">the last search Theatarr decided for each library</span>}
         <ChevronDown className={cn("size-4 transition-transform", !open && "-rotate-90")} />
       </button>
-      {open ? <Panel titleId={titleId} kind={kind} initialVersion={initialVersion} focus={focus} labels={labels} season={season} run={run} /> : null}
+      {open ? <Panel titleId={titleId} kind={kind} initialVersion={initialVersion} focus={focus} labels={labels} season={season} run={run} onVersion={onVersion} /> : null}
     </Card>
   );
 }
 
-function Panel({ titleId, kind, initialVersion, focus, labels, season, run }: { titleId: number; kind: "movie" | "series"; initialVersion?: string; focus?: string; labels?: Record<string, string>; season?: number; run?: number }) {
+function Panel({ titleId, kind, initialVersion, focus, labels, season, run, onVersion }: { titleId: number; kind: "movie" | "series"; initialVersion?: string; focus?: string; labels?: Record<string, string>; season?: number; run?: number; onVersion?: (key: string) => void }) {
   const perms = usePerms();
   const nameOf = useLibraryName();
   const [version, setVersion] = useState<string | undefined>(initialVersion);
@@ -211,7 +214,10 @@ function Panel({ titleId, kind, initialVersion, focus, labels, season, run }: { 
               type="button"
               role="tab"
               aria-selected={r?.version === k}
-              onClick={() => setVersion(k)}
+              onClick={() => {
+                setVersion(k);
+                onVersion?.(k);
+              }}
               className={cn("rounded-md p-0.5 ring-offset-0 transition", r?.version === k ? "ring-2 ring-[var(--line-focus)]" : "opacity-70 hover:opacity-100")}
             >
               <VersionTag k={k} label={labels?.[k]} className="text-[12px]" />

@@ -36,7 +36,8 @@ export function nothingToast(o: SearchOutcome) {
   if (o.started || !o.message) return;
   // A short title (one line on a phone) and the reason in the body, which wraps: "Nothing to search" and "Nothing
   // monitored is wanted in 4K WEB and 4K Remux".
-  const why = o.message.replace(/^Nothing to search:\s*/, "");
+  // The server says "Nothing searched: …" when no library could search; the title says that already too.
+  const why = o.message.replace(/^Nothing (?:to search|searched):\s*/, "");
   toast({ tone: "info", title: "Nothing to search", body: why === o.message ? o.message : why.charAt(0).toUpperCase() + why.slice(1) });
 }
 

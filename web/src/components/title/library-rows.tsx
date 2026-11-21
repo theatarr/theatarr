@@ -195,12 +195,14 @@ function cellOf(id: LibraryColumn, v: Version, kind: Kind, title: TitleDetail, p
 }
 
 /** What Details opens under a row: what has no column and is rarely needed. */
-function RowDetails({ v, kind, minimumShown, statusShown, onRemove }: { v: Version; kind: Kind; minimumShown: boolean; statusShown: boolean; onRemove: () => void }) {
+function RowDetails({ v, title, kind, minimumShown, statusShown, onRemove }: { v: Version; title: TitleDetail; kind: Kind; minimumShown: boolean; statusShown: boolean; onRemove: () => void }) {
   const perms = usePerms();
   const c = v.current;
   const key = v.key ?? "";
   const titleId = v.title_id ?? 0;
-  const reported = reportedRun(v, kind);
+  // Only a run the row's Status cell reports ("Last searched …"); an available, downloading or unmonitored row
+  // reports none, so Details keeps the library's Last search.
+  const reported = statusShown && whyMissing(v, title, kind, perms.manage) ? reportedRun(v, kind) : undefined;
   const rows: [ReactNode, ReactNode][] = [];
   // The path once: Library files lists each linked file's; a file with no link (an arr's) shows it here.
   if (c?.path && unlinkable(v.links).length === 0) rows.push(["Path", <Mono key="p" className="text-muted-foreground [overflow-wrap:anywhere]">{c.path}</Mono>]);
@@ -400,7 +402,7 @@ export function LibraryRows({ title, versions, pending }: { title: TitleDetail; 
           columns={columns}
           actions={actions}
           expanded={(v) => (open.has(v.key ?? "") ? (
-            <RowDetails v={v} kind={kind} minimumShown={wide && shown.includes("minimum_availability")} statusShown={!wide || shown.includes("status")}
+            <RowDetails v={v} title={title} kind={kind} minimumShown={wide && shown.includes("minimum_availability")} statusShown={!wide || shown.includes("status")}
               onRemove={() => setRemoving(v.key ?? "")} />
           ) : null)}
           cardHead={cardHead}

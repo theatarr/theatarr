@@ -504,6 +504,16 @@ describe("a series row's last search (F3.3)", () => {
       await userEvent.setup().click(screen.getByRole("button", { name: /Details/ }));
       expect((await screen.findByTestId("library-details-releases")).getAttribute("href")).toBe("/title/7/releases?version=tv&run=162&season=2&at=2026-11-12");
     });
+    it(`keeps Details on the library's Last search for an available series, whose row reports no search, at ${px} px`, async () => {
+      width(px);
+      manager();
+      const full = { ...tv({ target: "s02", state: "routed", results: 474, accepted: 3 }), has_file: true, state: "filled", episodes: { total: 20, have: 20, missing: 0, monitored: 20 } };
+      renderPage(<LibraryRows title={show as never} versions={[full] as never} />);
+      await screen.findByTestId("version-search-tv"); // the account is read
+      expect(screen.queryByTestId("library-why")).toBeNull();
+      await userEvent.setup().click(screen.getByRole("button", { name: /Details/ }));
+      expect((await screen.findByTestId("library-details-releases")).getAttribute("href")).toBe("/title/7/releases?version=tv");
+    });
   }
   it("says Search series on a series row: the helper text, the phone button and its name (F8.1); a film keeps Search now", async () => {
     width(400);
