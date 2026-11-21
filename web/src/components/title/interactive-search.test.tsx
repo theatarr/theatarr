@@ -618,6 +618,24 @@ it("searches a whole series for packs of several seasons and says what was left 
   expect(screen.getByTestId("interactive-left-out").textContent).toBe("1 other result is not shown. Search a season for those.");
 });
 
+// An anime series has the whole-series window too: a pack reads "Seasons 1 to 3", and a grab from it says it comes
+// from that window (decided again as a whole-series result).
+it("searches an anime series as a whole and grabs as from that window", async () => {
+  const series: Route = { ...TITLE, reply: { ...(TITLE.reply as object), kind: "series", series_type: "anime", anime: true } };
+  const span = { ...accepted, release: "[GRP] Alpha (01-06) [WEB 2160p]", multi_season: true, episodes: ["S01E01", "S01E02", "S02E01", "S02E02", "S03E01", "S03E02"] };
+  const api = mockFetch([ME, series, CURRENT, { method: "GET", path: "/titles/7/releases", reply: answer("movie-web", { candidates: [span], left_out: 2,
+    notes: "2 results of the search without a season are outside the whole-series search: left out" }) },
+  { method: "POST", path: "/titles/7/releases/grab", reply: sent }]);
+  renderPage(<InteractiveSearchButton titleId={7} version="movie-web" />);
+  open();
+  await screen.findByTestId("releases-list");
+  expect(screen.getByTestId("interactive-subject").textContent).toBe("Alpha (2020)Whole series");
+  expect(screen.getAllByTestId("release-card-episodes")[0].textContent).toBe("Seasons 1 to 3");
+  expect(screen.getByTestId("interactive-search").textContent).not.toContain("Search incomplete");
+  fireEvent.click(screen.getAllByTestId("release-grab")[0]);
+  await waitFor(() => expect(api.calls("POST", "/titles/7/releases/grab").map((g) => g.body)).toEqual([{ version: "movie-web", info_hash: "aaa", override: false, whole: true }]));
+});
+
 // On a phone (below 768 px) the whole-series window's texts are whole: the subject, a pack's seasons, the left-out
 // note and the empty state wrap rather than being cut.
 it("shows the whole-series window's texts whole on a phone", async () => {

@@ -281,7 +281,7 @@ export function GrabCell({ c, target, o, sentFrom, onSent, card }: { c: Candidat
       return;
     }
     grab.mutate(
-      { version: target.version, info_hash: c.info_hash ?? "", override: false },
+      { version: target.version, info_hash: c.info_hash ?? "", override: false, ...(target.whole ? { whole: true } : {}) },
       {
         onSuccess: () => {
           onSent();

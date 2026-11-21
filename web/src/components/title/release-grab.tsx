@@ -23,8 +23,9 @@ import { blockedRelease, unblockGrabScope, type BlockedRelease } from "@/lib/ops
 import { blockedGrabScope, grabConfirmScope, needsConfirm } from "@/lib/release-columns";
 import { useLibraryName } from "@/lib/library-names";
 
-/** Where a grab goes: the title, the library (its key) and the library's name for the words. */
-export type GrabTarget = { titleId: number; version: string; label?: string };
+/** Where a grab goes: the title, the library (its key) and the library's name for the words; whole for a release of
+ *  the whole-series window (decided again as that search's result). */
+export type GrabTarget = { titleId: number; version: string; label?: string; whole?: boolean };
 
 /** The 409 rejections of a grab the server now rejects, if that is how it failed. */
 export function lateRejections(e: unknown): string[] | undefined {
@@ -41,7 +42,7 @@ export function GrabDialog({ c, target, onClose, late: given, blocked: givenBloc
   const scope = blocked ? blockedGrabScope(c, blocked, late) : grabConfirmScope(c, target.label ?? target.version, late);
   const override = !c.accepted || !!late || !!grab.variables?.override;
   const send = () =>
-    grab.mutate({ version: target.version, info_hash: c.info_hash ?? "", override, ...(blocked ? { unblock: true } : {}) }, { onSuccess: () => onSent?.() });
+    grab.mutate({ version: target.version, info_hash: c.info_hash ?? "", override, ...(blocked ? { unblock: true } : {}), ...(target.whole ? { whole: true } : {}) }, { onSuccess: () => onSent?.() });
   const close = () => {
     // A grab on its way is not left behind: the dialog stays until it settles.
     if (grab.isPending) return;

@@ -68,7 +68,7 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
   const r = q.data;
   const library = lib ? lib.label || lib.key || "" : "";
   const kind = d?.kind === "series" ? "series" : "movie";
-  // A series searched as a whole (a standard or daily series' title-level search: packs of several seasons only).
+  // A series searched as a whole (a series' title-level search: packs of several seasons only).
   const wholeSeries = d?.kind === "series" && season === undefined && !episode;
   const scope = episode ? episode.code : season === undefined ? (wholeSeries ? "Whole series" : "") : season === 0 ? "Specials" : `Season ${season}`;
   const live = r?.source === "live";
@@ -81,7 +81,7 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
   // remounts per library, the dialog keeps them.
   const [sent, setSent] = useState<Record<string, ReadonlyMap<string, number>>>({});
   const grab = r && live && r.grab && perms.manage && lib ? {
-    titleId, version: r.version, label: library, sent: sent[r.version] ?? new Map<string, number>(),
+    titleId, version: r.version, label: library, whole: wholeSeries, sent: sent[r.version] ?? new Map<string, number>(),
     onSent: (hash: string, download: number) => setSent((s) => ({ ...s, [r.version]: new Map(s[r.version]).set(hash, download) })),
   } : undefined;
   // What came of each release now (a grab's progress); the search's own outcomes until it answers.

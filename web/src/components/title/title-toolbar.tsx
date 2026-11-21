@@ -1,7 +1,7 @@
 // The title page's action bar (docs/design/ui.md, Title page), also the header of the Last search page: Search now
 // (every monitored library that can search; "Search series" on a series), Interactive search (the title page only,
-// managers, when a library of it searches live: a movie, or the whole series of a standard or daily series, which
-// shows packs of several seasons only; an anime series has it per season and per episode only), then on the title page
+// managers, when a library of it searches live: a movie, or the whole series of a series, anime too, which shows
+// packs of several seasons only), then on the title page
 // Rename files (admins, with a file to rename: a preview first), History, Refresh metadata and Remove title; the Last
 // search page has Add to another library instead, while a library is left to add. Below 768 px the title page's other actions sit under More. The notices under the bar: Pause once for the
 // page, the Search now outcome or failure with Retry, and why nothing is searched. Search now runs only when it would
@@ -102,7 +102,7 @@ function RenameDialog({ titleId, labels, onClose }: { titleId: number; labels: R
   );
 }
 
-export function TitleToolbar({ titleId, name, year, kind, poster, anime, seriesType, versions, removed = [], onHistory, page = "title" }: {
+export function TitleToolbar({ titleId, name, year, kind, poster, anime, versions, removed = [], onHistory, page = "title" }: {
   titleId: number;
   name: string;
   year?: number;
@@ -129,9 +129,8 @@ export function TitleToolbar({ titleId, name, year, kind, poster, anime, seriesT
   const wide = useMinWidth(768);
   const [dialog, setDialog] = useState<"interactive" | "rename" | "remove" | null>(null);
   const titlePage = page === "title";
-  // Interactive search of the whole movie, or of the whole standard or daily series, for managers when a library of
-  // it searches live.
-  const whole = perms.manage && (kind === "movie" || wholeSeriesSearch(kind, anime, seriesType));
+  // Interactive search of the whole movie, or of the whole series, for managers when a library of it searches live.
+  const whole = perms.manage && (kind === "movie" || wholeSeriesSearch(kind));
   const live = whole && versions.some((v) => v.control?.live_releases);
   // The mutation holds the last try: its answer, its error, or nothing while a new one runs (mutate resets both).
   const outcome = searchNow.data ?? null;

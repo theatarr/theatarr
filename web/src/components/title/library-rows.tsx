@@ -278,7 +278,7 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
     const key = v.key ?? "";
     const name = nameOf(v);
     const searchable = !!c?.can_search;
-    const interactiveOk = perms.manage && (kind === "movie" || wholeSeriesSearch(kind, title.anime, title.series_type)) && !!c?.live_releases;
+    const interactiveOk = perms.manage && (kind === "movie" || wholeSeriesSearch(kind)) && !!c?.live_releases;
     const iconSize = wide ? "icon-sm" : "sm";
     const phone = wide ? "" : "h-9";
     return (

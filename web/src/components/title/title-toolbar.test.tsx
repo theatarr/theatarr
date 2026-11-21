@@ -42,19 +42,15 @@ it("offers Interactive search of a movie to a manager when a library of it searc
   expect(screen.queryByTestId("title-no-interactive")).toBeNull();
 });
 
-it("offers no whole-title Interactive search for an anime series or a non-manager", async () => {
+it("offers no whole-title Interactive search to a non-manager", async () => {
   const a = bar(["add"], true);
   await waitFor(() => expect(a.calls("GET", "/auth/me").length).toBeGreaterThan(0));
   await new Promise((r) => setTimeout(r, 20));
   expect(screen.queryByTestId("interactive-search-open")).toBeNull();
-  // An anime series has Interactive search per season and per episode only.
-  bar(["manage", "add"], true, "series", "anime");
-  expect(await screen.findAllByTestId("title-refresh")).toBeTruthy();
-  expect(screen.queryByTestId("interactive-search-open")).toBeNull();
 });
 
-it("offers a standard or daily series' Interactive search of the whole series, and says Search series", async () => {
-  for (const type of ["standard", "daily"]) {
+it("offers a series' Interactive search of the whole series, an anime series' too, and says Search series", async () => {
+  for (const type of ["standard", "daily", "anime"]) {
     document.body.innerHTML = "";
     bar(["manage", "add"], true, "series", type);
     expect(await screen.findByTestId("interactive-search-open")).toBeTruthy();
