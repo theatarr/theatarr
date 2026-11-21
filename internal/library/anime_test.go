@@ -1120,6 +1120,18 @@ func TestAnimePackLayoutsByTitle(t *testing.T) {
 			c.Episodes, c.Numbers = []int64{110, 111, 112, 201}, []decide.PackNumber{{N: 10, Episode: 110}, {N: 11, Episode: 111},
 				{N: 12, Episode: 112}, {N: 13, Episode: 201}}
 		}, false, []string{"Brave 10 - 13 (2012-2013).mkv"}, "", 0},
+		{"numbers split by a title separator, an unbracketed codec tag", "Brave Ten", decide.PackAbsolute, func(_ *decide.Title, c *decide.PackClaim) {
+			c.Episodes, c.Numbers = []int64{110, 111, 112, 201}, []decide.PackNumber{{N: 10, Episode: 110}, {N: 11, Episode: 111},
+				{N: 12, Episode: 112}, {N: 13, Episode: 201}}
+		}, false, []string{"Brave.10.-.13.1080p.BluRay.x264-10bit-GRP.mkv"}, "", 0},
+		{"numbers split by a title separator, an unbracketed audio tag", "Brave Ten", decide.PackAbsolute, func(_ *decide.Title, c *decide.PackClaim) {
+			c.Episodes, c.Numbers = []int64{110, 111, 112, 201}, []decide.PackNumber{{N: 10, Episode: 110}, {N: 11, Episode: 111},
+				{N: 12, Episode: 112}, {N: 13, Episode: 201}}
+		}, false, []string{"Brave 10 - 13 1080p DDP2.0-10bit.mkv"}, "", 0},
+		{"numbers split by a title separator, an unbracketed H265 tag", "Brave Ten", decide.PackAbsolute, func(_ *decide.Title, c *decide.PackClaim) {
+			c.Episodes, c.Numbers = []int64{110, 111, 112, 201}, []decide.PackNumber{{N: 10, Episode: 110}, {N: 11, Episode: 111},
+				{N: 12, Episode: 112}, {N: 13, Episode: 201}}
+		}, false, []string{"Brave 10 - 13 H265-10bit.mkv"}, "", 0},
 		{"flat pack with a scene title of season 2", "Isekai Story", decide.PackSeasons, scene("Isekai Story S2", 2), true,
 			proofFiles(no, sf("[Grp] Isekai Story S%d - %02d.mkv")), "[Grp] Isekai Story S2 - 05.mkv", 205},
 		{"title punctuation", "Show: 10", decide.PackAbsolute, nil, true, absFiles(nil, "Show 10 - %02d.mkv"), "Show 10 - 15.mkv", 203},

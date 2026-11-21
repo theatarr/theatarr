@@ -259,7 +259,9 @@ restarting per folder fail); under a named claim a season from the file's own na
 disagree fail; a folder that names a range, "Show S01-S02", names no season). A file's name is read with the library's
 own title dropped first (never a scene name, which can carry a season), so a number in the title is never an
 episode ("Brave 10 - 11" is episode 11); a file holds several episodes only when its name joins them ("S01E01-E02",
-"01-02"), never across a title separator ("Brave 10 - 13"). A folder's name is read whole by the same marker
+"01-02"), never across a title separator ("Brave 10 - 13"): the joining token stands on its own outside brackets,
+no letter or digit touching it, and its first and last numbers are the parse's, so a tag such as "x264-10bit",
+"H265-10bit" or "DDP2.0-10bit" joins nothing. A folder's name is read whole by the same marker
 rule before a season is read from it ("Season 1 [OVA]", "Disc.OVA", "OVAs" are folders of extras), except a
 wrapper that names a season range ("Show (Season 1+2+OVA)"), whose own name is not read. Extras follow one rule that can only fail closed: a marker word (OVA, OVAs, NCOP, creditless, recap,
 preview, opening, ending, movie, film, OP or ED with a number in any case, bare OP or ED in capitals, a decimal

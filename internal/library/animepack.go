@@ -154,7 +154,7 @@ func proveFile(rel string, p *sonarr.ParsedEpisodeInfo, read string, dirs *packD
 	if p == nil || len(p.EpisodeNumbers) == 0 && len(p.AbsoluteEpisodeNumbers) == 0 {
 		return nil, "a file reads as no episode: " + rel
 	}
-	if (len(p.EpisodeNumbers) > 1 || len(p.AbsoluteEpisodeNumbers) > 1) && !packJoinedRE.MatchString(packTagsRE.ReplaceAllString(read, " ")) {
+	if (len(p.EpisodeNumbers) > 1 || len(p.AbsoluteEpisodeNumbers) > 1) && !joinedToken(read, p) {
 		// Several episodes only from a joined token: "Brave 10 - 13" is no file of episodes 10 to 13.
 		return nil, "a file reads as several numbers across a title separator: " + rel
 	}
@@ -237,6 +237,51 @@ func parseFile(stem string, title *indexer.TitleMatcher) (p *sonarr.ParsedEpisod
 // packJoinedRE is a name's token that joins several episodes with no title separator: S01E01-E02, S01E01E02, 01-02,
 // 01+02, 01 & 02, 01~02.
 var packJoinedRE = regexp.MustCompile(`(?i)S\d{1,2}E\d{1,4}(?:-?(?:S\d{1,2})?E\d{1,4})+|\d{1,4}(?:-|\s*[+&~]\s*)\d{1,4}`)
+
+var (
+	// packTokenEpisodeRE is an episode number of an SxxEyy token.
+	packTokenEpisodeRE = regexp.MustCompile(`(?i)E(\d{1,4})`)
+	// packTokenNumberRE is a number of a bare joined token.
+	packTokenNumberRE = regexp.MustCompile(`\d{1,4}`)
+	// packVersionRE is a version suffix right after a token ("01-02v2").
+	packVersionRE = regexp.MustCompile(`^[vV]\d{1,2}`)
+)
+
+// joinedToken says whether read (outside brackets) holds a joined token (packJoinedRE) that stands as its own token,
+// no letter or digit touching it (a version suffix allowed after it), whose first and last numbers are the parse's
+// first and last: "x264-10bit" or "DDP2.0-10bit" is no joined token.
+func joinedToken(read string, p *sonarr.ParsedEpisodeInfo) bool {
+	nums := p.EpisodeNumbers
+	if len(nums) < 2 {
+		nums = p.AbsoluteEpisodeNumbers
+	}
+	if len(nums) < 2 {
+		return false
+	}
+	s := packTagsRE.ReplaceAllString(read, " ")
+	alnum := func(c byte) bool { return c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' }
+	for _, loc := range packJoinedRE.FindAllStringIndex(s, -1) {
+		end := loc[1] + len(packVersionRE.FindString(s[loc[1]:]))
+		if loc[0] > 0 && alnum(s[loc[0]-1]) || end < len(s) && alnum(s[end]) {
+			continue
+		}
+		token := s[loc[0]:loc[1]]
+		var got []string
+		if token[0] == 'S' || token[0] == 's' {
+			for _, m := range packTokenEpisodeRE.FindAllStringSubmatch(token, -1) {
+				got = append(got, m[1])
+			}
+		} else {
+			got = packTokenNumberRE.FindAllString(token, -1)
+		}
+		first, _ := strconv.Atoi(got[0])
+		last, _ := strconv.Atoi(got[len(got)-1])
+		if first == nums[0] && last == nums[len(nums)-1] {
+			return true
+		}
+	}
+	return false
+}
 
 // provePack proves a claimed pack's files (the download's own video files) against its claim, over the title's
 // episodes. why is the first reason the numbering cannot be trusted ("" when the proof holds).
