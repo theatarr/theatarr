@@ -85,8 +85,12 @@ func TestDeferredAutomaticRouteRedecidedAfterPolicyChange(t *testing.T) {
 				if res.Outcome != OutcomeCancelled || !strings.Contains(steps(res), "rejected_now") || e.writes() != 0 {
 					t.Fatalf("resume %+v, writes %d", res, e.writes())
 				}
-				if n := e.count(`SELECT COUNT(*) FROM download WHERE id = ? AND state = 'failed'`, resumed.DownloadID); n != 1 {
-					t.Errorf("queued download not failed")
+				if last := res.Steps[len(res.Steps)-1]; last.Message != "no release is accepted under the current policy" {
+					t.Errorf("cancel message = %q, want %q", last.Message, "no release is accepted under the current policy")
+				}
+				if n := e.count(`SELECT COUNT(*) FROM download WHERE id = ? AND state = 'failed' AND error = ?`,
+					resumed.DownloadID, "route cancelled: no release is accepted under the current policy"); n != 1 {
+					t.Errorf("queued download not failed with policy message")
 				}
 			case "accepted":
 				if res.Outcome != OutcomeAdded || asked != 1 {

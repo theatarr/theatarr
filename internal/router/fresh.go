@@ -266,6 +266,7 @@ func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate)
 	// deduplicated into the first one).
 	var unproven []int64
 	anyUnproven := false
+	anyAllKept := false
 	byDecision := map[*decide.Decision]Candidate{}
 	for i, c := range cands {
 		queued := c.Release
@@ -312,6 +313,7 @@ func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate)
 		c.Quality, c.Score, c.Formats = d.Quality, d.Score, append([]decide.FormatScore{}, d.Formats...)
 		c.EpisodeMap, c.QualityRank, c.UpgradeReason = d.EpisodeMapping(), d.QualityRank(), upgradeReason(d)
 		if series && !r.applyDecisionEpisodes(s, &c, d) {
+			anyAllKept = true
 			continue
 		}
 		c.Release = queued
@@ -322,7 +324,11 @@ func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate)
 		r.research(ctx, s.req.TitleID, s.req.VersionID, s.req.Version, unproven, "legacy_criteria", s.req.DownloadID)
 	}
 	if len(decisions) == 0 {
-		return r.finishFresh(ctx, s, "no release is still wanted by this version")
+		msg := "no release is accepted under the current policy"
+		if anyAllKept {
+			msg = "no release is still wanted by this version"
+		}
+		return r.finishFresh(ctx, s, msg)
 	}
 	// Tried in the order the current decisions rank them, as a fresh search would. The queued download
 	// this route resumes records the decision it is placed under when its candidate opens it (openDownload).
