@@ -153,8 +153,8 @@ already in the library, because the request names the libraries it already has a
 the API answers 400 to `monitor` there, naming the library title, and writes nothing. The footer counts the
 ticked libraries ("2 libraries"; "Nothing new ticked" before a change) and ends with **Add** (`search: false`) and **Add and search** (primary; `search: true`, so the ticked
 libraries that can search are searched at once); for a title already in the library they read **Add libraries** and
-**Add libraries and search**. Only **Add** is offered when no ticked library can search, with a line saying adding
-searches nothing, for a new series that monitors no episode (Monitor **None**, or its seasons with every box
+**Add libraries and search**. Only **Add** is offered when no ticked library can search (with a line saying adding
+searches nothing), or for a new series that monitors no episode (Monitor **None**, or its seasons with every box
 cleared; the switch for seasons that appear later does not change that), and only **Save seasons** when only a
 series' seasons changed. Nothing is remembered between adds. An add from the Search overlay that succeeds closes
 the overlay too, so the title's page it goes to is not covered; Cancel or a failed add returns to the same search,

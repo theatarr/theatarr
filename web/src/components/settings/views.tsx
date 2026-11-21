@@ -191,7 +191,7 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
   const save = () => {
     // A new app's key of spaces only is blank too; a key is otherwise sent exactly as typed.
     if (action === "replace" && (create ? !apiKey.trim() : !apiKey)) {
-      setError({ kind: "other", title: "Enter the API key", message: create ? "A new view needs its API key." : "Enter the new key, or keep the stored one." });
+      setError({ kind: "other", title: "Enter the API key", message: create ? "A new app needs its API key." : "Enter the new key, or keep the stored one." });
       return;
     }
     const body: Record<string, unknown> = { generation, versions, profiles };
