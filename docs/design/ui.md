@@ -509,10 +509,12 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   **Last search results** opens the same run, also after a run that found nothing (it then says the run stored no
   list), so the row gives one answer (a row that shows no such line, such
   as an available or unmonitored series, keeps the library's Last search there). That page heads it as that search,
-  not the last one ("the search of Season 2 on Nov 12 that the Libraries row reports", "the search of S02E05 on Nov 8 …" for an episode run, which links without a season; `at=` carries the day and `episode=` the episode, for the heading only), while
-  the linked library's tab is open; another library's tab is headed as its own Last search. The picked tab is the address's `version` (a tab
-  replaces it, keeping a season and dropping the run, its day and episode and a followed release), so the heading,
-  the panel closed and opened again, and Back all show the same library.
+  not the last one ("the search of Season 2 on Nov 12 that the Libraries row reports", "the search of S02E05 on Nov 8 …" for an episode run, which links without a season; `at=` carries the day and `episode=` the episode, for the heading only).
+  The library shown is the address's `version`, so the heading, the panel closed and opened again, and Back always
+  show the same one. Picking another library's tab keeps a season and drops the pinned run (its day and episode) and
+  a followed release from the address: that tab is headed as its own Last search. Leaving a pinned run or a followed
+  release adds a history entry, so Back returns to it; any other tab change replaces the address. An open
+  Interactive search closes when the library or season shown changes.
   **Row actions:** **Search now** (icon, managers; disabled with the reason; when other libraries want the
   title, its tooltip says they may use the results too), **Interactive search** (icon, a movie's library) and
   **Details**, which opens a panel under the row: path, edition, a series' episode counts, one **Upgrade** line (the

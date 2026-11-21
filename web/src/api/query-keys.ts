@@ -77,8 +77,9 @@ export const qk = {
   /** What came of each release of one library (or one episode of it) now: under the title, so the download events
    *  that refresh the title refresh it. */
   releaseOutcomes: (t: Id, version: string, episode?: number) => ["title", id(t), "release-outcomes", version, episode ?? 0] as const,
-  // Not under title(): a live answer is an indexer search, which an invalidation of the title must never re-run.
-  // season: a season's Last search (its own stored search), "all" without; run: one run's stored search, 0 without.
+  // A library's stored Last search (stored only; live answers are liveSearch's). Not under title(): an invalidation of
+  // the title does not reload it. season: a season's Last search (its own stored search), "all" without; run: one
+  // run's stored search, 0 without.
   releases: (t: Id, version: string, season?: number, run?: number) => ["releases", id(t), version, season ?? "all", run ?? 0] as const,
   /** One interactive search (one opening of the window, one library and scope): never refetched by an invalidation.
    *  interactive(t, session) is every library's answer of one opening. */

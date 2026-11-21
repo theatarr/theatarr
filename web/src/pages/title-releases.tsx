@@ -48,11 +48,12 @@ export function TitleReleasesPage() {
   const pinned = run !== undefined;
   const version = params.get("version") ?? undefined;
   // Another library: the run, its day and episode and the followed release were the linked library's; a season stays.
+  // Leaving an opened run or release adds a history entry, so Back returns to it; otherwise the address is replaced.
   const pick = (k: string) => {
     if (k === version) return;
     const next = new URLSearchParams({ version: k });
     if (rawSeason !== null) next.set("season", rawSeason);
-    setParams(next, { replace: true });
+    setParams(next, { replace: run === undefined && !params.has("hash") });
   };
   // A pinned run is that search, not the library's last one (a later search may exist): its season and day.
   const rawAt = params.get("at");

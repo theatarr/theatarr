@@ -169,13 +169,14 @@ export function ShowReleases({
   run?: number;
   /** Library names by settings key (from the title), for the tabs. */
   labels?: Record<string, string>;
-  /** The library shown, owned by the page (in its address, above this collapsible panel) so its heading and the rows
-   *  read the same one; with onVersion the panel keeps none of its own. */
+  /** The library shown, owned by the page (in its address) so its heading and the rows read the same one; without
+   *  onVersion the card keeps it, above the collapsible panel. */
   version?: string;
-  /** A tab picked: the page shows that library (initialVersion's run and followed release then no longer apply). */
+  /** A tab picked: the page shows that library. */
   onVersion?: (key: string) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const [own, setOwn] = useState<string | undefined>(initialVersion);
   return (
     <Card className="p-0" data-testid="show-releases">
       <button
@@ -190,20 +191,16 @@ export function ShowReleases({
         {defaultOpen ? null : <span className="hidden text-xs text-muted-foreground sm:inline">the last search Theatarr decided for each library</span>}
         <ChevronDown className={cn("size-4 transition-transform", !open && "-rotate-90")} />
       </button>
-      {open ? <Panel titleId={titleId} kind={kind} initialVersion={initialVersion} focus={focus} labels={labels} season={season} run={run} shown={version} onVersion={onVersion} /> : null}
+      {open ? <Panel titleId={titleId} kind={kind} initialVersion={initialVersion} focus={focus} labels={labels} season={season} run={run} version={onVersion ? version : own} onVersion={onVersion ?? setOwn} /> : null}
     </Card>
   );
 }
 
-function Panel({ titleId, kind, initialVersion, focus, labels, season, run, shown, onVersion }: { titleId: number; kind: "movie" | "series"; initialVersion?: string; focus?: string; labels?: Record<string, string>; season?: number; run?: number; shown?: string; onVersion?: (key: string) => void }) {
+function Panel({ titleId, kind, initialVersion, focus, labels, season, run, version, onVersion }: { titleId: number; kind: "movie" | "series"; initialVersion?: string; focus?: string; labels?: Record<string, string>; season?: number; run?: number; version?: string; onVersion: (key: string) => void }) {
   const perms = usePerms();
   const nameOf = useLibraryName();
-  const [own, setOwn] = useState<string | undefined>(initialVersion);
-  // The page owns the library when it passes onVersion; the run and the followed release are then always its.
-  const version = onVersion ? shown : own;
-  const linked = onVersion ? shown : initialVersion;
   // The run belongs to the library it was linked from; another tab shows that library's own Last search.
-  const runOf = run !== undefined && version === linked ? run : undefined;
+  const runOf = run !== undefined && version === initialVersion ? run : undefined;
   const q = useReleases(titleId, version, season, runOf);
   const seasonName = season === undefined ? "" : season === 0 ? "Specials" : `Season ${season}`;
   const r: Releases | undefined = q.data;
@@ -212,7 +209,7 @@ function Panel({ titleId, kind, initialVersion, focus, labels, season, run, show
   const versions = r?.versions ?? [];
   const items = r?.candidates ?? [];
   // The followed release is picked out in the library it was followed for only.
-  const shownFocus = focus && r?.version === linked ? focus : undefined;
+  const shownFocus = focus && r?.version === initialVersion ? focus : undefined;
   return (
     <div className="space-y-4 border-t border-[var(--line)] p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -223,7 +220,7 @@ function Panel({ titleId, kind, initialVersion, focus, labels, season, run, show
               type="button"
               role="tab"
               aria-selected={r?.version === k}
-              onClick={() => (onVersion ? onVersion(k) : setOwn(k))}
+              onClick={() => onVersion(k)}
               className={cn("rounded-md p-0.5 ring-offset-0 transition", r?.version === k ? "ring-2 ring-[var(--line-focus)]" : "opacity-70 hover:opacity-100")}
             >
               <VersionTag k={k} label={labels?.[k]} className="text-[12px]" />
@@ -233,7 +230,8 @@ function Panel({ titleId, kind, initialVersion, focus, labels, season, run, show
         </div>
         {r?.live_allowed && perms.manage ? (
           // A movie as a whole; a series as a whole too (its window lists packs of several seasons, wholeSeriesSearch).
-          kind === "movie" || wholeSeriesSearch(kind) ? <InteractiveSearchButton titleId={titleId} version={r.version} season={season} variant="outline" /> : null
+          kind === "movie" || wholeSeriesSearch(kind) ? // Keyed by its scope: a change of library or season (Back too) closes a dialog opened for the old one.
+          <InteractiveSearchButton key={`${r.version}:${season ?? ""}`} titleId={titleId} version={r.version} season={season} variant="outline" /> : null
         ) : r ? (
           <span className="text-xs text-[var(--ink-3)]" data-testid="releases-no-live">The acquirer is not running</span>
         ) : null}

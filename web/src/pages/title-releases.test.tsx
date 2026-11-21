@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 // The Last search page (/title/:id/releases): a season's link (?season=N) asks for that season's own stored search
 // and says so; a season with nothing stored says that; without season the page is as before. Invented keys.
-import { screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
-import { Route, Routes, useLocation, useNavigate } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router";
 import { expect, it, vi } from "vitest";
 import { SearchProvider } from "@/components/search/search-context";
 import { mockFetch, renderPage } from "@/test/page";
@@ -38,6 +39,21 @@ function Nav() {
   const navigate = useNavigate();
   const loc = useLocation();
   return <><button type="button" onClick={() => navigate(-1)}>Back</button><span data-testid="at">{loc.search}</span></>;
+}
+
+/** A series in two libraries (tv, tv4k), nothing stored in either; a live search never answers. */
+function twoLibraries() {
+  const two = { ...show, versions: [...show.versions, { id: 2, key: "tv4k", label: "TV 4K", control: { can_edit: true, can_search: true, live_releases: true } }] };
+  return mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["browse", "see_files", "manage"] } },
+    { method: "GET", path: "/titles/7", reply: two },
+    { method: "GET", path: "/titles/7/releases", reply: (r: { search: string }) => {
+      const q = new URLSearchParams(r.search);
+      return q.has("live") ? new Promise(() => {}) : { ...none, versions: ["tv", "tv4k"], version: q.get("version") ?? "tv" };
+    } },
+    { method: "GET", path: "/titles/7/release-outcomes", reply: { outcomes: {} } },
+    { method: "GET", path: "/add/options", reply: { kind: "series", anime: false, title_id: 7, router_enabled: true, episodes_known: true, can_search: true, seasons: [], versions: [] } },
+  ]);
 }
 
 for (const px of [400, 1440]) {
@@ -163,6 +179,45 @@ for (const px of [400, 1440]) {
     await waitFor(() => expect(screen.getByTestId("at").textContent).toBe("?version=tv&season=3"));
     await screen.findByText("No search of season 3 is stored for TV.");
     expect(screen.getAllByRole("tab")[0].getAttribute("aria-selected")).toBe("true");
+  });
+
+  it(`keeps a pinned run in the history when another library is picked, so Back returns to it, at ${px} px`, async () => {
+    width(px);
+    const api = twoLibraries();
+    renderPage(<SearchProvider><Routes><Route path="/title/:id/releases" element={<><TitleReleasesPage /><Nav /></>} /></Routes></SearchProvider>, "/title/7/releases?version=tv&run=162&season=2&at=2025-11-12");
+    await screen.findByText("This search stored no release list for TV.");
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("tab", { name: /TV 4K/ }));
+    await waitFor(() => expect(screen.getByTestId("at").textContent).toBe("?version=tv4k&season=2"));
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    await waitFor(() => expect(screen.getByTestId("at").textContent).toBe("?version=tv&run=162&season=2&at=2025-11-12"));
+    expect(await screen.findByText(/Show \(2020\): the search of Season 2 on Nov 12, 2025 that the Libraries row reports\./)).toBeTruthy();
+    expect(await screen.findByText("This search stored no release list for TV.")).toBeTruthy();
+    expect(new URLSearchParams(api.calls("GET", "/titles/7/releases").at(-1)!.search).get("run")).toBe("162");
+  });
+
+  it(`closes an open Interactive search when Back changes the library shown, at ${px} px`, async () => {
+    width(px);
+    twoLibraries();
+    // The app's cache (a list seen before shows at once on Back), not the tests' gcTime 0.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    render(
+      <MemoryRouter initialEntries={["/title/7/releases?version=tv&season=3"]}>
+        <QueryClientProvider client={client}>
+          <SearchProvider><Routes><Route path="/title/:id/releases" element={<><TitleReleasesPage /><Nav /></>} /></Routes></SearchProvider>
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("link", { name: "Show the last search for TV" }));
+    await user.click(await screen.findByRole("tab", { name: /TV 4K/ }));
+    await waitFor(() => expect(screen.getByTestId("at").textContent).toBe("?version=tv4k"));
+    await user.click(await screen.findByTestId("interactive-search-open"));
+    expect(await screen.findByRole("dialog", { name: "Interactive search" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    await waitFor(() => expect(screen.getByTestId("at").textContent).toBe("?version=tv&season=3"));
+    await screen.findByText("No search of season 3 is stored for TV.");
+    expect(screen.queryByRole("dialog", { name: "Interactive search" })).toBeNull();
   });
 
   it(`asks without a season when the link names none, and says what the whole-series search lists, at ${px} px`, async () => {
