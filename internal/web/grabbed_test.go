@@ -8,6 +8,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/theatarr/theatarr/internal/journal/snapshot"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -871,6 +872,21 @@ func TestFailureNamesProviderByTag(t *testing.T) {
 		err: "a failed copy is on the account (rd_main); an admin can delete it under Torrents"}}
 	if got := searchSummary(dls, 0, nil, nil, nil, "done", "", tag); !strings.HasSuffix(got,
 		" via RD → failed (A failed copy is on RD)") {
+		t.Errorf("summary %q", got)
+	}
+}
+
+// TestSearchSummaryQueued: a release that only waits behind provider pacing (its download row still queued, no
+// provider has taken it) reads "Queued #2" in Last search, not "Grabbed #2".
+func TestSearchSummaryQueued(t *testing.T) {
+	t.Parallel()
+	dls := []runDownload{{id: 1, hash: "bb", release: "Alpha.2020.1080p.WEB-GRP", state: "queued"}}
+	cands := []snapshot.Candidate{{InfoHash: "aa", Rank: 1}, {InfoHash: "bb", Rank: 2}}
+	if got := searchSummary(dls, 0, nil, cands, nil, "done", "", strings.ToUpper); got != "Queued #2" {
+		t.Errorf("summary %q", got)
+	}
+	dls[0].state, dls[0].provider = "adding", "rd_main"
+	if got := searchSummary(dls, 0, nil, cands, nil, "done", "", strings.ToUpper); got != "Grabbed #2 via RD_MAIN" {
 		t.Errorf("summary %q", got)
 	}
 }

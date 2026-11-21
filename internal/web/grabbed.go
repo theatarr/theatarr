@@ -873,7 +873,7 @@ func pickDownload(dls []runDownload, current map[int64]bool) int {
 }
 
 // searchSummary says in one line what a search grabbed: "Grabbed #2 via AD → imported (the current file); 1 other
-// failed" (the rank in the stored candidates, else the release's short title). It describes dls[pick], the download
+// failed", or "Queued #2" while the download waits behind provider pacing (the rank in the stored candidates, else the release's short title). It describes dls[pick], the download
 // that counted (pickDownload; current as there: whether that download's own link is the current file), and counts the
 // search's others by state. With no download: "Nothing grabbed: why". state and message are the acquire run's; a
 // search without a run (an RSS read) passes routed.
@@ -900,6 +900,9 @@ func searchSummary(dls []runDownload, pick int, current map[int64]bool, cands []
 		}
 	}
 	s := "Grabbed " + what
+	if d.state == "queued" {
+		s = "Queued " + what // waiting behind provider pacing: no provider has taken it yet
+	}
 	if d.provider != "" {
 		s += " via " + provider(d.provider)
 	}
