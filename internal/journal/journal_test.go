@@ -1211,7 +1211,7 @@ func TestPackChecks(t *testing.T) {
 	// only season 2's ids while season 3 is not in the metadata yet, and "S01.S03" with season 1's ids: each would be
 	// flagged large by its stored episodes, and each is left out of the check and of the median. A whole season pack
 	// stored with every episode of its one season (10 x 50 min at 850 MB/min) keeps its own check (flagged large) and
-	// stays out of the median.
+	// counts in the median as on 0.4.5.10; the same name narrowed to two of its season's episodes stays out of both.
 	var season1, season2 []int64
 	for n := 1; n <= 10; n++ {
 		season1 = append(season1, int64(100+n))
@@ -1237,7 +1237,9 @@ func TestPackChecks(t *testing.T) {
 		"Gamma.S01E01-E06.2160p.WEB-DL-X", "WEBDL-2160p", 100, int64(100*860)<<20, []int64{101, 102}, "")
 	e.dlEvent(86, "added", base.Add(46*time.Hour), 3, 3, "tv-2160p", fmt.Sprintf("%040d", 86),
 		"Gamma.S01E01-E06.2160p.WEB-DL-Y", "WEBDL-2160p", 100, int64(300*170)<<20, []int64{101, 102, 103, 104, 105, 106}, "")
-	for _, id := range []string{"dl:70", "dl:71", "dl:80", "dl:82", "dl:83", "dl:84", "dl:85", "dl:86"} {
+	e.dlEvent(87, "added", base.Add(47*time.Hour), 3, 3, "tv-2160p", fmt.Sprintf("%040d", 87),
+		"Gamma.S02.2160p.WEB-DL-X", "WEBDL-2160p", 100, 80<<30, []int64{201, 202}, "")
+	for _, id := range []string{"dl:70", "dl:71", "dl:80", "dl:82", "dl:83", "dl:84", "dl:85", "dl:86", "dl:87"} {
 		en := e.get(id)
 		for _, code := range []string{CheckUnparsed, CheckEpisodes, CheckSize} {
 			if f := hasFlag(en, code); f != nil {
@@ -1252,12 +1254,18 @@ func TestPackChecks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	whole := 0
 	for _, v := range stats.byQuality["webdl-2160p"] {
-		if v < 160 || v > 180 {
+		if v > 849 && v < 851 {
+			whole++ // the whole season pack, over its season's 500 min
+		} else if v < 160 || v > 180 {
 			t.Errorf("median input %.1f MB/min: an unclaimed or narrowed pack counted", v)
 		}
 	}
-	if n := len(stats.byQuality["webdl-2160p"]); n != 23 {
-		t.Errorf("median inputs %d, want 23 (20 grabs, the two claimed packs and the whole six-episode release)", n)
+	if whole != 1 {
+		t.Errorf("the whole season pack counted %d times in the median, want once", whole)
+	}
+	if n := len(stats.byQuality["webdl-2160p"]); n != 24 {
+		t.Errorf("median inputs %d, want 24 (20 grabs, the two claimed packs, the whole six-episode release and the whole season pack)", n)
 	}
 }

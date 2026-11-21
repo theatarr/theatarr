@@ -280,7 +280,7 @@ func (b *builder) checkSize(e *Entry, ti *titleInfo) error {
 	eps := e.f.episodeIDs
 	if ti.t.Kind == "series" && len(eps) > 0 {
 		var ok bool
-		if eps, ok = packCoverage(r.Title, eps, e.f.pack, ti.seasons); !ok {
+		if eps, ok = packCoverage(b.ctx, r.Title, eps, e.f.pack, ti.seasons); !ok {
 			return nil
 		}
 	}
@@ -326,16 +326,16 @@ func (b *builder) checkSize(e *Entry, ti *titleInfo) error {
 // (the download may have been narrowed to some of them), else the episodes it was filed under. A recognised pack
 // without a claim (a season pack, a span, a complete-series name, or a multi-episode release or absolute batch filed
 // under fewer episodes than it numbers) may have been narrowed, so ok is false and it is
-// left out, except in the entry's own check (bySeason given: the title's regular episode ids per season) a name that
-// states exactly one full season whose stored episodes are exactly that season's, at least one known.
-func packCoverage(release string, eps []int64, claim *decide.PackClaim, bySeason map[int][]int64) ([]int64, bool) {
+// left out, except a name that states exactly one full season whose stored episodes are exactly that season's
+// (bySeason: the title's regular episode ids per season), at least one known.
+func packCoverage(ctx context.Context, release string, eps []int64, claim *decide.PackClaim, bySeason map[int][]int64) ([]int64, bool) {
 	if claim != nil && len(claim.Episodes) > 0 {
 		return claim.Episodes, true
 	}
 	if _, _, _, ok := indexer.AnimePackSeasons(release); ok || indexer.HoldsSeasons(release) {
 		return nil, false
 	}
-	p := decide.ParseSeriesRelease(context.Background(), release)
+	p := decide.ParseSeriesRelease(ctx, release)
 	if p != nil && !p.FullSeason {
 		if n := max(len(p.EpisodeNumbers), len(p.AbsoluteEpisodeNumbers)); n > 1 && len(eps) != n {
 			return nil, false // a multi-episode release or batch filed under other than the episodes it numbers: narrowed
@@ -611,6 +611,27 @@ func (j *Journal) computeSizes(ctx context.Context) (*sizeStats, error) {
 		series[id] = rt
 	}
 	rows.Close()
+	// The regular episode ids per season of every series, read once: a whole single-season pack counts as on
+	// 0.4.5.10 when its stored ids are exactly its season's.
+	seasons := map[int64]map[int][]int64{}
+	rows, err = db.QueryContext(ctx, `SELECT title_id, season, id FROM episode WHERE season > 0 ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var title, id int64
+		var season int
+		if err := rows.Scan(&title, &season, &id); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		if seasons[title] == nil {
+			seasons[title] = map[int][]int64{}
+		}
+		seasons[title][season] = append(seasons[title][season], id)
+	}
+	rows.Close()
+	parse := decide.WithParseMemo(ctx)
 	s := &sizeStats{byQuality: map[string][]float64{}}
 	add := func(title int64, quality string, size int64, eps int) {
 		minutes := 0
@@ -645,7 +666,7 @@ func (j *Journal) computeSizes(ctx context.Context) (*sizeStats, error) {
 				_ = json.Unmarshal([]byte(mapping), &m)
 			}
 			var ok bool
-			if ids, ok = packCoverage(release, ids, m.Pack, nil); !ok {
+			if ids, ok = packCoverage(parse, release, ids, m.Pack, seasons[title]); !ok {
 				continue
 			}
 		}
