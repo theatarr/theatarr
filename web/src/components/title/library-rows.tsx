@@ -87,9 +87,9 @@ function reportedRun(v: Version, kind: Kind): Version["last_search"] {
 
 /** The Status cell: the stage linked to Activity, the upgrade badge with Why?, or the words; a second line under it,
  *  then a failed attempt (beside Upgrade found, never instead of it) and why a missing library is missing. */
-function StatusCell({ v, title, kind }: { v: Version; title: TitleDetail; kind: Kind }) {
+function StatusCell({ v, title, kind, pending }: { v: Version; title: TitleDetail; kind: Kind; pending?: "loading" | "late" }) {
   const perms = usePerms();
-  const s = libraryStatus(v, { ...title, kind });
+  const s = libraryStatus(v, { ...title, kind }, undefined, pending);
   const titleId = v.title_id ?? 0;
   const last = latestEvent(v);
   const why = whyMissing(v, title, kind, perms.manage);
@@ -131,12 +131,12 @@ const blank = null;
 const NOT_SCORED = "Not scored";
 
 /** One optional column's cell. Blank, never "0" or "None", for a fact the file does not have. */
-function cellOf(id: LibraryColumn, v: Version, kind: Kind, title: TitleDetail): ReactNode {
+function cellOf(id: LibraryColumn, v: Version, kind: Kind, title: TitleDetail, pending?: "loading" | "late"): ReactNode {
   const c = v.current;
   const held = !!v.has_file;
   switch (id) {
     case "status":
-      return <StatusCell v={v} title={title} kind={kind} />;
+      return <StatusCell v={v} title={title} kind={kind} pending={pending} />;
     case "quality":
       return held && c?.quality ? <span className="whitespace-nowrap">{c.quality}</span> : blank;
     case "score":
@@ -245,7 +245,9 @@ function RowDetails({ v, kind, minimumShown, statusShown, onRemove }: { v: Versi
 }
 
 
-export function LibraryRows({ title, versions }: { title: TitleDetail; versions: Version[] }) {
+/** pending: a new series' first metadata refresh is still to come ("late" once the page stopped waiting), as the hero
+ *  and Episodes say it. */
+export function LibraryRows({ title, versions, pending }: { title: TitleDetail; versions: Version[]; pending?: "loading" | "late" }) {
   const perms = usePerms();
   const titleId = title.id ?? 0;
   const kind: Kind = title.kind === "series" ? "series" : "movie";
@@ -332,7 +334,7 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
     ...shown.map((id): DataColumn<Version> => ({
       id,
       label: offered.find((c) => c.id === id)?.label ?? id,
-      cell: (v) => cellOf(id, v, kind, title),
+      cell: (v) => cellOf(id, v, kind, title, pending),
       headClassName: "whitespace-nowrap",
       cellClassName: id === "file" ? "max-w-[16rem]" : id === "release" ? "max-w-[22rem]" : undefined,
       card: "none",
@@ -355,7 +357,7 @@ export function LibraryRows({ title, versions }: { title: TitleDetail; versions:
         <div className="flex flex-wrap items-start gap-2">
           {monitor(v)}
           <div className="min-w-[8rem] flex-1"><LibraryName v={v} wrap /></div>
-          <div className="max-w-full"><StatusCell v={v} title={title} kind={kind} /></div>
+          <div className="max-w-full"><StatusCell v={v} title={title} kind={kind} pending={pending} /></div>
         </div>
         {v.has_file ? (
           <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--ink-2)]">

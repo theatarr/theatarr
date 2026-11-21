@@ -2,12 +2,19 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { TitlePage } from "./title";
 import { SearchProvider } from "@/components/search/search-context";
 import { json, mockFetch, renderPage } from "@/test/page";
 
 const me = { id: 3, username: "manager", permissions: ["see_files", "manage"], csrf_token: "t" };
+/** The window's width for useMinWidth (matchMedia's min-width and max-width queries). */
+const width = (px: number) =>
+  vi.stubGlobal("matchMedia", (q: string) => {
+    const min = /min-width:\s*(\d+)px/.exec(q);
+    const max = /max-width:\s*(\d+)px/.exec(q);
+    return { matches: (!min || px >= Number(min[1])) && (!max || px <= Number(max[1])), media: q, addEventListener() {}, removeEventListener() {} };
+  });
 const title = { id: 70, kind: "movie", name: "Juniper Signal", year: 2021, monitored: true, versions: [] };
 
 describe("Title page", () => {
@@ -109,14 +116,22 @@ describe("Title page", () => {
         "/title/70",
       );
     };
-    const first = page(true);
-    expect((await screen.findByTestId("title-readiness")).textContent).toBe("Loading episodes…");
-    expect((await screen.findByTestId("episodes-loading")).textContent).toContain("Loading episodes…");
-    expect(screen.queryByText("No episodes are known for this series yet.")).toBeNull();
-    first.unmount();
-    page(false);
-    expect(await screen.findByText("No episodes are known for this series yet.")).toBeTruthy();
-    expect(screen.getByTestId("title-readiness").textContent).not.toBe("Loading episodes…");
+    for (const px of [400, 1440]) {
+      width(px);
+      const first = page(true);
+      expect((await screen.findByTestId("title-readiness")).textContent).toBe("Loading episodes…");
+      expect((await screen.findByTestId("episodes-loading")).textContent).toContain("Loading episodes…");
+      expect(screen.queryByText("No episodes are known for this series yet.")).toBeNull();
+      // The Libraries row says the same while the episodes load (F4), not "No episode information yet".
+      expect((await screen.findByTestId("library-status")).textContent).toContain("Loading episodes…");
+      expect(screen.queryByText("No episode information yet")).toBeNull();
+      first.unmount();
+      const settled = page(false);
+      expect(await screen.findByText("No episodes are known for this series yet.")).toBeTruthy();
+      expect(screen.getByTestId("title-readiness").textContent).not.toBe("Loading episodes…");
+      expect(screen.getByTestId("library-status").textContent).not.toContain("Loading episodes…");
+      settled.unmount();
+    }
   });
 
   it("says Pause once above the Libraries table", async () => {

@@ -57,6 +57,11 @@ describe("library status", () => {
       expect(TONE[copyTone(versionBrief(lib), series, DAY)]).toBe(s.tone);
     }
     expect(libraryStatus(v({ episodes: { have: 0, total: 0, missing: 0 } }), { ...series, release_date: "2027-02-01", status: "Planned" }, DAY).label).toBe("Nothing aired yet");
+    // A new series whose first metadata refresh is still to come says what the hero and Episodes say (F4), then the
+    // late words; once episodes are known the pending flag changes nothing.
+    expect(libraryStatus(v({ episodes: { have: 0, total: 0, missing: 0 } }), series, DAY, "loading")).toMatchObject({ label: "Loading episodes…", tone: "neutral" });
+    expect(libraryStatus(v({ episodes: undefined }), series, DAY, "late")).toMatchObject({ label: "Episodes not loaded yet", tone: "neutral" });
+    expect(libraryStatus(v({ has_file: true, episodes: { have: 42, total: 48, missing: 6 } }), series, DAY, "loading").label).toBe("42 of 48 episodes linked");
     expect(libraryStatus(v({ has_file: true, episodes: { have: 42, total: 48, missing: 6 } }), series, DAY).sub).toBe("6 missing");
   });
 });

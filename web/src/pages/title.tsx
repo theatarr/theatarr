@@ -339,7 +339,7 @@ export function TitlePage() {
         <div className="mt-6 space-y-4">
           <TitleToolbar titleId={Number(id)} name={target.name} year={target.year} kind={target.kind} poster={target.poster} anime={!!d.anime} versions={versions}
             removed={all.filter((v) => v.removed)} onHistory={showHistory} />
-          <LibraryRows title={d} versions={all} />
+          <LibraryRows title={d} versions={all} pending={d.metadata_pending ? (late ? "late" : "loading") : undefined} />
         </div>
       ) : null}
 

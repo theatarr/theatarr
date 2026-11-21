@@ -105,7 +105,7 @@ export function versionBrief(v: Version): VersionBrief {
  * beside it (upgrade: "Upgrade found", "Preferred quality not met" or "Preferred quality met", with Why?) and "Upgrade
  * downloading · 37%" under it when one is in hand.
  */
-export function libraryStatus(v: Version, t: ToneTitle, day?: string): LibraryStatus {
+export function libraryStatus(v: Version, t: ToneTitle, day?: string, pending?: "loading" | "late"): LibraryStatus {
   const a = v.acquisition;
   const b = versionBrief(v);
   const tone = TONE[copyTone(b, t, day)];
@@ -113,6 +113,9 @@ export function libraryStatus(v: Version, t: ToneTitle, day?: string): LibrarySt
     const e = v.episodes;
     // Nothing held yet and a download in hand: its stage, not "0 of 8".
     if (a && !e?.have && a.stage !== "blocked") return { label: stageWords(a), tone: "info", stage: a };
+    // A new series whose first metadata refresh is still to come (pending): the hero's and Episodes' words, not "No
+    // episode information yet" above their "Loading episodes…".
+    if (pending && !(e?.total ?? 0)) return { label: pending === "late" ? "Episodes not loaded yet" : "Loading episodes…", tone: TONE.idle };
     const missing = e?.missing ?? 0;
     // A library that monitors none of its episodes says so once: "291 of 291 episodes available, not monitored",
     // "37 of 37 episodes · none monitored".
