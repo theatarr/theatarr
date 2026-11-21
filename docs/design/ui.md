@@ -1103,8 +1103,8 @@ Notifications page's Destinations panel (`notify.enabled`; "Off: events are reco
 searches, new grabs and imports stop for every library; Interactive search can still look up releases. Turn off to resume." Every Pause notice uses that one wording (the pages' notice "Paused: searches, new grabs and imports stop for every library; Interactive search can still look up releases." or "Paused by the
 environment (THEATARR_FORCE_OFF): …", the reason on disabled search buttons, a library row's missing line, the unblock
 box, `theatarr router status` and preflight; a refused search's toast gives it without library names, as it holds for every library: "Nothing searched: Paused: …"): Interactive search still looks releases up while paused, on purpose; its Grab and
-Try again are off then, and one line in the window says why ("Paused: no grabs until Pause is turned off at the top
-of the page.", or "Paused by the environment (THEATARR_FORCE_OFF): no grabs."). Turning it off asks for confirmation; turning it on
+Try again are off then, and one line in the window says why ("Downloads are paused. You can still look up releases.", true
+for every account, or "Paused by the environment (THEATARR_FORCE_OFF): no grabs."). Turning it off asks for confirmation; turning it on
 does not. When `THEATARR_FORCE_OFF` forces it, the switch is a disabled pill **Paused (locked)** titled "Paused by
 THEATARR_FORCE_OFF. Remove it and restart to resume." Searches that are due (Search now, the schedule) wait while paused and start when Pause is turned off; downloads
 already sent keep going. The Wanted page shows those rows as Paused, never with a time, and its Search now line says

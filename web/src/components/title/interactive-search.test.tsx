@@ -680,7 +680,7 @@ it("shows the whole-series window's texts whole on a phone", async () => {
 
 it("under Pause, ordinary or locked, keeps Grab and Try again off and says why once; looking up stays possible", async () => {
   for (const [state, words] of [
-    [{ paused: true, pause_forced: false, will_grab: false }, "Paused: no grabs until Pause is turned off at the top of the page."],
+    [{ paused: true, pause_forced: false, will_grab: false }, "Downloads are paused. You can still look up releases."],
     [{ paused: false, pause_forced: true, will_grab: false }, "Paused by the environment (THEATARR_FORCE_OFF): no grabs."],
   ] as const) {
     const paused: Route = { ...TITLE, reply: { ...(TITLE.reply as object), versions: (TITLE.reply as { versions: object[] }).versions.map((v) => ({ ...v, control: { ...(v as { control: object }).control, grab_state: state } })) } };

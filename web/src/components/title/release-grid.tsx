@@ -265,7 +265,8 @@ function Cell({ id, c, outcomes }: { id: ReleaseColumnId; c: Candidate; outcomes
  *  then (0: none); "Sent" stands until an outcome of another download answers. In flight: the download's words, with
  *  a spinner while something works on it; imported or current: Imported; failed: Failed, with the button back
  *  ("Try again") and what each provider answered, with a note when it is blocklisted (the grab asks first); replaced or nothing: the button. */
-export function GrabCell({ c, target, o, sentFrom, onSent, card, paused }: { c: Candidate; target: GrabTarget; o?: ReleaseOutcome; sentFrom?: number; onSent: () => void; card?: boolean; paused?: boolean }) {
+export function GrabCell({ c, target, o, sentFrom, onSent, card }: { c: Candidate; target: GrabTarget & { paused?: boolean }; o?: ReleaseOutcome; sentFrom?: number; onSent: () => void; card?: boolean }) {
+  const paused = target.paused;
   const grab = useGrab(target.titleId);
   const [dialog, setDialog] = useState<{ late?: string[]; blocked?: BlockedRelease }>();
   const library = target.label ?? target.version;
@@ -567,7 +568,7 @@ export function ReleaseGrid({
                     ))}
                     {grab ? (
                       <TableCell className="align-top text-right">
-                        <GrabCell c={c} target={grab} o={outcomeOf(c, outcomes)} sentFrom={sentFrom(c)} onSent={markSent(c)} paused={grab.paused} />
+                        <GrabCell c={c} target={grab} o={outcomeOf(c, outcomes)} sentFrom={sentFrom(c)} onSent={markSent(c)} />
                       </TableCell>
                     ) : null}
                   </TableRow>
@@ -596,6 +597,7 @@ export function ReleaseGrid({
           <ul className="space-y-2 md:hidden" data-testid="releases-list">
             {visible.map((c) => {
               const copies = openOf(c, ":copies");
+              const age = fmtAge(c.published);
               return (
               <li key={key(c)} data-release-hash={c.info_hash?.toLowerCase()} data-focus={picked(c) || undefined} className={cn("rounded-[5px] border border-[var(--line)] bg-[var(--surface)] p-3", picked(c) && "border-[var(--accent)] bg-[var(--accent-soft)]")}>
                 <div className="flex items-start justify-between gap-3">
@@ -603,7 +605,7 @@ export function ReleaseGrid({
                   <Score c={c} />
                 </div>
                 <div className="mt-1 text-xs text-[var(--ink-2)]">
-                  {[c.quality || "—", c.size ? fmtBytes(c.size) : "", fmtAge(c.published) !== "—" ? fmtAge(c.published) : "", `${peersText(c)} peers`, c.copies?.length ? "" : allIndexersText(c)].filter(Boolean).join(" · ")}
+                  {[c.quality || "—", c.size ? fmtBytes(c.size) : "", age !== "—" ? age : "", `${peersText(c)} peers`, c.copies?.length ? "" : allIndexersText(c)].filter(Boolean).join(" · ")}
                   {c.copies?.length ? (
                     <>
                       {" · "}
@@ -627,7 +629,7 @@ export function ReleaseGrid({
                   <Status c={c} card />
                   <Outcome o={outcomeOf(c, outcomes)} card />
                 </div>
-                {grab ? <div className="mt-2"><GrabCell c={c} target={grab} o={outcomeOf(c, outcomes)} sentFrom={sentFrom(c)} onSent={markSent(c)} card paused={grab.paused} /></div> : null}
+                {grab ? <div className="mt-2"><GrabCell c={c} target={grab} o={outcomeOf(c, outcomes)} sentFrom={sentFrom(c)} onSent={markSent(c)} card /></div> : null}
               </li>
               );
             })}

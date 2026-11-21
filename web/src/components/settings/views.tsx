@@ -189,7 +189,8 @@ export function ViewSheet({ view: opened, generation: openedAt, readOnly, onClos
   // A profile's choices: the libraries this app serves (ticked above; unticking one there drops it from every profile).
   const profileChoices = versions.map(libraryOption(nameOf));
   const save = () => {
-    if (action === "replace" && !apiKey) {
+    // A new app's key of spaces only is blank too; a key is otherwise sent exactly as typed.
+    if (action === "replace" && (create ? !apiKey.trim() : !apiKey)) {
       setError({ kind: "other", title: "Enter the API key", message: create ? "A new view needs its API key." : "Enter the new key, or keep the stored one." });
       return;
     }

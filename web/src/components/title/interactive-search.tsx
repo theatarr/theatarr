@@ -166,7 +166,7 @@ export function InteractiveSearch({ titleId, version, season, episode, onClose }
                 )}
                 {grab && paused ? (
                   <p className="text-sm font-medium text-[var(--warn-ink)]" data-testid="interactive-paused">
-                    {paused === "locked" ? "Paused by the environment (THEATARR_FORCE_OFF): no grabs." : "Paused: no grabs until Pause is turned off at the top of the page."}
+                    {paused === "locked" ? "Paused by the environment (THEATARR_FORCE_OFF): no grabs." : "Downloads are paused. You can still look up releases."}
                   </p>
                 ) : null}
                 {current ? (

@@ -1088,19 +1088,11 @@ func plural(n int, one, many string) string {
 	return fmt.Sprintf("%d %s", n, many)
 }
 
-// grouped is a count with comma separators, as the UI writes counts: 5000 reads "5,000".
+// grouped is a count (never negative here) with comma separators, as the UI writes counts: 5000 reads "5,000".
 func grouped(n int) string {
 	s := strconv.Itoa(n)
-	sign := ""
-	if n < 0 {
-		sign, s = "-", s[1:]
+	for i := len(s) - 3; i > 0; i -= 3 {
+		s = s[:i] + "," + s[i:]
 	}
-	var b strings.Builder
-	for i, r := range s {
-		if i > 0 && (len(s)-i)%3 == 0 {
-			b.WriteByte(',')
-		}
-		b.WriteRune(r)
-	}
-	return sign + b.String()
+	return s
 }

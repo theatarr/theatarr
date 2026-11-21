@@ -387,6 +387,24 @@ it("gives a new app one always-open key field: no state badge, no Cancel of its 
   expect((await within(sheet).findByTestId("settings-error")).textContent).toContain("needs its API key");
   expect(fetch.calls("POST", "/settings/view-bindings")).toHaveLength(0);
   expect(within(sheet).getByTestId("secret-input")).toBe(input);
+  // A key of spaces only is blank too.
+  await user.type(input, "   ");
+  await user.click(within(sheet).getByRole("button", { name: "Save" }));
+  expect(within(sheet).getByTestId("settings-error").textContent).toContain("needs its API key");
+  expect(fetch.calls("POST", "/settings/view-bindings")).toHaveLength(0);
+});
+
+it("sends a new app's key exactly as typed, spaces included", async () => {
+  const fetch = mockFetch([...routes([]), { method: "POST", path: "/settings/view-bindings", reply: { generation: 8, revision: 1 } }]);
+  const user = userEvent.setup();
+  renderPage(<ViewsCard readOnly={false} />);
+  await user.click(await screen.findByRole("button", { name: "Add app" }));
+  const sheet = await screen.findByTestId("view-editor");
+  await user.type(within(sheet).getByRole("textbox", { name: "Key" }), "radarr2");
+  await user.type(within(sheet).getByLabelText("API key (required)"), " key value ");
+  await user.click(within(sheet).getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(fetch.calls("POST", "/settings/view-bindings")).toHaveLength(1));
+  expect((fetch.calls("POST", "/settings/view-bindings")[0].body as { api_key: string }).api_key).toBe(" key value ");
 });
 
 it("says an app without its own key uses the admin API keys, with its address", async () => {
