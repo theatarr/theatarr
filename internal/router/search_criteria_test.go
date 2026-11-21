@@ -15,6 +15,8 @@ import (
 	"github.com/theatarr/theatarr/internal/decide/profile"
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/indexer/cardigann"
+	"github.com/theatarr/theatarr/internal/metadata/anime"
+	"github.com/theatarr/theatarr/internal/metadata/anime/animemap"
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
@@ -385,5 +387,76 @@ func TestSplitMembersByDownloadEpisodes(t *testing.T) {
 	out := splitMembers([]*decide.Decision{pack}, ms, nil, make([]MemberSearched, 2))
 	if len(out[0].Ranked) != 1 || len(out[1].Ranked) != 0 {
 		t.Fatalf("shares %d, %d", len(out[0].Ranked), len(out[1].Ranked))
+	}
+}
+
+// One SeaDex torrent listed under the entries of two searched seasons is answered once per season ("Show S01",
+// "Show S02"). A merged search keeps both: each season gets the decision its own search gives, not one of them only.
+func TestMergedSeaDexTorrentUnderTwoSeasons(t *testing.T) {
+	old := searchNow
+	searchNow = func() time.Time { return searchClock }
+	defer func() { searchNow = old }()
+	const hash = "5bf61ad8aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	files := `{"length":3000000000,"name":"[sam] Show - 01 (BD 1080p).mkv"},{"length":3000000000,"name":"[sam] Show - 02 (BD 1080p).mkv"},` +
+		`{"length":3000000000,"name":"[sam] Show - 03 (BD 1080p).mkv"},{"length":3000000000,"name":"[sam] Show - 04 (BD 1080p).mkv"}`
+	entry := func(al string) string {
+		return `{"page":1,"perPage":100,"totalItems":1,"totalPages":1,"items":[{"alID":` + al + `,"trs":["sam1"],"expand":{"trs":[` +
+			`{"id":"sam1","url":"https://nyaa.si/view/1","infoHash":"` + hash + `","isBest":true,"tags":[],"tracker":"Nyaa",` +
+			`"releaseGroup":"sam","files":[` + files + `]}]}}]}`
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch strings.TrimPrefix(r.URL.Query().Get("filter"), "alID=") {
+		case "1":
+			fmt.Fprint(w, entry("1"))
+		case "2":
+			fmt.Fprint(w, entry("2"))
+		default:
+			fmt.Fprint(w, `{"page":1,"perPage":100,"totalItems":0,"totalPages":1,"items":[]}`)
+		}
+	}))
+	defer srv.Close()
+	vp := &policy.VersionPolicy{Kind: policy.KindSeries, Profile: "bd", Indexers: []string{"sd"}, PreferSeaDex: true}
+	pol := &policy.Policy{Profiles: map[string]*policy.Profile{"bd": {Qualities: []policy.QualityItem{{Name: "Bluray-1080p"}}, Cutoff: "Bluray-1080p"}},
+		Versions: map[string]*policy.VersionPolicy{"tv": vp},
+		Indexers: map[string]*policy.Indexer{"sd": {Kind: "seadex", URL: srv.URL, Privacy: policy.PrivacyPublic}}}
+	eng, err := decide.New(pol, decide.Options{Now: func() time.Time { return searchClock }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc, err := indexer.New(pol, &searchGateway{}, indexer.Options{CacheTTL: -1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	title := mergedTitle()
+	title.SeriesType, title.Anime = "anime", true
+	for i := range title.Episodes {
+		title.Episodes[i].Absolute = 2*(title.Episodes[i].Season-1) + title.Episodes[i].Number
+	}
+	title.AnimeMap = animemap.New(555, []*animemap.Entry{
+		{Franchise: "f", Key: "al:1", Title: "Show", Status: anime.StatusAuto, Episodes: []anime.SE{{1, 1}, {1, 2}}},
+		{Franchise: "f", Key: "al:2", Title: "Show 2nd Season", Status: anime.StatusAuto, Episodes: []anime.SE{{2, 1}, {2, 2}}},
+	}, nil)
+	seasons := []int{1, 2}
+	member := func(s int) *decide.SeriesSearch {
+		return &decide.SeriesSearch{Kind: profile.SearchAnimeSeason, Season: s, Episodes: []int64{int64(10*s + 1), int64(10*s + 2)},
+			MonitoredOnly: true, Seasons: seasons}
+	}
+	whole := &decide.SeriesSearch{Kind: profile.SearchSeries, Episodes: []int64{11, 12, 21, 22}, MonitoredOnly: true, Seasons: seasons}
+	got, err := SearchRequests(context.Background(), eng, svc, title, []SearchTarget{{ID: "m", Version: decide.Version{ID: 1,
+		Key: "tv", Policy: vp}, Series: whole, Members: []*decide.SeriesSearch{member(1), member(2)}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cands []string
+	for _, c := range got["m"].Request.Candidates {
+		cands = append(cands, fmt.Sprintf("%s%v", c.Release.Title, c.Episodes))
+	}
+	for d, rel := range got["m"].Releases {
+		t.Logf("%s accepted=%v eps=%v %v", rel.Title, d.Accepted, d.Episodes, d.Rejections)
+	}
+	slices.Sort(cands)
+	if len(cands) != 2 || !strings.Contains(cands[0], "S01") || !strings.Contains(cands[0], "[11 12]") ||
+		!strings.Contains(cands[1], "S02") || !strings.Contains(cands[1], "[21 22]") {
+		t.Fatalf("candidates %v, want season 1's and season 2's SeaDex decision", cands)
 	}
 }

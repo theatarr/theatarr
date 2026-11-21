@@ -373,6 +373,11 @@ func SearchRequests(ctx context.Context, eng SearchEngine, svc *indexer.Service,
 				}
 				if len(refs[target.ID]) > 1 && r.InfoHash != "" {
 					k := ref.indexer + "\x00" + r.InfoHash
+					if r.Kind == "seadex" {
+						// SeaDex answers a torrent listed under two seasons once per season ("Show S01", "Show S02"):
+						// each keeps the decision its own season's search gives.
+						k += "\x00" + r.Title
+					}
 					if i, ok := seen[k]; ok {
 						crits[i] = appendCriteria(crits[i], ref.criteria...)
 						if merged {

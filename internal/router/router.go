@@ -650,8 +650,10 @@ func (r *Router) route(ctx context.Context, s *routeState, req Request, dry bool
 		}
 		if out == vAccepted || out == vUnavailable {
 			eps := c.Episodes
-			if s.held != nil {
+			if s.held != nil && !(vp.PreferSeaDex && indexer.SeaDexPreference(&c.Release) > 0) {
 				// A download of the same hash holds it already: it covers the episodes it is for, not the candidate's.
+				// On a library that prefers SeaDex a torrent with SeaDex standing (one torrent listed under two
+				// seasons) covers its own episodes: they wait for that torrent, nothing worse is taken for them.
 				eps = *s.held
 			}
 			covered = append(covered, eps...)

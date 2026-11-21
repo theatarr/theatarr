@@ -379,3 +379,50 @@ func TestMergedRouteRedecideKeepsCriteria(t *testing.T) {
 		t.Fatalf("download episodes %v", got)
 	}
 }
+
+// One SeaDex torrent under two searched seasons, on a library that prefers SeaDex: the merged search keeps season 1's
+// and season 2's decision of the same hash. Season 1's opens the download; season 2's finds it held for season 1
+// only. Season 2 then waits for that torrent (its episodes count as covered) instead of taking a worse release, and
+// its own next search takes the torrent once the first download is done. Without SeaDex standing part 1's rule
+// stays: the season falls to the next candidate.
+func TestMergedSeaDexTorrentForTwoSeasons(t *testing.T) {
+	t.Parallel()
+	for _, standing := range []bool{true, false} {
+		t.Run(fmt.Sprintf("standing=%v", standing), func(t *testing.T) {
+			e := mergedEnv(t)
+			e.pol.Versions["series"].PreferSeaDex = true
+			if standing {
+				e.exec(`INSERT INTO title_external_id VALUES(2,'anilist','1')`)
+				e.exec(`INSERT INTO metadata_cache(source,key,status,body,fetched_at,expires_at) VALUES('seadex-standing','1',200,?,0,253402214400000)`,
+					fmt.Sprintf(`{"anilist":1,"torrents":[{"info_hash":"%s","preference":2,"is_best":true,"facts":{"isBest":true}}]}`, h("a")))
+			}
+			s1, s2 := episodeCandidate("a", 101, 102), episodeCandidate("a", 201, 202)
+			s1.Release.Title, s2.Release.Title = "Show S01 Bluray 1080p (sam1)", "Show S02 Bluray 1080p (sam1)"
+			res, err := e.r.Route(e.ctx, mergedReq(s1, s2, pack(2)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := []string{h("a")}
+			if !standing {
+				want = append(want, h("2"))
+			}
+			if !slices.Equal(e.ad["rd"].adds, want) {
+				t.Fatalf("adds %v want %v: %s", e.ad["rd"].adds, want, steps(res))
+			}
+			if !standing {
+				return
+			}
+			// Season 2's own search after the first download is done takes the torrent for season 2.
+			e.exec(`UPDATE download SET state = 'imported' WHERE info_hash = ?`, h("a"))
+			if res, err = e.r.Route(e.ctx, seriesReq(s2, pack(2))); err != nil {
+				t.Fatal(err)
+			}
+			if want := []string{h("a"), h("a")}; !slices.Equal(e.ad["rd"].adds, want) {
+				t.Fatalf("season 2 alone: adds %v want %v: %s", e.ad["rd"].adds, want, steps(res))
+			}
+			if got := e.storedEpisodes(h("a")); !slices.Equal(got, []int64{201, 202}) {
+				t.Fatalf("season 2's download holds %v", got)
+			}
+		})
+	}
+}
