@@ -229,6 +229,11 @@ type Decision struct {
 	// UnsearchedIDs are the episodes of a pack of several seasons whose season a merged search did not search
 	// (SeriesSearch.Seasons; not serialised; left out of downloads).
 	UnsearchedIDs []int64 `json:"-"`
+	// Pack is what an anime pack claims (animepack.go): a span read under a search of several seasons, or an
+	// absolute batch across seasons; stored with the download on its EpisodeMap and proved at import. nil otherwise.
+	Pack *PackClaim `json:"-"`
+	// anime: the decision is an anime series'; its packs of several seasons are its claim's (SeveralSeasons).
+	anime bool
 	// Anime (franchise mappings, anime.go): how the episodes were mapped (franchise, alt_cut:<name>, sonarr), the
 	// franchise entry, and the episodes that used Sonarr's numbering because their franchise mapping is not
 	// importable (conflict, rejected).

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/journal/snapshot"
 	"github.com/theatarr/theatarr/internal/library/probe"
 	"github.com/theatarr/theatarr/internal/policy"
@@ -139,6 +140,7 @@ type dlRow struct {
 	created, updated                            int64
 	added, ready, imported                      sql.NullInt64
 	formats                                     sql.NullString
+	episodeMap                                  sql.NullString
 	// its library import, if any: state, error, when
 	liState, liErr sql.NullString
 	liAt           sql.NullInt64
@@ -149,14 +151,14 @@ func (b *builder) loadDownload(id int64) (*dlRow, error) {
 	err := b.db.QueryRowContext(b.ctx, `SELECT id, title_id, version_id, version_key, info_hash, release_title, indexer,
 		quality, score, size_bytes, episodes, COALESCE(provider, ''), COALESCE(provider_torrent_id, ''), provider_status,
 		name, progress, cached, own_add, reused, state, COALESCE(error, ''), source, created_at, updated_at, added_at,
-		ready_at, imported_at, formats, policy_rev,
+		ready_at, imported_at, formats, policy_rev, episode_map,
 		(SELECT state FROM library_import WHERE download_id = download.id),
 		(SELECT last_error FROM library_import WHERE download_id = download.id),
 		(SELECT updated_at FROM library_import WHERE download_id = download.id) FROM download WHERE id = ?`, id).Scan(&d.id, &d.titleID,
 		&d.versionID, &d.version, &d.hash, &d.release, &d.indexer, &d.quality, &d.score, &d.size, &d.episodes,
 		&d.provider, &d.torrentID, &d.status, &d.name, &d.progress, &d.cached, &d.ownAdd, &d.reused, &d.state,
 		&d.errText, &d.source, &d.created, &d.updated, &d.added, &d.ready, &d.imported, &d.formats, &d.policyRev,
-		&d.liState, &d.liErr, &d.liAt)
+		&d.episodeMap, &d.liState, &d.liErr, &d.liAt)
 	return &d, err
 }
 
@@ -188,6 +190,12 @@ func (b *builder) download(e *Entry, rest string) error {
 	var eps []int64
 	_ = json.Unmarshal([]byte(d.episodes), &eps)
 	e.f.episodeIDs = eps
+	if d.episodeMap.Valid {
+		var m decide.EpisodeMap
+		if json.Unmarshal([]byte(d.episodeMap.String), &m) == nil {
+			e.f.packSpan = m.Pack.Span()
+		}
+	}
 	if ti, _ := b.title(d.titleID); ti != nil {
 		e.Release.Episodes = ti.labels(eps)
 	}

@@ -51,6 +51,13 @@ func (s *series) parseRelease(rel indexer.Release, search *SeriesSearch) *sonarr
 	if parsed != nil && parsed.CompleteSeries && s.typ == sonarr.SeriesTypeAnime {
 		parsed = sonarr.ParseTitle(rel.Title) // anime keeps today's rule: no complete-series reading
 	}
+	if s.typ == sonarr.SeriesTypeAnime && search.severalSeasons() {
+		// A name that states a span reads as a pack of its first season (packSeasons spans the rest), over what the
+		// plain parser makes of the same characters ("Seasons 1-3" as absolute 1 to 3).
+		if sp := s.animeSpanParse(rel.Title); sp != nil {
+			parsed = sp
+		}
+	}
 	if parsed == nil || parsed.IsPossibleSpecialEpisode() {
 		if sp := s.parseSpecialEpisodeTitle(parsed, rel.Title, rel.TVDB, rel.IMDb, search); sp != nil {
 			parsed = sp

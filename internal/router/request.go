@@ -43,6 +43,10 @@ type Candidate struct {
 // identity and criteria cannot be proved from what was stored; `theatarr router reconcile` inventories such rows.
 const RouteIdentityVersion = 1
 
+// claimSpan says whether the candidate's stored claim (decide.PackClaim on its EpisodeMap) is an anime pack of
+// several seasons.
+func (c *Candidate) claimSpan() bool { return c.EpisodeMap != nil && c.EpisodeMap.Pack.Span() }
+
 // Origins of a candidate: decided on the RSS path (no search criteria: feeds, release pushes, grabs by hand) or on a search (its Criteria for a series).
 const (
 	OriginRSS    = "rss"

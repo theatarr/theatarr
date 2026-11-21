@@ -165,10 +165,10 @@ func (b *builder) checkSeriesName(e *Entry, ti *titleInfo, name string) {
 	}
 	s := p.SeasonNumber
 	// A span files under each of its seasons: a multi-season or complete pack, or a season pack whose name proves a
-	// range from its season ("S01 to S03"), as the decision reads it (not for anime).
+	// range from its season ("S01 to S03"), as the decision reads it; an anime pack by its stored claim.
 	first, last, ranged := indexer.PackSeasons(name)
 	span := p.IsMultiSeason || p.CompleteSeries || ranged && ti.t.SeriesType != "anime" && p.FullSeason &&
-		len(p.EpisodeNumbers) == 0 && first == s && last <= ti.maxS
+		len(p.EpisodeNumbers) == 0 && first == s && last <= ti.maxS || e.f.packSpan
 	if s > 0 && ti.counts[s] == 0 && !span {
 		e.flag(CheckEpisodes, sev(SevError), "the release is season %d; the series has seasons up to %d", s, ti.maxS)
 		return

@@ -497,8 +497,12 @@ func planWhole(t *decide.Title, ss *decide.SeriesSearch, q indexer.Query) *serie
 		plain: []*decide.SeriesSearch{ss}}
 }
 
-// holdsSeasons reports whether a decision maps episodes of two or more seasons above 0.
+// holdsSeasons reports whether a decision maps episodes of two or more seasons above 0; an anime decision only when
+// its claim is a span.
 func holdsSeasons(t *decide.Title, d *decide.Decision) bool {
+	if t.SeriesType == "anime" {
+		return d.Pack.Span()
+	}
 	seasons := map[int]bool{}
 	for _, id := range d.EpisodeIDs {
 		for i := range t.Episodes {

@@ -52,7 +52,7 @@ func (e *Engine) compareMerged(x, y *Subject, scoped func(*Subject) int) int {
 			return r
 		}
 	}
-	if x.Release.FullSeason && y.Release.FullSeason {
+	if x.Release.pack() && y.Release.pack() {
 		if c := cmpBool(x.Cached.Count > 0, y.Cached.Count > 0); c != 0 {
 			return c
 		}

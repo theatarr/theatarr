@@ -1,6 +1,7 @@
 package decide
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"slices"
@@ -9,6 +10,9 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/decide/profile"
+	"github.com/theatarr/theatarr/internal/indexer"
+	animemeta "github.com/theatarr/theatarr/internal/metadata/anime"
+	"github.com/theatarr/theatarr/internal/metadata/anime/animemap"
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
@@ -778,5 +782,354 @@ func TestSeriesSearchSceneNumberedSpan(t *testing.T) {
 		tvVersion(e, "tv"), whole)
 	if err != nil || !d.Accepted || !slices.Contains(d.EpisodeIDs, 511) {
 		t.Fatalf("scene span: %v %s %v %v", d.Accepted, reasons(d), d.Episodes, err)
+	}
+}
+
+// kaiju is an ended anime series of three seasons (3, 3 and 4 episodes; ids 6s0n, absolute 1 to 10), all aired.
+func kaiju() Title {
+	t := Title{ID: 6, Kind: policy.KindSeries, Name: "Kaiju Tale", Year: 2019, TVDB: 6006, SeriesType: "anime",
+		Runtime: 24, Monitored: true, OriginalLanguage: "Japanese"}
+	abs := 0
+	for s, n := range []int{3, 3, 4} {
+		for i := 1; i <= n; i++ {
+			abs++
+			d := time.Date(2019, 1, 1, 15, 0, 0, 0, time.UTC).AddDate(0, 0, 7*abs)
+			t.Episodes = append(t.Episodes, Episode{ID: int64(600 + 10*(s+1) + i), Season: s + 1, Number: i, Absolute: abs,
+				Title: "Episode", Runtime: 24, Monitored: true, AirDate: d.Format("2006-01-02"), AirDateUTC: &d})
+		}
+	}
+	return t
+}
+
+// kaijuMerged is a merged search's criteria for kaiju's seasons: a member's season query, or the query without a
+// season.
+func kaijuMerged(season int, seasons ...int) *SeriesSearch {
+	ss := &SeriesSearch{Kind: profile.SearchSeries, MonitoredOnly: true, Seasons: seasons}
+	if season > 0 {
+		ss.Kind, ss.Season = profile.SearchAnimeSeason, season
+	}
+	for _, e := range kaiju().Episodes {
+		if slices.Contains(seasons, e.Season) && (season == 0 || e.Season == season) {
+			ss.Episodes = append(ss.Episodes, e.ID)
+		}
+	}
+	return ss
+}
+
+// Anime packs of several seasons, read only under a search of several seasons: names that state the span and an
+// absolute batch that fills whole seasons are spans of those seasons; a partial batch, two episodes across a season
+// break, "S2 - 01-12", a span past the last season or on scene-numbered seasons are not. A one-season search and
+// RSS decide every one of them as before.
+func TestAnimeSpans(t *testing.T) {
+	t.Parallel()
+	e := seriesEngine(t)
+	ctx := context.Background()
+	v := tvVersion(e, "anime-tv")
+	all := "S01E01,S01E02,S01E03,S02E01,S02E02,S02E03,S03E01,S03E02,S03E03,S03E04"
+	whole := kaijuMerged(0, 1, 2, 3)
+	for _, c := range []struct {
+		name, release string
+		search        *SeriesSearch
+		setup         func(*Title)
+		accepted      bool
+		episodes      string
+		download      int
+	}{
+		{name: "both sides marked", release: "[G] Kaiju Tale S01-S03 [BD 1080p]", search: whole, accepted: true, episodes: all},
+		{name: "the plural", release: "[G] Kaiju Tale Seasons 1-3 [BD 1080p]", search: whole, accepted: true, episodes: all},
+		{name: "a list", release: "[G] Kaiju Tale S1+S2+S3 [BD 1080p]", search: whole, accepted: true, episodes: all},
+		{name: "season with plus", release: "[G] Kaiju Tale (Season 1+2) [BD 1080p]", search: kaijuMerged(0, 1, 2), accepted: true,
+			episodes: "S01E01,S01E02,S01E03,S02E01,S02E02,S02E03"},
+		{name: "a member's query", release: "[G] Kaiju Tale S01-S03 [BD 1080p]", search: kaijuMerged(2, 1, 2), accepted: true,
+			episodes: all, download: 6},
+		{name: "absolute batch", release: "[G] Kaiju Tale (01-10) [BD 1080p]", search: whole, accepted: true, episodes: all},
+		{name: "absolute batch for a member", release: "[G] Kaiju Tale - 01-10 [BD 1080p]", search: kaijuMerged(1, 1, 2),
+			accepted: true, episodes: all, download: 6},
+		{name: "partial batch", release: "[G] Kaiju Tale (01-05) [BD 1080p]", search: whole},
+		{name: "across a break", release: "[G] Kaiju Tale - 03-04 [BD 1080p]", search: whole},
+		{name: "an episode range of one season", release: "[G] Kaiju Tale S2 - 01-03 [BD 1080p]", search: whole},
+		{name: "past the last season", release: "[G] Kaiju Tale S01-S04 [BD 1080p]", search: whole},
+		{name: "scene-numbered seasons", release: "[G] Kaiju Tale S01-S03 [BD 1080p]", search: whole,
+			setup: func(t *Title) { ep(t, 621).SceneSeason, ep(t, 621).SceneNumber = ip(1), ip(4) }},
+	} {
+		tt := kaiju()
+		if c.setup != nil {
+			c.setup(&tt)
+		}
+		d, err := e.DecideSearch(ctx, rel(c.release, "public", 20*gb), tt, v, c.search)
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		if d.Accepted != c.accepted {
+			t.Errorf("%s: accepted %v (%v), want %v", c.name, d.Accepted, d.Rejections, c.accepted)
+			continue
+		}
+		if !c.accepted {
+			continue
+		}
+		if got := strings.Join(d.Episodes, ","); got != c.episodes {
+			t.Errorf("%s: episodes %s, want %s", c.name, got, c.episodes)
+		}
+		if want := cmp.Or(c.download, len(d.EpisodeIDs)); len(d.DownloadEpisodes()) != want {
+			t.Errorf("%s: downloads %d episodes, want %d", c.name, len(d.DownloadEpisodes()), want)
+		}
+	}
+	// A one-season search and RSS: as before.
+	one := &SeriesSearch{Kind: profile.SearchAnimeSeason, Season: 1, Episodes: []int64{611, 612, 613}, MonitoredOnly: true}
+	for _, name := range []string{"[G] Kaiju Tale S01-S03 [BD 1080p]", "[G] Kaiju Tale Seasons 1-3 [BD 1080p]",
+		"[G] Kaiju Tale S1+S2+S3 [BD 1080p]"} {
+		for _, ss := range []*SeriesSearch{one, nil} {
+			d, err := e.DecideSearch(ctx, rel(name, "public", 20*gb), kaiju(), v, ss)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if d.Accepted && len(d.Episodes) == 10 {
+				t.Errorf("%s (search %v): taken as a pack of three seasons", name, ss != nil)
+			}
+		}
+	}
+}
+
+// Every name shape of the anime reader through decide, under the query without a season: the span names are packs
+// of their seasons with a seasons claim; the rest are not ("Seasons 1-3" is not absolute 1 to 3).
+func TestAnimeSpanNames(t *testing.T) {
+	t.Parallel()
+	e := seriesEngine(t)
+	ctx := context.Background()
+	v := tvVersion(e, "anime-tv")
+	whole := kaijuMerged(0, 1, 2, 3)
+	for _, name := range []string{"S01-S03", "S1 - S3", "S01 to S03", "S01~S03", "Season 1 - Season 3", "Seasons 1-3",
+		"Seasons 1 - 3", "Seasons 1 to 3", "Seasons 1~3", "Season 1-3", "S01-03", "S01.S02.S03", "S1+S2+S3",
+		"(Season 1+2+3)"} {
+		d, err := e.DecideSearch(ctx, rel("[G] Kaiju Tale "+name+" [BD 1080p]", "public", 20*gb), kaiju(), v, whole)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !d.Accepted || len(d.EpisodeIDs) != 10 || d.Pack == nil || d.Pack.Mode != PackSeasons ||
+			!slices.Equal(d.Pack.Seasons, []int{1, 2, 3}) || len(d.Pack.Episodes) != 10 {
+			t.Errorf("%q: accepted %v, %d episodes, claim %+v (%v)", name, d.Accepted, len(d.EpisodeIDs), d.Pack, d.Rejections)
+		}
+	}
+	two := kaijuMerged(0, 1, 2)
+	for _, name := range []string{"S1 & S2", "Seasons 1+2", "Season 1+2", "(Season 1+2)", "(Season 1+2+OVA+Specials)"} {
+		d, err := e.DecideSearch(ctx, rel("[G] Kaiju Tale "+name+" [BD 1080p]", "public", 15*gb), kaiju(), v, two)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !d.Accepted || len(d.EpisodeIDs) != 6 || !d.Pack.Span() {
+			t.Errorf("%q: accepted %v, %d episodes, claim %+v (%v)", name, d.Accepted, len(d.EpisodeIDs), d.Pack, d.Rejections)
+		}
+	}
+	for _, name := range []string{"Season 2", "2nd Season", "S02", "Part 2", "Cour 2", "S01 Part 2", "S2 - 01-03", "S2 - 03",
+		"S1 - 02", "Season 2 - 02", "S01+S03", "S03-S01", "S01E03-S02E01", "Complete", "Batch", "Complete Series",
+		"(01-05)", "- 03-04"} {
+		d, err := e.DecideSearch(ctx, rel("[G] Kaiju Tale "+name+" [BD 1080p]", "public", 5*gb), kaiju(), v, whole)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if d.Pack.Span() || d.Accepted {
+			t.Errorf("%q: accepted %v, claim %+v", name, d.Accepted, d.Pack)
+		}
+	}
+}
+
+// What an anime pack claims. An absolute batch that fills whole seasons claims its numbers and their episodes;
+// one across a season break from a one-season search or RSS claims them too, with no span (section 9: its
+// decision is today's, its import is proved). Explicit season numbers, a franchise-placed batch and a SeaDex feed
+// result claim nothing; a narrowed span still claims the whole pack.
+func TestAnimePackClaims(t *testing.T) {
+	t.Parallel()
+	e := seriesEngine(t)
+	ctx := context.Background()
+	v := tvVersion(e, "anime-tv")
+	d, err := e.DecideSearch(ctx, rel("[G] Kaiju Tale (01-10) [BD 1080p]", "public", 20*gb), kaiju(), v, kaijuMerged(2, 1, 2))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c := d.Pack; !d.Accepted || c == nil || c.Mode != PackAbsolute || !slices.Equal(c.Seasons, []int{1, 2, 3}) ||
+		len(c.Episodes) != 10 || len(c.Numbers) != 10 || c.Numbers[3] != (PackNumber{N: 4, Episode: 621}) {
+		t.Fatalf("whole-season batch: accepted %v claim %+v", d.Accepted, c)
+	}
+	if len(d.DownloadEpisodes()) != 6 || d.EpisodeMapping() == nil || d.EpisodeMapping().Pack != d.Pack {
+		t.Errorf("narrowed span: downloads %v, mapping %+v", d.DownloadEpisodes(), d.EpisodeMapping())
+	}
+	one := &SeriesSearch{Kind: profile.SearchAnimeSeason, Season: 1, Episodes: []int64{611, 612, 613}, MonitoredOnly: true}
+	for _, ss := range []*SeriesSearch{one, nil} {
+		d, err := e.DecideSearch(ctx, rel("[G] Kaiju Tale - 02-05 [BD 1080p]", "public", 5*gb), kaiju(), v, ss)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c := d.Pack; c == nil || c.Mode != PackAbsolute || len(c.Seasons) != 0 || len(c.Numbers) != 4 {
+			t.Errorf("batch across a break (search %v): claim %+v", ss != nil, c)
+		}
+		if got := strings.Join(d.Episodes, ","); got != "S01E02,S01E03,S02E01,S02E02" {
+			t.Errorf("batch across a break (search %v): episodes %s", ss != nil, got)
+		}
+	}
+	for _, name := range []string{"[G] Kaiju Tale - 02-03 [BD 1080p]", "Kaiju.Tale.S01E03-S02E01.1080p.BluRay.x264-GRP",
+		"[G] Kaiju Tale S01 [BD 1080p]"} {
+		d, err := e.DecideSearch(ctx, rel(name, "public", 5*gb), kaiju(), v, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if d.Pack != nil {
+			t.Errorf("%s: claim %+v", name, d.Pack)
+		}
+	}
+	// A batch the franchise map places is that engine's: no claim.
+	franchised := kaiju()
+	var all []animemeta.SE
+	for _, ep := range franchised.Episodes {
+		all = append(all, animemeta.SE{ep.Season, ep.Number})
+	}
+	franchised.AnimeMap = animemap.New(6006, []*animemap.Entry{{Franchise: "f", Key: "al:1", Title: "Kaiju Tale",
+		Names: []string{"Kaiju Tale"}, Status: animemeta.StatusAuto, Episodes: all}}, nil)
+	if d, err = e.DecideSearch(ctx, rel("[G] Kaiju Tale (01-10) [BD 1080p]", "public", 20*gb), franchised, v,
+		kaijuMerged(0, 1, 2, 3)); err != nil {
+		t.Fatal(err)
+	}
+	if d.Pack != nil || d.AnimeMapping != AnimeMapFranchise {
+		t.Errorf("franchise-placed batch: mapping %q, claim %+v", d.AnimeMapping, d.Pack)
+	}
+	sd := rel("[G] Kaiju Tale (01-10) [BD 1080p]", "public", 20*gb)
+	sd.Kind = "seadex"
+	if d, err = e.DecideSearch(ctx, sd, kaiju(), v, kaijuMerged(0, 1, 2, 3)); err != nil {
+		t.Fatal(err)
+	}
+	if d.Pack != nil {
+		t.Errorf("SeaDex feed result: claim %+v", d.Pack)
+	}
+}
+
+// A span has SeaDex standing only for what SeaDex lists it for: the weakest across the episodes it is downloaded
+// for, none when one of them is outside every entry it is actively listed under. So season 2's own pick keeps
+// season 2 in a merged search; a span listed for all its seasons keeps its standing.
+func TestAnimeSpanSeaDexStanding(t *testing.T) {
+	t.Parallel()
+	e := seriesEngine(t)
+	vp := *e.Policy.Versions["anime-tv"]
+	vp.PreferSeaDex = true
+	v := Version{ID: 9, Key: "anime-tv", Policy: &vp}
+	tt := kaiju()
+	var entries []*animemap.Entry
+	for s := 1; s <= 3; s++ {
+		en := &animemap.Entry{Franchise: "f", Key: fmt.Sprintf("al:%d", s), Title: fmt.Sprintf("Kaiju Tale %d", s),
+			Status: animemeta.StatusAuto}
+		for _, ep := range tt.Episodes {
+			if ep.Season == s {
+				en.Episodes = append(en.Episodes, animemeta.SE{ep.Season, ep.Number})
+			}
+		}
+		entries = append(entries, en)
+	}
+	tt.AnimeMap = animemap.New(6006, entries, nil)
+	span, pick := strings.Repeat("a", 40), strings.Repeat("b", 40)
+	whole := kaijuMerged(0, 1, 2, 3)
+	for _, c := range []struct {
+		name   string
+		listed map[int]int // entry -> the span's preference there
+		want   int
+		first  string
+	}{
+		{"listed for season 1 only", map[int]int{1: 2}, 0, pick},
+		{"listed for every season", map[int]int{1: 2, 2: 2, 3: 2}, 3, span},
+	} {
+		var snaps []indexer.SeaDexSnapshot
+		for s := 1; s <= 3; s++ {
+			snap := indexer.SeaDexSnapshot{AniList: s}
+			if p := c.listed[s]; p > 0 {
+				snap.Torrents = append(snap.Torrents, indexer.SeaDexStanding{InfoHash: span, IsBest: p > 1, Preference: p})
+			}
+			if s == 2 {
+				snap.Torrents = append(snap.Torrents, indexer.SeaDexStanding{InfoHash: pick, IsBest: true, Preference: 2})
+			}
+			snaps = append(snaps, snap)
+		}
+		ctx := configuredState(snaps, map[int64][]int{6: {1, 2, 3}}, 6)
+		r := rel("[G] Kaiju Tale S01-S03 [BD 1080p]", "public", 20*gb)
+		r.InfoHash = span
+		d, err := e.DecideSearch(ctx, r, tt, v, whole)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !d.Accepted || d.SeaDexPreference() != c.want {
+			t.Errorf("%s: accepted %v, standing %d, want %d (%v)", c.name, d.Accepted, d.SeaDexPreference(), c.want, d.Rejections)
+		}
+		r2 := rel("[G] Kaiju Tale S02 [BD 1080p]", "public", 6*gb)
+		r2.InfoHash = pick
+		d2, err := e.DecideSearch(ctx, r2, tt, v, kaijuMerged(2, 1, 2, 3))
+		if err != nil || !d2.Accepted {
+			t.Fatalf("%s: season 2's pick: %v %v", c.name, err, d2.Rejections)
+		}
+		if got := RankMerged([]*Decision{d, d2})[0]; strings.Repeat(string(c.first[0]), 40) != got.subject.Release.InfoHash {
+			t.Errorf("%s: %s first", c.name, got.Release)
+		}
+	}
+}
+
+// A span's standing is the lowest among the episodes it is downloaded for (spanSeaDex over raw standing).
+func TestSpanSeaDexWeakest(t *testing.T) {
+	t.Parallel()
+	tt := kaiju()
+	var entries []*animemap.Entry
+	for s := 1; s <= 3; s++ {
+		en := &animemap.Entry{Franchise: "f", Key: fmt.Sprintf("al:%d", s), Status: animemeta.StatusAuto}
+		for _, ep := range tt.Episodes {
+			if ep.Season == s {
+				en.Episodes = append(en.Episodes, animemeta.SE{ep.Season, ep.Number})
+			}
+		}
+		entries = append(entries, en)
+	}
+	tt.AnimeMap = animemap.New(6006, entries, nil)
+	hash := strings.Repeat("a", 40)
+	st := indexStanding(seaDexState{snapshots: []indexer.SeaDexSnapshot{
+		{AniList: 1, Torrents: []indexer.SeaDexStanding{{InfoHash: hash, Preference: 3}}},
+		{AniList: 2, Torrents: []indexer.SeaDexStanding{{InfoHash: hash, Preference: 1}}},
+		{AniList: 3, Torrents: []indexer.SeaDexStanding{{InfoHash: hash, Preference: 3}}}}})
+	s := newSeries(&tt)
+	r := indexer.Release{InfoHash: hash, Flags: []string{indexer.FlagSeaDex, indexer.FlagSeaDexBest, indexer.FlagSeaDexPreferred}}
+	if got := s.spanSeaDex(st, r, s.episodes()); indexer.SeaDexPreference(&got) != 1 {
+		t.Errorf("all seasons: standing %d, want season 2's 1", indexer.SeaDexPreference(&got))
+	}
+	var s13 []*Episode
+	for _, e := range s.episodes() {
+		if e.Season != 2 {
+			s13 = append(s13, e)
+		}
+	}
+	if got := s.spanSeaDex(st, r, s13); indexer.SeaDexPreference(&got) != 3 {
+		t.Errorf("seasons 1 and 3: standing %d, want 3", indexer.SeaDexPreference(&got))
+	}
+}
+
+// Only a claim of two or more seasons makes an anime decision a pack of several seasons (multi_season, the cache
+// checks' order); a standard series keeps reading the name.
+func TestSeveralSeasonsByClaim(t *testing.T) {
+	t.Parallel()
+	e := seriesEngine(t)
+	ctx := context.Background()
+	v := tvVersion(e, "anime-tv")
+	for _, c := range []struct {
+		release string
+		search  *SeriesSearch
+		want    bool
+	}{
+		{"[G] Kaiju Tale S01-S03 [BD 1080p]", kaijuMerged(0, 1, 2, 3), true},
+		{"[G] Kaiju Tale (01-10) [BD 1080p]", kaijuMerged(0, 1, 2, 3), true},
+		{"[G] Kaiju Tale - 02-05 [BD 1080p]", nil, false}, // a claim, no span
+		{"[G] Kaiju Tale S01-S03 [BD 1080p]", nil, false}, // named so, but no claim outside a search of several seasons
+	} {
+		d, err := e.DecideSearch(ctx, rel(c.release, "public", 20*gb), kaiju(), v, c.search)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if d.SeveralSeasons() != c.want {
+			t.Errorf("%s (search %v): several seasons %v", c.release, c.search != nil, d.SeveralSeasons())
+		}
+	}
+	d, _ := e.Decide(ctx, rel("The.Show.S01-S03.2160p.WEB-DL.DDP5.1.H.265-GRP", "public", 40*gb), ended(), tvVersion(e, "tv"), nil)
+	if !d.SeveralSeasons() {
+		t.Error("a standard span is no longer several seasons")
 	}
 }

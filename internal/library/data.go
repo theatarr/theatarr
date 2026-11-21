@@ -205,7 +205,7 @@ func completeDownload(ctx context.Context, db *sql.DB, pol *policy.Policy, d *im
 	}
 	if epMap.Valid {
 		var m decide.EpisodeMap
-		if json.Unmarshal([]byte(epMap.String), &m) == nil && m.How != "" {
+		if json.Unmarshal([]byte(epMap.String), &m) == nil && (m.How != "" || m.Pack != nil) { // a claim alone is a mapping
 			d.EpisodeMap = &m
 		}
 	}

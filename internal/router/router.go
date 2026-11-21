@@ -650,7 +650,7 @@ func (r *Router) route(ctx context.Context, s *routeState, req Request, dry bool
 		}
 		if out == vAccepted || out == vUnavailable {
 			eps := c.Episodes
-			if s.held != nil && !(vp.PreferSeaDex && indexer.SeaDexPreference(&c.Release) > 0) {
+			if s.held != nil && !(vp.PreferSeaDex && indexer.SeaDexPreference(&c.Release) > 0 && !c.claimSpan()) {
 				// A download of the same hash holds it already: it covers the episodes it is for, not the candidate's.
 				// On a library that prefers SeaDex a torrent with SeaDex standing (one torrent listed under two
 				// seasons) covers its own episodes: they wait for that torrent, nothing worse is taken for them.
@@ -691,6 +691,9 @@ type mergedRoute struct {
 	tries   map[int]int
 	missed  map[int][]int64 // season: the episodes its failed attempts were for
 	covered map[int]bool
+	// anime: the title is an anime series (its series type): a pack of several seasons is one whose stored claim is
+	// a span (Candidate.claimSpan), not one whose name reads so.
+	anime bool
 }
 
 // spanBucket is the attempt bucket of the releases that hold several seasons.
@@ -698,6 +701,12 @@ const spanBucket = -1 << 31
 
 func (r *Router) newMergedRoute(ctx context.Context, titleID int64) (*mergedRoute, error) {
 	m := &mergedRoute{season: map[int64]int{}, tries: map[int]int{}, missed: map[int][]int64{}, covered: map[int]bool{}}
+	var typ string
+	if err := r.st.Writer().QueryRowContext(ctx, `SELECT `+store.SeriesTypeSQL("t")+` FROM title t WHERE t.id = ?`,
+		titleID).Scan(&typ); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("router: series type: %w", err)
+	}
+	m.anime = typ == "anime"
 	rows, err := r.st.Writer().QueryContext(ctx, `SELECT id, season FROM episode WHERE title_id = ?`, titleID)
 	if err != nil {
 		return nil, fmt.Errorf("router: episodes: %w", err)
@@ -736,7 +745,11 @@ func (m *mergedRoute) seasons(eps []int64) []int {
 // bucket is a candidate's attempt bucket: its season, or spanBucket for a release of several seasons, by the
 // release's own shape (its name), not the episodes scope and freshness left it.
 func (m *mergedRoute) bucket(c *Candidate) int {
-	if ss := m.seasons(c.Episodes); len(ss) == 1 && !indexer.HoldsSeasons(c.Release.Title) {
+	several := indexer.HoldsSeasons(c.Release.Title)
+	if m.anime {
+		several = c.claimSpan()
+	}
+	if ss := m.seasons(c.Episodes); len(ss) == 1 && !several {
 		return ss[0]
 	}
 	return spanBucket

@@ -252,6 +252,80 @@ func PackSeasons(name string) (first, last int, ok bool) {
 	return atoiOr(nums[0], 0), atoiOr(nums[len(nums)-1], 0), true
 }
 
+// The anime reader's span phrases (AnimePackSeasons). A separator joins seasons as a range ("-", "~", "to") or a list
+// ("+", "&", "," and, between S-marked seasons only, a dot or a space).
+var (
+	// animeMarkedRE: every season marked ("S01-S03", "S1 - S3", "Season 1 - Season 3", "S1+S2+S3", "S01.S02").
+	animeMarkedRE = regexp.MustCompile(`(?i)\bS(?:eason)?[ ._]?\d{1,2}(?:(?:[ ._]*(?:-|~|–|&|\+)[ ._]*|[ ._]+to[ ._]+|[ ._])S(?:eason)?[ ._]?\d{1,2})+\b`)
+	// animePluralRE: "Seasons 1-3", "Seasons 1 - 3", "Seasons 1 to 3", "Seasons 1+2": any spacing.
+	animePluralRE = regexp.MustCompile(`(?i)\bSeasons[ ._]?\d{1,2}(?:(?:[ ._]*(?:-|~|–|&|\+|,)[ ._]*|[ ._]+to[ ._]+)\d{1,2})+\b`)
+	// animeSeasonRE: "Season 1-3", "Season 1+2", "Season 1 to 3": a dash only tight ("Season 2 - 05" is an episode).
+	animeSeasonRE = regexp.MustCompile(`(?i)\bSeason[ ._]?\d{1,2}(?:(?:[ ._]*(?:~|&|\+)[ ._]*|[ ._]+to[ ._]+|-)\d{1,2})+\b`)
+	// animeTightRE: "S01-03" with no space around the dash.
+	animeTightRE = regexp.MustCompile(`(?i)\bS\d{1,2}-\d{1,2}\b`)
+	// animeNumRE finds a span phrase's numbers; what lies between them is the separator.
+	animeNumRE = regexp.MustCompile(`\d{1,2}`)
+	// animeExtrasRE is what a span phrase lists after its seasons ("+OVA+Specials"): left out of the rewritten name.
+	animeExtrasRE = regexp.MustCompile(`(?i)^(?:[ ._]*[+&][ ._]*(?:OVAs?|OADs?|ONAs?|Specials?|SPs?|Movies?|Extras?)\b)+`)
+)
+
+// AnimePackSeasons reads the seasons an anime pack's name states (the anime reader; PackSeasons stays the standard
+// series' one): seasons marked on both sides, the plural "Seasons 1-3", "Season" with "+", "&", "to", "~" or a
+// tight "-", a tight "S01-03", or a list ("S01.S02.S03", "S1+S2+S3"). A range ascends; a list goes in steps of one;
+// the first season is 1 or more. rewritten is the name with "S<first>" in place of the phrase, for the parser. ok
+// is false for anything else: "Season 2", "2nd Season", "Part 2", "S2 - 01-12", "S1 - 02" (a spaced dash before a
+// bare number is an episode), "S01+S03", "S03-S01", "S01E12-S02E01". Whether the seasons exist is the caller's.
+func AnimePackSeasons(name string) (rewritten string, first, last int, ok bool) {
+	loc := []int(nil)
+	for _, re := range []*regexp.Regexp{animeMarkedRE, animePluralRE, animeSeasonRE, animeTightRE} {
+		for _, m := range re.FindAllStringIndex(name, -1) {
+			if re == animeTightRE && m[1]+1 < len(name) && name[m[1]] == '-' && name[m[1]+1] >= '0' && name[m[1]+1] <= '9' {
+				continue // "S01-03-05": numbers, not seasons
+			}
+			if loc == nil || m[0] < loc[0] {
+				loc = m
+			}
+			break
+		}
+	}
+	if loc == nil {
+		return name, 0, 0, false
+	}
+	phrase := name[loc[0]:loc[1]]
+	idx := animeNumRE.FindAllStringIndex(phrase, -1)
+	nums := make([]int, len(idx))
+	ranged, listed := false, false
+	for i, x := range idx {
+		nums[i] = atoiOr(phrase[x[0]:x[1]], 0)
+		if i == 0 {
+			continue
+		}
+		sep := strings.ToLower(phrase[idx[i-1][1]:x[0]])
+		sep = strings.TrimSuffix(strings.TrimSuffix(strings.Trim(sep, " ._"), "season"), "s")
+		sep = strings.Trim(sep, " ._")
+		switch sep {
+		case "-", "~", "–", "to":
+			ranged = true
+		default:
+			listed = true
+		}
+	}
+	switch {
+	case len(nums) < 2 || nums[0] < 1 || ranged && listed || ranged && len(nums) != 2:
+		return name, 0, 0, false
+	case ranged && nums[0] >= nums[1]:
+		return name, 0, 0, false
+	case listed:
+		for i, n := range nums {
+			if n != nums[0]+i {
+				return name, 0, 0, false
+			}
+		}
+	}
+	end := loc[1] + len(animeExtrasRE.FindString(name[loc[1]:]))
+	return name[:loc[0]] + fmt.Sprintf("S%02d", nums[0]) + name[end:], nums[0], nums[len(nums)-1], true
+}
+
 // HoldsSeasons reports whether a name reads as two or more seasons: a span PackSeasons proves or a
 // complete-series phrase.
 func HoldsSeasons(name string) bool {

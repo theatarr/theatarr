@@ -36,21 +36,32 @@ type EpisodeMap struct {
 	How      string `json:"how"`
 	Entry    string `json:"entry,omitempty"`
 	Fallback bool   `json:"fallback,omitempty"`
+	// Pack is an anime pack's claim (Decision.Pack): the import proves the files against it (library/animepack.go).
+	// A claim alone is a mapping (How empty: Sonarr's numbering placed it).
+	Pack *PackClaim `json:"pack,omitempty"`
 }
 
 // EpisodeMapping is the decision's EpisodeMap, nil for Sonarr's mapping (or a movie) unless the release named a
 // franchise entry whose mapping was not importable (Fallback).
 func (d *Decision) EpisodeMapping() *EpisodeMap {
-	if d == nil || d.AnimeMapping == "" {
+	if d == nil {
 		return nil
 	}
-	if d.AnimeMapping == AnimeMapSonarr {
-		if d.AnimeEntry == "" {
-			return nil
-		}
-		return &EpisodeMap{How: AnimeMapFranchise, Entry: d.AnimeEntry, Fallback: true}
+	var m *EpisodeMap
+	switch {
+	case d.AnimeMapping == "" || d.AnimeMapping == AnimeMapSonarr && d.AnimeEntry == "":
+	case d.AnimeMapping == AnimeMapSonarr:
+		m = &EpisodeMap{How: AnimeMapFranchise, Entry: d.AnimeEntry, Fallback: true}
+	default:
+		m = &EpisodeMap{How: d.AnimeMapping, Entry: d.AnimeEntry}
 	}
-	return &EpisodeMap{How: d.AnimeMapping, Entry: d.AnimeEntry}
+	if d.Pack != nil {
+		if m == nil {
+			m = &EpisodeMap{}
+		}
+		m.Pack = d.Pack
+	}
+	return m
 }
 
 // Stale says the franchise entry the download was grabbed through is no longer importable (rejected or in conflict

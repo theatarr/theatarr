@@ -283,6 +283,34 @@ func TestMergedRouteBucketByReleaseShape(t *testing.T) {
 	}
 }
 
+// On an anime series a candidate is a pack of several seasons by its stored claim, not by its name: "S01-S02"
+// without a claim narrowed to one season takes that season's bucket; with a span claim it takes the span bucket.
+func TestMergedRouteAnimeBucketByClaim(t *testing.T) {
+	t.Parallel()
+	for _, claimed := range []bool{false, true} {
+		e := mergedEnv(t, h("e"))
+		e.exec(`UPDATE title SET series_type = 'anime' WHERE id = 2`)
+		e.r.set.MaxCandidates = 1
+		span := episodeCandidate("e", 101, 102)
+		span.Release.Title = "Show.S01-S02.2160p.WEB-GRP"
+		if claimed {
+			span.EpisodeMap = &decide.EpisodeMap{Pack: &decide.PackClaim{Mode: decide.PackSeasons, Seasons: []int{1, 2},
+				Episodes: []int64{101, 102, 201, 202}}}
+		}
+		res, err := e.r.Route(e.ctx, mergedReq(span, pack(1)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []string{h("e")} // season 1's one attempt is used up by the unclaimed "span"
+		if claimed {
+			want = append(want, h("1"))
+		}
+		if !slices.Equal(e.ad["rd"].adds, want) {
+			t.Fatalf("claimed=%v: adds %v: %s", claimed, e.ad["rd"].adds, steps(res))
+		}
+	}
+}
+
 // researches are the re-search jobs' episodes.
 func (e *env) researches() [][]int64 {
 	e.t.Helper()

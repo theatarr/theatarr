@@ -89,7 +89,7 @@ func seasonPackOnly(e *Engine, s *Subject) Decision {
 
 // fullSeason is FullSeasonSpecification: a season pack waits until every episode has aired (a day's grace).
 func fullSeason(e *Engine, s *Subject) Decision {
-	if s.Release.FullSeason {
+	if s.Release.pack() {
 		limit := e.now().Add(24 * time.Hour)
 		for _, ep := range s.Episodes {
 			if ep.AirDateUtc == nil || ep.AirDateUtc.After(limit) {
@@ -235,6 +235,10 @@ func seasonMatch(e *Engine, s *Subject) Decision {
 	}
 	return Accept()
 }
+
+// pack says whether the release is a full-season release: a season pack, or a span of several seasons (an anime
+// absolute batch that fills whole seasons is no season pack by its name).
+func (r *Release) pack() bool { return r.FullSeason || len(r.Seasons) >= 2 }
 
 // seasonMatches is the season test of SeasonMatch and SingleEpisodeSearchMatch: the parsed season, or a season of
 // a pack's span.

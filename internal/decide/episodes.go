@@ -94,6 +94,15 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 			Message: "Unable to identify correct episode(s) using release name and scene mappings"})
 		return nil
 	}
+	d.anime = s.typ == sonarr.SeriesTypeAnime
+	if d.anime && rel.Manual == nil {
+		// What an anime pack claims, from the mapping, before the specifications: an override grab is proved too.
+		s.claimPack(d, parsed, rel.Release, r, search)
+		if len(r.seasons) >= 2 && qm.SeaDexPreference > 0 {
+			rel.Release = s.spanSeaDex(seaDexView(ctx), rel.Release, spanDownload(r, search))
+			qm.SeaDexPreference = indexer.SeaDexPreference(&rel.Release)
+		}
+	}
 	for _, ep := range r.episodes {
 		d.Episodes = append(d.Episodes, fmt.Sprintf("S%02dE%02d", ep.Season, ep.Number))
 		d.EpisodeIDs = append(d.EpisodeIDs, ep.ID)

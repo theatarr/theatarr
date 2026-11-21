@@ -698,6 +698,56 @@ func TestPackSeasons(t *testing.T) {
 	}
 }
 
+// The anime reader of names that state several seasons (AnimePackSeasons): the shapes that read as a span, with
+// the name rewritten for the parser, and the ones that must not (a single season, a cour, an episode after a spaced
+// dash, a gap, a descending range, episode numbers on both sides).
+func TestAnimePackSeasons(t *testing.T) {
+	for name, want := range map[string]struct {
+		first, last int
+		rewritten   string
+	}{
+		"[G] Show S01-S03 [1080p]":                {1, 3, "[G] Show S01 [1080p]"},
+		"[G] Show S1 - S3 [1080p]":                {1, 3, "[G] Show S01 [1080p]"},
+		"[G] Show S01 to S03 [1080p]":             {1, 3, "[G] Show S01 [1080p]"},
+		"[G] Show S01~S03 [1080p]":                {1, 3, "[G] Show S01 [1080p]"},
+		"[G] Show Season 1 - Season 3 [1080p]":    {1, 3, "[G] Show S01 [1080p]"},
+		"[G] Show S1 & S2 [1080p]":                {1, 2, "[G] Show S01 [1080p]"},
+		"[G] Show Seasons 1-3 [1080p]":            {1, 3, "[G] Show S01 [1080p]"},
+		"[G] Show Seasons 1 - 3 [1080p]":          {1, 3, "[G] Show S01 [1080p]"},
+		"[G] Show Seasons 1 to 3 [1080p]":         {1, 3, "[G] Show S01 [1080p]"},
+		"[G] Show Seasons 1~3 [1080p]":            {1, 3, "[G] Show S01 [1080p]"},
+		"[G] Show Seasons 1+2 [1080p]":            {1, 2, "[G] Show S01 [1080p]"},
+		"[G] Show Season 1-3 [1080p]":             {1, 3, "[G] Show S01 [1080p]"},
+		"[G] Show Season 1+2 [1080p]":             {1, 2, "[G] Show S01 [1080p]"},
+		"[G] Show (Season 1+2) [1080p]":           {1, 2, "[G] Show (S01) [1080p]"},
+		"[G] Show (Season 1+2+OVA+Specials) [BD]": {1, 2, "[G] Show (S01) [BD]"},
+		"[G] Show S01-03 [1080p]":                 {1, 3, "[G] Show S01 [1080p]"},
+		"Show.S01.S02.S03.1080p":                  {1, 3, "Show.S01.1080p"},
+		"[G] Show S1+S2+S3 [1080p]":               {1, 3, "[G] Show S01 [1080p]"},
+		"[G] Show Season 2 [1080p]":               {},
+		"[G] Show 2nd Season [1080p]":             {},
+		"[G] Show S02 [1080p]":                    {},
+		"[G] Show Part 2 [1080p]":                 {},
+		"[G] Show Cour 2 [1080p]":                 {},
+		"[G] Show S01 Part 2 [1080p]":             {},
+		"[G] Show S2 - 01-12 [1080p]":             {},
+		"[G] Show S2 - 03 [1080p]":                {},
+		"[G] Show S1 - 02 [1080p]":                {},
+		"[G] Show Season 2 - 05 [1080p]":          {},
+		"[G] Show S01+S03 [1080p]":                {},
+		"[G] Show S03-S01 [1080p]":                {},
+		"[G] Show S01E12-S02E01 [1080p]":          {},
+		"[G] Show S01-03-05 [1080p]":              {},
+		"[G] Show Complete [1080p]":               {},
+		"[G] Show (Batch) [1080p]":                {},
+	} {
+		got, first, last, ok := AnimePackSeasons(name)
+		if ok != (want.last > 0) || ok && (first != want.first || last != want.last || got != want.rewritten) {
+			t.Errorf("%q: %q %d-%d %v, want %+v", name, got, first, last, ok, want)
+		}
+	}
+}
+
 func TestZileanMerge(t *testing.T) {
 	loadFixtures(t, "zilean_imdb.json", "zilean_title.json")
 	n := newNet(t)

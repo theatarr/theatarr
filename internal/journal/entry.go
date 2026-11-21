@@ -221,6 +221,7 @@ type Entry struct {
 // facts are what the checks read, gathered while the entry is built.
 type facts struct {
 	episodeIDs    []int64
+	packSpan      bool // the download's stored claim is an anime pack of several seasons (decide.PackClaim)
 	prevScore     *int
 	prevQuality   string
 	prevRelease   string

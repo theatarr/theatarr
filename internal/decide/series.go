@@ -479,7 +479,7 @@ func (s *series) mapRelease(p *sonarr.ParsedEpisodeInfo, tvdbID int, imdbID stri
 	r := &remoteEpisode{parsed: p, sceneMapping: sm, mappedSeason: mapped}
 	r.matched, r.matchType = s.findSeries(p, tvdbID, imdbID, sm, search)
 	if r.matched && sonarr.ValidateForSeriesType(p, s.typ) {
-		if r.seasons = s.packSeasons(p); r.seasons != nil {
+		if r.seasons = s.packSeasons(p, search); r.seasons != nil {
 			r.episodes = s.packEpisodes(p, r.seasons, search)
 			return r, nil
 		}
@@ -496,9 +496,19 @@ func (s *series) mapRelease(p *sonarr.ParsedEpisodeInfo, tvdbID int, imdbID stri
 // any other release or one whose span is not proven. A season pack whose name reads as an ascending range or a list
 // in steps of one (indexer.PackSeasons) from the parsed season to at most the series' last season spans those
 // seasons, whether or not the parser marked it multi-season ("S01 to S03" is not); a complete-series pack spans
-// every season above 0. A multi-season release without a span keeps MultiSeason; anime series keep the rule.
-func (s *series) packSeasons(p *sonarr.ParsedEpisodeInfo) []int {
-	if s.known || s.typ == sonarr.SeriesTypeAnime || !p.FullSeason || len(p.EpisodeNumbers) > 0 {
+// every season above 0. A multi-season release without a span keeps MultiSeason. An anime series reads a span only
+// under a search of several seasons, by its own reader (animeSpanSeasons); a complete-series name stays unread.
+func (s *series) packSeasons(p *sonarr.ParsedEpisodeInfo, search *SeriesSearch) []int {
+	if s.known || !p.FullSeason || len(p.EpisodeNumbers) > 0 {
+		return nil
+	}
+	if s.typ == sonarr.SeriesTypeAnime {
+		if !search.severalSeasons() || p.CompleteSeries {
+			return nil
+		}
+		if seasons := s.animeSpanSeasons(p.ReleaseTitle, p.SeriesTitle); len(seasons) >= 2 && seasons[0] == p.SeasonNumber {
+			return seasons
+		}
 		return nil
 	}
 	if p.CompleteSeries {
