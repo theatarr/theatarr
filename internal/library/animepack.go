@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -152,13 +153,12 @@ func proveFile(rel string, p *sonarr.ParsedEpisodeInfo, claim *decide.PackClaim,
 	return out, ""
 }
 
-// places says whether the table puts a file on any of the download's episodes (allowed).
+// places says whether the table puts a file wholly on the download's episodes (allowed): a file that also holds an
+// episode the download was not given is out of scope and cannot be placed.
 func (p *packProof) places(allowed map[int64]episodeInfo) bool {
 	for _, ids := range p.files {
-		for _, id := range ids {
-			if _, ok := allowed[id]; ok {
-				return true
-			}
+		if len(ids) > 0 && !slices.ContainsFunc(ids, func(id int64) bool { _, ok := allowed[id]; return !ok }) {
+			return true
 		}
 	}
 	return false

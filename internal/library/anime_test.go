@@ -672,6 +672,24 @@ func TestAnimePackNarrowed(t *testing.T) {
 	}
 }
 
+// A narrowed pack whose only file for its episode also holds an episode it was not given has nothing it can place:
+// rejected, not held.
+func TestAnimePackOverlapOnlyIsRejected(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.kaiju()
+	files := map[string]float64{"[GRP] Kaiju Tale - 01-02 [BD 1080p].mkv": 2880, "[GRP] Kaiju Tale - 03-04 [BD 1080p].mkv": 2880,
+		"[GRP] Kaiju Tale - 05-06 [BD 1080p].mkv": 2880, "[GRP] Kaiju Tale - 07-08 [BD 1080p].mkv": 2880,
+		"[GRP] Kaiju Tale - 09-10 [BD 1080p].mkv": 2880}
+	plan := e.importKaiju("[GRP] Kaiju Tale (01-10) [BD 1080p]", files, kaijuClaim(decide.PackAbsolute), []int64{621})
+	if len(plan.Links) != 0 || !strings.HasPrefix(plan.Why, "pack numbering: no file of the pack is for the episodes") {
+		t.Fatalf("links %d, why %q", len(plan.Links), plan.Why)
+	}
+	if s := e.one(`SELECT state FROM download WHERE id = 1`); s != "failed" {
+		t.Errorf("download %s", s)
+	}
+}
+
 // A proved pack that is merely not an upgrade ends as any other download does: not imported, not blocklisted, no
 // numbering reason (section 13 point 7).
 func TestAnimePackNotAnUpgradeEndsAsToday(t *testing.T) {
