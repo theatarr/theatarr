@@ -93,8 +93,9 @@ from ordinary matching loads.
   decision's `multi_season`, the merged route's attempt bucket, the filter of the query without a season) reads
   `indexer.HoldsSeasons`, which answers no for a name that parses as an explicit episode
   (`Show.S01E05.A.Man.for.All.Seasons`, `Show.S01E01-E02.All.Seasons`, a dated episode): the phrase is its episode
-  title. Sonarr reads no such phrase at all (a deliberate difference). `Show S01 - 02` is read by the parser as seasons
-  1 to 2 and stays a pack of two seasons. The span maps to every
+  title. Sonarr reads no such phrase at all (a deliberate difference). The bare `Show S01 - 02` is read by the parser as
+  seasons 1 to 2 and stays a pack of two seasons; with a group tag (`[Grp] Show S01 - 02 [1080p]`) it reads as episode
+  2 and is no pack. The span maps to every
   episode of each season, each through its own scene mapping (specials never); the decision's season is the first,
   its episodes all of them, its release type `seasonPack` as before. A season search accepts a span that holds the
   searched season; a single-episode or daily episode search rejects it as a season pack (`FullSeason`). The other

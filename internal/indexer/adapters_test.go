@@ -711,6 +711,8 @@ func TestHoldsSeasons(t *testing.T) {
 		"Show.S01-S03.1080p.BluRay-GRP":                      true,
 		"Show.Season.1-3.1080p.BluRay-GRP":                   true,
 		"Show.S02.1080p.BluRay-GRP":                          false,
+		"[Grp] Show S01 - 02 [1080p]":                        false,
+		"Show S01 - 02":                                      true,
 	} {
 		if got := HoldsSeasons(name); got != want {
 			t.Errorf("%q: %v, want %v", name, got, want)

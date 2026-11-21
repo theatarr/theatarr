@@ -1231,7 +1231,13 @@ func TestPackChecks(t *testing.T) {
 	// of both.
 	e.dlEvent(84, "added", base.Add(44*time.Hour), 3, 3, "tv-2160p", fmt.Sprintf("%040d", 84),
 		"[G] Gamma (01-09) [WEB-DL 2160p]", "WEBDL-2160p", 100, int64(100*860)<<20, []int64{101, 102}, "")
-	for _, id := range []string{"dl:70", "dl:71", "dl:80", "dl:82", "dl:83", "dl:84"} {
+	// A standard multi-episode release of six filed under two of them: left out of both. The same one filed under all
+	// six (at an ordinary 170 MB/min) still counts.
+	e.dlEvent(85, "added", base.Add(45*time.Hour), 3, 3, "tv-2160p", fmt.Sprintf("%040d", 85),
+		"Gamma.S01E01-E06.2160p.WEB-DL-X", "WEBDL-2160p", 100, int64(100*860)<<20, []int64{101, 102}, "")
+	e.dlEvent(86, "added", base.Add(46*time.Hour), 3, 3, "tv-2160p", fmt.Sprintf("%040d", 86),
+		"Gamma.S01E01-E06.2160p.WEB-DL-Y", "WEBDL-2160p", 100, int64(300*170)<<20, []int64{101, 102, 103, 104, 105, 106}, "")
+	for _, id := range []string{"dl:70", "dl:71", "dl:80", "dl:82", "dl:83", "dl:84", "dl:85", "dl:86"} {
 		en := e.get(id)
 		for _, code := range []string{CheckUnparsed, CheckEpisodes, CheckSize} {
 			if f := hasFlag(en, code); f != nil {
@@ -1251,7 +1257,7 @@ func TestPackChecks(t *testing.T) {
 			t.Errorf("median input %.1f MB/min: an unclaimed or narrowed pack counted", v)
 		}
 	}
-	if n := len(stats.byQuality["webdl-2160p"]); n != 22 {
-		t.Errorf("median inputs %d, want 22 (20 grabs and the two claimed packs)", n)
+	if n := len(stats.byQuality["webdl-2160p"]); n != 23 {
+		t.Errorf("median inputs %d, want 23 (20 grabs, the two claimed packs and the whole six-episode release)", n)
 	}
 }
