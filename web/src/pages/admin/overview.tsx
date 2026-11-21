@@ -33,6 +33,7 @@ import { attentionCount, jobEffect, jobName, type Job } from "@/lib/jobs";
 import { useProviderCode } from "@/lib/library-names";
 import { JobActions } from "./jobs";
 import { backoffWords } from "@/lib/router-words";
+import { cn } from "@/lib/utils";
 
 type Ready = {
   status?: string;
@@ -227,14 +228,16 @@ export function Overview() {
           ) : (
             <ul className="divide-y divide-border" data-testid="attention">
               {items.map((a) => (
-                <li key={a.key} className="flex flex-wrap items-start gap-3 px-4 py-3 sm:flex-nowrap" data-testid={a.job ? `attention-job-${a.job.id}` : `attention-${a.key}`}>
+                // A failed job's Retry, Dismiss and Open take a row of their own under its text on a phone, so the
+                // error is not squeezed beside three buttons; from sm up they sit beside it.
+                <li key={a.key} className={cn("items-start gap-3 px-4 py-3", a.job ? "grid grid-cols-[auto_minmax(0,1fr)] sm:flex" : "flex flex-wrap sm:flex-nowrap")} data-testid={a.job ? `attention-job-${a.job.id}` : `attention-${a.key}`}>
                   <Badge tone={a.tone === "bad" ? "negative" : "warning"}>!</Badge>
                   <div className="min-w-0 flex-1">
                     <div className="font-medium">{a.title}</div>
                     <div className="break-words text-[13px] text-muted-foreground">{a.effect}</div>
                     <div className="mt-0.5 text-[12.5px] text-[var(--accent-ink)]">Next: {a.next}</div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className={cn("flex items-center gap-2", a.job ? "col-start-2 flex-wrap sm:shrink-0 sm:flex-nowrap" : "shrink-0")} data-testid="attention-actions">
                     {a.job ? <JobActions job={a.job} newest={a.grouped} /> : null}
                     <Link to={a.to} className="text-sm text-primary hover:underline">{a.open ?? "Open"}</Link>
                   </div>

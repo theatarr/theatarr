@@ -443,3 +443,25 @@ it("names a failed task and a backed-off source in words, without their keys", a
  expect(attention.textContent).toContain("Metadata source TMDb images is backed off");
  expect(attention.textContent).not.toContain("zurglog");
 });
+
+it("puts a failed job's Retry, Dismiss and Open on their own row under its text on a phone, beside it from sm up", async () => {
+ mockFetch([...reviewRoutes,
+  { method: "GET", path: "/readyz", reply: { status: "ok" } },
+  { method: "GET", path: "/status", reply: status },
+  { method: "GET", path: "/jobs", reply: { items: [{ id: 5, kind: "provider.sync", state: "failed", last_error: "a long error that would otherwise be squeezed into a narrow column beside three buttons", finished_at: "2026-11-02T12:00:00Z" }], counts: {} } },
+  { method: "GET", path: "/gateway", reply: { egress: { vpn_ok: true }, backoffs: [] } },
+  { method: "GET", path: "/health", reply: { checks: [] } },
+  { method: "GET", path: "/activity", reply: { now: [] } },
+ ]);
+ renderPage(<Overview />);
+ const item = await screen.findByTestId("attention-job-5");
+ const actions = within(item).getByTestId("attention-actions");
+ expect(within(actions).getByRole("button", { name: "Retry" })).toBeTruthy();
+ expect(within(actions).getByRole("button", { name: "Dismiss" })).toBeTruthy();
+ expect(within(actions).getByRole("link", { name: "Open" })).toBeTruthy();
+ // Phones: a two-column grid (badge, text) with the actions on a row of their own in the text's column, wrapping;
+ // from sm up the row of today (text, then the actions beside it).
+ expect(item.className.split(" ")).toEqual(expect.arrayContaining(["grid", "grid-cols-[auto_minmax(0,1fr)]", "sm:flex"]));
+ expect(actions.className.split(" ")).toEqual(expect.arrayContaining(["col-start-2", "flex-wrap", "sm:shrink-0"]));
+ expect(actions.previousElementSibling?.textContent).toContain("a long error");
+});
