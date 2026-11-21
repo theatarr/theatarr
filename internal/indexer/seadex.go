@@ -106,10 +106,13 @@ var (
 	extraGroupRE = regexp.MustCompile(`^\s*\[[^\]]*\]\s*`)
 	// extraWordRE is a marker word: one word of the list, then optional digits with an optional part letter after
 	// them ("NCOP1a"; "SPA", "Spy", "PvP" are none), and an optional vN.
-	extraWordRE = regexp.MustCompile(`(?i)^(?:OVA|OAV|OAD|ONA|SP|Specials?|NCOP|NCED|creditless|textless|clean|recap|preview|PV|CM|` +
-		`menu|trailer|teaser|opening|ending|omake|extras?|bonus|commentary)(?:\d+[a-z]?)?(?:v\d+)?$`)
-	// extraCapsRE is OP or ED, in capitals only (so a name "Ed" is no marker).
-	extraCapsRE = regexp.MustCompile(`^(?:OP|ED)(?:\d+[a-z]?)?(?:v\d+)?$`)
+	extraWordRE = regexp.MustCompile(`(?i)^(?:OVAs?|OAVs?|OADs?|ONAs?|SPs?|Specials?|NCOP|NCED|creditless|textless|clean|recap|preview|PV|CM|` +
+		`menu|trailer|teaser|opening|ending|omake|extras?|bonus|commentary|movies?|films?|(?:OP|ED)\d+[a-z]?)(?:\d+[a-z]?)?(?:v\d+)?$`)
+	// extraCapsRE is a bare OP or ED, in capitals only (so a name "Ed" is no marker); with a number it counts in any
+	// case ("op1" above, "Op 01" below).
+	extraCapsRE = regexp.MustCompile(`^(?:OP|ED)(?:v\d+)?$`)
+	// extraNumberRE is the number after a separate OP or ED ("Op 01").
+	extraNumberRE = regexp.MustCompile(`^\d{1,3}[a-z]?(?:v\d+)?$`)
 	// extraNCRE is the OP or ED that "NC" joins ("NC.OP", "NC-ED 01").
 	extraNCRE = regexp.MustCompile(`(?i)^(?:OP|ED)(?:\d+[a-z]?)?(?:v\d+)?$`)
 	// extraDecimalRE is a decimal episode number opening the segment after " - " ("Show - 12.5").
@@ -140,6 +143,9 @@ func NewTitleMatcher(title string) *TitleMatcher {
 	return &TitleMatcher{re: regexp.MustCompile(`(?i)^\s*` + strings.Join(parts, `[ ._\-]+`))}
 }
 
+// LeadingGroup is a name's leading release group bracket ("[Grp] "), "" when none.
+func LeadingGroup(name string) string { return extraGroupRE.FindString(name) }
+
 // Strip drops a leading release group bracket and then the title. ok is false when the title is not there (rest is
 // then the name without its group).
 func (m *TitleMatcher) Strip(name string) (rest string, ok bool) {
@@ -154,32 +160,44 @@ func (m *TitleMatcher) Strip(name string) (rest string, ok bool) {
 	return rest[loc[1]:], true
 }
 
-// ExtraEpisodeToken says whether a pack file's or folder's name marks an extra, for the anime pack proof
+// ExtraEpisodeToken says whether a pack file's name marks an extra, for the anime pack proof
 // (library/animepack.go; SeaDexExtra keeps its own rule). Invariant: a marker only ever sets a file aside; nothing
 // un-marks a file. Whether a marker word after an episode number is an episode title or an extra cannot be told from
 // a name, so any marker anywhere sets the file aside (an episode then without a file fails the proof: fail closed).
 //
 // The group bracket and the library title (title: "Special 7", "OVA Girls") are dropped first; the rest is split into
 // words, bracket contents included. A marker is OVA, OAV, OAD, ONA, SP, Special(s), NCOP, NCED, creditless, textless,
-// clean, recap, preview, PV, CM, menu, trailer, teaser, opening, ending, omake, extra(s), bonus or commentary, then
-// optional digits (a part letter only after digits) and vN; OP or ED in capitals; "NC" joined to OP or ED. Bare "NC"
+// clean, recap, preview, PV, CM, menu, trailer, teaser, opening, ending, omake, extra(s), bonus, commentary, movie(s)
+// or film(s) (OVA, OAV, OAD, ONA and SP with a plural too), then optional digits (a part letter only after digits) and vN; OP or ED with a number in any case, bare OP
+// or ED in capitals; "NC" joined to OP or ED. Bare "NC"
 // is none ("[NC-Raws]"). A decimal number counts only where it opens the segment after " - " ("Show - 12.5"), never
 // elsewhere ("FLAC 5.1").
 func ExtraEpisodeToken(name string, title *TitleMatcher) bool {
-	stem := strings.TrimSuffix(name, path.Ext(name))
-	if path.Ext(name) != "" && strings.ContainsAny(path.Ext(name), " []()") {
-		stem = name // a folder name with a dot in it ("Show Vol. 2 [BD]") has no extension
-	}
-	rest, _ := title.Strip(stem)
+	rest, _ := title.Strip(strings.TrimSuffix(name, path.Ext(name)))
+	return markedWords(rest)
+}
+
+// ExtraFolderName is ExtraEpisodeToken for a folder's name, read whole: no extension, group or title is stripped
+// ("Disc.OVA", "[OVA]", "Show.S01.Extras" are folders of extras).
+func ExtraFolderName(name string) bool { return markedWords(name) }
+
+// markedWords says whether any word of rest is a marker (ExtraEpisodeToken).
+func markedWords(rest string) bool {
 	if segs := strings.SplitN(rest, " - ", 2); len(segs) == 2 && extraDecimalRE.MatchString(strings.TrimSpace(segs[1])) {
 		return true
 	}
 	words := extraTokens(rest)
 	for i, w := range words {
-		if extraWordRE.MatchString(w) || extraCapsRE.MatchString(w) {
-			return true
+		next := ""
+		if i+1 < len(words) {
+			next = words[i+1]
 		}
-		if strings.EqualFold(w, "NC") && i+1 < len(words) && extraNCRE.MatchString(words[i+1]) {
+		switch {
+		case extraWordRE.MatchString(w) || extraCapsRE.MatchString(w):
+			return true
+		case (strings.EqualFold(w, "OP") || strings.EqualFold(w, "ED")) && extraNumberRE.MatchString(next):
+			return true // "Op 01", "Ed 2"
+		case strings.EqualFold(w, "NC") && extraNCRE.MatchString(next):
 			return true
 		}
 	}
