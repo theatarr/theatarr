@@ -234,13 +234,15 @@ func parseFile(stem string, title *indexer.TitleMatcher) (p *sonarr.ParsedEpisod
 	return sonarr.ParseTitle(stem), stem
 }
 
-// packJoinedRE is a name's token that joins several episodes with no title separator: S01E01-E02, S01E01E02, 01-02,
-// 01+02, 01 & 02, 01~02.
-var packJoinedRE = regexp.MustCompile(`(?i)S\d{1,2}E\d{1,4}(?:-?(?:S\d{1,2})?E\d{1,4})+|\d{1,4}(?:-|\s*[+&~]\s*)\d{1,4}`)
+// packJoinedRE is a name's token that joins several episodes with no title separator: S01E01-E02, S01E01E02,
+// S01E01-03, 1x01-1x03, 1x01-03, 01-02, 01-02-03, 01+02, 01 & 02, 01~02.
+var packJoinedRE = regexp.MustCompile(`(?i)S\d{1,2}E\d{1,4}(?:-?(?:S\d{1,2})?E\d{1,4}|-\d{1,4})+|\d{1,2}x\d{2,3}(?:-(?:\d{1,2}x)?\d{2,3})+|\d{1,4}(?:(?:-|\s*[+&~]\s*)\d{1,4})+`)
 
 var (
-	// packTokenEpisodeRE is an episode number of an SxxEyy token.
-	packTokenEpisodeRE = regexp.MustCompile(`(?i)E(\d{1,4})`)
+	// packTokenEpisodeRE is an episode number of an SxxEyy token ("E01", "-03").
+	packTokenEpisodeRE = regexp.MustCompile(`(?i)[E-](\d{1,4})`)
+	// packTokenXRE is an episode number of an NxNN token ("x01", "-03").
+	packTokenXRE = regexp.MustCompile(`(?i)[x-](\d{2,3})`)
 	// packTokenNumberRE is a number of a bare joined token.
 	packTokenNumberRE = regexp.MustCompile(`\d{1,4}`)
 	// packVersionRE is a version suffix right after a token ("01-02v2").
@@ -266,13 +268,19 @@ func joinedToken(read string, p *sonarr.ParsedEpisodeInfo) bool {
 			continue
 		}
 		token := s[loc[0]:loc[1]]
-		var got []string
-		if token[0] == 'S' || token[0] == 's' {
-			for _, m := range packTokenEpisodeRE.FindAllStringSubmatch(token, -1) {
+		got := packTokenNumberRE.FindAllString(token, -1)
+		var re *regexp.Regexp
+		switch {
+		case token[0] == 'S' || token[0] == 's':
+			re = packTokenEpisodeRE
+		case strings.ContainsAny(token, "xX"):
+			re = packTokenXRE
+		}
+		if re != nil {
+			got = nil
+			for _, m := range re.FindAllStringSubmatch(token, -1) {
 				got = append(got, m[1])
 			}
-		} else {
-			got = packTokenNumberRE.FindAllString(token, -1)
 		}
 		first, _ := strconv.Atoi(got[0])
 		last, _ := strconv.Atoi(got[len(got)-1])

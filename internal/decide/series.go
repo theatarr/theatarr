@@ -53,6 +53,8 @@ type remoteEpisode struct {
 	matched   bool
 	matchType MatchType
 	episodes  []*Episode
+	// span is an anime named span's episodes as mapRelease gave them (by TVDB season), before the anime mapping.
+	span []*Episode
 }
 
 // series is the one series the mapping knows, with its lookups.
@@ -484,6 +486,7 @@ func (s *series) mapRelease(p *sonarr.ParsedEpisodeInfo, tvdbID int, imdbID stri
 		if r.seasons = s.packSeasons(p, search); r.seasons != nil {
 			if s.typ == sonarr.SeriesTypeAnime {
 				r.episodes = s.spanEpisodes(r.seasons) // a named span: by TVDB season
+				r.span = r.episodes
 			} else {
 				r.episodes = s.packEpisodes(p, r.seasons, search)
 			}

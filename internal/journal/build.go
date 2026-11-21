@@ -193,7 +193,7 @@ func (b *builder) download(e *Entry, rest string) error {
 	if d.episodeMap.Valid {
 		var m decide.EpisodeMap
 		if json.Unmarshal([]byte(d.episodeMap.String), &m) == nil {
-			e.f.packSpan, e.f.pack = m.Pack.Span(), m.Pack
+			e.f.pack = m.Pack
 		}
 	}
 	if ti, _ := b.title(d.titleID); ti != nil {

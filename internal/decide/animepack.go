@@ -209,24 +209,30 @@ func (s *series) spanEpisodes(seasons []int) []*Episode {
 	return out
 }
 
-// exactSpan says whether an anime named span's final episodes (after the anime mapping) are exactly its seasons'
-// regular episodes. When they are not (another engine placed the release elsewhere), the release keeps no
-// episodes: the empty-episode refusal then covers every caller, an override grab too, so it is never routed
-// without the proof.
-func (s *series) exactSpan(r *remoteEpisode) bool {
-	want := s.spanEpisodes(r.seasons)
-	if len(r.episodes) != len(want) {
+// failedSpan says whether an anime release's name states a span (indexer.AnimePackSeasons) that, under a search of
+// several seasons, is not a validated span whose final episodes (after the anime mapping) are exactly its seasons'
+// regular episodes (r.span, as mapRelease gave them): the library lacks a season, the scene numbers it differently,
+// or another engine placed the release elsewhere. Such a release keeps no episodes: the empty-episode refusal then
+// covers every caller, an override grab too, and the plain reading as its first season's pack never survives it.
+func failedSpan(title string, r *remoteEpisode, search *SeriesSearch) bool {
+	if !search.severalSeasons() {
 		return false
+	}
+	if _, _, _, named := indexer.AnimePackSeasons(title); !named && len(r.seasons) < 2 {
+		return false
+	}
+	if len(r.seasons) < 2 || len(r.episodes) != len(r.span) {
+		return true
 	}
 	ids := map[int64]bool{}
 	for _, e := range r.episodes {
 		ids[e.ID] = true
 	}
-	return !slices.ContainsFunc(want, func(e *Episode) bool { return !ids[e.ID] })
+	return slices.ContainsFunc(r.span, func(e *Episode) bool { return !ids[e.ID] })
 }
 
 // claimPack sets an anime release's pack claim (Decision.Pack) from its mapping: a named span (r.seasons, whose
-// episodes exactSpan already proved to be exactly its seasons'), else an absolute batch placed by the plain
+// episodes failedSpan already proved to be exactly its seasons'), else an absolute batch placed by the plain
 // numbering (not by a franchise entry, an alternate cut or a SeaDex mapping; nor a SeaDex feed result), whose span
 // sets r.seasons under a search of several seasons.
 func (s *series) claimPack(d *Decision, p *sonarr.ParsedEpisodeInfo, rel indexer.Release, r *remoteEpisode,

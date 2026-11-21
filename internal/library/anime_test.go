@@ -1223,3 +1223,29 @@ func TestAnimePackLayoutsEnd(t *testing.T) {
 		}
 	}
 }
+
+// The joined forms the parser reads as several episodes prove a multi-episode file of a pack (round 1): an episode
+// range after SxxEyy, a chain of numbers in a season folder and an NxNN range, each placed on its three episodes.
+func TestAnimePackJoinedForms(t *testing.T) {
+	t.Parallel()
+	first3 := map[int]bool{101: true, 102: true, 103: true}
+	for joined, pat := range map[string]string{
+		"Show S01E01-03.mkv":           "Show S%02dE%02d.mkv",
+		"Season 1/Show - 01-02-03.mkv": "Season %d/Show - %02d.mkv",
+		"Show 1x01-1x03.mkv":           "Show %dx%02d.mkv",
+	} {
+		title, claim := proofTitle("Show", decide.PackSeasons)
+		var files []PlannedFile
+		for _, f := range append(proofFiles(first3, func(s, n int) string { return fmt.Sprintf(pat, s, n) }), joined) {
+			files = append(files, PlannedFile{Rel: f})
+		}
+		proof, why := provePack(title, claim, files)
+		if why != "" {
+			t.Errorf("%s: %s", joined, why)
+			continue
+		}
+		if got := proof.files[joined]; !slices.Equal(got, []int64{101, 102, 103}) {
+			t.Errorf("%s: placed on %v", joined, got)
+		}
+	}
+}

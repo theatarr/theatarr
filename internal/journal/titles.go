@@ -27,6 +27,17 @@ type episodeInfo struct {
 	season, number, runtime int
 }
 
+// bySeason is the title's regular episode ids per season.
+func (ti *titleInfo) bySeason() map[int][]int64 {
+	out := map[int][]int64{}
+	for id, ep := range ti.eps {
+		if ep.season > 0 {
+			out[ep.season] = append(out[ep.season], id)
+		}
+	}
+	return out
+}
+
 func (ti *titleInfo) labels(ids []int64) []string {
 	var out []string
 	for _, id := range ids {

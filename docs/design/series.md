@@ -234,8 +234,9 @@ before ("Multi-season releases are not supported" stays there). Two shapes read 
   none numbered differently by the scene (a scene season or number, or a scene mapping's offset), no regular episode
   of another season numbered by the scene into the span, and none in a franchise entry marked as conflicting; then
   it is mapped by TVDB season (as Sonarr maps a multi-season pack) and claims every regular episode of those seasons.
-  When the episodes the anime mapping leaves are not exactly those, the release keeps no episodes and is refused
-  ("Unable to identify correct episode(s)"), so not even a grab by override routes it without its claim.
+  A span name that fails any of this, or whose episodes after the anime mapping are not exactly those, keeps no
+  episodes and is refused ("Unable to identify correct episode(s)"): it is never read again as its first season's
+  pack, and not even a grab by override routes it without its claim.
 - an absolute batch (two or more numbers, not a special, no season marker) placed by the plain numbering (not by a
   franchise entry, an alternative cut or a SeaDex mapping; not a SeaDex feed result) whose numbers each map to one
   regular episode, those being every episode of two or more whole seasons. "001-030", "13-30" and "- 12-13" across a
@@ -265,7 +266,7 @@ restarting per folder fail); under a named claim a season from the file's own na
 disagree fail; a folder that names a range, "Show S01-S02", names no season). A file's name is read with the library's
 own title dropped first (never a scene name, which can carry a season), so a number in the title is never an
 episode ("Brave 10 - 11" is episode 11); a file holds several episodes only when its name joins them ("S01E01-E02",
-"01-02"), never across a title separator ("Brave 10 - 13"): the joining token stands on its own outside brackets,
+"S01E01-03", "1x01-1x03", "01-02", "01-02-03"), never across a title separator ("Brave 10 - 13"): the joining token stands on its own outside brackets,
 no letter or digit touching it, and its first and last numbers are the parse's, so a tag such as "x264-10bit",
 "H265-10bit" or "DDP2.0-10bit" joins nothing. A folder's name is read whole by the same marker
 rule before a season is read from it ("Season 1 [OVA]", "Disc.OVA", "OVAs" are folders of extras), except a

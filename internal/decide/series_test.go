@@ -932,16 +932,22 @@ func TestAnimeSpans(t *testing.T) {
 				Title: "Episode", Runtime: 24, Monitored: true, SceneSeason: ip(2), SceneNumber: ip(4)})
 		}
 	}
-	for _, ss := range []*SeriesSearch{whole, kaijuMerged(0, 1, 2), kaijuMerged(1, 1, 2), kaijuMerged(2, 1, 2)} {
-		tt := kaiju()
-		outside(4)(&tt)
-		d, err := e.DecideSearch(ctx, rel("[G] Kaiju Tale S01-S03 [BD 1080p]", "public", 20*gb), tt, v, ss)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if d.Accepted || slices.Contains(d.EpisodeIDs, 649) || slices.ContainsFunc(d.Episodes, func(s string) bool { return s[:3] != "S01" }) {
-			t.Errorf("an outside regular episode scene-mapped into the span (search %v): accepted %v, episodes %v, claim %+v",
-				ss.Seasons, d.Accepted, d.Episodes, d.Pack)
+	// A recognised span that fails validation (this one, or scene-numbered seasons inside it) keeps no episodes: the
+	// plain reading as season 1's pack never survives it. The size is inside the limits of that reading too.
+	inside := func(t *Title) { ep(t, 621).SceneSeason, ep(t, 621).SceneNumber = ip(1), ip(4) }
+	for name, setup := range map[string]func(*Title){"an outside regular episode scene-mapped into the span": outside(4),
+		"scene-numbered seasons": inside} {
+		for _, ss := range []*SeriesSearch{whole, kaijuMerged(0, 1, 2), kaijuMerged(1, 1, 2), kaijuMerged(2, 1, 2)} {
+			tt := kaiju()
+			setup(&tt)
+			d, err := e.DecideSearch(ctx, rel("[G] Kaiju Tale S01-S03 [BD 1080p]", "public", 4*gb), tt, v, ss)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if d.Accepted || len(d.EpisodeIDs) > 0 || d.Pack != nil {
+				t.Errorf("%s (search %v %d): accepted %v, episodes %v, claim %+v (%v)", name, ss.Seasons, ss.Season,
+					d.Accepted, d.Episodes, d.Pack, d.Rejections)
+			}
 		}
 	}
 	tt := kaiju()
