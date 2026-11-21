@@ -226,6 +226,9 @@ type Decision struct {
 	Kept []string `json:"kept,omitempty"`
 	// KeptEpisodeIDs are the episode ids kept by the companion upgrade rules (not serialised; left out of downloads).
 	KeptEpisodeIDs []int64 `json:"-"`
+	// UnsearchedIDs are the episodes of a pack of several seasons whose season a merged search did not search
+	// (SeriesSearch.Seasons; not serialised; left out of downloads).
+	UnsearchedIDs []int64 `json:"-"`
 	// Anime (franchise mappings, anime.go): how the episodes were mapped (franchise, alt_cut:<name>, sonarr), the
 	// franchise entry, and the episodes that used Sonarr's numbering because their franchise mapping is not
 	// importable (conflict, rejected).
@@ -242,17 +245,19 @@ type Decision struct {
 	engine  *profile.Engine
 }
 
-// DownloadEpisodes returns the episode ids a download of this decision is for: for an accepted decision,
-// EpisodeIDs without the episodes kept by rule; otherwise EpisodeIDs (an override routes every episode).
+// DownloadEpisodes returns the episode ids a download of this decision is for: EpisodeIDs without the episodes of
+// seasons a merged search did not search (UnsearchedIDs) and, for an accepted decision, without the episodes kept
+// by rule (a rejected one routed by an override takes every searched episode).
 func (d *Decision) DownloadEpisodes() []int64 {
-	if !d.Accepted || len(d.KeptEpisodeIDs) == 0 {
-		return append([]int64(nil), d.EpisodeIDs...)
-	}
 	out := make([]int64, 0, len(d.EpisodeIDs))
 	for _, id := range d.EpisodeIDs {
-		if !slices.Contains(d.KeptEpisodeIDs, id) {
-			out = append(out, id)
+		if slices.Contains(d.UnsearchedIDs, id) || d.Accepted && slices.Contains(d.KeptEpisodeIDs, id) {
+			continue
 		}
+		out = append(out, id)
+	}
+	if len(out) == 0 && len(d.EpisodeIDs) == 0 {
+		return nil
 	}
 	return out
 }

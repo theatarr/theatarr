@@ -12,6 +12,16 @@ import "github.com/theatarr/theatarr/internal/decide/profile"
 // tb, none; provider_preference: none counts providers only). Only the accepted order picks grabs. Versions keep the
 // order in which they first appear. The input is not changed.
 func Rank(decisions []*Decision) []*Decision {
+	return rank(decisions, false)
+}
+
+// RankMerged is Rank for a merged search of several seasons (profile.Engine.PrioritizeMerged): between full-season
+// releases cache evidence first, then more of the searched episodes (DownloadEpisodes) first.
+func RankMerged(decisions []*Decision) []*Decision {
+	return rank(decisions, true)
+}
+
+func rank(decisions []*Decision, merged bool) []*Decision {
 	var order []string
 	byVersion := map[string][]*Decision{}
 	for _, d := range decisions {
@@ -40,7 +50,12 @@ func Rank(decisions []*Decision) []*Decision {
 			eng = d.engine
 		}
 		if eng != nil {
-			for _, s := range append(eng.Prioritize(accepted), eng.Prioritize(rejected)...) {
+			prioritize := eng.Prioritize
+			if merged {
+				scoped := func(s *profile.Subject) int { return len(bySubject[s].DownloadEpisodes()) }
+				prioritize = func(ss []*profile.Subject) []*profile.Subject { return eng.PrioritizeMerged(ss, scoped) }
+			}
+			for _, s := range append(prioritize(accepted), prioritize(rejected)...) {
 				out = append(out, bySubject[s])
 			}
 		}

@@ -561,3 +561,115 @@ func TestEmptyNamesMatchNothing(t *testing.T) {
 		t.Errorf("a Japanese special title: %v, want episode 1", e)
 	}
 }
+
+// fourSeasons is ended() with a fourth season of two episodes (541, 542).
+func fourSeasons() Title {
+	t := ended()
+	for n := 1; n <= 2; n++ {
+		aired := fmt.Sprintf("2021-03-%02d", n)
+		t.Episodes = append(t.Episodes, Episode{ID: int64(540 + n), Season: 4, Number: n, Title: "Episode", Runtime: 45,
+			Monitored: true, AirDate: aired, AirDateUTC: day(aired)})
+	}
+	return t
+}
+
+// A search of the whole series (SearchSeries) takes only releases of two or more seasons that hold a searched
+// season; in a merged search a pack of several seasons is for the searched seasons only.
+func TestSeriesSearchCriteria(t *testing.T) {
+	t.Parallel()
+	e := seriesEngine(t)
+	ctx := context.Background()
+	v := tvVersion(e, "tv")
+	whole := &SeriesSearch{Kind: profile.SearchSeries, Episodes: []int64{511, 512, 521, 522}, MonitoredOnly: true,
+		Seasons: []int{1, 2}}
+	for _, c := range []struct{ release, reasons string }{
+		{"The.Show.S01-S03.2160p.WEB-DL.DDP5.1.H.265-GRP", ""},
+		{"The.Show.Complete.Series.2160p.WEB-DL.DDP5.1.H.265-GRP", ""},
+		{"The.Show.S02.2160p.WEB-DL.DDP5.1.H.265-GRP", "WrongSeason"},
+		{"The.Show.S02E01.2160p.WEB-DL.DDP5.1.H.265-GRP", "WrongSeason"},
+		{"The.Show.S03-S04.2160p.WEB-DL.DDP5.1.H.265-GRP", "WrongEpisode,WrongSeason"},
+	} {
+		d, err := e.DecideSearch(ctx, rel(c.release, "public", 40*gb), fourSeasons(), v, whole)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := reasons(d); got != c.reasons || d.Accepted != (c.reasons == "") {
+			t.Errorf("%s: accepted %v, reasons %s, want %q", c.release, d.Accepted, got, c.reasons)
+		}
+	}
+	// Scope: a complete pack found while seasons 1 and 2 of four are searched is for those two, under the seasonless
+	// criterion and under a member's season criterion alike; a single-season pack is not touched.
+	member := &SeriesSearch{Kind: profile.SearchSeason, Season: 2, Episodes: []int64{521, 522}, MonitoredOnly: true,
+		Seasons: []int{1, 2}}
+	for _, ss := range []*SeriesSearch{whole, member} {
+		d, _ := e.DecideSearch(ctx, rel("The.Show.Complete.Series.2160p.WEB-DL.DDP5.1.H.265-GRP", "public", 40*gb),
+			fourSeasons(), v, ss)
+		if got := fmt.Sprint(d.DownloadEpisodes()); !d.Accepted || got != "[511 512 521 522]" {
+			t.Errorf("%s scope: %v %s %s", ss.Kind, d.Accepted, got, reasons(d))
+		}
+		if len(d.EpisodeIDs) != 8 {
+			t.Errorf("%s: the whole release is still judged: %v", ss.Kind, d.EpisodeIDs)
+		}
+	}
+	one, _ := e.DecideSearch(ctx, rel("The.Show.S02.2160p.WEB-DL.DDP5.1.H.265-GRP", "public", 15*gb), fourSeasons(), v, member)
+	if got := fmt.Sprint(one.DownloadEpisodes()); got != "[521 522]" {
+		t.Errorf("season pack: %s", got)
+	}
+	unscoped, _ := e.DecideSearch(ctx, rel("The.Show.S01-S03.2160p.WEB-DL.DDP5.1.H.265-GRP", "public", 40*gb), fourSeasons(),
+		v, &SeriesSearch{Kind: profile.SearchSeason, Season: 2, Episodes: []int64{521, 522}, MonitoredOnly: true})
+	if len(unscoped.DownloadEpisodes()) != 6 {
+		t.Errorf("a search that is not merged keeps the whole span: %v", unscoped.DownloadEpisodes())
+	}
+}
+
+// The ranking of a merged search: between full-season releases cache evidence first, then more scoped episodes;
+// quality and score still come first, and the ranking without the flag is unchanged.
+func TestRankMerged(t *testing.T) {
+	t.Parallel()
+	e := seriesEngine(t)
+	ctx := context.Background()
+	v := tvVersion(e, "tv")
+	ss := &SeriesSearch{Kind: profile.SearchSeason, Season: 2, Episodes: []int64{521, 522}, MonitoredOnly: true,
+		Seasons: []int{1, 2, 3}}
+	decided := func(name string, cached bool, hash int) *Decision {
+		r := rel(name, "public", 15*gb)
+		r.InfoHash = fmt.Sprintf("%040x", hash)
+		if cached {
+			r.CachedOn = []string{"rd"}
+		}
+		d, err := e.DecideSearch(ctx, r, ended(), v, ss)
+		if err != nil || !d.Accepted {
+			t.Fatalf("%s: %v %s", name, err, reasons(d))
+		}
+		return d
+	}
+	const pack, span, hdrPack = "The.Show.S02.2160p.WEB-DL.DDP5.1.H.265-GRP", "The.Show.S01-S03.2160p.WEB-DL.DDP5.1.H.265-GRP",
+		"The.Show.S02.2160p.WEB-DL.DDP5.1.HDR.H.265-GRP"
+	first := func(merged bool, ds ...*Decision) string {
+		if merged {
+			return RankMerged(ds)[0].Release
+		}
+		return Rank(ds)[0].Release
+	}
+	for _, c := range []struct {
+		name                string
+		packCached, spanCac bool
+		packName, want      string
+		merged              bool
+	}{
+		{"cached season pack over an uncached span", true, false, pack, pack, true},
+		{"span over a season pack, both cached", true, true, pack, span, true},
+		{"span over a season pack, neither cached", false, false, pack, span, true},
+		{"a higher score first", false, true, hdrPack, hdrPack, true},
+		{"without the flag fewer episodes first", false, false, pack, pack, false},
+		{"without the flag, both cached", true, true, pack, pack, false},
+	} {
+		p, s := decided(c.packName, c.packCached, 1), decided(span, c.spanCac, 2)
+		if got := first(c.merged, s, p); got != c.want {
+			t.Errorf("%s: %s first", c.name, got)
+		}
+		if got := first(c.merged, p, s); got != c.want {
+			t.Errorf("%s (other order): %s first", c.name, got)
+		}
+	}
+}

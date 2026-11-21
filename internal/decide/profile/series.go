@@ -40,6 +40,9 @@ const (
 	SearchDaily         SearchKind = "daily"         // DailyEpisodeSearch
 	SearchDailySeason   SearchKind = "daily-season"  // DailySeasonSearchCriteria (no specification reads its numbers)
 	SearchSpecial       SearchKind = "special"       // SpecialEpisodeSearchCriteria
+	// SearchSeries (ours) is the query without a season of a merged search for several seasons: it takes releases
+	// of two or more seasons only.
+	SearchSeries SearchKind = "series"
 )
 
 // Search is the SearchCriteriaBase the release was found with; nil for RSS.
@@ -207,8 +210,20 @@ func episodeRequested(e *Engine, s *Subject) Decision {
 	return Reject(ReasonWrongEpisode, "Episode wasn't requested: {0}x{1}", first.SeasonNumber, first.EpisodeNumber)
 }
 
-// seasonMatch is Search/SeasonMatchSpecification.
+// seasonMatch is Search/SeasonMatchSpecification. A search of the whole series (SearchSeries) takes a release of
+// two or more seasons (a read span or the complete-series reading) with a season of a searched episode.
 func seasonMatch(e *Engine, s *Subject) Decision {
+	if s.Search != nil && s.Search.Kind == SearchSeries {
+		if len(s.Release.Seasons) < 2 {
+			return Reject(ReasonWrongSeason, "Holds one season")
+		}
+		for _, ep := range s.Search.Episodes {
+			if slices.Contains(s.Release.Seasons, ep.SeasonNumber) {
+				return Accept()
+			}
+		}
+		return Reject(ReasonWrongSeason, "Wrong season")
+	}
 	if s.Search == nil || s.Search.Kind != SearchSeason {
 		return Accept()
 	}

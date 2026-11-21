@@ -246,7 +246,32 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 			d.UpgradeReason += fmt.Sprintf("; %d episode(s) keep their file", len(kept))
 		}
 	}
+	scopeSeasons(d, search, r)
 	return nil
+}
+
+// scopeSeasons limits a pack of several seasons found by a merged search to the searched seasons
+// (Decision.UnsearchedIDs); the whole release stays what it was judged on. One left with nothing to download for
+// those seasons (every searched episode kept by rule) is rejected: it is no grab for this search.
+func scopeSeasons(d *Decision, search *SeriesSearch, r *remoteEpisode) {
+	if search == nil || len(search.Seasons) == 0 || len(r.seasons) < 2 {
+		return
+	}
+	for _, ep := range r.episodes {
+		if !slices.Contains(search.Seasons, ep.Season) {
+			d.UnsearchedIDs = append(d.UnsearchedIDs, ep.ID)
+		}
+	}
+	if len(d.UnsearchedIDs) == 0 || len(d.Rejections) > 0 {
+		return
+	}
+	for _, id := range d.EpisodeIDs {
+		if !slices.Contains(d.UnsearchedIDs, id) && !slices.Contains(d.KeptEpisodeIDs, id) {
+			return
+		}
+	}
+	d.Rejections = append(d.Rejections, Rejection{Reason: string(profile.ReasonWrongSeason),
+		Message: "Nothing to download for the searched seasons"})
 }
 
 // firstUpgraded is the first episode file the release upgrades (not kept by rule, cutoff not met and an upgrade,

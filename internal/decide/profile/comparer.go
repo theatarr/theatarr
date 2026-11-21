@@ -39,6 +39,37 @@ func (e *Engine) Compare(x, y *Subject) int {
 	return 0
 }
 
+// compareMerged is Compare for the releases of a merged search of several seasons (Theatarr): quality, format score
+// and protocol as Compare; then, between full-season releases only, a release with cache evidence before one
+// without, then more scoped episodes (scoped: what the release is for in this search) first; everything else in
+// Compare's order.
+func (e *Engine) compareMerged(x, y *Subject, scoped func(*Subject) int) int {
+	if c, ok := SeaDexOrder(e.Config.PreferSeaDex, x.Release.Quality.SeaDexPreference, y.Release.Quality.SeaDexPreference); ok {
+		return c
+	}
+	for _, c := range []func(x, y *Subject) int{e.compareQuality, compareFormatScore, e.compareProtocol} {
+		if r := c(x, y); r != 0 {
+			return r
+		}
+	}
+	if x.Release.FullSeason && y.Release.FullSeason {
+		if c := cmpBool(x.Cached.Count > 0, y.Cached.Count > 0); c != 0 {
+			return c
+		}
+		if c := cmpInt(scoped(x), scoped(y)); c != 0 {
+			return c
+		}
+	}
+	return e.Compare(x, y)
+}
+
+// PrioritizeMerged is Prioritize with compareMerged's order.
+func (e *Engine) PrioritizeMerged(subjects []*Subject, scoped func(*Subject) int) []*Subject {
+	out := append([]*Subject(nil), subjects...)
+	sort.SliceStable(out, func(i, j int) bool { return e.compareMerged(out[i], out[j], scoped) > 0 })
+	return out
+}
+
 // Prioritize is DownloadDecisionPriorizationService for the releases of one title: ordered best first by
 // Compare, keeping the input order among equals (OrderByDescending is stable).
 func (e *Engine) Prioritize(subjects []*Subject) []*Subject {

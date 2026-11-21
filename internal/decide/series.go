@@ -32,6 +32,9 @@ type SeriesSearch struct {
 	// Pack keeps a season search for one episode a season query: acquisition searches a curated season pack by
 	// season even when only one of its episodes is wanted.
 	Pack bool
+	// Seasons are the seasons of a merged search (two or more, every criterion of it carries them): a release of
+	// two or more seasons is for these seasons only (Decision.DownloadEpisodes). Empty for any other search.
+	Seasons []int `json:",omitempty"`
 }
 
 // errMultiple stands for the arr's SingleOrDefault throwing on several matches; the decision becomes the arr's
