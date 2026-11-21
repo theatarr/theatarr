@@ -198,5 +198,10 @@ export function nextSearch(x: { at: string; why?: string } | undefined, now: Dat
   return why ? `${when} (${why})` : when;
 }
 
+/** A season's Last search in one library: that season's own stored search (the releases page's ?season=). */
+export function seasonReleasesHref(titleId: number, version: string, season: number): string {
+  return `/title/${titleId}/releases?${new URLSearchParams({ version, season: String(season) }).toString()}`;
+}
+
 /** A series whose whole-series interactive search is offered: every series (anime too since phase AC). */
 export const wholeSeriesSearch = (kind: string | undefined) => kind === "series";

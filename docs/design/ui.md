@@ -609,7 +609,12 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   in a closed **Technical details**. A library that may not search live says why: "The acquirer is not running". The page's header explains the page once: the card
   repeats no hint and the action bar has no Interactive search. The panel offers Interactive search for the shown
   library: a film's, or a series' whole-series window (packs of several seasons; the header says so, and that a season
-  or an episode has its own on the title page). The stored grid stays read-only. The grid's filter box reads "Filter releases" (what it
+  or an episode has its own on the title page). The stored grid stays read-only. A season's link (its Why?'s **Show
+  releases**; `?season=N`) shows that season's own stored search in each library, the newest decision whose run target
+  is exactly `sNN` (an episode search of it, another season or an RSS read is not it), or "No search of season N is
+  stored for <library>."; the header names the season and Interactive search there searches that season. Without
+  `season` the page shows the newest stored decision of any kind, as before; the stored fallback after a failed live
+  Interactive search stays the newest of any kind, labelled as such. The grid's filter box reads "Filter releases" (what it
   matches in its tooltip); an indexer is shown without the "prowlarr-" prefix of a linked Prowlarr indexer's key, the
   key as tooltip. The list has one row per torrent (info hash), where Sonarr and Radarr list each indexer's copy: the
   best-ranked copy stands for it, the Indexer cell names every indexer that returned it (the first two, then "+N"; the
@@ -1512,7 +1517,7 @@ All under `/api/theatarr/v1` unless noted. Every list pages with `limit` (≤ 20
 | `PUT titles/{id}/versions/{key}` | turn a version on/off, monitor; one created or restored brings the libraries kept in sync with it (§2 "Keep in sync"), listed as `synced` |
 | `POST titles/{id}/search` | search now for versions (records a command like the arr views' `MoviesSearch`) |
 | `GET activity?state=now|history|blocked&title_id=&title=&version=&offset=&user=` | download rows with plain-words state, progress, provider, attempts (admin), library import results and (admin) `formats`; history rows (journal History, `history.go`) with `event` and `words`, and (admin) `episodes`, `files`, the row's `release`, `quality`, `score` (absent when unknown, never 0), `indexer`, `size`, `formats`, `reason` and a deleted file's `replaced_by`; `events=` filters them (the copy events only for callers who see files); blocked rows filtered by part of the title's name (`title`) and library (`version`), `total` the filtered count, each with the blocked download's `quality` and `indexer` when known; from `download`, `download_attempt`, `library_import`, `router_plan`, `acquire_run`, `router_blocklist` (moved out of `arrview/queue.go` into a shared reader) |
-| `GET titles/{id}/releases?version=&live=&season=` | Interactive search (`live=1`) and the stored "Last search" (decision engine results with reasons; manager) |
+| `GET titles/{id}/releases?version=&live=&season=` | Interactive search (`live=1`) and the stored "Last search" (decision engine results with reasons; manager); without `live`, `season` keeps the stored answer to that season's own search (target `sNN`) |
 | `GET titles/{id}/release-outcomes?version=&episode=` | What came of each release of a library (or one episode) now, by info hash: the release lists' outcomes read again, with an in-flight download's state and words and whether a failed one can be grabbed again (manager) |
 | `GET requests?status=&mine=1`, `POST requests`, `POST requests/{id}/approve` (body may change versions/seasons), `POST requests/{id}/decline`, `DELETE requests/{id}` (cancel own) | requests (§3) |
 | `GET users`, `POST users`, `PATCH users/{id}` (role, permissions, disable), `POST users/{id}/reset-password`, `DELETE users/{id}/sessions` | users |

@@ -57,7 +57,7 @@ import { DEFAULT_EPISODE_COLUMNS, EPISODE_COLUMNS, EPISODE_COLUMNS_PREF, type Ep
 import { dayFormatter, fmtBytes, fmtNumber } from "@/lib/format";
 import { fmtRuntime } from "@/lib/library";
 import { audioWords, languageNames, shortList, subsNames } from "@/lib/media";
-import { nextSearch } from "@/lib/library-rows";
+import { nextSearch, seasonReleasesHref } from "@/lib/library-rows";
 import { useColumnPrefs } from "@/lib/prefs";
 import {
   aired,
@@ -689,7 +689,7 @@ function SeasonCount({ season, v }: { season: SeasonT; v: VersionT }) {
   );
 }
 
-function OneLibraryFacts({ season, v, seeFiles, history }: { season: SeasonT; v: VersionT; seeFiles: boolean; history?: readonly HistoryEvent[] | null }) {
+function OneLibraryFacts({ season, v, seeFiles, history, releases }: { season: SeasonT; v: VersionT; seeFiles: boolean; history?: readonly HistoryEvent[] | null; releases?: string }) {
   const c = season.versions[v.key];
   // The quality word with Why? (UpgradeStatus) says Upgrade found once; the count is said only without it. None in a
   // library that does not monitor the title: nothing is searched there.
@@ -706,7 +706,7 @@ function OneLibraryFacts({ season, v, seeFiles, history }: { season: SeasonT; v:
       {facts.length ? <span className="min-w-0 truncate text-xs text-muted-foreground" data-testid="season-facts">{facts.join(" · ")}</span> : null}
       {quality && c ? (
         <span onClick={(e) => e.stopPropagation()} className="contents">
-          <UpgradeStatus u={c.upgrade} what={`Season ${season.season} · ${v.label}`} score={c.score} cutoff={v.cutoff} history={history} />
+          <UpgradeStatus u={c.upgrade} what={`Season ${season.season} · ${v.label}`} score={c.score} cutoff={v.cutoff} history={history} releases={releases} />
         </span>
       ) : null}
     </>
@@ -814,7 +814,7 @@ function SeasonBlock({
         {one && seeFiles ? <SeasonCount season={season} v={one} /> : null}
         <span className="flex min-w-0 items-center gap-2 max-md:order-last max-md:basis-full max-md:flex-wrap md:flex-1">
           {one && seeFiles ? (
-            <OneLibraryFacts season={season} v={one} seeFiles={seeFiles} history={history?.[one.key]} />
+            <OneLibraryFacts season={season} v={one} seeFiles={seeFiles} history={history?.[one.key]} releases={manage ? seasonReleasesHref(titleId, one.key, season.season) : undefined} />
           ) : (
             <>
               {seeFiles && !merged ? copies.map((v) => <LibraryBadge key={v.key} v={v} season={season} />) : null}

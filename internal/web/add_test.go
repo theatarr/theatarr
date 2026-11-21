@@ -942,6 +942,27 @@ func TestReleasesStoredAnswer(t *testing.T) {
 	}
 	e.call("GET", APIBase+"/titles/1/releases?version=tv-2160p", nil, 400, nil)
 	e.call("GET", APIBase+"/titles/99/releases", nil, 404, nil)
+
+	// A season's Last search (F3.2): ?season=N answers the newest decision stored for that season's own search (target
+	// sNN exactly): not an episode search of it, not a newer RSS read, not another season. A season with none stored
+	// answers Nothing stored; without season the newest decision of any kind answers, as before.
+	e.exec(`INSERT INTO journal_decision (source, title_id, version_key, target, results, accepted, candidates, created_at)
+		VALUES ('search', 10, 'tv-2160p', 's01', 11, 0, '[]', 1000), ('search', 10, 'tv-2160p', 's02', 22, 0, '[]', 2000),
+		('search', 10, 'tv-2160p', 's02e05', 25, 0, '[]', 2500), ('search', 10, 'tv-2160p', 's020', 20, 0, '[]', 2600),
+		('rss', 10, 'tv-2160p', 'rss', 30, 0, '[]', 3000)`)
+	for q, want := range map[string]int{"": 30, "&season=1": 11, "&season=2": 22, "&season=20": 0} {
+		r = Releases{}
+		e.call("GET", APIBase+"/titles/10/releases?version=tv-2160p"+q, nil, 200, &r)
+		if r.Results != want {
+			t.Errorf("releases%s: %d results (target %q), want %d", q, r.Results, r.Target, want)
+		}
+	}
+	r = Releases{}
+	e.call("GET", APIBase+"/titles/10/releases?version=tv-2160p&season=3", nil, 200, &r)
+	if r.Source != "none" || r.Message != "" || len(r.Candidates) != 0 {
+		t.Errorf("a season with nothing stored: %+v", r)
+	}
+	e.call("GET", APIBase+"/titles/10/releases?version=tv-2160p&season=x", nil, 400, nil)
 }
 
 // TestReleasesOneRowPerTorrent: a release list has one row per info hash: the best-ranked copy shown, every indexer

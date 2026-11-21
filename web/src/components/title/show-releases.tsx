@@ -150,12 +150,15 @@ export function ShowReleases({
   initialVersion,
   focus,
   labels,
+  season,
 }: {
   titleId: number;
   kind?: "movie" | "series";
   defaultOpen?: boolean;
   initialVersion?: string;
   focus?: string;
+  /** A season's Last search: its own stored search in each library (Interactive search of that season). */
+  season?: number;
   /** Library names by settings key (from the title), for the tabs. */
   labels?: Record<string, string>;
 }) {
@@ -174,16 +177,17 @@ export function ShowReleases({
         {defaultOpen ? null : <span className="hidden text-xs text-muted-foreground sm:inline">the last search Theatarr decided for each library</span>}
         <ChevronDown className={cn("size-4 transition-transform", !open && "-rotate-90")} />
       </button>
-      {open ? <Panel titleId={titleId} kind={kind} initialVersion={initialVersion} focus={focus} labels={labels} /> : null}
+      {open ? <Panel titleId={titleId} kind={kind} initialVersion={initialVersion} focus={focus} labels={labels} season={season} /> : null}
     </Card>
   );
 }
 
-function Panel({ titleId, kind, initialVersion, focus, labels }: { titleId: number; kind: "movie" | "series"; initialVersion?: string; focus?: string; labels?: Record<string, string> }) {
+function Panel({ titleId, kind, initialVersion, focus, labels, season }: { titleId: number; kind: "movie" | "series"; initialVersion?: string; focus?: string; labels?: Record<string, string>; season?: number }) {
   const perms = usePerms();
   const nameOf = useLibraryName();
   const [version, setVersion] = useState<string | undefined>(initialVersion);
-  const q = useReleases(titleId, version, false);
+  const q = useReleases(titleId, version, false, season);
+  const seasonName = season === undefined ? "" : season === 0 ? "Specials" : `Season ${season}`;
   const r: Releases | undefined = q.data;
   // What came of each release now; the list's own outcomes until it answers.
   const oc = useReleaseOutcomes(titleId, r?.version, undefined, !!r);
@@ -211,7 +215,7 @@ function Panel({ titleId, kind, initialVersion, focus, labels }: { titleId: numb
         </div>
         {r?.live_allowed && perms.manage ? (
           // A movie as a whole; a series as a whole too (its window lists packs of several seasons, wholeSeriesSearch).
-          kind === "movie" || wholeSeriesSearch(kind) ? <InteractiveSearchButton titleId={titleId} version={r.version} variant="outline" /> : null
+          kind === "movie" || wholeSeriesSearch(kind) ? <InteractiveSearchButton titleId={titleId} version={r.version} season={season} variant="outline" /> : null
         ) : r ? (
           <span className="text-xs text-[var(--ink-3)]" data-testid="releases-no-live">The acquirer is not running</span>
         ) : null}
@@ -226,7 +230,7 @@ function Panel({ titleId, kind, initialVersion, focus, labels }: { titleId: numb
           {shownFocus && !items.some((c) => c.info_hash?.toLowerCase() === shownFocus.toLowerCase()) ? (
             <p className="text-xs text-[var(--ink-3)]" data-testid="releases-focus-missing">The release you followed is not in this list: only the newest search's releases are kept here.</p>
           ) : null}
-          {items.length === 0 ? (r.source === "none" ? null : <Empty>No releases to show for {labels?.[r.version] || nameOf(r.version)}.</Empty>) : <ReleaseGrid key={r.version} items={items} stored={storedSample(r, items.length)} kind={kind} outcomes={oc.data?.outcomes ?? r.outcomes} focus={shownFocus} />}
+          {items.length === 0 ? (r.source === "none" ? (seasonName ? <Empty>No search of {seasonName.toLowerCase()} is stored for {labels?.[r.version] || nameOf(r.version)}.</Empty> : null) : <Empty>No releases to show for {labels?.[r.version] || nameOf(r.version)}.</Empty>) : <ReleaseGrid key={r.version} items={items} stored={storedSample(r, items.length)} kind={kind} outcomes={oc.data?.outcomes ?? r.outcomes} focus={shownFocus} />}
         </>
       ) : null}
       {r && perms.admin ? <AddByHash key={r.version} titleId={titleId} version={r.version} label={labels?.[r.version]} /> : null}

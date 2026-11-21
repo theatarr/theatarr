@@ -786,6 +786,8 @@ describe("One status vocabulary", () => {
     const why = await screen.findByTestId("upgrade-why-dialog");
     const lines = [...within(why).getByTestId("why-lines").querySelectorAll("p")].map((p) => p.textContent);
     expect(lines[2]).toMatch(/Better release found .+: Tsukikage\.Signal\.S01\.2160p\.WEB-DL-GRP \(WEBDL-2160p, score 6,200\)\. Tried .+: not cached on RD, AD and TB\. Your file is unchanged\.$/);
+    // Show releases opens this season's own Last search in the library (F3.2).
+    expect(within(why).getByTestId("show-releases-link").getAttribute("href")).toBe("/title/1/releases?version=anime-web&season=1");
   });
 
   it("says Better pack found beside an episode whose find is a pack that keeps some episodes' files", async () => {

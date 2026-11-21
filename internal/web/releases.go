@@ -214,7 +214,18 @@ func (w *Web) apiReleases(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	if err := w.storedReleases(ctx, &out); err != nil {
+	// A season's Last search (?season=N, without live): the newest decision stored for that season's own search.
+	// The fallback after a failed live search stays the newest of any kind, labelled as such by the window.
+	scope := ""
+	if s := r.URL.Query().Get("season"); s != "" && !live {
+		n, err := strconv.Atoi(s)
+		if err != nil || n < 0 {
+			badRequest(rw, "season must be a non-negative number")
+			return
+		}
+		scope = fmt.Sprintf("s%02d", n)
+	}
+	if err := w.storedReleases(ctx, &out, scope); err != nil {
 		w.internal(rw, err)
 		return
 	}
@@ -416,16 +427,21 @@ func rankedInto(out *Releases, sr *router.Searched, now time.Time) {
 	out.Indexers = sr.Indexers
 }
 
-// storedReleases fills the answer from the newest stored decision for the title and version.
-func (w *Web) storedReleases(ctx context.Context, out *Releases) error {
+// storedReleases fills the answer from the newest stored decision for the title and version; with a season target
+// ("s02") from the newest decision of that target only (never an episode's "s02e05" or an RSS read).
+func (w *Web) storedReleases(ctx context.Context, out *Releases, season string) error {
 	db := w.st.Reader()
 	var jAt int64
 	var run sql.NullInt64
 	var cj, rj, notes, target, jSource string
 	var results, accepted int
+	cond, args := "", []any{out.TitleID, out.Version}
+	if season != "" {
+		cond, args = " AND target = ?", append(args, season)
+	}
 	err := db.QueryRowContext(ctx, `SELECT created_at, candidates, rejections, notes, target, results, accepted,
-		run_id, source FROM journal_decision WHERE title_id = ? AND version_key = ? ORDER BY created_at DESC, id DESC
-		LIMIT 1`, out.TitleID, out.Version).Scan(&jAt, &cj, &rj, &notes, &target, &results, &accepted, &run, &jSource)
+		run_id, source FROM journal_decision WHERE title_id = ? AND version_key = ?`+cond+` ORDER BY created_at DESC, id DESC
+		LIMIT 1`, args...).Scan(&jAt, &cj, &rj, &notes, &target, &results, &accepted, &run, &jSource)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) && !strings.Contains(err.Error(), "no such table") {
 		return err
 	}
