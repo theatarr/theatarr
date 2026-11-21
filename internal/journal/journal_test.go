@@ -1207,18 +1207,27 @@ func TestPackChecks(t *testing.T) {
 			"WEBDL-2160p", 100, size, []int64{5201, 5202}, "")
 		e.exec(`UPDATE download SET episode_map = ? WHERE id = ?`, string(claim), id)
 	}
-	// A standard pack of two seasons narrowed to two episodes, no claim, 80 GB (819 MB/min over its two episodes):
-	// left out of the check and of the median. A whole standard season pack stored with every episode of its season
-	// (10 x 50 min at 850 MB/min) stays in both: it is flagged large and counted.
-	e.dlEvent(80, "added", base.Add(40*time.Hour), 3, 3, "tv-2160p", fmt.Sprintf("%040d", 80),
-		"Gamma.S01-S02.2160p.WEB-DL-X", "WEBDL-2160p", 100, 80<<30, []int64{201, 202}, "")
-	var season1 []int64
+	// Unclaimed packs. A pack of two seasons narrowed to two episodes (80 GB, 819 MB/min over them), "S02-S03" with
+	// only season 2's ids while season 3 is not in the metadata yet, and "S01.S03" with season 1's ids: each would be
+	// flagged large by its stored episodes, and each is left out of the check and of the median. A whole season pack
+	// stored with every episode of its one season (10 x 50 min at 850 MB/min) keeps its own check (flagged large) and
+	// stays out of the median.
+	var season1, season2 []int64
 	for n := 1; n <= 10; n++ {
 		season1 = append(season1, int64(100+n))
 	}
+	for n := 1; n <= 8; n++ {
+		season2 = append(season2, int64(200+n))
+	}
+	e.dlEvent(80, "added", base.Add(40*time.Hour), 3, 3, "tv-2160p", fmt.Sprintf("%040d", 80),
+		"Gamma.S01-S02.2160p.WEB-DL-X", "WEBDL-2160p", 100, 80<<30, []int64{201, 202}, "")
 	e.dlEvent(81, "added", base.Add(41*time.Hour), 3, 3, "tv-2160p", fmt.Sprintf("%040d", 81),
 		"Gamma.S01.2160p.WEB-DL-X", "WEBDL-2160p", 100, int64(500*850)<<20, season1, "")
-	for _, id := range []string{"dl:70", "dl:71", "dl:80"} {
+	e.dlEvent(82, "added", base.Add(42*time.Hour), 3, 3, "tv-2160p", fmt.Sprintf("%040d", 82),
+		"Gamma.S02-S03.2160p.WEB-DL-X", "WEBDL-2160p", 100, int64(400*850)<<20, season2, "")
+	e.dlEvent(83, "added", base.Add(43*time.Hour), 3, 3, "tv-2160p", fmt.Sprintf("%040d", 83),
+		"Gamma.S01.S03.2160p.WEB-DL-X", "WEBDL-2160p", 100, int64(500*850)<<20, season1, "")
+	for _, id := range []string{"dl:70", "dl:71", "dl:80", "dl:82", "dl:83"} {
 		en := e.get(id)
 		for _, code := range []string{CheckUnparsed, CheckEpisodes, CheckSize} {
 			if f := hasFlag(en, code); f != nil {
@@ -1226,25 +1235,19 @@ func TestPackChecks(t *testing.T) {
 			}
 		}
 	}
-	if f := hasFlag(e.get("dl:81"), CheckSize); f == nil {
-		t.Error("a whole season pack is no longer size-checked")
+	if f := hasFlag(e.get("dl:81"), CheckSize); f == nil || !strings.Contains(f.Reason, "over 500 min") {
+		t.Errorf("a whole season pack: size flag %+v", f)
 	}
 	stats, err := e.j.computeSizes(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	var ordinary, whole int
 	for _, v := range stats.byQuality["webdl-2160p"] {
-		switch {
-		case v >= 160 && v <= 180:
-			ordinary++
-		case v >= 840 && v <= 860:
-			whole++
-		default:
-			t.Errorf("median input %.1f MB/min: a narrowed pack counted by its narrowed episodes", v)
+		if v < 160 || v > 180 {
+			t.Errorf("median input %.1f MB/min: an unclaimed or narrowed pack counted", v)
 		}
 	}
-	if ordinary != 22 || whole != 1 {
-		t.Errorf("median inputs %d ordinary and %d whole season, want 22 (20 grabs and the two claimed packs) and 1", ordinary, whole)
+	if n := len(stats.byQuality["webdl-2160p"]); n != 22 {
+		t.Errorf("median inputs %d, want 22 (20 grabs and the two claimed packs)", n)
 	}
 }

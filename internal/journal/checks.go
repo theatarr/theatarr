@@ -280,7 +280,7 @@ func (b *builder) checkSize(e *Entry, ti *titleInfo) error {
 	eps := e.f.episodeIDs
 	if ti.t.Kind == "series" && len(eps) > 0 {
 		var ok bool
-		if eps, ok = packCoverage(r.Title, eps, e.f.pack, ti.bySeason()); !ok {
+		if eps, ok = packCoverage(r.Title, eps, e.f.pack, ti.seasons); !ok {
 			return nil
 		}
 	}
@@ -324,41 +324,24 @@ func (b *builder) checkSize(e *Entry, ti *titleInfo) error {
 
 // packCoverage is the episodes a series download's bytes are spread over: a stored pack claim's full episode list
 // (the download may have been narrowed to some of them), else the episodes it was filed under. A recognised pack
-// without a claim (a season pack, a span or a complete-series name) counts only when its episodes are exactly every
-// regular episode of the seasons its name states (bySeason: the title's episode ids per season); otherwise it may
-// have been narrowed and its full coverage is unknown, so ok is false and the size check and the median leave it out.
+// without a claim (a season pack, a span or a complete-series name) may have been narrowed, so ok is false and it is
+// left out, except in the entry's own check (bySeason given: the title's regular episode ids per season) a name that
+// states exactly one full season whose stored episodes are exactly that season's, at least one known.
 func packCoverage(release string, eps []int64, claim *decide.PackClaim, bySeason map[int][]int64) ([]int64, bool) {
 	if claim != nil && len(claim.Episodes) > 0 {
 		return claim.Episodes, true
 	}
-	var seasons []int
-	if _, first, last, ok := indexer.AnimePackSeasons(release); ok {
-		for n := first; n <= last; n++ {
-			seasons = append(seasons, n)
-		}
-	} else if p := decide.ParseSeriesRelease(context.Background(), release); p != nil && p.FullSeason {
-		switch first, last, ranged := indexer.PackSeasons(release); {
-		case p.CompleteSeries:
-			for n := range bySeason {
-				seasons = append(seasons, n)
-			}
-		case ranged && first == p.SeasonNumber:
-			for n := first; n <= last; n++ {
-				seasons = append(seasons, n)
-			}
-		default:
-			seasons = []int{p.SeasonNumber}
-		}
-	} else if !indexer.HoldsSeasons(release) {
+	_, _, _, several := indexer.AnimePackSeasons(release)
+	several = several || indexer.HoldsSeasons(release)
+	p := decide.ParseSeriesRelease(context.Background(), release)
+	if !several && (p == nil || !p.FullSeason) {
 		return eps, true
 	}
-	want := map[int64]bool{}
-	for _, n := range seasons {
-		for _, id := range bySeason[n] {
-			want[id] = true
-		}
+	if several || p.IsMultiSeason || p.CompleteSeries {
+		return nil, false
 	}
-	if len(want) == 0 || len(want) != len(eps) || slices.ContainsFunc(eps, func(id int64) bool { return !want[id] }) {
+	want := bySeason[p.SeasonNumber]
+	if len(want) == 0 || len(want) != len(eps) || slices.ContainsFunc(eps, func(id int64) bool { return !slices.Contains(want, id) }) {
 		return nil, false
 	}
 	return eps, true
@@ -635,25 +618,6 @@ func (j *Journal) computeSizes(ctx context.Context) (*sizeStats, error) {
 		k := strings.ToLower(quality)
 		s.byQuality[k] = append(s.byQuality[k], float64(size)/(1<<20)/float64(minutes))
 	}
-	// Every regular episode id per series and season, read once, for a season pack's full coverage (packCoverage).
-	bySeason := map[int64]map[int][]int64{}
-	rows, err = db.QueryContext(ctx, `SELECT title_id, season, id FROM episode WHERE season > 0`)
-	if err != nil {
-		return nil, err
-	}
-	for rows.Next() {
-		var title, id int64
-		var season int
-		if err := rows.Scan(&title, &season, &id); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		if bySeason[title] == nil {
-			bySeason[title] = map[int][]int64{}
-		}
-		bySeason[title][season] = append(bySeason[title][season], id)
-	}
-	rows.Close()
 	rows, err = db.QueryContext(ctx, `SELECT title_id, quality, COALESCE(size_bytes, 0), episodes, release_title,
 		COALESCE(episode_map, '') FROM download`)
 	if err != nil {
@@ -674,7 +638,7 @@ func (j *Journal) computeSizes(ctx context.Context) (*sizeStats, error) {
 				_ = json.Unmarshal([]byte(mapping), &m)
 			}
 			var ok bool
-			if ids, ok = packCoverage(release, ids, m.Pack, bySeason[title]); !ok {
+			if ids, ok = packCoverage(release, ids, m.Pack, nil); !ok {
 				continue
 			}
 		}

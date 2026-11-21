@@ -244,7 +244,9 @@ var (
 	// packTokenXRE is an episode number of an NxNN token ("x01", "-03").
 	packTokenXRE = regexp.MustCompile(`(?i)[x-](\d{2,3})`)
 	// packTokenNumberRE is a number of a bare joined token.
-	packTokenNumberRE = regexp.MustCompile(`\d{1,4}`)
+	packTokenNumberRE = regexp.MustCompile(`(\d{1,4})`)
+	// packQualityTagRE is a quality tag a joined token must not run into ("1080p", "720i", "1920x1080").
+	packQualityTagRE = regexp.MustCompile(`(?i)\d{3,4}[pi]\b|\d{3,4}x\d{3,4}`)
 	// packVersionRE is a version suffix right after a token ("01-02v2").
 	packVersionRE = regexp.MustCompile(`^[vV]\d{1,2}`)
 )
@@ -260,7 +262,7 @@ func joinedToken(read string, p *sonarr.ParsedEpisodeInfo) bool {
 	if len(nums) < 2 {
 		return false
 	}
-	s := packTagsRE.ReplaceAllString(read, " ")
+	s := packQualityTagRE.ReplaceAllString(packTagsRE.ReplaceAllString(read, " "), " ")
 	alnum := func(c byte) bool { return c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' }
 	for _, loc := range packJoinedRE.FindAllStringIndex(s, -1) {
 		end := loc[1] + len(packVersionRE.FindString(s[loc[1]:]))
@@ -268,19 +270,16 @@ func joinedToken(read string, p *sonarr.ParsedEpisodeInfo) bool {
 			continue
 		}
 		token := s[loc[0]:loc[1]]
-		got := packTokenNumberRE.FindAllString(token, -1)
-		var re *regexp.Regexp
+		re := packTokenNumberRE
 		switch {
 		case token[0] == 'S' || token[0] == 's':
 			re = packTokenEpisodeRE
 		case strings.ContainsAny(token, "xX"):
 			re = packTokenXRE
 		}
-		if re != nil {
-			got = nil
-			for _, m := range re.FindAllStringSubmatch(token, -1) {
-				got = append(got, m[1])
-			}
+		var got []string
+		for _, m := range re.FindAllStringSubmatch(token, -1) {
+			got = append(got, m[1])
 		}
 		first, _ := strconv.Atoi(got[0])
 		last, _ := strconv.Atoi(got[len(got)-1])

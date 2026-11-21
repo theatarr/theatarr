@@ -18,24 +18,15 @@ type titleInfo struct {
 	names  []string // name, original title, aliases, scene mapping names
 	eps    map[int64]episodeInfo
 	counts map[int]int // episodes per season (TVDB numbering)
-	maxS   int
-	total  int
-	scene  bool // the series has scene numbering or scene mappings: numbers in names may differ from TVDB's
+	// seasons are the regular episode ids per season.
+	seasons map[int][]int64
+	maxS    int
+	total   int
+	scene   bool // the series has scene numbering or scene mappings: numbers in names may differ from TVDB's
 }
 
 type episodeInfo struct {
 	season, number, runtime int
-}
-
-// bySeason is the title's regular episode ids per season.
-func (ti *titleInfo) bySeason() map[int][]int64 {
-	out := map[int][]int64{}
-	for id, ep := range ti.eps {
-		if ep.season > 0 {
-			out[ep.season] = append(out[ep.season], id)
-		}
-	}
-	return out
 }
 
 func (ti *titleInfo) labels(ids []int64) []string {
@@ -68,7 +59,7 @@ func (b *builder) title(id int64) (*titleInfo, error) {
 		return nil, err
 	}
 	ti = &titleInfo{t: t, ref: TitleRef{ID: t.ID, Name: t.Name, Year: t.Year, Kind: string(t.Kind)},
-		eps: map[int64]episodeInfo{}, counts: map[int]int{}, scene: t.UseSceneNumbering}
+		eps: map[int64]episodeInfo{}, counts: map[int]int{}, seasons: map[int][]int64{}, scene: t.UseSceneNumbering}
 	ti.names = append([]string{t.Name, t.OriginalTitle}, t.Aliases...)
 	if t.Kind == "series" {
 		rows, err := b.db.QueryContext(b.ctx, `SELECT id, season, number, COALESCE(runtime_minutes, 0) FROM episode
@@ -92,6 +83,7 @@ func (b *builder) title(id int64) (*titleInfo, error) {
 			}
 			if ep.season > 0 {
 				ti.total++
+				ti.seasons[ep.season] = append(ti.seasons[ep.season], eid)
 			}
 		}
 		rows.Close()
