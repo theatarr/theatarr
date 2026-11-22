@@ -32,7 +32,11 @@ import (
 // search (manualAdd).
 //
 // ReasonDeadLink is the library's: a relink sweep marked an active version's link dead (no provider holds its file).
-// Its route starts no ReasonExhausted re-search (deadLinkRoute).
+// Its route starts no ReasonExhausted re-search (deadLinkRoute). ReasonPlaying is the library's too: a file someone
+// was playing stopped working and was marked dead at once (now playing's check). It is treated as a dead link
+// everywhere (DeadLinkLike), and besides: it is not a failure run (FailureResearchSQL), its schedule row runs when the
+// hour's searches are spent, its route takes only a release holding an episode of the incident and skips an account
+// the incident found out (playingIncident).
 
 // JobResearch is the acquirer's job kind for a search after a failure; the payload is a ResearchRequest.
 const JobResearch = "acquire.research"
@@ -47,17 +51,26 @@ const (
 	ReasonReadyTimeout = BlocklistReadyTimeout
 	// ReasonDeadLink: one search for the title or episodes of a link relink marked dead.
 	ReasonDeadLink = "dead_link"
+	// ReasonPlaying: one search for the title or episodes of a file that broke while someone played it.
+	ReasonPlaying = "playing"
 )
+
+// DeadLinkLike reports whether a search reason is a dead link's: ReasonDeadLink, or ReasonPlaying (a link marked
+// dead while someone played it). Every rule written for a dead link's search applies to both.
+func DeadLinkLike(reason string) bool { return reason == ReasonDeadLink || reason == ReasonPlaying }
 
 // FailureResearchSQL is the acquire_run condition of a search after a failure: research holds a failure reason,
 // not the search schedule's Search now (asked), new-content retry (new) or list add (added), nor a marker of the
-// retry chains before the schedule (retry_new, fresh). The acquirer and the journal share it.
-const FailureResearchSQL = `research IS NOT NULL AND research NOT IN ('asked', 'new', 'added', 'retry_new', 'fresh')`
+// retry chains before the schedule (retry_new, fresh), nor the search for a file that broke while playing (playing:
+// it must not hold back the season's searches after a failed download of its own). The acquirer and the journal
+// share it.
+const FailureResearchSQL = `research IS NOT NULL AND research NOT IN ('asked', 'new', 'added', 'retry_new', 'fresh',
+	'playing')`
 
 // FailureWhy is FailureResearchSQL for one schedule row's why: a search after a failure.
 func FailureWhy(why string) bool {
 	switch why {
-	case "", "asked", "new", "added", "retry_new", "fresh":
+	case "", "asked", "new", "added", "retry_new", "fresh", ReasonPlaying:
 		return false
 	}
 	return true
@@ -147,25 +160,59 @@ func (r *Router) researchBlocklisted(ctx context.Context) (int, error) {
 }
 
 // deadLinkRoute reads, for a route from an acquire run (source "acquire:<run>"), whether that run is a dead link's
-// search (ReasonDeadLink), and the run's episodes. Such a route adds only for a target still missing (freshCandidates)
-// and starts no exhausted re-search: the dead link gets one search, not a chain.
-func (r *Router) deadLinkRoute(ctx context.Context, source string) (bool, []int64, error) {
+// search (DeadLinkLike: its reason, else ""), and the run's episodes. Such a route adds only for a target still
+// missing (freshCandidates) and starts no exhausted re-search: the dead link gets one search, not a chain.
+func (r *Router) deadLinkRoute(ctx context.Context, source string) (string, []int64, error) {
 	id, ok := strings.CutPrefix(source, "acquire:")
 	if !ok {
-		return false, nil, nil
+		return "", nil, nil
 	}
-	var eps string
-	err := r.st.Writer().QueryRowContext(ctx, `SELECT episodes FROM acquire_run WHERE id = ? AND research = ?`, id,
-		ReasonDeadLink).Scan(&eps)
+	var eps, reason string
+	err := r.st.Writer().QueryRowContext(ctx, `SELECT episodes, research FROM acquire_run WHERE id = ?
+		AND research IN (?, ?)`, id, ReasonDeadLink, ReasonPlaying).Scan(&eps, &reason)
 	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil, nil
+		return "", nil, nil
 	}
 	if err != nil {
-		return false, nil, fmt.Errorf("router: route source: %w", err)
+		return "", nil, fmt.Errorf("router: route source: %w", err)
 	}
 	var out []int64
 	_ = json.Unmarshal([]byte(eps), &out)
-	return true, out, nil
+	return reason, out, nil
+}
+
+// playingIncident reads the open incident of a title's version (internal/library playing_break, found by title and
+// version: no incident id travels with the search): the episodes its route must take one of (the open rows not
+// fixed yet whose search was queued) and the accounts it found out, which the route skips.
+func (r *Router) playingIncident(ctx context.Context, titleID int64, version string) (eps []int64, out []string,
+	err error) {
+	rows, err := r.st.Writer().QueryContext(ctx, `SELECT episodes, out_account, searched, fixed_by FROM playing_break
+		WHERE title_id = ? AND version_key = ? AND settled = ''`, titleID, version)
+	if err != nil {
+		return nil, nil, fmt.Errorf("router: playing incident: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var js, account, fixed string
+		var searched bool
+		if err := rows.Scan(&js, &account, &searched, &fixed); err != nil {
+			return nil, nil, err
+		}
+		if account != "" && !slices.Contains(out, account) {
+			out = append(out, account)
+		}
+		if !searched || fixed != "" {
+			continue
+		}
+		var ids []int64
+		_ = json.Unmarshal([]byte(js), &ids)
+		for _, id := range ids {
+			if !slices.Contains(eps, id) {
+				eps = append(eps, id)
+			}
+		}
+	}
+	return eps, out, rows.Err()
 }
 
 // manualAdd reports whether a route's candidates are a release a person added by magnet or hash (arrview.AddRelease,

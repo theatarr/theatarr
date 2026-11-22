@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/provider"
@@ -69,3 +70,21 @@ func RecordCacheEvidence(ctx context.Context, db *sql.DB, hash, provider, state,
 	now time.Time) error {
 	return writeCache(ctx, db, hash, provider, state, source, expires, now)
 }
+
+// PlayingMissSource is the provider_cache source of a miss written for a file that broke while someone played it:
+// the release on the account it failed on (internal/library playingbreak.go). A route's own all-provider miss does
+// not replace it and a cached listing does not reopen it while it lives (writeCache); the library lifts it when the
+// old copy reads again.
+const PlayingMissSource = "router:playing"
+
+// PlayingMissTTL is how long that miss lives.
+const PlayingMissTTL = 7 * 24 * time.Hour
+
+// RecordPlayingMiss writes, in tx, the miss of hash on key (a provider key, or "client:"+key for a client-routed
+// version: ClientCacheKey) for a file that broke while playing.
+func RecordPlayingMiss(ctx context.Context, tx *sql.Tx, hash, key string, now time.Time) error {
+	return writeCache(ctx, tx, strings.ToLower(hash), key, "miss", PlayingMissSource, now.Add(PlayingMissTTL), now)
+}
+
+// ClientCacheKey is the provider_cache key of a download client's verdicts (a client-routed version).
+func ClientCacheKey(client string) string { return clientCacheKey(client) }

@@ -1269,3 +1269,11 @@ func TestPackChecks(t *testing.T) {
 		t.Errorf("median inputs %d, want 24 (20 grabs, the two claimed packs, the whole six-episode release and the whole season pack)", n)
 	}
 }
+
+// The search for a file that broke while playing reads as such.
+func TestSearchWordsPlaying(t *testing.T) {
+	if got := searchWords("wanted", "s01e02", "nothing", "playing", "", false); got !=
+		"Search again after a file that stopped working while playing (s01e02): nothing grabbed" {
+		t.Errorf("words %q", got)
+	}
+}

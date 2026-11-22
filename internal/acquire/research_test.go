@@ -144,3 +144,41 @@ func TestNoAnswerResearchGivesUp(t *testing.T) {
 		t.Fatalf("%d rows left", n)
 	}
 }
+
+// The search for a file that broke while someone played it (router.ReasonPlaying) runs when the hour's searches are
+// spent, and only it; it is not held back by a recent search after a failure, and it is not itself a failure run that
+// holds back a later one.
+func TestResearchPlayingPastTheHour(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, &policy.Wanted{PerHour: 1, AgainAfter: policy.Duration(6 * time.Hour)})
+	e.pol.Library = &policy.Library{Enabled: true, Versions: map[string]*policy.LibraryVersion{
+		"movie": {Roots: []string{"/media/movies"}}, "series": {Roots: []string{"/media/tv"}}}}
+	e.research(router.ResearchRequest{TitleID: 1, VersionID: 101, Version: "movie", Reason: router.ReasonStalled})
+	e.research(router.ResearchRequest{TitleID: 2, VersionID: 102, Version: "movie", Reason: router.ReasonLibrary})
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_id = 102`); n != 0 {
+		t.Fatalf("a search after a failure ran past per_hour")
+	}
+	e.research(router.ResearchRequest{TitleID: 2, VersionID: 102, Version: "movie", Reason: router.ReasonPlaying})
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_id = 102 AND research = 'playing'`); n != 1 {
+		t.Fatalf("%d playing searches with the hour spent, want 1", n)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_id = 102`); n != 1 {
+		t.Errorf("the hour's other due row ran with it")
+	}
+	// After a search after a failure of the movie (ended), a playing search of it still runs.
+	e.exec(`UPDATE acquire_run SET state = 'nothing' WHERE version_id = 101`)
+	e.research(router.ResearchRequest{TitleID: 1, VersionID: 101, Version: "movie", Reason: router.ReasonPlaying})
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_id = 101 AND research = 'playing'`); n != 1 {
+		t.Errorf("%d playing searches after a failure's, want 1", n)
+	}
+	// A playing search is not a failure run: a failure after it is searched again.
+	e.exec(`UPDATE acquire_run SET state = 'nothing'`)
+	e.advance(2 * time.Hour)
+	e.research(router.ResearchRequest{TitleID: 2, VersionID: 102, Version: "movie", Reason: router.ReasonStalled})
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_id = 102 AND research = 'stalled'`); n != 1 {
+		t.Errorf("%d searches after a failure that followed a playing search, want 1", n)
+	}
+	if router.FailureWhy(router.ReasonPlaying) || !router.DeadLinkLike(router.ReasonPlaying) {
+		t.Error("playing counted as a failure, or not as a dead link")
+	}
+}

@@ -186,7 +186,8 @@ func searchWords(source, target, state, research, message string, full bool) str
 		who = "Search again after " + map[string]string{"failed": "a failed download", "stalled": "a stalled download",
 			"rejected": "a refused import", "exhausted": "every release tried failed", "library": "a refused import",
 			"provider": "a provider failure", "torrent_files": "a release with unwanted files",
-			"ready_timeout": "a download that never got ready", "dead_link": "a missing file"}[research]
+			"ready_timeout": "a download that never got ready", "dead_link": "a missing file",
+			"playing": "a file that stopped working while playing"}[research]
 		if strings.HasSuffix(who, "after ") {
 			who += research
 		}

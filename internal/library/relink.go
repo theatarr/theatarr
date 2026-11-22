@@ -10,12 +10,10 @@ import (
 	"regexp"
 	"slices"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/jobs"
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -884,15 +882,7 @@ func (l *Library) markMissing(ctx context.Context, tx *sql.Tx, version string, d
 	if dl.Cause == CauseRepairing || now-since.Int64 < deadConfirm.Milliseconds() {
 		return nil
 	}
-	res, err := tx.ExecContext(ctx, `UPDATE link SET state = 'dead', missing_since = NULL, last_checked_at = ?, updated_at = ?
-		WHERE id = ? AND path = ? AND target = ? AND state = 'active'`, now, now, id, dl.Path, dl.Target)
-	if err != nil {
-		return err
-	}
-	if n, err := res.RowsAffected(); err != nil || n == 0 {
-		return err
-	}
-	if err := reconcileRemovedLink(ctx, tx, id, now); err != nil {
+	if dead, err := l.markDead(ctx, tx, id, dl.Path, dl.Target, now); err != nil || !dead {
 		return err
 	}
 	if err := l.queueDeadLinkSearch(ctx, tx, id); err != nil {
@@ -910,6 +900,12 @@ func (l *Library) markMissing(ctx context.Context, tx *sql.Tx, version string, d
 // pending. Only
 // versions the library gate lets write get one (a link can be shared with a version that may not).
 func (l *Library) queueDeadLinkSearch(ctx context.Context, tx *sql.Tx, linkID int64) error {
+	return l.queueSearches(ctx, tx, linkID, func(string) string { return router.ReasonDeadLink })
+}
+
+// queueSearches queues one search per version of a dead link that the gate lets write, of the reason reasonFor gives
+// for the version's key ("": none), for its movie or its episodes (enqueueResearch).
+func (l *Library) queueSearches(ctx context.Context, tx *sql.Tx, linkID int64, reasonFor func(string) string) error {
 	if l.queue == nil {
 		return nil
 	}
@@ -953,29 +949,13 @@ func (l *Library) queueDeadLinkSearch(ctx context.Context, tx *sql.Tx, linkID in
 		return err
 	}
 	for _, v := range vs {
-		if !l.gate.Active(v.key) { // a shared link's followed or unlisted version: its own sweep records it
+		reason := reasonFor(v.key)
+		if reason == "" || !l.gate.Active(v.key) { // a shared link's followed or unlisted version: its own sweep records it
 			continue
 		}
-		p := router.ResearchRequest{TitleID: v.title, VersionID: v.id, Version: v.key, Reason: router.ReasonDeadLink}
-		key := fmt.Sprintf("%s/%s/%s/%d/", router.JobResearch, router.ReasonDeadLink, v.key, v.title)
-		if v.kind == string(policy.KindSeries) {
-			if len(eps) == 0 {
-				continue
-			}
-			p.Episodes = eps
-			for i, ep := range eps {
-				if i > 0 {
-					key += ","
-				}
-				key += strconv.FormatInt(ep, 10)
-			}
-		}
-		if _, _, err := l.queue.EnqueueTx(ctx, tx, router.JobResearch, p, jobs.EnqueueOptions{DedupeKey: key,
-			MaxAttempts: 1}); err != nil {
+		if err := l.enqueueResearch(ctx, tx, v.title, v.id, v.key, v.kind, eps, reason); err != nil {
 			return err
 		}
-		l.log.Info("library: search queued for a dead link", "link", linkID, "version", v.key, "title", v.title,
-			"episodes", len(p.Episodes))
 	}
 	return nil
 }

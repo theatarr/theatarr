@@ -21,7 +21,8 @@ import (
 // The row is the film's (missing while the film is wanted, else cutoff), or one per season of the failed episodes
 // (missing when one of them is wanted). One re-search per row within router.wanted.again_after (partialAgain after
 // a partial answer): a row whose library and season had a loop search after a failure in that time is not made due
-// again, so a release that keeps failing cannot loop. A dead link always is.
+// again, so a release that keeps failing cannot loop. A dead link always is (router.DeadLinkLike: also a file that
+// broke while playing).
 
 func (a *Acquirer) handleResearch(ctx context.Context, j *jobs.Job) error {
 	var p router.ResearchRequest
@@ -40,7 +41,7 @@ func (a *Acquirer) Research(ctx context.Context, p router.ResearchRequest) error
 	case vp == nil:
 		a.log.Info("re-search skipped: the library is not in the settings", "title", p.TitleID, "version", p.Version, "reason", p.Reason)
 		return nil
-	case p.Reason == router.ReasonDeadLink && !library.NewGate(a.pol).Active(p.Version):
+	case router.DeadLinkLike(p.Reason) && !library.NewGate(a.pol).Active(p.Version):
 		a.log.Info("re-search skipped: the library does not write", "title", p.TitleID, "version", p.Version)
 		return nil
 	}
@@ -98,7 +99,7 @@ func (a *Acquirer) Research(ctx context.Context, p router.ResearchRequest) error
 	partial := max(again, store.Millis(now.Add(-partialAgain)))
 	written := 0
 	for _, r := range rows {
-		if p.Reason != router.ReasonDeadLink {
+		if !router.DeadLinkLike(p.Reason) {
 			var recent bool
 			if err := db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM acquire_run WHERE version_id = ?
 				AND COALESCE(season, -1) = ? AND source = ? AND `+router.FailureResearchSQL+`

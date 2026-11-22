@@ -310,7 +310,7 @@ func (r *Router) routeStored(ctx context.Context, req Request) (*Result, error) 
 					"version", req.Version)
 			} else if dead, _, derr := r.deadLinkRoute(ctx, req.Source); derr != nil {
 				r.log.Warn("re-search not queued", "title", req.TitleID, "version", req.Version, "err", derr)
-			} else if dead {
+			} else if dead != "" {
 				r.log.Info("no re-search after a dead link's search missed everywhere", "title", req.TitleID,
 					"version", req.Version)
 			} else if eps := candidateEpisodes(req.Candidates); r.research(ctx, req.TitleID, req.VersionID,
@@ -322,7 +322,7 @@ func (r *Router) routeStored(ctx context.Context, req Request) (*Result, error) 
 			// exhausted route of their own would get, one for all of them.
 			if dead, _, derr := r.deadLinkRoute(ctx, req.Source); derr != nil {
 				r.log.Warn("re-search not queued", "title", req.TitleID, "version", req.Version, "err", derr)
-			} else if !dead && r.research(ctx, req.TitleID, req.VersionID, req.Version, res.research, ReasonExhausted, 0) {
+			} else if dead == "" && r.research(ctx, req.TitleID, req.VersionID, req.Version, res.research, ReasonExhausted, 0) {
 				researched = res.research
 			}
 		}

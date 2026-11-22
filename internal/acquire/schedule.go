@@ -12,6 +12,7 @@ import (
 	"github.com/theatarr/theatarr/internal/availability"
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -28,7 +29,8 @@ import (
 // its row due.
 //
 // All loop searches share router.wanted.per_hour: asked first, then the other rows with a why, then the backlog
-// (unscheduled items newest added first, then regular rows); inside each, the earliest due first. Due times say from
+// (unscheduled items newest added first, then regular rows); inside each, the earliest due first. The one exception is
+// the search for a file that broke while someone played it (why playing): it runs when the hour is spent too. Due times say from
 // when an item may be searched, not when it will be.
 
 // Why values that are not a failure reason.
@@ -494,12 +496,13 @@ func (a *Acquirer) Round(ctx context.Context, scope []int64) (*WantedSummary, er
 		sum.Due += groupCost(g)
 	}
 	// Busy and running items are left out before the searches are grouped: what is left shares and merges. With the
-	// hour's searches spent nothing starts, and nothing is checked.
+	// hour's searches spent nothing starts, and nothing is checked, except the search for a file that broke while
+	// someone played it (why router.ReasonPlaying): it starts whatever the hour has spent, alone.
 	left := a.set.PerHour - sum.SearchedLastHour
 	var ready []target
 	for _, t := range ordered {
-		if left <= 0 {
-			break
+		if left <= 0 && t.why != router.ReasonPlaying {
+			continue
 		}
 		busy, err := a.inFlight(ctx, t)
 		if err != nil {
@@ -519,7 +522,10 @@ func (a *Acquirer) Round(ctx context.Context, scope []int64) (*WantedSummary, er
 	// one per member, overdrawing the hour when it must.
 	for _, group := range mergeGroups(groupTargets(ready)) {
 		if left <= 0 {
-			break
+			group = slices.DeleteFunc(group, func(t target) bool { return t.why != router.ReasonPlaying })
+			if len(group) == 0 {
+				continue
+			}
 		}
 		if err := a.startRuns(ctx, SourceWanted, 0, group); err != nil {
 			return nil, err

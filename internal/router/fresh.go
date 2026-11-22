@@ -73,10 +73,25 @@ func (r *Router) freshCandidates(ctx context.Context, s *routeState) ([]Candidat
 
 	// A dead link's search (ReasonDeadLink) is for a missing target: once it is filled again (revived, replaced) the
 	// route adds nothing, not even an upgrade of the new file; a series candidate must still cover one of its
-	// episodes that is missing.
-	dead, deadEps, err := r.deadLinkRoute(ctx, s.req.Source)
+	// episodes that is missing. The search for a file that broke while playing (ReasonPlaying) is held to the
+	// incident's own episodes (the run's are its whole season), and skips each account the incident found out: that
+	// account answers as not holding the release for this route only, so the route goes on to the next release.
+	reason, deadEps, err := r.deadLinkRoute(ctx, s.req.Source)
 	if err != nil {
 		return nil, err
+	}
+	dead := reason != ""
+	if reason == ReasonPlaying {
+		var out []string
+		if deadEps, out, err = r.playingIncident(ctx, s.req.TitleID, s.req.Version); err != nil {
+			return nil, err
+		}
+		for _, pk := range out {
+			if s.skipProvider == nil {
+				s.skipProvider = map[string]string{}
+			}
+			s.skipProvider[pk] = pk + " failed while a file of it was playing; not tried in this search"
+		}
 	}
 	var missing []int64
 	if dead {

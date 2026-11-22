@@ -133,6 +133,8 @@ func TestMergeGroups(t *testing.T) {
 		{"different why", []target{tg(1, "s01", 1, nil), tg(1, "s02", 2, func(x *target) { x.why = whyAsked })}, "1:s01 1:s02"},
 		{"dead link", []target{tg(1, "s01", 1, func(x *target) { x.why = router.ReasonDeadLink }),
 			tg(1, "s02", 2, func(x *target) { x.why = router.ReasonDeadLink })}, "1:s01 1:s02"},
+		{"broke while playing", []target{tg(1, "s01", 1, func(x *target) { x.why = router.ReasonPlaying }),
+			tg(1, "s02", 2, func(x *target) { x.why = router.ReasonPlaying })}, "1:s01 1:s02"},
 		{"season 0", []target{tg(1, "s00", 0, nil), tg(1, "s01", 1, nil)}, "1:s00 1:s01"},
 		{"anime", []target{tg(1, "s01", 1, func(x *target) { x.anime = true }), tg(1, "s02", 2, func(x *target) { x.anime = true })}, "1:s01+1:s02"},
 		{"anime after a failure", []target{tg(1, "s01", 1, func(x *target) { x.anime, x.why = true, router.ReasonLibrary }),
