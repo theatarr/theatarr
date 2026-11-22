@@ -39,6 +39,7 @@ import {
   columnSortKey,
   episodesText,
   filterChoices,
+  filterCounts,
   filterReleases,
   fmtAge,
   indexerWords,
@@ -372,14 +373,16 @@ export function GrabCell({ c, target, o, sentFrom, onSent, card }: { c: Candidat
 }
 
 /** One filter's choices as a select; hidden when it has none (filterChoices). */
-function Choice({ label, any, value, values, words, onChange, testid }: {
-  label: string; any: string; value: string; values: string[]; words?: (v: string) => string; onChange: (v: string) => void; testid: string;
+function Choice({ label, any, value, values, words, count, onChange, testid }: {
+  label: string; any: string; value: string; values: string[]; words?: (v: string) => string; count?: (v: string) => number | undefined; onChange: (v: string) => void; testid: string;
 }) {
   if (values.length === 0 && !value) return null;
+  // Each value with how many loaded releases have it: "Nyaa (40)".
+  const counted = (v: string) => { const n = count?.(v); return n === undefined ? "" : ` (${n})`; };
   return (
     <Select className="w-auto max-w-44" aria-label={label} value={value} onChange={(e) => onChange(e.target.value)} data-testid={testid}>
       <option value="">{any}</option>
-      {values.map((v) => <option key={v} value={v}>{words ? words(v) : v}</option>)}
+      {values.map((v) => <option key={v} value={v}>{words ? words(v) : v}{counted(v)}</option>)}
     </Select>
   );
 }
@@ -448,6 +451,7 @@ export function ReleaseGrid({
   // The list as Show more counts it: a new one for other items, filter, reason or sort, never for a fresh outcome.
   const list = useMemo(() => ({ items, filter, reason, sortKey, sortDir }), [items, filter, reason, sortKey, sortDir]);
   const choices = useMemo(() => filterChoices(items), [items]);
+  const counts = useMemo(() => filterCounts(items), [items]);
   // The rows whose matched formats are open (the table), by row key.
   const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
   const openOf = (c: Candidate, part = "") => ({
@@ -502,15 +506,16 @@ export function ReleaseGrid({
           aria-label="Filter releases"
           data-testid="release-filter"
         />
-        <Toggle on={filter.accepted} onChange={(v) => setFilter({ ...filter, accepted: v })} testid="release-accepted-only">Accepted only</Toggle>
+        <Toggle on={filter.accepted} onChange={(v) => setFilter({ ...filter, accepted: v })} testid="release-accepted-only">Accepted only ({counts.accepted})</Toggle>
         <Choice
           label="Cached on" any="Cached or not" value={filter.cached} values={choices.cached.length ? [CACHED_ANY, ...choices.cached] : []}
-          words={(v) => (v === CACHED_ANY ? "Cached anywhere" : `Cached on ${providerLabel(v)}`)} onChange={(v) => setFilter({ ...filter, cached: v })} testid="release-cached-on"
+          words={(v) => (v === CACHED_ANY ? "Cached anywhere" : `Cached on ${providerLabel(v)}`)} count={(v) => (v === CACHED_ANY ? counts.cachedAny : counts.cached.get(v))}
+          onChange={(v) => setFilter({ ...filter, cached: v })} testid="release-cached-on"
         />
-        {kind === "series" && !noPacksFilter ? <Toggle on={filter.packs} onChange={(v) => setFilter({ ...filter, packs: v })} testid="release-packs-only">Packs only</Toggle> : null}
-        <Choice label="Indexer" any="All indexers" value={filter.indexer} values={choices.indexer} words={indexerWords} onChange={(v) => setFilter({ ...filter, indexer: v })} testid="release-indexer" />
-        <Choice label="Quality" any="All qualities" value={filter.quality} values={choices.quality} onChange={(v) => setFilter({ ...filter, quality: v })} testid="release-quality" />
-        <Choice label="Language" any="All languages" value={filter.language} values={choices.language} onChange={(v) => setFilter({ ...filter, language: v })} testid="release-language" />
+        {kind === "series" && !noPacksFilter ? <Toggle on={filter.packs} onChange={(v) => setFilter({ ...filter, packs: v })} testid="release-packs-only">Packs only ({counts.packs})</Toggle> : null}
+        <Choice label="Indexer" any="All indexers" value={filter.indexer} values={choices.indexer} words={indexerWords} count={(v) => counts.indexer.get(v)} onChange={(v) => setFilter({ ...filter, indexer: v })} testid="release-indexer" />
+        <Choice label="Quality" any="All qualities" value={filter.quality} values={choices.quality} count={(v) => counts.quality.get(v)} onChange={(v) => setFilter({ ...filter, quality: v })} testid="release-quality" />
+        <Choice label="Language" any="All languages" value={filter.language} values={choices.language} count={(v) => counts.language.get(v)} onChange={(v) => setFilter({ ...filter, language: v })} testid="release-language" />
         <span className="flex-1" />
         {sort.key !== "rank" ? (
           <Button size="sm" variant="ghost" onClick={() => setSort(BEST_MATCH)} data-testid="release-best-match">Best match</Button>

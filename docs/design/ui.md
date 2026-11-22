@@ -706,7 +706,8 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   accepted first, History the current file first), can be hidden and reordered (Columns); the column choice is kept
   per user in this browser (`localStorage` `theatarr.library.release-columns.<user>`). Filters: text, Accepted only,
   Packs only (a series; not in the whole-series window), and selects for Cached on (anywhere, or one provider), Indexer, Quality and Language, each
-  offering the values in the answer's releases and shown only when it can narrow the list. Sorting and filtering take
+  offering the values in the answer's releases and shown only when it can narrow the list; each toggle and value
+  counts the answer's releases it keeps ("Accepted only (12)", "Nyaa (40)"), from the rows loaded only. Sorting and filtering take
   every release of the answer before the 50-row paging. The sort and the filters (and a rejection chip) last while
   the window shows that answer; a new search (Search again, another library, another opening) starts unfiltered in
   the best-match order, as does another library's tab on Last search. A score with matched

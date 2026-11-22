@@ -11,6 +11,7 @@ import {
   columnSortKey,
   episodesText,
   filterChoices,
+  filterCounts,
   filterReleases,
   fmtAge,
   indexersText,
@@ -105,6 +106,16 @@ describe("filterReleases", () => {
     // One value: offered when some release lacks it, not when every release has it.
     expect(filterChoices([c(1, { languages: ["English"] }), c(2)]).language).toEqual(["English"]);
     expect(filterChoices([c(1, { indexer: "Nyaa" }), c(2, { indexer: "Nyaa" })]).indexer).toEqual([]);
+  });
+  it("counts each filter's releases among those loaded", () => {
+    const xs = [
+      c(1, { indexer: "alpha", quality: "WEBDL-1080p", languages: ["Japanese"], cached_on: ["rd"], accepted: true, episodes: ["S01E01", "S01E02"] }),
+      c(2, { indexer: "alpha", quality: "Remux-2160p", languages: ["English", "Japanese"], cached_on: ["tb", "rd"], accepted: false }),
+      c(3, { quality: "WEBDL-1080p" }),
+    ];
+    const n = filterCounts(xs);
+    expect([n.accepted, n.packs, n.cachedAny]).toEqual([xs.filter((x) => x.accepted).length, 1, 2]);
+    expect([n.indexer.get("alpha"), n.quality.get("WEBDL-1080p"), n.language.get("Japanese"), n.cached.get("rd"), n.cached.get("tb")]).toEqual([2, 2, 2, 2, 1]);
   });
 });
 

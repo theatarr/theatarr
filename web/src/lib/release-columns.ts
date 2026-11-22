@@ -228,6 +228,27 @@ export function filterChoices(items: Candidate[]): { indexer: string[]; quality:
   };
 }
 
+/** How many of the loaded releases each filter keeps on its own (the counts beside the filters): Accepted only,
+ *  Packs only, Cached anywhere and each value filterChoices offers. Only from the rows already loaded. */
+export function filterCounts(items: Candidate[]) {
+  const indexer = new Map<string, number>();
+  const quality = new Map<string, number>();
+  const language = new Map<string, number>();
+  const cached = new Map<string, number>();
+  const bump = (m: Map<string, number>, k: string) => m.set(k, (m.get(k) ?? 0) + 1);
+  let accepted = 0, packs = 0, cachedAny = 0;
+  for (const c of items) {
+    if (c.accepted) accepted++;
+    if ((c.episodes?.length ?? 0) > 1) packs++;
+    if (c.cached_on?.length) cachedAny++;
+    for (const i of new Set(rowIndexers(c))) bump(indexer, i);
+    if (c.quality) bump(quality, c.quality);
+    for (const l of new Set(c.languages ?? [])) bump(language, l);
+    for (const p of new Set(c.cached_on ?? [])) bump(cached, p);
+  }
+  return { accepted, packs, cachedAny, indexer, quality, language, cached };
+}
+
 /** How long ago it was published: "12 min", "5 h", "468 d", "1,411 d"; "—" when unknown. */
 export function fmtAge(published: string | undefined, now: Date | number = Date.now()): string {
   const t = published ? Date.parse(published) : NaN;

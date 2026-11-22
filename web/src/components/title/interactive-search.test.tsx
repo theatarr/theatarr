@@ -379,6 +379,9 @@ it("filters by indexer, quality, language and provider across pages, and a new s
   expect(await rows()).toBe(1);
   expect(within(await table()).getByRole("row", { name: /R79/ })).toBeTruthy();
   fireEvent.change(screen.getByTestId("release-cached-on"), { target: { value: "" } });
+  // Each filter counts the loaded releases it keeps.
+  expect([...screen.getByTestId("release-indexer").querySelectorAll("option")].map((o) => o.textContent)).toEqual(expect.arrayContaining(["Other (40)"]));
+  expect(screen.getByTestId("release-accepted-only").textContent).toBe("Accepted only (1)");
   fireEvent.change(screen.getByTestId("release-indexer"), { target: { value: "Other" } });
   expect(await rows()).toBe(40);
   fireEvent.change(screen.getByTestId("release-quality"), { target: { value: "WEBDL-2160p" } });
