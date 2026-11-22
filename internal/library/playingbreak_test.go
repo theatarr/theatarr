@@ -416,7 +416,23 @@ func TestPlayingSearchable(t *testing.T) {
 			t.Errorf("%s: %v %v, want %v", c.name, got, err, c.want)
 		}
 	}
-	e, _, _ := deadEnv(t, true)
+	// A version key that does not own the link answers no, monitored or not.
+	e := playingEnv(t)
+	e.exec(`UPDATE episode SET air_date_utc_at = 0`)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (21, 2, 'movie-remux', 0, 0)`)
+	if got, err := e.lib.PlayingSearchable(e.ctx, 2, "movie-remux"); err != nil || got {
+		t.Errorf("a key that does not own the link: %v %v", got, err)
+	}
+	// A film: monitored and available as the round counts it (released at home by default).
+	e, _, _ = deadEnv(t, true)
+	if got, err := e.lib.PlayingSearchable(e.ctx, 1, "movie-remux"); err != nil || got {
+		t.Errorf("film with no date (not available): %v %v", got, err)
+	}
+	e.exec(`INSERT INTO title_release_date (title_id, source, type, date) VALUES (1, 'fixture', 'digital', '2999-01-01')`)
+	if got, err := e.lib.PlayingSearchable(e.ctx, 1, "movie-remux"); err != nil || got {
+		t.Errorf("film not released yet: %v %v", got, err)
+	}
+	e.exec(`UPDATE title_release_date SET date = '2001-01-01' WHERE title_id = 1`)
 	if got, err := e.lib.PlayingSearchable(e.ctx, 1, "movie-remux"); err != nil || !got {
 		t.Errorf("film: %v %v", got, err)
 	}

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/availability"
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/router"
@@ -526,25 +527,37 @@ func (l *Library) PlayingNotStopped(ctx context.Context, incident int64, note st
 
 // PlayingSearchable reports whether the search a broken file would get could take anything: at least one of its
 // items is one the round searches in version (the version's library in the settings and writing; its title and
-// version monitored and not removed from the arr view; for a series file, one of its episodes monitored in that
-// version, aired (the round searches aired episodes only) and not dropped). Now playing asks it before an incident
+// version monitored and not removed from the arr view, the version owning the link; for a film, available as the
+// round counts it (minimum availability); for a series file, one of its episodes monitored in that version, aired
+// (the round searches aired episodes only) and not dropped). Now playing asks it before an incident
 // opens and for each other file of the release; a file it refuses is left to the hourly sweep (no mark, no message,
 // nothing counted).
 func (l *Library) PlayingSearchable(ctx context.Context, linkID int64, version string) (bool, error) {
 	if l.pol.Versions[version] == nil || !l.gate.Active(version) {
 		return false, nil
 	}
-	var ok bool
-	err := l.st.Reader().QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM link k
-		JOIN version v ON v.title_id = k.title_id AND v.policy_key = ? JOIN title t ON t.id = v.title_id
+	db := l.st.Reader()
+	var titleID, versionID int64
+	var kind string
+	// The version must own the link (link_version): another library's key answers no.
+	err := db.QueryRowContext(ctx, `SELECT v.title_id, v.id, t.kind FROM link k
+		JOIN link_version lv ON lv.link_id = k.id JOIN version v ON v.id = lv.version_id AND v.policy_key = ?
+		JOIN title t ON t.id = v.title_id
 		WHERE k.id = ? AND t.monitored = 1 AND v.monitored = 1
 		AND NOT EXISTS (SELECT 1 FROM arrview_removed_version rv WHERE rv.version_id = v.id)
 		AND (t.kind <> 'series' OR EXISTS (SELECT 1 FROM link_episode le JOIN episode e ON e.id = le.episode_id
 			LEFT JOIN episode_version_state s ON s.episode_id = e.id AND s.version_id = v.id
 			WHERE le.link_id = k.id AND COALESCE(s.monitored, e.monitored) = 1 AND e.removed_at IS NULL
-			AND e.air_date_utc_at IS NOT NULL AND e.air_date_utc_at <= ?)))`,
-		version, linkID, store.Millis(l.now())).Scan(&ok)
-	return ok, err
+			AND e.air_date_utc_at IS NOT NULL AND e.air_date_utc_at <= ?))`,
+		version, linkID, store.Millis(l.now())).Scan(&titleID, &versionID, &kind)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil || kind == string(policy.KindSeries) {
+		return err == nil, err
+	}
+	// A film: the round's minimum availability (an automatic search skips one not available yet).
+	return availability.Movie(ctx, db, l.pol, titleID, versionID, version, l.now())
 }
 
 // DropUnfinishedPlaying removes, when now playing starts, the incidents a stop cut off before anything was done:
