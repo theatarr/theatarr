@@ -340,3 +340,36 @@ func TestComeBackAsideWaitsForOpenSearch(t *testing.T) {
 		t.Errorf("after the settle pass: %q", got)
 	}
 }
+
+// One good read settles nothing: the copy must read on two sweeps at least the dead-confirm time apart.
+func TestComeBackAsideNeedsTwoReads(t *testing.T) {
+	c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
+	if err := c.lib.ComeBack(c.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if c.settled() != "" || c.one(`SELECT back_since IS NOT NULL FROM playing_break WHERE id = ?`, c.id) != "1" {
+		t.Fatalf("after one read: settled %q", c.settled())
+	}
+	c.now = c.now.Add(deadConfirm - time.Minute)
+	if err := c.lib.ComeBack(c.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if c.settled() != "" || c.missLifted() {
+		t.Errorf("a second read too soon: settled %q, miss lifted %v", c.settled(), c.missLifted())
+	}
+}
+
+// A replaced row older than 30 days is settled without any read: its file may be gone from the mount altogether.
+func TestComeBackOldReplacedRowUnread(t *testing.T) {
+	c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
+	c.now = c.now.Add(31 * 24 * time.Hour)
+	if err := os.RemoveAll(filepath.Dir(c.oldTgt)); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.lib.ComeBack(c.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if c.settled() != "aside" || c.one(`SELECT back_since IS NULL FROM playing_break WHERE id = ?`, c.id) != "1" {
+		t.Errorf("settled %q, read %s", c.settled(), c.one(`SELECT back_since IS NOT NULL FROM playing_break WHERE id = ?`, c.id))
+	}
+}
