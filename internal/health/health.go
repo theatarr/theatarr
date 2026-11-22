@@ -58,6 +58,8 @@ type Result struct {
 	TookMS int64 `json:"took_ms"`
 	// Hidden leaves the result out of Results: the check has nothing to say on this install.
 	Hidden bool `json:"-"`
+	// Runs is how many completed runs in a row (this one included) gave this Type; a cached read is no new run.
+	Runs int `json:"-"`
 }
 
 // Func runs one check. It sets Type, Message and Detail; the Checker fills the rest. A check that cannot read what
@@ -88,6 +90,7 @@ type Checker struct {
 	mu      sync.Mutex // one run at a time; held while checks run
 	results []Result
 	at      time.Time
+	streak  map[string]Result // per source, the latest completed run's Type and Runs
 }
 
 // New returns a Checker with no checks; add them with Add.
@@ -139,6 +142,15 @@ func (c *Checker) Results(ctx context.Context) []Result {
 	// A caller that gave up cut its checks short: those errors say nothing about the system, so keep them out of
 	// the cache (and out of the health events that read it).
 	if ctx.Err() == nil {
+		next := make(map[string]Result, len(out))
+		for i := range out {
+			out[i].Runs = 1
+			if p, ok := c.streak[out[i].Source]; ok && p.Type == out[i].Type {
+				out[i].Runs = p.Runs + 1
+			}
+			next[out[i].Source] = out[i]
+		}
+		c.streak = next
 		c.results, c.at = out, c.opts.Now()
 	}
 	return slices.Clone(out)

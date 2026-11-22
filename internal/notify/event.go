@@ -171,9 +171,9 @@ type HealthItem struct {
 	Source  string `json:"source"`
 	Type    string `json:"type"`
 	Message string `json:"message"`
-	// CheckedAt is when the check's run started (zero when the item comes from no check run); it tells two runs from
-	// two reads of one cached run. Not part of any payload.
-	CheckedAt time.Time `json:"-"`
+	// Runs is how many completed check runs in a row gave this Type (internal/health counts them); 0 for an item that
+	// comes from no check run (Pause). Not part of any payload.
+	Runs int `json:"-"`
 }
 
 // Payload is one arr-shaped body for one view.

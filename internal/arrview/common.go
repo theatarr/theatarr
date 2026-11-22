@@ -428,7 +428,7 @@ func (s *Service) healthOf(ctx context.Context, keys []string) []notify.HealthIt
 			if h.Source == "AnimeReviewCheck" || h.Source == "WatchOnlyCheck" {
 				continue // new in 0.4.5, for Status only: the arr views gain no entry
 			}
-			out = append(out, notify.HealthItem{Source: h.Source, Type: h.Type, Message: h.Message, CheckedAt: h.CheckedAt})
+			out = append(out, notify.HealthItem{Source: h.Source, Type: h.Type, Message: h.Message, Runs: h.Runs})
 		}
 	}
 	return out

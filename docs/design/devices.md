@@ -156,11 +156,12 @@ SignalR, Sonarr v5, `downloadclient`.
   - Pipeline events are found by polling the database every `notify.poll` (15 s); applied renames have a durable
     record (migration 00065). Downloads and title adds from before the notifier's first run are never announced.
   - Health changes compare each check's source and level, ignoring moving counts/ages in messages. A check turning
-    bad or worse is announced only once it reported that level on two distinct check runs in a row (a run is told by
-    its `checked_at`, so two scans reading one cached run count once; the router-disabled item counts each scan); one
-    failed run followed by a pass sends nothing. Easing and recovery go out at once, and only for a level that was
-    announced (`notify_state` keeps `health_checks`, what was announced, and `health_seen`, the runs so far;
-    `notify.TestHealthAlertAfterTwoRuns`). The daily digest is unchanged. Installed
+    bad or worse is announced only once it reported that level on two completed check runs in a row: the count is
+    kept where a run completes (`health.Result.Runs`; a cached read is no new run, a change of level starts it again),
+    so it does not depend on how often the notifier looks; one failed run followed by a pass sends nothing. The
+    router-disabled item, from no check run, goes out at once. Easing and recovery go out at once, and only for a
+    level that was announced (`notify_state` `health_checks`); while notifications are off nothing is marked
+    announced (`notify.TestHealthAlertAfterTwoRuns`, `health.TestCheckerCountsRuns`). The daily digest is unchanged. Installed
     targets require `onHealthIssue` or `onHealthRestored`; warnings also require `includeHealthWarnings`, including
     restoration of a warning. Notices do not go to installed health notifications, as in the arrs.
   - Each event is emitted once (`notify_event`). The claim and the event's deliveries are written together, so an

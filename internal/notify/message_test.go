@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"slices"
 	"testing"
-	"time"
 
 	"github.com/theatarr/theatarr/internal/policy"
 )
@@ -42,37 +41,40 @@ func (e *nenv) sentTitles(target string) (titles, raw []string) {
 
 // Health warnings go only to a message target that asks for them; a target without the option gets exactly the
 // error messages it got before, and a notice goes to nobody.
-// TestHealthAlertAfterTwoRuns: a check is announced once it failed on two distinct check runs in a row, not on two
-// reads of one cached run; one failed run followed by a pass sends nothing; recovery only follows an announced failure.
+// TestHealthAlertAfterTwoRuns: a check is announced once it failed on two completed check runs in a row
+// (HealthItem.Runs, counted by internal/health), whatever the notifier's scans saw in between; one failed run followed
+// by a pass sends nothing; recovery only follows an announced failure.
 func TestHealthAlertAfterTwoRuns(t *testing.T) {
 	t.Parallel()
 	e := newDiscordEnv(t, true, nil)
 	ctx := context.Background()
-	run := func(min int, level string) {
+	scan := func(level string, runs int) {
 		t.Helper()
 		e.hlth = nil
 		if level != "" {
-			e.hlth = []HealthItem{{Source: "MountCheck", Type: level, Message: "mount not readable",
-				CheckedAt: time.Date(2026, 10, 26, 12, min, 0, 0, time.UTC)}}
+			e.hlth = []HealthItem{{Source: "MountCheck", Type: level, Message: "mount not readable", Runs: runs}}
 		}
 		if err := e.n.Scan(ctx); err != nil {
 			t.Fatal(err)
 		}
 	}
-	run(1, "error")
-	run(1, "error") // the same cached run read again
+	scan("error", 1)
+	scan("error", 1) // the same run read again
 	if got, _ := e.sentTitles("chan"); len(got) != 0 {
 		t.Fatalf("one failed run announced: %q", got)
 	}
-	run(2, "") // passes on the next run: nothing to recover from
-	run(3, "error")
+	scan("", 0) // passes on the next run: nothing to recover from
+	scan("error", 1)
 	if got, _ := e.sentTitles("chan"); len(got) != 0 {
 		t.Fatalf("a single failure or its pass announced: %q", got)
 	}
-	run(4, "error")
-	run(4, "error")
-	run(5, "error")
-	run(6, "")
+	scan("error", 2)
+	if got, _ := e.sentTitles("chan"); !slices.Equal(got, []string{"Health check failing: MountCheck"}) {
+		t.Fatalf("not announced on the second failed run: %q", got)
+	}
+	scan("error", 2)
+	scan("error", 5)
+	scan("", 0)
 	want := []string{"Health check failing: MountCheck", "Health check OK again: MountCheck"}
 	if got, _ := e.sentTitles("chan"); !slices.Equal(got, want) {
 		t.Fatalf("got %q, want %q", got, want)
@@ -196,5 +198,26 @@ func TestHealthMessageWantsAndText(t *testing.T) {
 		if title != c.title || level != c.level || len(lines) == 0 {
 			t.Errorf("%s %s from %q: %q %v %v", c.kind, c.now, c.was, title, lines, level)
 		}
+	}
+}
+
+// A failure seen while notifications are off is not marked announced: turning them on after it recovered sends no
+// lone "OK again".
+func TestHealthWhileOffNotAnnounced(t *testing.T) {
+	t.Parallel()
+	e := newDiscordEnv(t, false, nil)
+	ctx := context.Background()
+	e.hlth = []HealthItem{{Source: "MountCheck", Type: "error", Message: "mount not readable", Runs: 2}}
+	if err := e.n.Scan(ctx); err != nil {
+		t.Fatal(err)
+	}
+	e.pol.Notify.Enabled = true
+	e.rebuild()
+	e.hlth = nil
+	if err := e.n.Scan(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := e.sentTitles("chan"); len(got) != 0 {
+		t.Fatalf("sent %q", got)
 	}
 }

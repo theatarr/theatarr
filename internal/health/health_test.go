@@ -654,3 +654,45 @@ func TestWatchOnlyNotice(t *testing.T) {
 		t.Errorf("paused again: %+v", r)
 	}
 }
+
+// Runs counts a check's completed runs in a row at its current type: a cached read is not a run, a change of type
+// starts again at one, and a cancelled run is not counted.
+func TestCheckerCountsRuns(t *testing.T) {
+	now := t0
+	c := New(Options{TTL: time.Minute, Now: func() time.Time { return now }})
+	typ := Error
+	c.Add("FlakyCheck", "Flaky", func(ctx context.Context) Result { return Result{Type: typ, Message: "m"} })
+	runs := func() int {
+		t.Helper()
+		rs := c.Results(context.Background())
+		return rs[0].Runs
+	}
+	if n := runs(); n != 1 {
+		t.Fatalf("first run %d", n)
+	}
+	if n := runs(); n != 1 {
+		t.Fatalf("a cached read counted: %d", n)
+	}
+	now = now.Add(2 * time.Minute)
+	if n := runs(); n != 2 {
+		t.Fatalf("second run %d", n)
+	}
+	typ = OK
+	now = now.Add(2 * time.Minute)
+	if n := runs(); n != 1 {
+		t.Fatalf("a pass %d", n)
+	}
+	typ = Error
+	now = now.Add(2 * time.Minute)
+	if n := runs(); n != 1 {
+		t.Fatalf("a failure after a pass %d", n)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	now = now.Add(2 * time.Minute)
+	c.Results(ctx)
+	now = now.Add(2 * time.Minute)
+	if n := runs(); n != 2 {
+		t.Fatalf("after a cancelled run %d", n)
+	}
+}
