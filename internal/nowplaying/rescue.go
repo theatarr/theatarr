@@ -254,7 +254,7 @@ func (t *Tracker) runRescue(ctx context.Context, j *rescueStart) {
 		return
 	}
 	if j.tell != nil {
-		t.tell(ctx, &j.tell.j, j.tell.msg, j.tell.incident)
+		t.tellOwed(ctx, lib, j.tell)
 		return
 	}
 	t.check(ctx, lib, j.check)
@@ -828,7 +828,8 @@ type PlexStopper interface {
 	Terminate(ctx context.Context, id, reason string) error
 }
 
-// pendingTell is a message for a playback still advancing when it was due: it goes at the playback's next sign.
+// pendingTell is a message for a playback still advancing when it was due: it goes at the playback's next sign, when
+// the file still does not read then (tellOwed).
 type pendingTell struct {
 	j        sign
 	msg      string
@@ -936,6 +937,35 @@ func (t *Tracker) tell(ctx context.Context, j *sign, msg string, incident int64)
 			t.o.Logger.Debug("nowplaying: incident message not kept", "err", err)
 		}
 	}
+}
+
+// tellOwed delivers a message owed to a playback once it came due, after one bounded read of the file its link points
+// at now (a same-path import may have put another file there) at the player's current position, inside that file's
+// mounted size. It reads: the message is dropped and the incident notes the file read again. No verdict: dropped,
+// nothing noted. Only a fresh failure goes on to tell, whose fresh look at the session comes right before the stop.
+func (t *Tracker) tellOwed(ctx context.Context, lib Rescuer, p *pendingTell) {
+	var target string
+	if err := t.o.Store.Reader().QueryRowContext(ctx, `SELECT target FROM link WHERE id = ?`, p.j.src.LinkID).
+		Scan(&target); err != nil {
+		return
+	}
+	size, err := lib.MountFileSize(ctx, target)
+	if err != nil || size < 2*pieceSize {
+		return
+	}
+	off := pieceOffset(p.j.s.ViewOffset, p.j.s.Duration, size)
+	if off >= size {
+		return
+	}
+	switch t.read(ctx, lib, target, off) {
+	case readOK:
+		t.notStopped(ctx, p.incident, notStoppedRead)
+		return
+	case readNoVerdict:
+		t.o.Logger.Info("nowplaying: an owed message is dropped: the file's read gave no verdict", "incident", p.incident)
+		return
+	}
+	t.tell(ctx, &p.j, p.msg, p.incident)
 }
 
 // incidentRecovered reports whether an incident's watched file reads again: settled copy, revived or restored.

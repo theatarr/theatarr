@@ -1589,3 +1589,52 @@ func TestRescueFallbackControlLeavesSiblings(t *testing.T) {
 		t.Errorf("%d reads of the release's other files", n)
 	}
 }
+
+// An owed stop is checked before it is delivered: one read of the file the link points at now, at the player's
+// position. The old copy reads again, or a same-path import put a readable file there: nothing is stopped and the
+// incident says the file read again. Still failing: the player is stopped (TestRescueMessageAtNextSign).
+func TestRescueOwedStopReadsFirst(t *testing.T) {
+	for _, c := range []string{"recovered", "imported"} {
+		e := newRescueEnv(t, false, true)
+		e.lib.setBroken("S01E02.mkv", -1)
+		e.play(2, "playing")
+		e.zurg.stats.BlockedReads = []library.ZurgBlockedRead{{Filename: "S01E02.mkv", Reason: "broken"}}
+		e.tr.sleep = func(ctx context.Context, d time.Duration) error {
+			e.advance(d)
+			e.plex.mu.Lock()
+			e.plex.ss[0].ViewOffset += d.Milliseconds()
+			e.plex.mu.Unlock()
+			return ctx.Err()
+		}
+		e.poll() // the message is owed
+		e.tr.mu.Lock()
+		owed := len(e.tr.pending)
+		e.tr.mu.Unlock()
+		if owed != 1 {
+			t.Fatalf("%s: %d messages owed", c, owed)
+		}
+		switch c {
+		case "recovered":
+			e.lib.setBroken("S01E02.mkv", 0)
+		case "imported":
+			repl := filepath.Join(e.mount, "__all__", "OtherAD", "S01E02.new.mkv")
+			if err := os.WriteFile(repl, nil, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Truncate(repl, fileSize/2); err != nil {
+				t.Fatal(err)
+			}
+			e.exec(`UPDATE link SET target = ?, state = 'active' WHERE id = 11`, repl)
+		}
+		e.plex.mu.Lock()
+		e.plex.ss[0].State = "buffering"
+		e.plex.mu.Unlock()
+		e.poll()
+		if got := e.stop.stopped(); len(got) != 0 {
+			t.Errorf("%s: stopped %q", c, got)
+		}
+		if got := e.one(`SELECT message FROM playing_break WHERE link_id = 11`); got != NotStoppedNote+notStoppedRead {
+			t.Errorf("%s: note %q", c, got)
+		}
+	}
+}
