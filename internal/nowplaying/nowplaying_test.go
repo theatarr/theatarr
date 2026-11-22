@@ -39,6 +39,11 @@ func TestParseZurgLine(t *testing.T) {
 		{"ERROR Rel/Show.S01E02.mkv is broken; read retry window elapsed", true, kindBroken, ""},
 		{"WARN Download link broken (attempt 1/3), re-unrestricting file Rel/Show.S01E02.mkv", true, kindLink, ""},
 		{"WARN Provider rate limited while unrestricting Show.S01E02.mkv; retry in 5s", true, kindLimited, ""},
+		// zurg 2ddd439 rewords the link lines: the error (and host) after the file, or after "re-unrestricting".
+		{"WARN Download link broken (attempt 2/3), re-unrestricting file Rel/Show.S01E02.mkv: 404 Not Found on dl.example", true, kindLink, ""},
+		{"WARN Download link broken (attempt 1/3), re-unrestricting: hoster unavailable for Show.S01E02.mkv", true, kindLink, ""},
+		{"WARN Download link broken (attempt 1/3), re-unrestricting file Other.mkv: 404 Not Found on dl.example", false, "", ""},
+		{"WARN Provider rate limited while unrestricting Rel/Show.S01E02.mkv: too many requests", true, kindLimited, ""},
 		{"WARN Account rd-main is cooling down for 60s", true, kindCooldown, "rd-main"},
 		{"WARN Cut a read of Other.mkv on ad-2 for 2s", false, "", ""},
 		{"INFO something else about Show.S01E02.mkv", false, "", ""},

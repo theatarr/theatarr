@@ -29,8 +29,10 @@ var zurgPatterns = []struct {
 	{kindStarved, regexp.MustCompile(`Cut a read of (?P<file>.+?) on (?P<account>\S+) for `)},
 	{kindBroken, regexp.MustCompile(`Source state changed: (?P<file>.+?) on (?P<account>\S+) \[ok_file → broken_file\]`)},
 	{kindBroken, regexp.MustCompile(`is broken; read retry window elapsed`)},
-	{kindLink, regexp.MustCompile(`Download link broken \(attempt \d+/\d+\), re-unrestricting(?: file (?P<file>.+?))?\s*$`)},
-	{kindLimited, regexp.MustCompile(`Provider rate limited while unrestricting (?P<file>.+?);`)},
+	// Before zurg 2ddd439 the line ends after the file (or after "re-unrestricting"); since, the error follows
+	// (": <error> on <host>" after the file, ": <error>" after "re-unrestricting"). The file ends at the first ": ".
+	{kindLink, regexp.MustCompile(`Download link broken \(attempt \d+/\d+\), re-unrestricting(?: file (?P<file>.+?)(?:: .*)?|: .*)?\s*$`)},
+	{kindLimited, regexp.MustCompile(`Provider rate limited while unrestricting (?P<file>.+?)(?:;|: )`)},
 	{kindCooldown, regexp.MustCompile(`Account (?P<account>\S+) is cooling down`)},
 }
 

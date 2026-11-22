@@ -53,7 +53,9 @@ generation in force.
 - **zurg's log** (with `zurg_log`): the library's log follower passes each line on. Lines about a playing file are
   kept for 10 minutes: `Large transfer` (which account served it), `Cut a read` (a starved read from a slow delivery
   node), `Source state changed ... [ok_file → broken_file]` and `is broken; read retry window elapsed`, `Download link
-  broken ... re-unrestricting`, `Provider rate limited while unrestricting`, and `Account ... is cooling down`, which
+  broken ... re-unrestricting` (with or without the error zurg 2ddd439 adds after the file, or after
+  "re-unrestricting": the file ends at its first ": "), `Provider rate limited while unrestricting` (the file ends at
+  ";" or ": "), and `Account ... is cooling down`, which
   names no file and counts when the account is the one serving the file.
 - **rclone rc** (with `rclone_rc`): `core/stats`, whose `transferring[]` is what the VFS cache is downloading now, with
   its speed. The playing file's speed over its bitrate is the **fetch ratio**. `vfs/stats` is read every minute for the
