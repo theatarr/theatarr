@@ -56,9 +56,10 @@ const COLUMNS: DataColumn<ActivityBlocked>[] = tight([
     card: "full",
     cellClassName: "min-w-[9rem] max-w-[12rem]",
     cell: (b) => (
-      <span className="block text-[12.5px] leading-snug" title={b.reason || undefined}>
+      <span className="block text-[12.5px] leading-snug">
         <span className="text-[var(--warn-ink)]">{b.words}</span>
-        {b.reason && b.reason !== b.words ? <span className="line-clamp-3 block break-words text-[11px] text-muted-foreground">{b.reason}</span> : null}
+        {/* Whole: a long refusal (the wrong-audio rule's names the languages) is not cut, nor hover-only. */}
+        {b.reason && b.reason !== b.words ? <span className="block break-words text-[11px] text-muted-foreground">{b.reason}</span> : null}
         {b.researched_at ? <span className="block text-[11px] text-muted-foreground" title={fmtTime(b.researched_at)} data-testid="blocked-researched">handled {fmtAgo(b.researched_at)}</span> : null}
       </span>
     ),

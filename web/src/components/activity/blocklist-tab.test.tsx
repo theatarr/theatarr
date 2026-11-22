@@ -113,6 +113,10 @@ it("says why a release was blocked in plain words under the source's words", asy
   const rows = await screen.findAllByTestId("blocked-row");
   expect(rows[0].textContent).toContain("Failed the library check");
   expect(rows[0].textContent).toContain(reason);
+  // A long refusal (the wrong-audio rule's) is shown whole: not cut to three lines with the rest in a tooltip.
+  const words = within(rows[0]).getByText(reason);
+  expect(words.className).not.toContain("line-clamp");
+  expect(words.closest("[title]")).toBeNull();
   expect(rows[1].textContent).toContain("Imported from Sonarr's blocklist");
   expect(rows[1].textContent).not.toContain("arr blocklist");
 });

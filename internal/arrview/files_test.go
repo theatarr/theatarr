@@ -181,6 +181,18 @@ func TestManualImportAndImportAPI(t *testing.T) {
 		unread[1].Rejections[0].Reason != "Not checked by automatic import" {
 		t.Errorf("unread film file %+v", unread)
 	}
+	// Theatarr's own Manual import list shows the wrong-audio rule's note on a file (note; the arrs have none).
+	e.lib.plan = func(id int64) *library.Plan {
+		return &library.Plan{DownloadID: id, Folder: "/mnt/debrid/__all__/Alpha.WEB",
+			Files: []library.PlannedFile{{Path: "/mnt/debrid/__all__/Alpha.WEB/a.mkv", Rel: "a.mkv", Size: 9000,
+				Note: "remux: x264 encoder SEI; Manual import: French audio only; this library wants English or Japanese."}},
+			Links: []library.PlannedLink{{File: "a.mkv", Path: "/x/Alpha (2020).mkv"}}}
+	}
+	var noted []manualImportResource
+	e.call("GET", "/radarr/api/v3/manualimport?downloadId="+strings.Repeat("A", 40), nil, 200, &noted)
+	if len(noted) != 1 || noted[0].Note != "Manual import: French audio only; this library wants English or Japanese." {
+		t.Errorf("audio note %+v", noted)
+	}
 	// The ManualImport command imports the chosen file of our download (through the library) at its path, and
 	// says what it refused: a file off the mount.
 	e.exec(`UPDATE download SET state = 'ready' WHERE id = 1`)

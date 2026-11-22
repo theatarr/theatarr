@@ -42,7 +42,9 @@ export function ManualImportFiles({ rows, options, disabled, change }: {
         <TableCell><input type="checkbox" aria-label={`Import ${c.path}`} checked={row.selected} disabled={disabled} onChange={(e) => change(i, { ...row, selected: e.target.checked })} /></TableCell>
         <TableCell className="max-w-md break-words align-top"><div>{c.path}</div><div>{fmtBytes(c.size)}</div>
           <Badge tone={c.rejections.length ? "warning" : "positive"}>{c.rejections.length ? "Needs review" : "Accepted"}</Badge>
-          <ul>{c.rejections.map((r, n) => <li key={n}>{r.reason}</li>)}</ul><div>Format score: {c.customFormatScore}</div>
+          <ul>{c.rejections.map((r, n) => <li key={n}>{r.reason}</li>)}</ul>
+          {c.note ? <p className="text-[var(--warn-ink)]" data-testid="manual-import-note">{c.note}</p> : null}
+          <div>Format score: {c.customFormatScore}</div>
         </TableCell>
         <TableCell><fieldset disabled={disabled} className="grid min-w-64 gap-2"><legend className="sr-only">Choices for {c.path}</legend>
           <label>Title<Select value={series ? f.seriesId ?? "" : f.movieId ?? ""} onChange={(e) => update({ movieId: series ? undefined : Number(e.target.value), seriesId: series ? Number(e.target.value) : undefined, episodeIds: [] })}>

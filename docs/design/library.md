@@ -385,8 +385,9 @@ mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
    (`theatarr library dry-run`, a hash-only `/import` plan) judges as the import would. The choice is made for the
    library imported into only: a partner library's download (source `library:<key>`) inherits the path to find the
    file and is judged as any download. The file gets a note instead: `Manual import: French audio only;
-   this library wants English or Japanese.` An Interactive hand grab is judged like any grab. History, Why, the
-   activity list and the journal show the refusal whole (`decide.IsAudioRefusal`: `storedWords` and
+   this library wants English or Japanese.`, which Manual import's list shows under the file's decision (the
+   candidate's `note`, Theatarr's own field). An Interactive hand grab is judged like any grab. History, Why, the
+   activity list, the Blocklist card (no three-line cut, no tooltip) and the journal show the refusal whole (`decide.IsAudioRefusal`: `storedWords` and
    `activityMessage` in the web, the journal's short form do not cut it at 120 characters). A partner library's refusal (`tryOther`) keeps its blocklist row, without the deleted
    download and marked researched, so it starts no search there. Files already in the library are never judged again.
    Tests: `TestAudioRuleVerdicts`, `TestAudioOpening`, `TestAudioRuleUnknownImports`,

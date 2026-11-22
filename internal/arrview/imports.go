@@ -332,6 +332,9 @@ type manualImportResource struct {
 	IndexerFlags      int               `json:"indexerFlags"`
 	ReleaseType       string            `json:"releaseType,omitempty"`
 	Rejections        []importRejection `json:"rejections"`
+	// Note is Theatarr's own (the arrs have none): the wrong-audio rule's note on a file it takes anyway, "Manual
+	// import: French audio only; this library wants English or Japanese.", for Manual import's list.
+	Note string `json:"note,omitempty"`
 }
 
 type importRejection struct {
@@ -526,6 +529,10 @@ func (s *Service) manualFromDownload(ctx context.Context, r *request, hash strin
 			m.QualityWeight = qualityWeight(r.v.Flavour, f.Facts.Quality, profile.Revision{Version: f.Facts.Revision, Real: f.Facts.Real})
 		}
 		m.RelativePath = f.Rel
+		// The audio rule's note is the last of the file's notes (library audioGuard).
+		if i := strings.Index(f.Note, "Manual import: "); i >= 0 {
+			m.Note = f.Note[i:]
+		}
 		if why, ok := rejected[f.Path]; ok {
 			m.Rejections = append(m.Rejections, importRejection{Reason: why, Type: "permanent"})
 		} else if _, ok := linked[f.Rel]; !ok && f.Unread {

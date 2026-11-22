@@ -35,6 +35,12 @@ describe("manual import", () => {
     expect(html).toContain('value="102" selected=""');
     expect(html).toContain('value="CHOSEN"');
   });
+  it("shows the file's audio note beside its decision", () => {
+    const note = "Manual import: French audio only; this library wants English or Japanese.";
+    const html = renderToStaticMarkup(h(ManualImportFiles, { rows: [importRow({ ...candidate, rejections: [], note })], options, disabled: false, change: () => {} }));
+    expect(html).toContain(note);
+    expect(html).toContain('data-testid="manual-import-note"');
+  });
   it("uses the themed select for single choices", () => {
     const html = renderToStaticMarkup(h(ManualImportFiles, { rows: [importRow(candidate)], options, disabled: false, change: () => {} }));
     expect(html).toContain('data-slot="select"');
