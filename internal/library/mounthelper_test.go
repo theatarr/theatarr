@@ -438,7 +438,11 @@ func mkvBytes() []byte {
 			el([]byte{0x15, 0x49, 0xA9, 0x66}, uint([]byte{0x2A, 0xD7, 0xB1}, 1000000), f64([]byte{0x44, 0x89}, 7200000)),
 			el([]byte{0x16, 0x54, 0xAE, 0x6B}, el([]byte{0xAE}, uint([]byte{0xD7}, 1), uint([]byte{0x83}, 1),
 				el([]byte{0x86}, []byte("V_MPEGH/ISO/HEVC")),
-				el([]byte{0xE0}, uint([]byte{0xB0}, 3840), uint([]byte{0xBA}, 2160)))))...)
+				el([]byte{0xE0}, uint([]byte{0xB0}, 3840), uint([]byte{0xBA}, 2160))),
+				// Two audio tracks: one tagged French, one with no language element (eng, not tagged).
+				el([]byte{0xAE}, uint([]byte{0xD7}, 2), uint([]byte{0x83}, 2), el([]byte{0x86}, []byte("A_AC3")),
+					el([]byte{0x22, 0xB5, 0x9C}, []byte("fre"))),
+				el([]byte{0xAE}, uint([]byte{0xD7}, 3), uint([]byte{0x83}, 2), el([]byte{0x86}, []byte("A_AC3")))))...)
 }
 
 // Every mount call answers the same through the helper as in Theatarr itself: values, error messages, and what errors.Is
@@ -561,6 +565,11 @@ func TestMountHelperMatchesInProcess(t *testing.T) {
 	want, werr := im.AllFiles(ctx, rel)
 	if !reflect.DeepEqual(got, want) || !reflect.DeepEqual(norm(nil, gerr), norm(nil, werr)) {
 		t.Errorf("all files: helper %v %v, in process %v %v", got, gerr, want, werr)
+	}
+	// Whether a track's language was in the file crosses the pipe too (the probe's JSON leaves it out).
+	if r, err := hm.ProbeFile(ctx, filepath.Join(rel, "movie.mkv"), 0, nil); err != nil || len(r.Audio) != 2 ||
+		!r.Audio[0].Tagged || r.Audio[1].Tagged {
+		t.Errorf("helper probe audio %+v %v", r, err)
 	}
 	// Probe errors keep their sentinel.
 	if _, err := hm.ProbeFile(ctx, filepath.Join(rel, "Sub", "ep.mkv"), 0, nil); !errors.Is(err, probe.ErrUnknownFormat) {

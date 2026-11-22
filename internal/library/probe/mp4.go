@@ -204,7 +204,7 @@ func mp4Trak(res *Result, trak []byte) {
 		}
 		res.Video = v
 	case "soun":
-		a := Audio{CodecID: format, Language: lang}
+		a := Audio{CodecID: format, Language: lang, Tagged: lang != "" && lang != "und"}
 		if len(body) >= 28 {
 			a.Channels = int(binary.BigEndian.Uint16(body[16:]))
 			ext := body[28:]

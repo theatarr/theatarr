@@ -564,6 +564,9 @@ func (f *helperFS) probe(name string, max int64) (*probe.Result, error) {
 	if resp.Probe == nil {
 		return nil, fmt.Errorf("mount helper: probe %s: no result", name)
 	}
+	for i := range resp.Probe.Audio {
+		resp.Probe.Audio[i].Tagged = i < len(resp.Tagged) && resp.Tagged[i]
+	}
 	return resp.Probe, nil
 }
 

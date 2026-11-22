@@ -177,6 +177,7 @@ type mkvTrack struct {
 	codecID   string
 	private   []byte
 	language  string
+	tagged    bool // the language is the file's, not Matroska's default
 	enabled   bool
 	width     int
 	height    int
@@ -296,6 +297,7 @@ func parseTrack(data []byte) (*mkvTrack, error) {
 	if ietf != "" && (!legacy || t.language == "und") {
 		t.language = ietf
 	}
+	t.tagged = legacy || ietf != ""
 	return t, err
 }
 
@@ -677,7 +679,7 @@ func mkvVideo(t *mkvTrack) *Video {
 }
 
 func mkvAudio(t *mkvTrack) Audio {
-	a := Audio{CodecID: t.codecID, Channels: t.channels, Language: t.language}
+	a := Audio{CodecID: t.codecID, Channels: t.channels, Language: t.language, Tagged: t.tagged}
 	switch {
 	case t.codecID == "A_TRUEHD":
 		a.Codec = "truehd"

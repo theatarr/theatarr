@@ -86,6 +86,10 @@ type Audio struct {
 	Profile  string `json:"profile,omitempty"`  // DTS profile; "LC"/"HE-AAC" for AAC
 	Channels int    `json:"channels"`
 	Language string `json:"language,omitempty"`
+	// Tagged: the language came from the file (a Matroska Language or LanguageIETF element, an MP4 mdhd language);
+	// a Matroska track without one reads as eng, Matroska's default. Not stored: a probe read back from the
+	// database is not tagged, and the import's wrong-audio rule reads only a fresh probe.
+	Tagged bool `json:"-"`
 }
 
 // Result is what a probe found.

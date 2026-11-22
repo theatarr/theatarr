@@ -146,13 +146,15 @@ func TestMatroska(t *testing.T) {
 func TestMatroskaLanguageIETF(t *testing.T) {
 	cases := []struct {
 		legacy, ietf, want string
+		tagged             bool // the language was in the file (the wrong-audio rule reads only such tracks)
 	}{
-		{"", "ja-JP", "ja"},
-		{"chi", "cmn-Hans", "chi"},
-		{"nob", "nb-NO", "nob"},
-		{"und", "ja", "ja"},
-		{"", " ", "eng"},
-		{"", "", "eng"},
+		{"", "ja-JP", "ja", true},
+		{"chi", "cmn-Hans", "chi", true},
+		{"nob", "nb-NO", "nob", true},
+		{"und", "ja", "ja", true},
+		{"", " ", "eng", false},
+		{"", "", "eng", false},
+		{"fre", "", "fre", true},
 	}
 	for _, c := range cases {
 		var l, i []byte
@@ -167,6 +169,9 @@ func TestMatroskaLanguageIETF(t *testing.T) {
 			tr, err := parseTrack(body)
 			if err != nil || tr.language != c.want {
 				t.Errorf("legacy %q ietf %q: language %q %v, want %q", c.legacy, c.ietf, tr.language, err, c.want)
+			}
+			if a := mkvAudio(tr); a.Tagged != c.tagged {
+				t.Errorf("legacy %q ietf %q: tagged %v, want %v", c.legacy, c.ietf, a.Tagged, c.tagged)
 			}
 		}
 	}
@@ -271,7 +276,8 @@ func TestMP4MoovAtEnd(t *testing.T) {
 		r.Video.Width != 1920 || r.Video.BitDepth != 10 {
 		t.Errorf("mp4: %+v %+v", r, r.Video)
 	}
-	if len(r.Audio) != 1 || r.Audio[0].Codec != "eac3" || r.Audio[0].Tag != "ec+3" || r.Audio[0].Language != "jpn" {
+	if len(r.Audio) != 1 || r.Audio[0].Codec != "eac3" || r.Audio[0].Tag != "ec+3" || r.Audio[0].Language != "jpn" ||
+		!r.Audio[0].Tagged {
 		t.Errorf("audio: %+v", r.Audio)
 	}
 	if mi := r.Model().Format("", false); mi.AudioCodec != "EAC3 Atmos" || mi.AudioChannels != 5.1 {
@@ -464,6 +470,10 @@ func TestMP4AC3Channels(t *testing.T) {
 		}
 		if len(r.Audio) != 1 || r.Audio[0].Channels != c.channels || r.Audio[0].Tag != c.tag {
 			t.Errorf("%s: audio %+v, want %d channels tag %q", c.name, r.Audio, c.channels, c.tag)
+		}
+		// mp4Sound's mdhd holds language 0: und, which is no tag.
+		if r.Audio[0].Language != "und" || r.Audio[0].Tagged {
+			t.Errorf("%s: language %q tagged %v, want und untagged", c.name, r.Audio[0].Language, r.Audio[0].Tagged)
 		}
 	}
 }
