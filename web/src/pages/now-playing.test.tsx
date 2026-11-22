@@ -37,6 +37,34 @@ describe("Now playing with a Plex error", () => {
   });
 });
 
+describe("Now playing with a Plex sentence and its detail", () => {
+  it("shows a sentence that already names Plex without the prefix, and the raw error as a wrapping second line", async () => {
+    const sentence = "Plex does not answer at http://plex:32400: check the address under Settings › Plex & playback";
+    mockFetch([
+      { method: "GET", path: "/auth/me", reply: { id: 9, username: "someone", permissions: ["browse", "see_files", "manage"], csrf_token: "t" } },
+      { method: "GET", path: "/nowplaying", reply: { enabled: true, sessions: [], error: sentence, error_detail: "dial tcp 10.0.0.9:32400: connect: connection refused" } },
+    ]);
+    renderPage(<NowPlayingPage />, "/now-playing");
+    const card = (await screen.findByText(sentence)).closest("div") as HTMLElement;
+    expect(card.textContent).not.toContain("Plex: Plex");
+    const detail = screen.getByTestId("plex-error-detail");
+    expect(detail.textContent).toBe("dial tcp 10.0.0.9:32400: connect: connection refused");
+    expect(detail.className).toContain("[overflow-wrap:anywhere]");
+    expect(detail.className.split(/\s+/).some((c) => c === "truncate" || /^line-clamp-/.test(c))).toBe(false);
+  });
+
+  it("keeps a member's short Plex words as they are, with no detail line", async () => {
+    mockFetch([
+      { method: "GET", path: "/auth/me", reply: { id: 9, username: "someone", permissions: ["browse"], csrf_token: "t" } },
+      { method: "GET", path: "/nowplaying", reply: { enabled: true, sessions: [], error: "Plex does not answer" } },
+    ]);
+    renderPage(<NowPlayingPage />, "/now-playing");
+    expect(await screen.findByText("Plex does not answer")).toBeTruthy();
+    expect(screen.queryByText(/^Plex: /)).toBeNull();
+    expect(screen.queryByTestId("plex-error-detail")).toBeNull();
+  });
+});
+
 describe("Now playing's settings links", () => {
   it("gives a configured rclone connection one Edit, and the Plex link looks like a link", async () => {
     mockFetch([

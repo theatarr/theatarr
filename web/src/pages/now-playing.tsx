@@ -65,7 +65,14 @@ export function NowPlayingPage() {
           {/* A Plex error is the answer: no zero counts or "Nothing is playing" beside it. */}
           {strip.length && !data.error ? <Strip items={strip} className="mb-5" /> : null}
           {data.error ? (
-            <Card className="mb-5 px-4 py-3 text-sm text-[var(--bad-ink)]">Plex: {data.error}</Card>
+            <Card className="mb-5 px-4 py-3 text-sm text-[var(--bad-ink)]">
+              {/* A sentence that already names Plex reads as it is; the raw error, when sent, wraps under it. */}
+              <div className="[overflow-wrap:anywhere]">{/^Plex\b/.test(data.error) ? data.error : `Plex: ${data.error}`}</div>
+              {/* error_detail: an optional field of the Now playing answer (not in this branch's schema yet). */}
+              {(data as { error_detail?: string }).error_detail ? (
+                <div className="mt-1 text-xs opacity-80 [overflow-wrap:anywhere]" data-testid="plex-error-detail">{(data as { error_detail?: string }).error_detail}</div>
+              ) : null}
+            </Card>
           ) : null}
           {data.sessions.length === 0 ? (
             data.error ? null : <Empty icon={MonitorPlay}>Nothing is playing.</Empty>
