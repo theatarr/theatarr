@@ -56,6 +56,7 @@ func TestSectionDefaultTrue(t *testing.T) {
 		"library.sample.mislabel":                    p.LibrarySettings().Mislabel,
 		"library.plex.now_playing":                   p.LibrarySettings().NowPlaying,
 		"library.plex.prewarm":                       p.LibrarySettings().Prewarm,
+		"library.plex.stop_with_message":             p.LibrarySettings().StopWithMessage,
 		"shadow.rss":                                 p.ShadowSettings().RSS,
 		"playlists.routes":                           p.PlaylistSettings().Routes,
 		"router.cached_only":                         p.RouterSettings().CachedOnly,

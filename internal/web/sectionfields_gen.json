@@ -162,6 +162,7 @@
     "prewarm": "This reads the head of the next episode of a show being watched through the mount, about a minute into an episode, and logs an error when that episode is missing or unreadable; past half of the episode it reads the next one whole so the…",
     "prewarm_max_size": "This limits whole-file preloading; larger episodes get only a header check. Default 20GB.",
     "prewarm_rate": "This caps the pre-warm's whole-file read of the next episode, in bytes per second (25MB: 25 MB/s), so it never starves a live stream. Default 25MB.",
+    "stop_with_message": "This stops a playback whose file Theatarr found broken with a message the player shows (look for another copy, try again later); off, nothing is ever stopped and the repair still runs. Default true.",
     "token_env": "This names the environment variable holding the plex token.",
     "url": "This is the plex server endpoint."
   },

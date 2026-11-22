@@ -249,6 +249,9 @@ type Plex struct {
 	PrewarmRate ByteSize `yaml:"prewarm_rate"`
 	// PrewarmMaxSize limits whole-file preloading; larger episodes get only a header check. Default 20GB.
 	PrewarmMaxSize ByteSize `yaml:"prewarm_max_size"`
+	// StopWithMessage stops a playback whose file Theatarr found broken with a message the player shows (look for
+	// another copy, try again later); off, nothing is ever stopped and the repair still runs. Default true.
+	StopWithMessage *bool `yaml:"stop_with_message"`
 }
 
 // LibraryVersion is one version's library settings.
@@ -329,6 +332,9 @@ type LibrarySettings struct {
 	// NowPlaying and Prewarm: library.plex is set and its switch is not off.
 	NowPlaying bool
 	Prewarm    bool
+	// StopWithMessage: a playback of a file found broken is stopped with a message (library.plex.stop_with_message;
+	// on unless set off).
+	StopWithMessage bool
 	// PrewarmRate (bytes/s) and PrewarmMaxSize (bytes) bound the pre-warm's whole-file read.
 	PrewarmRate    int64
 	PrewarmMaxSize int64
@@ -392,6 +398,7 @@ func (p *Policy) LibrarySettings() LibrarySettings {
 	if l.Plex != nil {
 		s.NowPlaying = l.Plex.NowPlaying == nil || *l.Plex.NowPlaying
 		s.Prewarm = s.NowPlaying && (l.Plex.Prewarm == nil || *l.Plex.Prewarm)
+		s.StopWithMessage = s.NowPlaying && (l.Plex.StopWithMessage == nil || *l.Plex.StopWithMessage)
 		if l.Plex.PrewarmRate != 0 {
 			s.PrewarmRate = int64(l.Plex.PrewarmRate)
 		}

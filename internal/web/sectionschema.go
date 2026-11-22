@@ -246,7 +246,7 @@ var sectionAnnotations = map[string]SchemaField{
 
 func floatPtr(v float64) *float64 { return &v }
 func init() {
-	for _, path := range []string{"metadata.series.enabled", "metadata.anime.auto_build", "library.sample.resolution", "library.sample.mislabel", "library.plex.now_playing", "library.plex.prewarm", "shadow.rss", "playlists.routes", "router.cached_only", "router.alldebrid_delete_uncached", "router.wanted.missing", "router.cache_evidence.torbox_check.enabled"} {
+	for _, path := range []string{"metadata.series.enabled", "metadata.anime.auto_build", "library.sample.resolution", "library.sample.mislabel", "library.plex.now_playing", "library.plex.prewarm", "library.plex.stop_with_message", "shadow.rss", "playlists.routes", "router.cached_only", "router.alldebrid_delete_uncached", "router.wanted.missing", "router.cache_evidence.torbox_check.enabled"} {
 		a := sectionAnnotations[path]
 		a.Default = "true"
 		sectionAnnotations[path] = a
@@ -352,6 +352,7 @@ var sectionLabels = map[string]string{
 	"library.plex.prewarm":                        "Preload next episode",
 	"library.plex.prewarm_rate":                   "Preload speed limit",
 	"library.plex.prewarm_max_size":               "Maximum preload size",
+	"library.plex.stop_with_message":              "Stop a broken stream with a message",
 	"library.versions.*.plex_section":             "Plex library ID",
 	"library.relink_interval":                     "Library link check interval",
 	"library.dangling":                            "Broken links",
@@ -429,6 +430,7 @@ var sectionHelp = map[string]string{
 	"library.mount.rclone_rc":                     "This is the mount's rclone remote control (rclone rc): the Now playing page reads its transfer statistics, and \"Clear cached release root listing\" uses it to refresh one folder. Optional.",
 	"library.plex.now_playing":                    "This follows Plex's sessions for the Now playing page. It only reads, so it works while Theatarr is paused. Default true.",
 	"library.plex.prewarm":                        "About a minute into an episode, this reads the start of the next episode of the show through the mount, and logs an error when that episode is missing or unreadable; past half of the episode it reads the next one whole so the mount's cache keeps it. Default true.",
+	"library.plex.stop_with_message":              "When a file someone is playing stops working, this stops that playback with a message on their screen saying that Theatarr is looking for another copy; off, the playback is never stopped and another copy is still looked for. Default true.",
 	"router.cached_grace":                         "This is how long the router waits before reading a fresh Real-Debrid or AllDebrid add again when the first read shows it still converting or downloading, before it calls the add uncached. Default 2s, 1s to 30s.",
 	"router.stalled_after":                        "This fails a download that was accepted but has fetched nothing this long after its add, as stalled: its release is blocklisted for the library, our own Real-Debrid add is deleted, and the title is searched again. Default 10m, 1m to 24h; Off turns it off. AllDebrid waits at least 25m.",
 	"router.downloading_timeout":                  "This fails a download whose provider progress has not risen for this long (a dead swarm, a magnet that never leaves the provider's queue): its release is blocklisted for the library, our own Real-Debrid add is deleted, and the title is searched again. Default 24h, 1h to 7 days; Off turns it off.",

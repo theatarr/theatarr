@@ -108,6 +108,31 @@ func TestPrewarmSettings(t *testing.T) {
 	}
 }
 
+// library.plex.stop_with_message: on unless set off; nothing to stop while now playing is off.
+func TestStopWithMessageSetting(t *testing.T) {
+	t.Parallel()
+	off, on := false, true
+	for _, tc := range []struct {
+		plex *Plex
+		want bool
+	}{
+		{&Plex{URL: "http://plex:32400"}, true},
+		{&Plex{URL: "http://plex:32400", StopWithMessage: &on}, true},
+		{&Plex{URL: "http://plex:32400", StopWithMessage: &off}, false},
+		{&Plex{URL: "http://plex:32400", NowPlaying: &off}, false},
+		{nil, false},
+	} {
+		if got := (&Policy{Library: &Library{Plex: tc.plex}}).LibrarySettings().StopWithMessage; got != tc.want {
+			t.Errorf("%+v: %v, want %v", tc.plex, got, tc.want)
+		}
+	}
+	var p Policy
+	if err := decodeBytes([]byte("library:\n  plex: {url: \"http://plex:32400\", token_env: T, stop_with_message: false}\n"), &p); err != nil ||
+		p.LibrarySettings().StopWithMessage {
+		t.Fatalf("decode: %v", err)
+	}
+}
+
 func TestLibraryValidation(t *testing.T) {
 	t.Parallel()
 	base := `library:
