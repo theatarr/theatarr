@@ -22,6 +22,7 @@ file that stops working), `internal/plex/sessions.go`
 | `library.plex.prewarm` | true | The next-episode pre-warm (below). Needs `now_playing`. |
 | `library.plex.prewarm_rate` | `25MB` | The pre-warm's whole-file read is capped at this many bytes per second (`25MB` is 25 MB/s), so it never starves a live stream. A size with a unit (`10MiB`, `25MB`) or a number; at least `1MB`. |
 | `library.plex.prewarm_max_size` | `20GB` | A next episode larger than this is not read whole; its head check still runs. |
+| `library.plex.stop_with_message` | true | "Stop a broken stream with a message" (Settings › Plex & playback): a playback whose file Theatarr found broken is stopped with a message its player shows (below, "Telling the viewer"). Off: nothing is ever sent to Plex; the check, the repair, the list below, History and the notifications go on as before. Needs `now_playing`. Read at each message from the settings in force, so a save needs no restart. |
 | `library.mount.rclone_rc.url` | unset | The mount's rclone remote control (`rclone rc`, e.g. `http://rclone:5572`). Optional: without it there is no fetch speed and no cache state. It is an outbound host with its own gateway target class `rclonerc` (`rclonerc:rc`). |
 | `library.mount.rclone_rc.username_env`, `password_env` | unset | The rc basic-auth credentials (`--rc-user`, `--rc-pass`), by environment variable name. In DB settings mode they are write-only secrets (`mount.rclone_rc.username`, `mount.rclone_rc.password`). They go in the Authorization header only and are never logged or returned. |
 | `library.mount.rclone_rc.budget` | unset | A budget for rc calls. |
@@ -218,10 +219,18 @@ broke while playing is searched at once").
   whose position has stayed the same over playing samples for 15 s (Plex reports it about every 10 s; a rewind is
   movement too, and a pause starts the count again) (never on a remembered verdict or an old zurg line); a paused one never; no session left: nothing
   is sent. Never when the mount is the problem, never after a read that passed. `Options.StopWithMessage` switches it
-  (on when unset); off, nothing is ever sent to Plex. A refusal by Plex is logged once and kept on the incident.
+  (on when unset; serve passes `library.plex.stop_with_message` of the settings in force); off, nothing is ever sent
+  to Plex. A refusal by Plex is logged once and kept on the incident.
 - **Incidents.** `Tracker.Incidents` lists the last 24 hours' incidents (title, episodes, how many files, viewer,
-  player, the old and new release, what the player was told) as "Looking for another copy", "Replaced", "Readable
-  again", "No other copy" or "Earlier copy put back".
+  player, the old and new release, what the player was told) as "Looking for another copy", "Replaced with another
+  release", "Readable again", "No other copy yet" or "Earlier copy put back". `GET /nowplaying` carries them as
+  `incidents` (absent when none; see "Who sees what"), and the page lists them under "Files that stopped working".
+- **Where the outcome goes** (`cmd/theatarr/serveplaying.go`). Serve gives every library it builds (the startup one,
+  its fallback copy for imports and each settings generation's) one `OnPlayingOutcome` hook: it writes the title's
+  History row (event `playing`, `pb:<incident>:<kind>`, the broken copy's release; "Replaced after it stopped
+  working", "Readable again after it stopped working", "Stopped working, no other copy yet", "Earlier copy put back")
+  and hands the outcome to `Notifier.PlayingOutcome` (sent at once; [devices.md](devices.md)). The
+  library reports each incident once, so each reaches a target once.
 
 ## Who sees what
 
@@ -229,7 +238,10 @@ broke while playing is searched at once").
 source, fetch and pre-warm, the cause detail, zurg's stream count and the rclone cache. Users get only their own
 playbacks, matched on the Plex account linked to their Theatarr account (plex.tv id or name), with the verdict and cause
 but no detail, and of the source only the title (for the link to its page). Plex's error text is replaced by "Plex
-does not answer". While the tracker is off the answer is `{"enabled": false, "sessions": []}` and the page says what
+does not answer". Of the files that stopped working while playing, managers and admins get every incident with its
+releases and what Plex answered; users get only the incidents of their own playbacks (the viewer matched on their
+linked Plex name), with what came of each, their player and the message their player showed, but no release names and
+not why Plex refused. While the tracker is off the answer is `{"enabled": false, "sessions": []}` and the page says what
 turns it on: admins get the link to Plex & playback (styled as a link), everyone else is told to ask an administrator
 (the settings page is admin-only). Admins edit the rclone remote control in the one line at the top ("rclone remote
 control at <host> · Edit"); there is no second link to its settings.

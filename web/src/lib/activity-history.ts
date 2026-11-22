@@ -3,7 +3,7 @@
 // (?title=, ?copy=, ?event=, ?since=) so a filtered history can be bookmarked and shared. The server filters History's
 // rows (GET /activity?state=history&title=&version=&events=&since=), so paging stays right.
 
-export type HistoryEventId = "all" | "grabbed" | "imported" | "adopted" | "removed" | "failed";
+export type HistoryEventId = "all" | "grabbed" | "imported" | "adopted" | "removed" | "failed" | "playing";
 
 /** The event types, in the words the history rows use, and the History events behind each. A row reads the same under
  *  each as under All events (the server folds an upgrade's import into its Upgraded row whatever the filter), so
@@ -16,6 +16,7 @@ export const HISTORY_EVENTS: { id: HistoryEventId; label: string; events: string
   { id: "adopted", label: "Adopted (files found in the library)", events: ["adopted"] },
   { id: "removed", label: "Removed and missing", events: ["removed", "missing", "title_removed"] },
   { id: "failed", label: "Failed and blocked", events: ["failed", "blocked"] },
+  { id: "playing", label: "Stopped working while playing", events: ["playing"] },
 ];
 
 /** Event filters of bookmarks from before Radarr's words, and the filter each now is. */

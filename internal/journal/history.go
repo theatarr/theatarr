@@ -34,7 +34,9 @@ import (
 //   - copy_added, copy_already, copy_not_cached: a copy to another provider ("Add to other providers") that was added,
 //     found already there, or not cached;
 //   - title_removed: a title taken out of a library (Remove title, Remove copy), one row per library, with who
-//     removed it and what became of its files (Removal).
+//     removed it and what became of its files (Removal);
+//   - playing: the outcome of a file that stopped working while someone played it (pb:<incident>:<kind>, the kind in
+//     Source: replaced, same_release, unavailable or restored), with the broken copy's release; no journal entry.
 //
 // Searches, dry runs, mount waits, repaired links and plans stay in the journal only.
 //
@@ -56,11 +58,12 @@ const (
 	EvCopyNotCached = "copy_not_cached"
 	EvCopyAlready   = "copy_already"
 	EvTitleRemoved  = "title_removed"
+	EvPlaying       = "playing"
 )
 
 // HistoryEvents lists every History event, for filters.
 var HistoryEvents = []string{EvGrabbed, EvImported, EvAdopted, EvDeleted, EvRemoved, EvMissing, EvFailed, EvBlocked,
-	EvCopyAdded, EvCopyAlready, EvCopyNotCached, EvTitleRemoved}
+	EvCopyAdded, EvCopyAlready, EvCopyNotCached, EvTitleRemoved, EvPlaying}
 
 // KindCopy is the kind of a provider copy's History row (copy:<provider_copy_event>); not a journal kind.
 const KindCopy = "copy"
@@ -68,7 +71,8 @@ const KindCopy = "copy"
 // HistoryRow is one History row.
 type HistoryRow struct {
 	// ID is the journal id of the row's source (dl:<id>, dl:<id>:fail, dl:<id>:import, lib:<id> (a group's first
-	// action), bl:<rowid>, act:<id> (a removal)), or copy:<provider_copy_event>, which has no journal entry.
+	// action), bl:<rowid>, act:<id> (a removal)), or copy:<provider_copy_event> and pb:<incident>:<kind> (a file that
+	// stopped working while playing), which have no journal entry.
 	ID string
 	At time.Time
 	// Kind is the journal kind (grab for every grab unless kinds are filtered; copy for a copy).
@@ -86,7 +90,7 @@ type HistoryRow struct {
 	Files    int
 	Provider string
 	// Reason: a failure's error, a block's reason, an unlink's reason, a held import's, a copy's message (cleaned).
-	// Source: a block's source, an adoption's Sonarr/Radarr instance. Import: an import row's library_import state. Attempts: a failed download's.
+	// Source: a block's source, an adoption's Sonarr/Radarr instance, a playing row's outcome kind. Import: an import row's library_import state. Attempts: a failed download's.
 	Reason   string
 	Source   string
 	Import   string
@@ -465,7 +469,7 @@ func jsonList(ss []string) string {
 // entry) and a release unblocked since (bl:<rowid>:<at>).
 func entryOf(id string) string {
 	switch {
-	case strings.HasPrefix(id, "copy:"):
+	case strings.HasPrefix(id, "copy:"), strings.HasPrefix(id, "pb:"):
 		return ""
 	case strings.HasSuffix(id, ":held"):
 		return strings.TrimSuffix(id, ":held") + ":import"

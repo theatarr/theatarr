@@ -521,6 +521,9 @@ func (o runOrigin) words() string {
 	case o.research == "new" || o.research == "retry_new" || o.research == "fresh":
 		// The schedule's retries of a new release, and the retry chains before it.
 		return "retry of a new release"
+	case o.research == router.ReasonPlaying:
+		// The search for a file that stopped working while someone played it.
+		return "search after it stopped working while playing"
 	case o.research != "":
 		return "search again after a failure"
 	case o.source == "wanted" && o.reason == "cutoff":

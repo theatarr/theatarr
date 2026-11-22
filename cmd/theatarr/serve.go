@@ -460,6 +460,8 @@ func runServe(args []string) error {
 	}
 	lb.manager, lb.readyWake = runtimeManager, readyWake
 	lb.lib.SetRecordChanged(torrentUsage.Signal)
+	// What came of a file that broke while someone played it: History and the notifications (serveplaying.go).
+	playing := &playingOutcomes{st: st}
 	// After an import from a debrid provider: the automatic "Add to other providers" (providers set to also add, where
 	// the torrent is known cached; torrents.md).
 	autoCopy := func(ctx context.Context, from, hash string) {
@@ -480,6 +482,7 @@ func runServe(args []string) error {
 	// Imports and renames pin the library of the runtime they start on (its roots, naming and engine). The
 	// fallback copy has no resolver, so an operation without a runtime library cannot resolve back to lb.lib.
 	fallback := lb.lib.WithPolicy(pol, eng, lb.formats, matchedRenameFormats(pol, lb.decider))
+	playing.attach(lb.lib, fallback)
 	lb.lib.SetRuntimeResolver(func(ctx context.Context) (context.Context, *library.Library) {
 		ctx, current := lb.forOperation(ctx)
 		if current == lb {
@@ -530,6 +533,7 @@ func runServe(args []string) error {
 		runtime.Library.manager, runtime.Library.readyWake = runtimeManager, readyWake
 		runtime.Library.lib.SetRecordChanged(torrentUsage.Signal)
 		runtime.Library.lib.SetImported(autoCopy)
+		playing.attach(runtime.Library.lib)
 		// The mount guard, helpers and listing floor carry over from the generation being replaced (the startup
 		// library before the first save), so a save neither resets an open breaker nor keeps old mount settings.
 		prevLib := lb.lib
@@ -615,6 +619,7 @@ func runServe(args []string) error {
 		return err
 	}
 	av.SetNotifier(nt)
+	playing.nt.Store(nt)
 	nt.LogState()
 	// Title art and metadata: the meta.art job and the /img cache, through the gateway (docs/design/artwork.md).
 	ar, err := newServeArt(pol, st, q, gw, *dbPath, log)

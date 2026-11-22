@@ -35,6 +35,10 @@ export const EVENT_MEANINGS: { words: string; meaning: string }[] = [
   { words: "Added to …", meaning: "The torrent was added to another provider as well (Add to other providers, removed in 0.4.5)." },
   { words: "Already on …", meaning: "The other provider held the torrent already, so nothing was added there." },
   { words: "Not cached on …", meaning: "Another provider did not have the torrent cached, so it was not added there." },
+  { words: "Replaced after it stopped working", meaning: "The file stopped working while someone played it, and another release was imported in its place." },
+  { words: "Readable again after it stopped working", meaning: "The file stopped working while someone played it, and the same release works again (for example from another provider)." },
+  { words: "Stopped working, no other copy yet", meaning: "The file stopped working while someone played it, and no other copy was found; the normal searches go on." },
+  { words: "Earlier copy put back", meaning: "The copy that stopped working works again and is better than the one that replaced it, so it was put back." },
 ];
 
 /** The meaning of an event's words ("Not started: …" for every not-started reason, "Added to …" and "Not cached on …"

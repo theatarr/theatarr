@@ -8,6 +8,7 @@ import (
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/nowplaying"
 	"github.com/theatarr/theatarr/internal/plex"
+	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/secrets"
 	"github.com/theatarr/theatarr/internal/torrents"
 )
@@ -16,13 +17,14 @@ import (
 // the library's zurg log followers reach it here.
 var serveNowPlaying atomic.Pointer[nowplaying.Tracker]
 
-// nowPlayingSnapshot is the web API's source: nil while the tracker is off.
+// nowPlayingSnapshot is the web API's source, with the incidents of the last 24 hours: nil while the tracker is off.
 func nowPlayingSnapshot() *nowplaying.Snapshot {
 	t := serveNowPlaying.Load()
 	if t == nil {
 		return nil
 	}
 	s := t.Snapshot()
+	s.Incidents = t.Incidents()
 	return &s
 }
 
@@ -53,6 +55,14 @@ func nowPlayingKey(rt *serveRuntime) string {
 	}
 	return keyOf(s.Plex.URL, tok, s.ZurgAPI, s.MountPath, s.LinkPath, s.AllDir, s.Prewarm, s.PrewarmRate,
 		s.PrewarmMaxSize, rc)
+}
+
+// stopWithMessage is library.plex.stop_with_message of the generation in force (cur), else of the tracker's start (s).
+func stopWithMessage(cur *serveRuntime, s policy.LibrarySettings) bool {
+	if cur != nil && cur.Library != nil {
+		return cur.Library.set.StopWithMessage
+	}
+	return s.StopWithMessage
 }
 
 // currentGateway sends each request through the gateway of the generation in force, so a budget change applies
@@ -119,6 +129,11 @@ func (l serveLoops) runNowPlaying(ctx context.Context, rt *serveRuntime) error {
 			}
 			return false, nil
 		}
+	}
+	// library.plex.stop_with_message of the settings in force: a save turns it on or off without restarting the tracker.
+	o.StopWithMessage = func() bool {
+		_, cur := l.current(ctx)
+		return stopWithMessage(cur, s)
 	}
 	if s.MountPath != "" {
 		o.Mount = func() nowplaying.Mount {

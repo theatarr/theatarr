@@ -44,9 +44,9 @@ func incidentState(settled, fixed, reported string) (string, string) {
 	case settled == "copy" || settled == "revived":
 		return "readable", "Readable again"
 	case fixed == "replaced":
-		return "replaced", "Replaced"
+		return "replaced", "Replaced with another release"
 	case settled == "none" || reported == "unavailable":
-		return "unavailable", "No other copy"
+		return "unavailable", "No other copy yet"
 	}
 	return "looking", "Looking for another copy"
 }

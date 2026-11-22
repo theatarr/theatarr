@@ -164,6 +164,18 @@ func HistoryRemoval(ctx context.Context, ex Execer, id int64) {
 		FROM journal_action a WHERE a.action IN ('remove_title', 'remove_version') AND a.id = ?`+historyUpsert, id)
 }
 
+// HistoryPlaying writes the playing row of an incident of a file that broke while someone played it (playing_break,
+// its watched row incident): its outcome kind (replaced, same_release, unavailable, restored) as source, and the
+// broken copy's release, episodes and how many files the incident holds. One row per incident and kind
+// (pb:<incident>:<kind>), dated at.
+func HistoryPlaying(ctx context.Context, ex Execer, incident int64, kind string, at int64) {
+	historyExec(ctx, ex, `INSERT INTO history (`+historyCols+`)
+		SELECT 'pb:' || pb.id || ':' || ?2, ?3, 'playing', 'playing', pb.title_id, pb.version_key, NULL,
+			pb.release_title, pb.info_hash, '', 0, COALESCE(pb.quality, ''), pb.score, NULL, pb.episodes,
+			(SELECT COUNT(*) FROM playing_break f WHERE f.incident = pb.id), NULL, '', '', ?2, '', '', ''
+		FROM playing_break pb WHERE pb.id = ?1 AND pb.watched = 1`+historyUpsert, incident, kind, at)
+}
+
 // HistoryRemovalDetail sets a removal row's detail when its outcome is known (the clean-up).
 func HistoryRemovalDetail(ctx context.Context, ex Execer, id int64, detail string) {
 	historyExec(ctx, ex, `UPDATE history SET detail = ? WHERE ref = ?`, detail, fmt.Sprint("act:", id))

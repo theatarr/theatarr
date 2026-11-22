@@ -326,7 +326,12 @@ SignalR, Sonarr v5, `downloadclient`.
   - Native: `theatarr.playing_replaced|unavailable|restored` with the outcome under `playing` in snake_case
     (`incident`, `kind`, `title_id`, `version_key`, `title`, `episodes`, `old_release`, `new_release`, `account`,
     `viewer`, `player`, `at`), beside the usual `version` and `title`.
-  - Tests: `notify.TestPlayingOutcome`, `notify.TestPlayingText`.
+  - When: serve hooks every library's `OnPlayingOutcome` to it (`cmd/theatarr/serveplaying.go`), so each outcome goes
+    the moment it is known: `same_release` once another account's copy reads, `replaced` once the import that fixed
+    the watched file commits, `unavailable` once its search has ended with nothing imported and nothing in flight (or
+    at once when nothing can be done), `restored` once the earlier copy is put back. The same hook writes the title's
+    History row.
+  - Tests: `notify.TestPlayingOutcome`, `notify.TestPlayingText`, `main.TestPlayingOutcomesReachNotifyAndHistory`.
 
 ## Callers
 

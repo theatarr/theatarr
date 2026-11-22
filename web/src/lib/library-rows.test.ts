@@ -125,6 +125,7 @@ describe("row readers", () => {
   });
   it("gives Wanted and the title page one reason wording", () => {
     expect(["new", "asked", "added", "stalled", undefined].map(nextSearchWhy)).toEqual(["new release", "Search now", "Added by a list", "after a failed download", ""]);
+    expect(nextSearchWhy("playing")).toBe("after it stopped working while playing");
   });
   it("words the next search", () => {
     const now = new Date("2026-11-12T12:00:00Z");

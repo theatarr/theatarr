@@ -834,6 +834,10 @@ type pendingTell struct {
 	playing    bool
 }
 
+// StoppedNote starts an incident's message when its player was stopped with one; any other message says why Plex
+// refused.
+const StoppedNote = "the player was stopped with the message: "
+
 // tell stops the playback of a confirmed broken file with msg (Options.StopWithMessage on, the default): only the same
 // playback (session id, viewer, item and part), read from Plex right before the call, and only when it is buffering or
 // its position has not moved since the sign, never when it is paused. One still advancing gets it at its next sign. No
@@ -873,7 +877,7 @@ func (t *Tracker) tell(ctx context.Context, j *sign, msg string, incident int64)
 	if incident != 0 && t.incidentRecovered(ctx, incident) {
 		return // the file reads again (another account took it, or the old copy came back)
 	}
-	note := "the player was stopped with the message: " + msg
+	note := StoppedNote + msg
 	if err := stopper.Terminate(ctx, j.s.ID, msg); err != nil {
 		note = "Plex refused to stop the player: " + err.Error()
 		t.mu.Lock()

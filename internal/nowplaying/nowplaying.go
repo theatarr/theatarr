@@ -236,6 +236,9 @@ type Snapshot struct {
 	Cache *Cache `json:"cache,omitempty"`
 	// ZurgStreams is zurg's open streams (/stats), when zurg_api is set.
 	ZurgStreams *int `json:"zurg_streams,omitempty"`
+	// Incidents are the files that stopped working while playing in the last 24 hours (Tracker.Incidents, which the
+	// web API's source adds; Snapshot leaves it empty).
+	Incidents []Incident `json:"incidents,omitempty"`
 }
 
 // New returns a tracker; Run starts it.

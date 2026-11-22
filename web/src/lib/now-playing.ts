@@ -1,5 +1,5 @@
 // Now playing helpers (docs/design/now-playing.md): labels and tones for a playback, its health and its source.
-import type { NowPlayingSession } from "@/api/nowplaying";
+import type { NowPlayingIncident, NowPlayingSession } from "@/api/nowplaying";
 
 type Tone = "positive" | "warning" | "negative" | "info" | "neutral";
 
@@ -92,4 +92,25 @@ export function prewarmText(p: NowPlayingSession["prewarm"]): { text: string; to
     default:
       return { text: p.detail ? `${ep}${p.detail}`.trim() : "skipped", tone: "neutral" };
   }
+}
+
+/** A file that stopped working while playing: its state's dot colour (looking, replaced, readable, unavailable,
+ *  restored). */
+export function incidentTone(state: string): "ok" | "warn" | "bad" {
+  if (state === "unavailable") return "bad";
+  if (state === "looking") return "warn";
+  return "ok";
+}
+
+/** What the player was told, or why Plex refused, as a sentence; "" while the incident is open and nothing was sent
+ *  yet, "The player was not stopped." once it is settled without one. */
+export function incidentMessage(i: Pick<NowPlayingIncident, "message" | "state">): string {
+  const m = (i.message ?? "").trim();
+  if (m) return m.charAt(0).toUpperCase() + m.slice(1) + (/[.!?]["”]?$/.test(m) ? "" : ".");
+  return i.state === "looking" ? "" : "The player was not stopped.";
+}
+
+/** What broke: "Show (2020) · S01E02" or the film. */
+export function incidentLabel(i: Pick<NowPlayingIncident, "title" | "episodes">): string {
+  return [i.title, ...(i.episodes?.length ? [i.episodes.join(", ")] : [])].join(" · ");
 }

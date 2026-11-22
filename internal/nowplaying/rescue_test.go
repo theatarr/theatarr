@@ -880,7 +880,7 @@ func TestIncidents(t *testing.T) {
 	}
 	e.exec(`UPDATE playing_break SET episodes = '[2]' WHERE link_id = 11`)
 	e.exec(`UPDATE playing_break SET fixed_by = 'replaced', new_release = 'Show.S01E02.2160p' WHERE link_id = 11`)
-	if in := e.tr.Incidents(); in[0].Status != "Replaced" || in[0].NewRelease != "Show.S01E02.2160p" {
+	if in := e.tr.Incidents(); in[0].Status != "Replaced with another release" || in[0].NewRelease != "Show.S01E02.2160p" {
 		t.Errorf("replaced %+v", in[0])
 	}
 	e.advance(25 * time.Hour)
@@ -888,8 +888,8 @@ func TestIncidents(t *testing.T) {
 		t.Errorf("a day later %+v", in)
 	}
 	for _, c := range []struct{ settled, fixed, reported, want string }{
-		{"copy", "copy", "same_release", "Readable again"}, {"none", "", "unavailable", "No other copy"},
-		{"", "", "unavailable", "No other copy"}, {"restored", "replaced", "restored", "Earlier copy put back"},
+		{"copy", "copy", "same_release", "Readable again"}, {"none", "", "unavailable", "No other copy yet"},
+		{"", "", "unavailable", "No other copy yet"}, {"restored", "replaced", "restored", "Earlier copy put back"},
 	} {
 		if _, got := incidentState(c.settled, c.fixed, c.reported); got != c.want {
 			t.Errorf("%+v: %s", c, got)

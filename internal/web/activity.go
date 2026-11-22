@@ -21,6 +21,7 @@ import (
 	"github.com/theatarr/theatarr/internal/journal"
 	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/metadata/art"
+	"github.com/theatarr/theatarr/internal/outcome"
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -185,7 +186,7 @@ type ActivityEvent struct {
 	Kind string    `json:"kind"`
 	// Event is the History event: grabbed, imported, adopted, deleted (for an upgrade), removed (a file, by hand),
 	// missing, failed, blocked, copy_added, copy_not_cached, title_removed (the title left a library: Remove title or
-	// Remove copy) (journal.HistoryEvents).
+	// Remove copy), playing (what came of a file that stopped working while someone played it) (journal.HistoryEvents).
 	Event   string        `json:"event"`
 	Title   ActivityTitle `json:"title"`
 	Version string        `json:"version,omitempty"`
@@ -883,8 +884,26 @@ func entryWords(h *journal.HistoryRow, notStarted string, tag func(string) strin
 		return "Not cached on " + tag(h.Provider), "info"
 	case journal.EvTitleRemoved:
 		return "Removed from library", "info"
+	case journal.EvPlaying:
+		return playingHistoryWords(h.Source)
 	}
 	return h.Event, "info"
+}
+
+// playingHistoryWords are a playing row's words by its outcome kind (journal EvPlaying): what came of a file that
+// stopped working while someone played it.
+func playingHistoryWords(kind string) (words, tone string) {
+	switch kind {
+	case outcome.Replaced:
+		return "Replaced after it stopped working", "ok"
+	case outcome.SameRelease:
+		return "Readable again after it stopped working", "ok"
+	case outcome.Unavailable:
+		return "Stopped working, no other copy yet", "bad"
+	case outcome.Restored:
+		return "Earlier copy put back", "ok"
+	}
+	return "Stopped working while playing", "warn"
 }
 
 // historyReason is a History row's reason in plain words: why a download failed or stalled, why a release was blocked,
@@ -917,6 +936,12 @@ func historyReason(h *journal.HistoryRow, notStarted string, tag, label func(str
 		return "From Sonarr"
 	case journal.EvTitleRemoved:
 		return removalWords(h, label)
+	case journal.EvPlaying:
+		// The row's release is the copy that broke.
+		if h.Source == outcome.Restored {
+			return "The copy that stopped working while playing works again and is better than its replacement"
+		}
+		return "It stopped working while playing"
 	case journal.EvCopyAdded, journal.EvCopyAlready, journal.EvCopyNotCached:
 		if w, _ := entryWords(h, "", tag); !strings.EqualFold(h.Reason, w) {
 			return h.Reason

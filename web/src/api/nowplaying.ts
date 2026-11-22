@@ -6,6 +6,7 @@ import { qk } from "./query-keys";
 
 export type NowPlaying = Schemas["NowPlaying"];
 export type NowPlayingSession = Schemas["NowPlayingSession"];
+export type NowPlayingIncident = Schemas["NowPlayingIncident"];
 
 export const useNowPlaying = () =>
   useQuery({ queryKey: qk.nowPlaying, queryFn: () => api<NowPlaying>("/nowplaying"), refetchInterval: 10_000 });

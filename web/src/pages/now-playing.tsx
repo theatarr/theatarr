@@ -3,16 +3,18 @@ import { RcloneConnection } from "@/components/settings/rclone-connection";
 // Now playing (docs/design/now-playing.md): what Plex plays now, who watches on which player, how it streams and whether
 // it plays smoothly, with the likeliest cause when it does not. Managers and admins also see where the file comes from
 // (versions, release, providers, single copy, the zurg account serving it), the mount's fetch speed and the
-// next-episode pre-warm. Users see their own playbacks only.
+// next-episode pre-warm. Users see their own playbacks only. Below them, the files that stopped working while someone
+// played them in the last 24 hours and what came of each (only when there is one; users: their own, no releases).
 import { MonitorPlay } from "lucide-react";
 import { Link } from "react-router";
-import { useNowPlaying, type NowPlayingSession } from "@/api/nowplaying";
+import { useNowPlaying, type NowPlayingIncident, type NowPlayingSession } from "@/api/nowplaying";
 import { usePerms } from "@/api/library";
 import { Empty, ErrorState, KV, Loading, Mono, PageHeader, Strip, VersionTag, type StripItem } from "@/components/page";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { fmtAgo, fmtBytes } from "@/lib/format";
-import { fmtClock, fmtMbps, healthBadge, itemLabel, placeLabel, prewarmText, progress, streamLabel } from "@/lib/now-playing";
+import { fmtAgo, fmtBytes, fmtTime } from "@/lib/format";
+import { fmtClock, fmtMbps, healthBadge, incidentLabel, incidentMessage, incidentTone, itemLabel, placeLabel, prewarmText, progress, streamLabel } from "@/lib/now-playing";
+import { cn } from "@/lib/utils";
 import { ProviderTag } from "@/components/provider-pills";
 import { TorrentLink } from "@/components/title/info-hash";
 
@@ -74,9 +76,51 @@ export function NowPlayingPage() {
               ))}
             </div>
           )}
+          {data.incidents?.length ? <Incidents items={data.incidents} seeFiles={perms.seeFiles} /> : null}
         </>
       ) : null}
     </div>
+  );
+}
+
+const DOT = { ok: "bg-[var(--ok)]", warn: "bg-[var(--warn)]", bad: "bg-[var(--bad)]" } as const;
+
+/** The files that stopped working while playing in the last 24 hours, newest first: each row wraps, nothing is cut. */
+function Incidents({ items, seeFiles }: { items: NowPlayingIncident[]; seeFiles: boolean }) {
+  return (
+    <section className="mt-6" data-testid="now-playing-incidents">
+      <h2 className="mb-2 text-sm font-semibold text-[var(--ink)]">Files that stopped working</h2>
+      <Card className="p-0">
+        <ul className="divide-y divide-border">
+          {items.map((i) => {
+            const msg = incidentMessage(i);
+            return (
+              <li key={i.id} className="space-y-1 px-4 py-3 text-sm [overflow-wrap:anywhere]" data-testid="now-playing-incident">
+                <div className="font-medium text-[var(--ink)]">
+                  <Link to={`/title/${i.title_id}`} className="underline-offset-2 hover:underline">{incidentLabel(i)}</Link>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={cn("size-2 shrink-0 rounded-full", DOT[incidentTone(i.state)])} aria-hidden />
+                  <span>{i.status}</span>
+                </div>
+                <div className="text-muted-foreground">
+                  {fmtTime(i.at)} ({fmtAgo(i.at)})
+                  {i.viewer ? ` · ${i.viewer}${i.player ? ` on ${i.player}` : ""}` : ""}
+                  {i.files > 1 ? ` · ${i.files} files of the release stopped working` : ""}
+                </div>
+                {msg ? <div className="text-muted-foreground">{msg}</div> : null}
+                {seeFiles && i.old_release ? (
+                  <div className="text-muted-foreground">Broken copy: <Mono className="break-all">{i.old_release}</Mono></div>
+                ) : null}
+                {seeFiles && i.new_release ? (
+                  <div className="text-muted-foreground">Replaced by: <Mono className="break-all">{i.new_release}</Mono></div>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      </Card>
+    </section>
   );
 }
 
