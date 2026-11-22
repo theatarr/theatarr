@@ -800,7 +800,7 @@ func runServe(args []string) error {
 	// The loops whose schedule or source is a settings section run as workers: a published generation that changes
 	// their settings stops and restarts them (serveliveworkers.go).
 	startRuntime := serveSnapshot
-	loops := serveLoops{router: rt, sync: ps, rss: rssRunner, tasks: tbl, acquirer: acService, log: log, current: func(ctx context.Context) (context.Context, *serveRuntime) {
+	loops := serveLoops{router: rt, sync: ps, rss: rssRunner, tasks: tbl, acquirer: acService, torrents: torrentManager, log: log, current: func(ctx context.Context) (context.Context, *serveRuntime) {
 		ctx = runtimeManager.Capture(ctx)
 		if runtime, err := runtimeForSearch(ctx, runtimeManager); err == nil {
 			return ctx, runtime

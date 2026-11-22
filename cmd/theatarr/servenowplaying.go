@@ -9,6 +9,7 @@ import (
 	"github.com/theatarr/theatarr/internal/nowplaying"
 	"github.com/theatarr/theatarr/internal/plex"
 	"github.com/theatarr/theatarr/internal/secrets"
+	"github.com/theatarr/theatarr/internal/torrents"
 )
 
 // serveNowPlaying is the now playing tracker in force (docs/design/now-playing.md), nil while it is off. The web API and
@@ -98,6 +99,26 @@ func (l serveLoops) runNowPlaying(ctx context.Context, rt *serveRuntime) error {
 			roots = append(roots, p.Library.Versions[k].Roots...)
 		}
 		return roots
+	}
+	if l.torrents != nil {
+		// Step 1 of the repair of a file that broke while playing: the release on one other account, as the automatic
+		// "Add to other providers" adds it; it counts when the account now holds it complete.
+		o.Copy = func(ctx context.Context, hash, pk string) (bool, error) {
+			m, err := l.torrents(ctx)
+			if err != nil {
+				return false, err
+			}
+			out, err := m.Copy(ctx, torrents.CopyPayload{Hash: hash, By: "playing", Auto: true, Providers: []string{pk}})
+			if err != nil {
+				return false, err
+			}
+			for _, je := range out {
+				if je.Provider == pk && (je.Outcome == torrents.CopyAdded || je.Outcome == torrents.CopyPresent && je.Detail == "") {
+					return true, nil
+				}
+			}
+			return false, nil
+		}
 	}
 	if s.MountPath != "" {
 		o.Mount = func() nowplaying.Mount {

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/theatarr/theatarr/internal/outcome"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/router"
 )
@@ -171,5 +172,44 @@ func TestMarkBrokenPlayingStopsWhilePaused(t *testing.T) {
 	}
 	if jobs := e.playingJobs(); len(jobs) != 0 {
 		t.Errorf("searches %+v", jobs)
+	}
+}
+
+// The import that brings a file for a broken watched file's film fixes its incident (fixed_by replaced, the new
+// release) and sends the outcome replaced once, with the old and new releases; settling the incident later sends
+// nothing more.
+func TestPlayingReplacedByImport(t *testing.T) {
+	e, _, _ := deadEnv(t, true)
+	e.pol.Router = &policy.Router{Enabled: true}
+	var got []outcome.Outcome
+	e.lib.OnPlayingOutcome(func(o outcome.Outcome) { got = append(got, o) })
+	id, err := e.lib.OpenPlayingIncident(e.ctx, PlayingIncident{TitleID: 1, Version: "movie-remux", Viewer: "ann"},
+		PlayingFile{LinkID: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, err := e.lib.MarkBrokenPlaying(e.ctx, id, []PlayingFile{{LinkID: 1}}, true, nil); err != nil || n != 1 {
+		t.Fatalf("marked %d: %v", n, err)
+	}
+	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
+	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
+	if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.one(`SELECT fixed_by || ' ' || new_release || ' ' || reported FROM playing_break WHERE id = ?`, id); got !=
+		"replaced "+movieRelease+" replaced" {
+		t.Errorf("incident %s", got)
+	}
+	if len(got) != 1 || got[0].Kind != outcome.Replaced || got[0].NewRelease != movieRelease || got[0].OldRelease != "Name" ||
+		got[0].Title != "Amélie: The Movie (2001)" || got[0].Viewer != "ann" || len(got[0].Episodes) != 0 {
+		t.Fatalf("outcomes %+v", got)
+	}
+	e.exec(`UPDATE job SET state = 'done'`)
+	e.exec(`UPDATE download SET state = 'imported'`)
+	if err := e.lib.SettlePlayingRuns(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Errorf("outcomes after settling %+v", got)
 	}
 }

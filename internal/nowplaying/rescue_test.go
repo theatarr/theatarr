@@ -1,0 +1,642 @@
+package nowplaying
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"os"
+	"path"
+	"path/filepath"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/theatarr/theatarr/internal/jobs"
+	"github.com/theatarr/theatarr/internal/library"
+	"github.com/theatarr/theatarr/internal/outcome"
+	"github.com/theatarr/theatarr/internal/plex"
+	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/router"
+	"github.com/theatarr/theatarr/internal/store"
+	"github.com/theatarr/theatarr/internal/store/storetest"
+)
+
+// testLib is the real library over a temporary folder as the mount, with reads of some files made to fail (a file
+// whose debrid copy broke reads nothing through the mount) and the mount's listing made to fail on demand.
+type testLib struct {
+	*library.Library
+	mu sync.Mutex
+	// broken: base name -> failed reads left (-1: every read fails).
+	broken map[string]int
+	listed error
+	reads  []string
+	// hang, when set, makes the next read wait for it (or its context) and then fail as a time-out.
+	hang chan struct{}
+}
+
+func (l *testLib) ReadPiece(ctx context.Context, target string, off, n int64, limit time.Duration) (int64, error) {
+	l.mu.Lock()
+	b := path.Base(target)
+	l.reads = append(l.reads, b)
+	left, broken := l.broken[b]
+	if broken && left > 0 {
+		l.broken[b]--
+	}
+	hang := l.hang
+	l.hang = nil
+	l.mu.Unlock()
+	if hang != nil {
+		select {
+		case <-hang:
+		case <-ctx.Done():
+		}
+		return 0, fmt.Errorf("%w: no answer in %v", library.ErrPieceUnreadable, limit)
+	}
+	if broken && left != 0 {
+		return 0, fmt.Errorf("%w: input/output error", library.ErrPieceUnreadable)
+	}
+	return l.Library.ReadPiece(ctx, target, off, n, limit)
+}
+
+func (l *testLib) MountListed(ctx context.Context) error {
+	l.mu.Lock()
+	err := l.listed
+	l.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	return l.Library.MountListed(ctx)
+}
+
+func (l *testLib) setBroken(name string, n int) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.broken[name] = n
+}
+
+func (l *testLib) readsOf(name string) int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	n := 0
+	for _, r := range l.reads {
+		if r == name {
+			n++
+		}
+	}
+	return n
+}
+
+type rescueEnv struct {
+	t     *testing.T
+	ctx   context.Context
+	st    *store.Store
+	lib   *testLib
+	tr    *Tracker
+	plex  *fakePlex
+	zurg  *fakeZurg
+	mount string
+	pol   *policy.Policy
+	mu    sync.Mutex
+	clock time.Time
+	// copyOK says which accounts the release can be added to cached; copies are the accounts asked.
+	copyOK   map[string]bool
+	copies   []string
+	outcomes []outcome.Outcome
+}
+
+const fileSize = 4 << 20
+
+// newRescueEnv: series Show (version tv, providers rd then ad) with a three-episode release Rel (hash a…, held
+// complete by rd) linked by Theatarr; two other releases on the mount, Other (held only by rd, a film) and OtherAD
+// (held only by ad, another film). client makes tv a client-routed (decypharr) version; zurg gives the tracker a zurg
+// API.
+func newRescueEnv(t *testing.T, client, zurg bool) *rescueEnv {
+	t.Helper()
+	e := &rescueEnv{t: t, ctx: context.Background(), clock: time.Date(2026, 11, 21, 20, 0, 0, 0, time.UTC),
+		copyOK: map[string]bool{}}
+	dir := t.TempDir()
+	e.mount = filepath.Join(dir, "zurg")
+	shows := filepath.Join(dir, "media", "tv")
+	for rel, names := range map[string][]string{"Rel": {"S01E01.mkv", "S01E02.mkv", "S01E03.mkv"},
+		"Other": {"film.mkv"}, "OtherAD": {"film2.mkv"}} {
+		if err := os.MkdirAll(filepath.Join(e.mount, "__all__", rel), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		for _, n := range names {
+			p := filepath.Join(e.mount, "__all__", rel, n)
+			if err := os.WriteFile(p, nil, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Truncate(p, fileSize); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	st, err := store.Open(e.ctx, storetest.Seed(t, filepath.Join(dir, "theatarr.db")), store.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	if _, err := st.Migrate(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	e.st = st
+	tgt := func(rel string) string { return filepath.Join(e.mount, "__all__", rel) }
+	for _, q := range []string{
+		`INSERT INTO title (id, kind, name, year, created_at, updated_at) VALUES (1, 'series', 'Show', 2020, 0, 0),
+			(2, 'movie', 'Film', 2019, 0, 0), (3, 'movie', 'Film Two', 2018, 0, 0)`,
+		`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES (1, 1, 'tv', 'filled', 0, 0),
+			(2, 2, 'movie', 'filled', 0, 0), (3, 3, 'movie', 'filled', 0, 0)`,
+		`INSERT INTO episode (id, title_id, season, number, name, air_date_utc_at, created_at, updated_at) VALUES
+			(1, 1, 1, 1, 'One', 1, 0, 0), (2, 1, 1, 2, 'Two', 2, 0, 0), (3, 1, 1, 3, 'Three', 3, 0, 0)`,
+		`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, cutoff_met, updated_at)
+			VALUES (1, 1, 1, 'filled', 0, 0), (1, 2, 1, 'filled', 0, 0), (1, 3, 1, 'filled', 0, 0)`,
+		`INSERT INTO content (id, info_hash, name, mount_folder, first_seen_at, last_seen_at) VALUES
+			(50, '` + strings.Repeat("a", 40) + `', 'Rel', 'Rel', 0, 0),
+			(60, '` + strings.Repeat("b", 40) + `', 'Other', 'Other', 0, 0),
+			(70, '` + strings.Repeat("c", 40) + `', 'OtherAD', 'OtherAD', 0, 0)`,
+		`INSERT INTO provider_torrent (provider, torrent_id, info_hash, progress, state) VALUES
+			('rd', 'r50', '` + strings.Repeat("a", 40) + `', 100, 'downloaded'),
+			('rd', 'r60', '` + strings.Repeat("b", 40) + `', 100, 'downloaded'),
+			('ad', 'a70', '` + strings.Repeat("c", 40) + `', 100, 'downloaded')`,
+		`INSERT INTO content_file (id, content_id, path, size_bytes) VALUES (100, 50, 'S01E01.mkv', 1),
+			(101, 50, 'S01E02.mkv', 1), (102, 50, 'S01E03.mkv', 1), (200, 60, 'film.mkv', 1), (300, 70, 'film2.mkv', 1)`,
+	} {
+		e.exec(q)
+	}
+	for i, ep := range []int64{1, 2, 3} {
+		name := fmt.Sprintf("S01E0%d.mkv", ep)
+		e.exec(`INSERT INTO link (id, path, target, content_file_id, title_id, release_title, quality, state, created_at,
+			updated_at) VALUES (?, ?, ?, ?, 1, 'Show.S01.1080p.WEB-DL-GRP', 'WEBDL-1080p', 'active', 0, 0)`,
+			10+i, filepath.Join(shows, "Show", name), tgt("Rel/"+name), 100+i)
+		e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (?, 1)`, 10+i)
+		e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (?, ?)`, 10+i, ep)
+	}
+	e.exec(`INSERT INTO link (id, path, target, content_file_id, title_id, release_title, state, created_at, updated_at)
+		VALUES (20, '/media/movies/Film.mkv', ?, 200, 2, 'Film', 'active', 0, 0),
+		(21, '/media/movies/Film Two.mkv', ?, 300, 3, 'Film Two', 'active', 0, 0)`, tgt("Other/film.mkv"),
+		tgt("OtherAD/film2.mkv"))
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (20, 2), (21, 3)`)
+	vp := &policy.VersionPolicy{Kind: policy.KindSeries, Profile: "p", Library: shows, Storage: policy.StorageDebrid,
+		Providers: []string{"rd", "ad"}}
+	if client {
+		vp.AddVia, vp.Client, vp.Providers = policy.AddViaClient, "dc", nil
+	}
+	e.pol = &policy.Policy{
+		Versions: map[string]*policy.VersionPolicy{"tv": vp},
+		Profiles: map[string]*policy.Profile{"p": {Qualities: []policy.QualityItem{{Name: "WEBDL-1080p"}},
+			Cutoff: "WEBDL-1080p"}},
+		Library: &policy.Library{Enabled: true, Mount: policy.LibraryMount{Path: e.mount},
+			Versions: map[string]*policy.LibraryVersion{"tv": {Roots: []string{shows}}}},
+		Router: &policy.Router{Enabled: true},
+	}
+	q := jobs.NewQueue(st)
+	q.SetClock(e.now)
+	lib := library.New(library.Options{Store: st, Policy: e.pol, Queue: q, Now: e.now,
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	lib.OnPlayingOutcome(func(o outcome.Outcome) {
+		e.mu.Lock()
+		defer e.mu.Unlock()
+		e.outcomes = append(e.outcomes, o)
+	})
+	e.lib = &testLib{Library: lib, broken: map[string]int{}}
+	e.plex = &fakePlex{}
+	o := Options{Plex: e.plex, Store: st, Mount: func() Mount { return e.lib }, LinkPath: e.mount, MountPath: e.mount,
+		Now: e.now, Readlink: func(p string) (string, error) { // Theatarr's links point into Rel
+			if strings.HasPrefix(p, shows+"/") {
+				return filepath.Join(e.mount, "__all__", "Rel", filepath.Base(p)), nil
+			}
+			return "", errors.New("not a link")
+		},
+		Roots: func(k string) []string {
+			if k == "tv" {
+				return []string{shows}
+			}
+			return nil
+		},
+		Copy: func(_ context.Context, hash, pk string) (bool, error) {
+			e.mu.Lock()
+			defer e.mu.Unlock()
+			e.copies = append(e.copies, pk)
+			return e.copyOK[pk], nil
+		},
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	if zurg {
+		e.zurg = &fakeZurg{stats: &library.ZurgStats{}}
+		o.Zurg = e.zurg
+	}
+	e.tr = New(o)
+	e.tr.sleep = func(ctx context.Context, d time.Duration) error {
+		e.advance(d)
+		return ctx.Err()
+	}
+	return e
+}
+
+func (e *rescueEnv) now() time.Time {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.clock
+}
+
+func (e *rescueEnv) advance(d time.Duration) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.clock = e.clock.Add(d)
+}
+
+func (e *rescueEnv) exec(q string, args ...any) {
+	e.t.Helper()
+	if _, err := e.st.Writer().ExecContext(e.ctx, q, args...); err != nil {
+		e.t.Fatalf("%s: %v", q, err)
+	}
+}
+
+func (e *rescueEnv) one(q string, args ...any) string {
+	e.t.Helper()
+	var s sql.NullString
+	if err := e.st.Reader().QueryRowContext(e.ctx, q, args...).Scan(&s); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		e.t.Fatalf("%s: %v", q, err)
+	}
+	return s.String
+}
+
+// play makes Plex report ann watching episode ep of Show on the TV, at 20% of it, in state.
+func (e *rescueEnv) play(ep int, state string) {
+	e.plex.mu.Lock()
+	defer e.plex.mu.Unlock()
+	e.plex.ss = []plex.Session{{SessionKey: "s1", RatingKey: fmt.Sprint(ep), Type: "episode", Title: "Ep",
+		GrandparentTitle: "Show", ParentIndex: 1, Index: ep, File: e.linkPath(ep), Size: fileSize,
+		Duration: 3_000_000, ViewOffset: 600_000, State: state, UserName: "ann", Player: "TV"}}
+}
+
+func (e *rescueEnv) stopPlaying() {
+	e.plex.mu.Lock()
+	defer e.plex.mu.Unlock()
+	e.plex.ss = nil
+}
+
+func (e *rescueEnv) linkPath(ep int) string {
+	return e.one(`SELECT path FROM link WHERE id = ?`, 9+ep)
+}
+
+// poll runs one poll and waits for the job it gave the worker.
+func (e *rescueEnv) poll() {
+	e.t.Helper()
+	e.tr.poll(e.ctx)
+	e.waitIdle()
+}
+
+func (e *rescueEnv) waitIdle() {
+	e.t.Helper()
+	for range 1000 {
+		e.tr.mu.Lock()
+		busy := e.tr.rescuing
+		e.tr.mu.Unlock()
+		if !busy {
+			return
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	e.t.Fatal("the check did not end")
+}
+
+func (e *rescueEnv) playingJobs() []router.ResearchRequest {
+	e.t.Helper()
+	rows, err := e.st.Reader().Query(`SELECT payload FROM job WHERE kind = ? ORDER BY id`, router.JobResearch)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	defer rows.Close()
+	var out []router.ResearchRequest
+	for rows.Next() {
+		var s string
+		var p router.ResearchRequest
+		if rows.Scan(&s) == nil && json.Unmarshal([]byte(s), &p) == nil {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func (e *rescueEnv) kinds() string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	var ks []string
+	for _, o := range e.outcomes {
+		ks = append(ks, o.Kind)
+	}
+	return strings.Join(ks, ",")
+}
+
+// GOAL a: on a zurg mount the playing file's reads fail, another file of its account reads, no account has the same
+// release cached: the file is marked dead and searched for within two minutes of the sign, without the repair grace
+// or the hourly sweep; the release's miss goes on the account that served it.
+func TestRescueReplacesBrokenWatchedFile(t *testing.T) {
+	e := newRescueEnv(t, false, true)
+	e.tr.ZurgLine("INFO Large transfer: 512 MiB of __all__/Rel/S01E02.mkv from rd for 30s")
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.play(2, "playing")
+	e.zurg.stats.BlockedReads = []library.ZurgBlockedRead{{Filename: "S01E02.mkv", Reason: "broken"}}
+	start := e.now()
+	e.poll()
+	if got := e.one(`SELECT state FROM link WHERE id = 11`); got != "dead" {
+		t.Fatalf("watched link %s, want dead", got)
+	}
+	var broken int64
+	_ = e.st.Reader().QueryRow(`SELECT broken_at FROM playing_break WHERE link_id = 11`).Scan(&broken)
+	if took := time.UnixMilli(broken).Sub(start); took > 2*time.Minute || took <= 0 {
+		t.Errorf("decided %v after the sign", took)
+	}
+	if jobs := e.playingJobs(); len(jobs) != 1 || jobs[0].Reason != router.ReasonPlaying || fmt.Sprint(jobs[0].Episodes) != "[2]" {
+		t.Errorf("searches %+v", jobs)
+	}
+	if got := e.one(`SELECT provider || ' ' || source FROM provider_cache WHERE info_hash = ?`, strings.Repeat("a", 40)); got !=
+		"rd router:playing" {
+		t.Errorf("miss %s", got)
+	}
+	if got := e.one(`SELECT out_account || '|' || viewer || '|' || player FROM playing_break WHERE link_id = 11`); got != "|ann|TV" {
+		t.Errorf("incident %s", got)
+	}
+	if e.lib.readsOf("film.mkv") != 1 {
+		t.Errorf("control reads of the account's other release: %d", e.lib.readsOf("film.mkv"))
+	}
+	if got := e.one(`SELECT group_concat(state) FROM link WHERE id IN (20, 21)`); got != "active,active" {
+		t.Errorf("titles nobody watches: %s", got)
+	}
+	if fmt.Sprint(e.copies) != "[ad]" {
+		t.Errorf("step 1 asked %v", e.copies)
+	}
+}
+
+// Step 1: the same release cached on another account: added there, the file reads again, nothing is marked, the
+// incident settles "copy" and its outcome is same_release.
+func TestRescueSameReleaseFromOtherAccount(t *testing.T) {
+	e := newRescueEnv(t, false, true)
+	e.tr.ZurgLine("INFO Large transfer: 512 MiB of __all__/Rel/S01E02.mkv from rd for 30s")
+	e.lib.setBroken("S01E02.mkv", 3)
+	e.copyOK["ad"] = true
+	e.play(2, "buffering")
+	e.poll()
+	if got := e.one(`SELECT state FROM link WHERE id = 11`); got != "active" {
+		t.Errorf("watched link %s", got)
+	}
+	if got := e.one(`SELECT settled || ' ' || fixed_by || ' ' || reported FROM playing_break WHERE link_id = 11`); got !=
+		"copy copy same_release" {
+		t.Errorf("incident %s", got)
+	}
+	if e.kinds() != outcome.SameRelease || len(e.playingJobs()) != 0 {
+		t.Errorf("outcomes %s, searches %+v", e.kinds(), e.playingJobs())
+	}
+	e.mu.Lock()
+	o := e.outcomes[0]
+	e.mu.Unlock()
+	if o.Title != "Show (2020)" || fmt.Sprint(o.Episodes) != "[S01E02]" || o.Viewer != "ann" || o.Account != "" ||
+		o.OldRelease != "Show.S01.1080p.WEB-DL-GRP" {
+		t.Errorf("outcome %+v", o)
+	}
+}
+
+// GOAL b: a mount with no zurg API and no zurg log, on a version that adds through a client (decypharr): Plex's
+// buffering is the only sign; no step 1 (Theatarr does not choose the client's account), the miss goes on the
+// client's key, and the file is searched for at once.
+func TestRescueWithoutZurgOnClientVersion(t *testing.T) {
+	e := newRescueEnv(t, true, false)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.play(2, "buffering")
+	e.poll()
+	if got := e.one(`SELECT state FROM link WHERE id = 11`); got != "dead" {
+		t.Fatalf("watched link %s, want dead", got)
+	}
+	if len(e.copies) != 0 {
+		t.Errorf("step 1 on a client version: %v", e.copies)
+	}
+	if got := e.one(`SELECT provider FROM provider_cache WHERE info_hash = ? AND source = 'router:playing'`,
+		strings.Repeat("a", 40)); got != "client:dc" {
+		t.Errorf("miss on %q, want client:dc", got)
+	}
+	if jobs := e.playingJobs(); len(jobs) != 1 || jobs[0].Reason != router.ReasonPlaying {
+		t.Errorf("searches %+v", jobs)
+	}
+}
+
+// GOAL k: a file that reads fine after a buffering sign (slow network, transcode): nothing is recorded or marked, and it
+// is not read again within two minutes.
+func TestRescueReadsFineNothingDone(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.play(2, "buffering")
+	e.poll()
+	e.poll()
+	if got := e.one(`SELECT COUNT(*) FROM playing_break`); got != "0" {
+		t.Errorf("%s incidents", got)
+	}
+	if got := e.one(`SELECT state FROM link WHERE id = 11`); got != "active" {
+		t.Errorf("link %s", got)
+	}
+	if n := e.lib.readsOf("S01E02.mkv"); n != 1 {
+		t.Errorf("%d reads, want 1 within two minutes", n)
+	}
+	e.advance(readFineFor)
+	e.poll()
+	if n := e.lib.readsOf("S01E02.mkv"); n != 2 {
+		t.Errorf("%d reads after two minutes, want 2", n)
+	}
+}
+
+// A restart-length outage (reads 1 and 2 fail, read 3 passes after the control read) changes nothing.
+func TestRescueRestartLengthOutage(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.lib.setBroken("S01E02.mkv", 2)
+	e.play(2, "buffering")
+	e.poll()
+	if got := e.one(`SELECT COUNT(*) FROM playing_break`); got != "0" {
+		t.Errorf("%s incidents", got)
+	}
+	if n := e.lib.readsOf("S01E02.mkv"); n != 3 {
+		t.Errorf("%d reads, want 3", n)
+	}
+	if got := e.one(`SELECT state FROM link WHERE id = 11`); got != "active" {
+		t.Errorf("link %s", got)
+	}
+}
+
+// GOAL d: the mount not healthy (its listing fails, or the control reads fail too): nothing is recorded or replaced.
+func TestRescueMountUnhealthy(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.lib.listed = library.ErrMountDown
+	e.play(2, "buffering")
+	e.poll()
+	e2 := newRescueEnv(t, false, false)
+	for _, f := range []string{"S01E02.mkv", "film.mkv", "film2.mkv"} {
+		e2.lib.setBroken(f, -1)
+	}
+	e2.play(2, "buffering")
+	e2.poll()
+	for i, x := range []*rescueEnv{e, e2} {
+		if got := x.one(`SELECT COUNT(*) FROM playing_break`) + " " + x.one(`SELECT state FROM link WHERE id = 11`); got != "0 active" {
+			t.Errorf("case %d: %s", i, got)
+		}
+	}
+	if len(e2.copies) != 0 {
+		t.Errorf("copied while the mount is down: %v", e2.copies)
+	}
+}
+
+// GOAL d: one provider out (another release only it holds fails, one only another account holds reads): the incident
+// names it, the same release is tried on the other account, then the file is searched for with that account skipped
+// by its route (internal/router). A title nobody watches on the out account is not touched.
+func TestRescueProviderOut(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.lib.setBroken("film.mkv", -1)
+	e.play(2, "buffering")
+	e.poll()
+	if got := e.one(`SELECT out_account FROM playing_break WHERE link_id = 11`); got != "rd" {
+		t.Errorf("out account %q", got)
+	}
+	if fmt.Sprint(e.copies) != "[ad]" || e.one(`SELECT state FROM link WHERE id = 11`) != "dead" {
+		t.Errorf("copies %v, link %s", e.copies, e.one(`SELECT state FROM link WHERE id = 11`))
+	}
+	if got := e.one(`SELECT state FROM link WHERE id = 20`); got != "active" {
+		t.Errorf("the out account's other title %s", got)
+	}
+	// The library has no other account: nothing is replaced; the incident settles none, outcome unavailable.
+	e2 := newRescueEnv(t, false, false)
+	e2.pol.Versions["tv"].Providers = []string{"rd"}
+	e2.lib.setBroken("S01E02.mkv", -1)
+	e2.lib.setBroken("film.mkv", -1)
+	e2.play(2, "buffering")
+	e2.poll()
+	if got := e2.one(`SELECT state FROM link WHERE id = 11`) + " " + e2.one(`SELECT settled FROM playing_break`); got != "active none" {
+		t.Errorf("no other account: %s", got)
+	}
+	if e2.kinds() != outcome.Unavailable || len(e2.playingJobs()) != 0 {
+		t.Errorf("outcomes %s, searches %d", e2.kinds(), len(e2.playingJobs()))
+	}
+}
+
+// GOAL f: a pack. The release's other files are read once the watched one is handled; a broken one (read and retry
+// both fail) is marked as found, a readable one is not; their search is queued together only when the watched file's
+// search has ended, and then the outcome (unavailable: nothing imported) is sent once.
+func TestRescuePackSiblings(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.lib.setBroken("S01E03.mkv", -1)
+	e.lib.setBroken("S01E01.mkv", 1) // one failed read, then fine: not marked
+	e.play(2, "buffering")
+	e.poll()
+	if got := e.one(`SELECT group_concat(state) FROM (SELECT state FROM link WHERE id IN (10, 11, 12) ORDER BY id)`); got !=
+		"active,dead,dead" {
+		t.Fatalf("links %s", got)
+	}
+	if got := e.one(`SELECT COUNT(*) FROM playing_break WHERE incident = (SELECT id FROM playing_break WHERE link_id = 11)`); got != "2" {
+		t.Errorf("incident rows %s", got)
+	}
+	if jobs := e.playingJobs(); len(jobs) != 1 {
+		t.Fatalf("searches before the watched file's ended: %+v", jobs)
+	}
+	e.poll() // settling: the watched file's search is still queued
+	if jobs := e.playingJobs(); len(jobs) != 1 || e.kinds() != "" {
+		t.Fatalf("searches %+v, outcomes %s while the first search is pending", jobs, e.kinds())
+	}
+	e.exec(`UPDATE job SET state = 'done'`)
+	e.advance(settleEvery)
+	e.poll()
+	jobs := e.playingJobs()
+	if len(jobs) != 2 || fmt.Sprint(jobs[1].Episodes) != "[3]" || jobs[1].Reason != router.ReasonPlaying {
+		t.Errorf("searches %+v", jobs)
+	}
+	if e.kinds() != outcome.Unavailable {
+		t.Errorf("outcomes %q", e.kinds())
+	}
+	e.exec(`UPDATE job SET state = 'done'`)
+	e.advance(settleEvery)
+	e.poll()
+	if len(e.playingJobs()) != 2 || e.kinds() != outcome.Unavailable {
+		t.Errorf("settled again: %d searches, outcomes %q", len(e.playingJobs()), e.kinds())
+	}
+}
+
+// GOAL g: the bound. A second break of the same title and library the same day takes the normal path: nothing is
+// recorded or marked.
+func TestRescueBound(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.play(2, "buffering")
+	e.poll()
+	e.advance(time.Hour)
+	e.lib.setBroken("S01E03.mkv", -1)
+	e.exec(`DELETE FROM playing_break WHERE link_id = 12`) // E03 was found with E02: start from a fresh one
+	e.exec(`UPDATE link SET state = 'active' WHERE id = 12`)
+	e.tr.mu.Lock()
+	delete(e.tr.quiet, 12)
+	e.tr.mu.Unlock()
+	e.play(3, "buffering")
+	e.poll()
+	if got := e.one(`SELECT state FROM link WHERE id = 12`); got != "active" {
+		t.Errorf("second break the same day: link %s", got)
+	}
+	if got := e.one(`SELECT COUNT(DISTINCT incident) FROM playing_break`); got != "1" {
+		t.Errorf("%s incidents", got)
+	}
+}
+
+// GOAL c: a read that hangs is a failure after its time limit, and the tracker is not blocked meanwhile: polls and
+// the page go on.
+func TestRescueHangDoesNotBlockTheTracker(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	hang := make(chan struct{})
+	e.lib.hang = hang
+	e.lib.setBroken("S01E02.mkv", 2) // the hung read counts as one of these
+	e.play(2, "buffering")
+	e.tr.poll(e.ctx)
+	done := make(chan struct{})
+	go func() {
+		e.tr.poll(e.ctx)
+		_ = e.tr.Snapshot()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the poll waited for the hung read")
+	}
+	close(hang)
+	e.waitIdle()
+	// The hung read counted as the first failure; the second failed too; the third read fine: nothing done.
+	if n := e.lib.readsOf("S01E02.mkv"); n != 3 {
+		t.Errorf("%d reads, want 3", n)
+	}
+}
+
+// A playback that ends early is a sign; a live session's check goes first; a file Plex plays through a path that is
+// not Theatarr's link (an arr's own symlink) is never checked.
+func TestRescueSignsAndCertainty(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.lib.setBroken("S01E03.mkv", -1)
+	e.play(3, "playing")
+	e.tr.poll(e.ctx)
+	e.waitIdle()
+	e.stopPlaying()
+	e.poll() // ended at 20%: checked
+	if got := e.one(`SELECT state FROM link WHERE id = 12`); got != "dead" {
+		t.Errorf("after an early stop: %s", got)
+	}
+	e2 := newRescueEnv(t, false, false)
+	e2.lib.setBroken("S01E02.mkv", -1)
+	e2.play(2, "buffering")
+	e2.plex.mu.Lock()
+	e2.plex.ss[0].File = "/arr/tv/Show/S01E02.mkv"
+	e2.plex.mu.Unlock()
+	e2.tr.o.Readlink = func(string) (string, error) { return filepath.Join(e2.mount, "__all__", "Rel", "S01E02.mkv"), nil }
+	e2.poll()
+	if n := e2.lib.readsOf("S01E02.mkv"); n != 0 {
+		t.Errorf("an arr's symlink was checked: %d reads", n)
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -348,6 +349,13 @@ func (l *Library) QueuePlayingSearch(ctx context.Context, incident int64) (int, 
 	n := 0
 	err := l.st.WriteTx(ctx, func(tx *sql.Tx) error {
 		n = 0
+		// Every row waiting is noted searched; only those whose link is still the dead one get a search.
+		if _, err := tx.ExecContext(ctx, `UPDATE playing_break SET searched = 1, updated_at = ? WHERE incident = ?
+			AND settled = '' AND searched = 0 AND NOT EXISTS (SELECT 1 FROM link l WHERE l.id = playing_break.link_id
+				AND l.path = playing_break.path AND l.target = playing_break.old_target AND l.state = 'dead')`,
+			store.Millis(l.now()), incident); err != nil {
+			return err
+		}
 		rows, err := tx.QueryContext(ctx, `SELECT pb.id, pb.title_id, pb.version_key, pb.episodes FROM playing_break pb
 			JOIN link l ON l.id = pb.link_id AND l.path = pb.path AND l.target = pb.old_target AND l.state = 'dead'
 			WHERE pb.incident = ? AND pb.settled = '' AND pb.searched = 0 ORDER BY pb.id`, incident)
@@ -388,6 +396,12 @@ func (l *Library) QueuePlayingSearch(ctx context.Context, incident int64) (int, 
 			return err
 		}
 		for _, g := range groups {
+			for _, id := range g.ids {
+				if _, err := tx.ExecContext(ctx, `UPDATE playing_break SET searched = 1, updated_at = ? WHERE id = ?`,
+					store.Millis(l.now()), id); err != nil {
+					return err
+				}
+			}
 			if !l.gate.Active(g.version) {
 				continue
 			}
@@ -403,12 +417,6 @@ func (l *Library) QueuePlayingSearch(ctx context.Context, incident int64) (int, 
 			if err := l.enqueueResearch(ctx, tx, g.title, versionID, g.version, kind, g.eps,
 				router.ReasonPlaying); err != nil {
 				return err
-			}
-			for _, id := range g.ids {
-				if _, err := tx.ExecContext(ctx, `UPDATE playing_break SET searched = 1, updated_at = ? WHERE id = ?`,
-					store.Millis(l.now()), id); err != nil {
-					return err
-				}
 			}
 			n++
 		}
@@ -445,4 +453,36 @@ func (l *Library) enqueueResearch(ctx context.Context, tx *sql.Tx, titleID, vers
 	l.log.Info("library: search queued for a "+map[string]string{router.ReasonPlaying: "file that broke while playing",
 		router.ReasonDeadLink: "dead link"}[reason], "version", version, "title", titleID, "episodes", len(p.Episodes))
 	return nil
+}
+
+// ForgetRelease clears rclone's cached listing of a link target's release folder (rclone rc vfs/forget), when the
+// mount has that configured (library.mount.rclone_rc.forget_release_root): after another account took the release,
+// zurg may serve it under the same folder. Nothing without it.
+func (l *Library) ForgetRelease(ctx context.Context, target string) error {
+	if l.forget == nil {
+		return nil
+	}
+	read, ok := l.mount.FromLink(target)
+	if !ok {
+		return nil
+	}
+	rel, err := filepath.Rel(l.mount.AllPath(), read)
+	if err != nil || escapes(rel) {
+		return nil
+	}
+	folder, _, _ := strings.Cut(rel, string(filepath.Separator))
+	return l.forget.call(ctx, filepath.Join(l.set.AllDir, folder))
+}
+
+// PlayingRoute is a version's route as the repair of a broken file needs it: the download client's provider_cache key
+// ("client:"+key) for a version that adds through a client, else "" and its providers in fallback order.
+func (l *Library) PlayingRoute(version string) (client string, providers []string) {
+	vp := l.pol.Versions[version]
+	if vp == nil {
+		return "", nil
+	}
+	if vp.ViaClient() {
+		return router.ClientCacheKey(vp.Client), nil
+	}
+	return "", slices.Clone(vp.Providers)
 }

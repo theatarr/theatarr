@@ -29,6 +29,7 @@ import (
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/library/probe"
+	"github.com/theatarr/theatarr/internal/outcome"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -123,6 +124,8 @@ type Library struct {
 	recomputedPrints map[string]string
 	// beforeSweepWrite, when set (tests), runs just before a relink sweep records its outcome: a concurrent writer.
 	beforeSweepWrite func()
+	// onPlaying is told the outcome of each incident of a file that broke while playing (OnPlayingOutcome).
+	onPlaying func(outcome.Outcome)
 }
 
 // New builds the library service.

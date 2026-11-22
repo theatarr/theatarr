@@ -15,6 +15,7 @@ import (
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/tasks"
+	"github.com/theatarr/theatarr/internal/torrents"
 )
 
 // serveLoops is what the serve workers run on: the startup services, which resolve the settings generation in force
@@ -26,6 +27,8 @@ type serveLoops struct {
 	tasks  *tasks.Table
 	// acquirer runs the search round with the acquirer in force.
 	acquirer *serveAcquirer
+	// torrents is the torrent manager in force (now playing's repair adds a release to another account with it).
+	torrents func(context.Context) (*torrents.Manager, error)
 	current  func(context.Context) (context.Context, *serveRuntime)
 	log      *slog.Logger
 }

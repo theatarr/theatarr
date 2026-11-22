@@ -94,3 +94,30 @@ func TestPlayingMissSurvivesAllProviderMiss(t *testing.T) {
 		t.Errorf("%d all-provider misses on the other accounts, want 2", n)
 	}
 }
+
+// GOAL e: the release that broke is not taken again on the account it broke on by this search (its router:playing
+// miss); on another account it may be.
+func TestPlayingRouteSkipsFailedReleaseOnFailedAccount(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	freshMovie(e)
+	e.exec(`UPDATE version SET state = 'wanted' WHERE id = 10`)
+	e.playingRun(7, 1, 10, "movie", "[]", "[]", "")
+	tx, err := e.st.Writer().BeginTx(e.ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := RecordPlayingMiss(e.ctx, tx, h("a"), "rd", e.clock); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	res, err := e.r.Route(e.ctx, freshReq(cand(h("a"), "Movie.2024.2160p.WEB-DL-GRP"), "acquire:7"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Outcome != OutcomeAdded || res.Provider != "ad" || e.ad["rd"].writes() != 0 {
+		t.Errorf("route %+v: %s", res, steps(res))
+	}
+}

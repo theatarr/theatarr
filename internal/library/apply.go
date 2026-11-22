@@ -12,6 +12,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/jobs"
+	"github.com/theatarr/theatarr/internal/outcome"
 	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -257,6 +258,8 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 	pj, _ := json.Marshal(plan)
 	var strays []trashed
 	recorded := false // the import put its torrent in the record (RecordChanged after the commit)
+	// playingFixed are the incidents whose watched file this import fixed (reported after the commit).
+	var playingFixed []int64
 	err = l.refWriteTx(ctx, func(tx *sql.Tx) error {
 		recorded = false
 		if err := holdsClaim(ctx, tx, d); err != nil {
@@ -318,6 +321,7 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 		for _, m := range append(slices.Clone(moved), gone...) {
 			oldRel[m.path] = linkFacts(ctx, tx, m.linkID, m.path)
 		}
+		playingFixed = nil
 		for _, lk := range linked {
 			var cfID any
 			if contentID != 0 {
@@ -380,6 +384,12 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 			if err := recordFile(ctx, tx, d.ID, &lk, now); err != nil {
 				return err
 			}
+			// A file that broke while playing, whose film or episodes this one holds: fixed by this import.
+			fixed, err := playingFixedTx(ctx, tx, v.Title.ID, v.Key, lk.Episodes, d.ReleaseTitle, now)
+			if err != nil {
+				return err
+			}
+			playingFixed = append(playingFixed, fixed...)
 			mode := "applied"
 			detail := ""
 			if lk.Exists {
@@ -513,6 +523,11 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 	}
 	if err != nil {
 		return err
+	}
+	for _, inc := range playingFixed {
+		if err := l.ReportPlaying(ctx, inc, outcome.Replaced); err != nil {
+			l.log.Warn("library: outcome of a file that broke while playing not sent", "incident", inc, "err", err)
+		}
 	}
 	if recorded && l.recordChanged != nil {
 		l.recordChanged()

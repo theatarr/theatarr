@@ -90,6 +90,10 @@ type Options struct {
 	Logger                      *slog.Logger
 	Now                         func() time.Time
 	Readlink                    func(string) (string, error)
+	// Copy adds a release (hash) to one provider account the way the automatic "Add to other providers" does, and
+	// reports whether the account now has it: added, or there complete (internal/torrents Manager.Copy). It is step 1
+	// of the repair of a file that broke while playing (rescue.go). nil: no step 1.
+	Copy func(ctx context.Context, hash, provider string) (bool, error)
 }
 
 // Tracker holds the current playbacks.
@@ -110,6 +114,14 @@ type Tracker struct {
 	warming   bool
 	cached    map[string]bool // session key + link id: its caching read started
 	caching   *cacheJob       // the one caching read running, server-wide
+	// The check of a file that seems broken (rescue.go): the signs waiting, whether the worker runs, the files not to
+	// check again before a time, and when the incidents were last settled.
+	signs     []sign
+	rescuing  bool
+	quiet     map[int64]time.Time
+	settledAt time.Time
+	// sleep waits between the check's reads (tests make it advance a fake clock).
+	sleep func(ctx context.Context, d time.Duration) error
 }
 
 // cacheJob is the running caching read, shared by viewers of the same title and version.
@@ -241,7 +253,7 @@ func New(o Options) *Tracker {
 		o.PrewarmMaxSize = policy.DefaultPrewarmMaxSize
 	}
 	return &Tracker{o: o, wake: make(chan struct{}, 1), sess: map[string]*session{}, warmed: map[string]bool{},
-		cached: map[string]bool{}}
+		cached: map[string]bool{}, quiet: map[int64]time.Time{}, sleep: realSleep}
 }
 
 // Run polls until ctx ends, and follows the notification websocket meanwhile.
@@ -469,8 +481,9 @@ func (t *Tracker) poll(ctx context.Context) {
 		}
 		se.buffering = se.buffering[cut:]
 	}
-	for k := range t.sess {
+	for k, se := range t.sess {
 		if !seen[k] {
+			t.stopSign(se, now) // a playback that ended early: its file is checked
 			delete(t.sess, k)
 		}
 	}
@@ -506,11 +519,17 @@ func (t *Tracker) poll(ctx context.Context) {
 		}
 		t.mu.Unlock()
 	}
-	// Diagnose foreground playback before admitting any new background read.
+	// Diagnose foreground playback before admitting any new background read. A file that seems broken is checked
+	// first, by the one rescue worker (rescue.go); the poll never waits for it.
 	t.mu.Lock()
+	t.liveSigns(now)
+	rescue := t.nextRescue(now)
 	warm := t.nextWarm()
 	full := t.nextCache(ctx)
 	t.mu.Unlock()
+	if rescue != nil {
+		go t.runRescue(ctx, rescue)
+	}
 	if full != nil {
 		go t.cacheNext(full.ctx, full.job)
 	}

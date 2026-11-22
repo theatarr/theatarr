@@ -33,6 +33,7 @@ func TestDMMListingReopensOlderUncached(t *testing.T) {
 		{hx("3"), "ad", "uncached", "router:add"},   // an RD listing: AD kept
 		{hx("4"), "rd", "uncached", "add:rd"},       // not a reopenable source
 		{hx("5"), "rd", "uncached", "router:add"},   // a listing without a pubDate: kept
+		{hx("6"), "rd", "miss", "router:playing"},   // a file that broke while playing: kept
 	} {
 		if _, err := st.Writer().Exec(`INSERT INTO provider_cache (info_hash, provider, state, source, checked_at,
 			expires_at) VALUES (?, ?, ?, ?, ?, ?)`, q.hash, q.prov, q.state, q.src, store.Millis(checked),
@@ -47,14 +48,14 @@ func TestDMMListingReopensOlderUncached(t *testing.T) {
 	newer, older := checked.Add(15*time.Minute), checked.Add(-time.Minute)
 	e.recordFeed(context.Background(), []Release{rel("a", "rd", newer), rel("b", "rd", older), rel("c", "rd", newer),
 		rel("d", "rd", newer), rel("e", "rd", newer), rel("1", "ad", newer), rel("2", "ad", newer), rel("3", "rd", newer),
-		rel("4", "rd", newer), rel("5", "rd", time.Time{})}, true)
+		rel("4", "rd", newer), rel("5", "rd", time.Time{}), rel("6", "rd", newer)}, true)
 	e.recordFeed(context.Background(), []Release{rel("f", "rd", newer)}, false)
 	want := map[string]string{
 		"aaaa/rd": "cached feed:dmm-rdad", "bbbb/rd": "uncached router:add", "cccc/rd": "cached feed:dmm-rdad",
 		"dddd/rd": "cached feed:dmm-rdad", "eeee/rd": "miss router:451", "ffff/rd": "uncached router:add",
 		"1111/rd": "uncached router:add", "1111/ad": "cached feed:dmm-rdad",
 		"2222/ad": "cached feed:dmm-rdad", "3333/ad": "uncached router:add", "3333/rd": "cached feed:dmm-rdad",
-		"4444/rd": "uncached add:rd", "5555/rd": "uncached router:add",
+		"4444/rd": "uncached add:rd", "5555/rd": "uncached router:add", "6666/rd": "miss router:playing",
 	}
 	if got := cacheRows(t, st); fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("provider_cache\n%v, want\n%v", got, want)

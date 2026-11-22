@@ -37,6 +37,12 @@ type Source struct {
 	versionIDs []int64
 	episodes   []int64
 	rel        string // the path under the release root: <folder>/<file>
+	// version and versionID are the library playing, when the file is certain (certain): Plex's path is a Theatarr
+	// symlink into the mount whose library is decided (Plex's path is the link's, or lies in exactly one library's
+	// roots). Only such a file is checked when it seems broken (rescue.go).
+	certain   bool
+	version   string
+	versionID int64
 }
 
 // mountRel is target's path under the release root (<all_dir>/), "" when it has none.
@@ -66,7 +72,7 @@ func (t *Tracker) resolve(ctx context.Context, file string) *Source {
 	type cand struct {
 		id, titleID          int64
 		title, release, qual string
-		path                 string
+		path, kind           string
 		contentFile          sql.NullInt64
 		versionIDs           []int64
 		versions             []string
@@ -74,7 +80,7 @@ func (t *Tracker) resolve(ctx context.Context, file string) *Source {
 	}
 	var cands []*cand
 	q := `SELECT l.id, l.title_id, t.name, COALESCE(l.release_title, ''), COALESCE(l.quality, ''), l.path,
-		l.content_file_id FROM link l JOIN title t ON t.id = l.title_id WHERE l.state = 'active' AND `
+		l.content_file_id, l.kind FROM link l JOIN title t ON t.id = l.title_id WHERE l.state = 'active' AND `
 	scan := func(where string, arg string) {
 		rows, err := db.QueryContext(ctx, q+where+` ORDER BY l.id`, arg)
 		if err != nil {
@@ -83,7 +89,7 @@ func (t *Tracker) resolve(ctx context.Context, file string) *Source {
 		defer rows.Close()
 		for rows.Next() {
 			c := &cand{}
-			if rows.Scan(&c.id, &c.titleID, &c.title, &c.release, &c.qual, &c.path, &c.contentFile) == nil {
+			if rows.Scan(&c.id, &c.titleID, &c.title, &c.release, &c.qual, &c.path, &c.contentFile, &c.kind) == nil {
 				cands = append(cands, c)
 			}
 		}
@@ -145,6 +151,10 @@ func (t *Tracker) resolve(ctx context.Context, file string) *Source {
 			}
 		}
 		src.episodes = t.ints(ctx, `SELECT episode_id FROM link_episode WHERE link_id = ? ORDER BY episode_id`, src.LinkID)
+		if len(chosen) == 1 && c.kind == "symlink" && src.rel != "" {
+			src.version, src.versionID = t.playingVersion(c.versions, c.versionIDs, file, c.path == file)
+			src.certain = src.version != ""
+		}
 		if c.contentFile.Valid {
 			_ = db.QueryRowContext(ctx, `SELECT content_id FROM content_file WHERE id = ?`, c.contentFile.Int64).Scan(&contentID)
 		}
@@ -173,6 +183,32 @@ func (t *Tracker) resolve(ctx context.Context, file string) *Source {
 		src.SingleCopy = len(src.Providers) == 1
 	}
 	return src
+}
+
+// playingVersion is the library playing a certain file: the link's only version when Plex's path is the link's own,
+// else the one version whose roots hold Plex's path. "" when that is not decided.
+func (t *Tracker) playingVersion(keys []string, ids []int64, file string, exact bool) (string, int64) {
+	if exact && len(keys) == 1 {
+		return keys[0], ids[0]
+	}
+	if t.o.Roots == nil {
+		return "", 0
+	}
+	found := -1
+	for i, k := range keys {
+		for _, r := range t.o.Roots(k) {
+			if within(file, r) {
+				if found >= 0 && found != i {
+					return "", 0
+				}
+				found = i
+			}
+		}
+	}
+	if found < 0 {
+		return "", 0
+	}
+	return keys[found], ids[found]
 }
 
 // linkVersions calls on with each version of a link, by id.
