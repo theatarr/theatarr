@@ -574,8 +574,15 @@ func (t *Tracker) repair(ctx context.Context, lib Rescuer, j *sign, hash string,
 		t.settleQuiet(ctx, id)
 		return
 	}
+	// The release's miss goes on the accounts it failed on; an account found out (an outage) gets none: the
+	// incident's out account keeps this repair off it, and other libraries may use the release there once it is
+	// back.
+	miss := failed
+	if v.where == whereProvider {
+		miss = nil
+	}
 	ok, err := lib.MarkBrokenPlaying(ctx, id, library.PlayingFile{LinkID: src.LinkID, Target: src.Target, Offset: off},
-		true, failed)
+		true, miss)
 	if err != nil || !ok {
 		log.Info("nowplaying: the broken file was not marked (its link changed, or Pause came on)", "err", err)
 		t.settleQuiet(ctx, id)

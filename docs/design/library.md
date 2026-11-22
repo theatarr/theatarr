@@ -821,7 +821,7 @@ state and Cutoff unmet are its own. The journal records an `edit_file` action (m
   is the active link the check read (compare and swap), with no 30-minute rule and no repair grace, then its title or
   episodes wanted (`markDead`, shared with the sweep's dead mark) and, in the same transaction, the release's miss on
   the failed account (`router.RecordPlayingMiss`, source `router:playing`, 7 days; the client's `client:<key>` on a
-  client-routed version) and one `acquire.research` job (reason `playing`; a version sharing the link gets
+  client-routed version; none for an account found out by an outage, which the incident's `out_account` keeps away) and one `acquire.research` job (reason `playing`; a version sharing the link gets
   `dead_link`). A release's other files found broken with it are marked as they are found without a search;
   `QueuePlayingSearch` queues one `playing` search for their episodes together once the watched file's search has
   ended (`SettlePlayingRuns`: no search job for its episodes, due row, running search or route of their season, nor

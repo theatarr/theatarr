@@ -535,6 +535,11 @@ func TestRescueProviderOut(t *testing.T) {
 	if got := e.one(`SELECT state FROM link WHERE id = 20`); got != "active" {
 		t.Errorf("the out account's other title %s", got)
 	}
+	// An outage writes no miss: the incident's out account keeps the repair off it, and other libraries may use the
+	// release there once the account is back.
+	if got := e.one(`SELECT COUNT(*) FROM provider_cache WHERE source = 'router:playing'`); got != "0" {
+		t.Errorf("%s misses after an outage", got)
+	}
 	// The library has no other account: nothing is replaced; the incident settles none, outcome unavailable.
 	e2 := newRescueEnv(t, false, false)
 	e2.pol.Versions["tv"].Providers = []string{"rd"}
