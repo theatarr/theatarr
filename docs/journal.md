@@ -213,7 +213,7 @@ is filtered), imported (one row per import, with the episodes its links held), a
 by library, release and day), deleted (an upgrade: an import's replaced files, one row per download and library,
 "Upgraded" with the new release and the list of files it replaced), removed (a replace without a download: an unlink by
 hand), missing (a dead link), failed (a failed or stalled download, or an import held for review), blocked, the
-provider copies' outcomes (`copy:<id>`, stored rows only since their source table went in 00144; not a journal entry) and title_removed. Searches, plans, dry
+provider copies' outcomes (`copy:<id>`, stored rows only since their source table went in 00144; not a journal entry), title_removed and playing (what came of a file that stopped working while someone played it, `pb:<incident>:<kind>`; not a journal entry; accounts that see files only). Searches, plans, dry
 runs, mount waits and repaired links are journal entries only; the journal's own list still reads its sources.
 Each row names its journal entry for the Journal link (`journal.EntryOf`: a held import's is `dl:<id>:import`; a copy
 and a release unblocked since have none). A History row carries its entry's stored flags (above). The release facts of library actions
@@ -233,11 +233,12 @@ not-cached trial deleted and requeued, loses its row unless a provider took the 
 keeps it), a library action (`store.HistoryLibraryAction` from `Library.record`, which gives a row only for an
 upgrade's replaced file, an adoption, a hand unlink or a missing file), a blocklist entry
 (`store.HistoryBlocklist` from `router.Blocklist`; on Unblock its row moves to `bl:<rowid>:<at>`, so a new entry
-that takes the rowid does not write over it) and a removal (`store.HistoryRemoval` from `RecordAction`, its outcome
-from `SetActionDetail`). History writes are best effort: one that fails is logged and the event goes on.
+that takes the rowid does not write over it), a removal (`store.HistoryRemoval` from `RecordAction`, its outcome
+from `SetActionDetail`) and the outcome of a file that stopped working while playing (`store.HistoryPlaying` from
+serve's `OnPlayingOutcome` hook, after the library's commit, one row per incident and outcome). History writes are best effort: one that fails is logged and the event goes on.
 
 A row keeps its source's journal id (`ref`: `dl:<id>`, `dl:<id>:fail`, `dl:<id>:import`, `dl:<id>:held`,
-`lib:<id>`, `bl:<rowid>`, `act:<id>`, `copy:<id>`) and is rewritten when the same event happens again (a download
+`lib:<id>`, `bl:<rowid>`, `act:<id>`, `copy:<id>`, `pb:<incident>:<kind>`) and is rewritten when the same event happens again (a download
 failing again, a release blocked again). Rows are a log: a requeued download keeps its failure row, an unblocked
 release its blocked row, a held import its held row; they are not pruned. The migration backfilled the rows once from
 the same sources (provider copies included; no new copy rows are written since "Add to other providers" was removed in 0.4.5; the action that came back in

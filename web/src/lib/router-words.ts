@@ -92,6 +92,7 @@ const CACHE_SOURCES: Record<string, string> = {
   "router:miss": "from a search that found it nowhere",
   "router:451": "refused by the provider",
   "router:client": "from the download client",
+  "router:playing": "it stopped working while playing",
   check: "from a cache check",
   add: "from an add",
   feed: "from a cached feed",

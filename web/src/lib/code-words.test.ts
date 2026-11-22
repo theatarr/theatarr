@@ -75,6 +75,7 @@ describe("router words", () => {
     expect(cacheStateWords("miss")).toBe("not cached");
     expect(cacheStateWords("cached")).toBe("cached");
     expect(cacheSourceWords("router:miss")).toBe("from a search that found it nowhere");
+    expect(cacheSourceWords("router:playing")).toBe("it stopped working while playing");
     expect(cacheSourceWords("check:torbox")).toBe("from a cache check");
     expect(cacheSourceWords("add:rd")).toBe("from an add");
     expect(cacheSourceWords("feed:dmm")).toBe("from the dmm feed");
