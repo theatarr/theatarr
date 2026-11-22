@@ -132,6 +132,10 @@ func TestPutBack(t *testing.T) {
 		c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
 		wait(t, c, func() { c.playing = []int64{2} }, func() { c.playing = nil })
 	})
+	t.Run("unclear session", func(t *testing.T) {
+		c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
+		wait(t, c, func() { c.unclear = []int64{1} }, func() { c.unclear = []int64{2} })
+	})
 	t.Run("Plex silent", func(t *testing.T) {
 		c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
 		wait(t, c, func() { c.silent = true }, func() { c.silent = false })

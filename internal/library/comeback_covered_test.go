@@ -25,6 +25,7 @@ type coveredEnv struct {
 	outcomes []string
 	// playing is what Plex plays now (link ids); silent: Plex does not answer (the put-back's check).
 	playing []int64
+	unclear []int64 // titles of sessions Plex did not say the file of
 	silent  bool
 }
 
@@ -39,7 +40,7 @@ func newCoveredEnv(t *testing.T, old, nw string, samePath bool) *coveredEnv {
 		c.outcomes = append(c.outcomes, o.Kind)
 		c.mu.Unlock()
 	})
-	e.lib.SetPlayingNow(func() ([]int64, []string, bool) { return c.playing, nil, !c.silent })
+	e.lib.SetPlayingNow(func() ([]int64, []string, []int64, bool) { return c.playing, nil, c.unclear, !c.silent })
 	e.exec(`UPDATE link SET quality = ? WHERE id = 1`, old)
 	e.exec(`UPDATE playing_break SET quality = ?, fixed_by = 'replaced', new_release = 'Other', reported = 'replaced'
 		WHERE id = ?`, old, id)
