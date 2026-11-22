@@ -47,6 +47,18 @@ type testLib struct {
 	asked []string
 	// onRead, when set, runs at the start of each read (outside the lock).
 	onRead func(name string)
+	// sizeErr: base name -> the error its size lookup answers.
+	sizeErr map[string]error
+}
+
+func (l *testLib) MountFileSize(ctx context.Context, target string) (int64, error) {
+	l.mu.Lock()
+	err := l.sizeErr[path.Base(target)]
+	l.mu.Unlock()
+	if err != nil {
+		return 0, err
+	}
+	return l.Library.MountFileSize(ctx, target)
 }
 
 func (l *testLib) PlayingSearchable(_ context.Context, linkID int64, version string) (bool, error) {
@@ -266,7 +278,7 @@ func newRescueEnv(t *testing.T, client, zurg bool) *rescueEnv {
 		defer e.mu.Unlock()
 		e.outcomes = append(e.outcomes, o)
 	})
-	e.lib = &testLib{Library: lib, broken: map[string]int{}, unsearchable: map[int64]bool{}}
+	e.lib = &testLib{Library: lib, broken: map[string]int{}, unsearchable: map[int64]bool{}, sizeErr: map[string]error{}}
 	e.plex = &fakePlex{}
 	e.stop = &stoppingPlex{fakePlex: e.plex}
 	o := Options{Plex: e.stop, Store: st, Mount: func() Mount { return e.lib }, LinkPath: e.mount, MountPath: e.mount,
@@ -1859,5 +1871,26 @@ func TestRescueSiblingEligibilityInItsOwnLibrary(t *testing.T) {
 	defer e.lib.mu.Unlock()
 	if fmt.Sprint(e.lib.asked) != "[11 tv 10 tv 12 anime]" {
 		t.Errorf("asked %v", e.lib.asked)
+	}
+}
+
+// A size lookup that fails for another reason than the file not being there (a hung stat, a mount error) gives no
+// verdict: the check ends, and a healthy shorter file read past its end with Plex's old size is not judged.
+func TestRescueSizeLookupErrorNoVerdict(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	if err := os.Truncate(filepath.Join(e.mount, "__all__", "Rel", "S01E02.mkv"), fileSize/2); err != nil {
+		t.Fatal(err)
+	}
+	e.lib.sizeErr["S01E02.mkv"] = library.ErrMountDown
+	e.play(2, "buffering")
+	e.plex.mu.Lock()
+	e.plex.ss[0].ViewOffset = 2_100_000
+	e.plex.mu.Unlock()
+	e.poll()
+	if got := e.one(`SELECT COUNT(*) FROM playing_break`) + " " + e.one(`SELECT state FROM link WHERE id = 11`); got != "0 active" {
+		t.Errorf("size lookup failed: %s", got)
+	}
+	if n := e.lib.readsOf("S01E02.mkv"); n != 1 {
+		t.Errorf("%d reads, want 1", n)
 	}
 }

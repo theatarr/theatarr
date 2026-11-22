@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"path"
 	"path/filepath"
 	"slices"
@@ -363,9 +364,12 @@ func (t *Tracker) check(ctx context.Context, lib Rescuer, j *sign) {
 	}
 	// Plex's size may be an older file's at the same path: when the mounted file's size can be read, the next reads take
 	// their range from it. A read 1 that started at or past its end failed for that alone: it is no failure, and the
-	// count starts again at the corrected range. A file whose size cannot be read (gone from the mount) keeps its range;
-	// its reads fail as any unreadable file's.
-	if mounted, err := lib.MountFileSize(ctx, src.Target); err == nil {
+	// count starts again at the corrected range. A file gone from the mount keeps its range (its reads fail as any
+	// unreadable file's); a size lookup failing for another reason gives no verdict.
+	if mounted, err := lib.MountFileSize(ctx, src.Target); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		fine()
+		return
+	} else if err == nil {
 		if mounted < 2*pieceSize {
 			fine()
 			return

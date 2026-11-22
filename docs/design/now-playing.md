@@ -183,7 +183,8 @@ broke while playing is searched at once").
   passes ends the check: nothing is marked, stopped or recorded. That is about a minute from the sign. After read 1
   the range comes from the mounted file's size when it can be read (Plex's may be an older file's at the same path); a
   read 1 that started at or past the file's end is no failure, and the count starts again at the corrected range. A
-  file gone from the mount keeps its range, and its reads fail as any unreadable file's.
+  file gone from the mount keeps its range, and its reads fail as any unreadable file's; a size lookup failing for
+  another reason gives no verdict.
 - **Mount, account or release** (the control read, at mid-file of another release). The serving account is the account
   zurg last served the file from (its log's "Large transfer" line for the file's whole path under the release root, not
   another release's file of the same name), else
