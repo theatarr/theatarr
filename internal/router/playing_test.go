@@ -211,8 +211,8 @@ func TestPlayingRouteOldOutAccountIgnored(t *testing.T) {
 }
 
 // A playing search never takes the incident's own release again, on any account (E4, E12): the route leaves that hash
-// out for this search only, with no miss written, so other libraries may still use it. Hashes of older unsettled
-// incidents of the title are not left out.
+// out for this search only, with no miss written, so other libraries may still use it. The hash of an older incident
+// whose search has ended is not left out.
 func TestPlayingRouteLeavesOutIncidentRelease(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true)
@@ -236,7 +236,8 @@ func TestPlayingRouteLeavesOutIncidentRelease(t *testing.T) {
 	freshMovie(e2)
 	e2.exec(`UPDATE version SET state = 'wanted' WHERE id = 10`)
 	e2.playingRun(7, 1, 10, "movie", "[]", "[]", "")
-	e2.exec(`UPDATE playing_break SET info_hash = ?, broken_at = ?`, h("b"), e2.clock.Add(-72*time.Hour).UnixMilli())
+	e2.exec(`UPDATE playing_break SET info_hash = ?, broken_at = ?, reported = 'unavailable'`, h("b"),
+		e2.clock.Add(-72*time.Hour).UnixMilli()) // its search ended long ago
 	e2.exec(`INSERT INTO playing_break (incident, watched, link_id, title_id, version_key, path, old_target, info_hash,
 		episodes, broken_at, searched, updated_at) VALUES (2, 1, 1, 1, 'movie', '/lib/x.mkv', '/mnt/y.mkv', ?, '[]', ?, 1, 0)`,
 		h("a"), e2.clock.UnixMilli())
@@ -247,5 +248,33 @@ func TestPlayingRouteLeavesOutIncidentRelease(t *testing.T) {
 	}
 	if res.Outcome != OutcomeAdded || res.Hash != h("b") {
 		t.Errorf("older incident's release: route %+v: %s", res, steps(res))
+	}
+}
+
+// Two open incidents of a series on two episodes: a route that resumes for the older one leaves out the older
+// incident's release (the one that broke for the episodes it would fill), not the newer incident's.
+func TestPlayingRouteLeavesOutItsOwnIncidentRelease(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.exec(`INSERT INTO episode (id, title_id, season, number, created_at, updated_at)
+		VALUES (101, 2, 1, 1, 0, 0), (103, 2, 1, 3, 0, 0)`)
+	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, updated_at)
+		VALUES (20, 101, 1, 'wanted', 0), (20, 103, 1, 'wanted', 0)`)
+	e.playingRun(8, 2, 20, "series", "[101,103]", "[101]", "")
+	e.exec(`UPDATE playing_break SET info_hash = ?, broken_at = ?`, h("a"), e.clock.Add(-72*time.Hour).UnixMilli())
+	e.exec(`INSERT INTO playing_break (incident, watched, link_id, title_id, version_key, path, old_target, info_hash,
+		episodes, broken_at, searched, updated_at) VALUES (2, 1, 2, 2, 'series', '/lib/y.mkv', '/mnt/y.mkv', ?, '[103]', ?,
+		1, 0)`, h("b"), e.clock.UnixMilli())
+	own := cand(h("a"), "Show.S01E01.2160p.WEB-DL-GRP")
+	own.Episodes = []int64{101}
+	other := cand(h("c"), "Show.S01E01.2160p.WEB-DL-OTHER")
+	other.Episodes = []int64{101}
+	res, err := e.r.Route(e.ctx, Request{TitleID: 2, VersionID: 20, Version: "series", Source: "acquire:8",
+		Candidates: []Candidate{own, other}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Hash != h("c") || !strings.Contains(steps(res), "aaaa//skipped/playing_same_release") {
+		t.Errorf("route %+v: %s", res, steps(res))
 	}
 }

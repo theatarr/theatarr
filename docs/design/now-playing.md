@@ -209,7 +209,8 @@ broke while playing is searched at once").
   unchanged, outcome "readable again"); it does not, that account gets the release's miss too. **Step 2**, the file is
   marked dead at once and one `playing` search is queued for it, held to its episodes and off the accounts it failed
   on (an account found out by an outage gets no miss; the incident keeps the repair off it for a day). Every `playing`
-  search of the incident leaves the incident's own release out on every account, for that search only (no miss).
+  search of the incident leaves the incident's own release out on every account for the episodes it broke for, for
+  that search only (no miss).
   Only the copy that was
   read is marked: a link a same-path import or a sweep changed meanwhile is left, and nothing is said. Not on a
   client-routed (decypharr) version, which has no step 1: the miss on the client's key makes its client
