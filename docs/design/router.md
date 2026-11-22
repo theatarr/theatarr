@@ -1035,9 +1035,10 @@ other files' search; `TestPlayingRouteHoldsToIncidentEpisodes`, `TestPlayingSibl
 holding the release for that route only (`skipProvider`: no miss is recorded there, the next account or release is
 tried at once; `TestPlayingRouteSkipsOutAccount`). The failed release on the account it failed on carries a
 `provider_cache` miss of source `router:playing` for 7 days (`client:<key>` on a client-routed version, whose client
-then takes a different release): no search takes it there again (a live miss, as any), another account may. The
-router's own all-provider miss does not replace that row (`TestPlayingMissSurvivesAllProviderMiss`), so a cached
-listing, which reopens only that all-provider miss, does not reopen it either; the library lifts it when the old copy
+then takes a different release): no search takes it there again (a live miss, as any), another account may
+(`TestPlayingRouteSkipsBrokenReleaseOnItsAccount`). The router's own all-provider miss does not replace that row
+(`TestPlayingMissSurvivesAllProviderMiss`), so a cached listing, which reopens only that all-provider miss, does not
+reopen it either (`TestPlayingMissSurvivesMissAndFeed`); the library lifts it when the old copy
 reads again. Candidate rules stay those of a dead link's search.
 
 ## Pacing (`router_pacing`, persisted)

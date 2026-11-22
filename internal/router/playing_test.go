@@ -163,3 +163,32 @@ func TestPlayingMissWorded(t *testing.T) {
 		t.Errorf("client skip %q %v", msg, err)
 	}
 }
+
+// GOAL e: the search for a broken file does not take the release again on the account it broke on (its router:playing
+// miss), and takes it on another account. (Real-Debrid refuses this release's name, so AllDebrid, where it broke, would
+// take it first.)
+func TestPlayingRouteSkipsBrokenReleaseOnItsAccount(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	freshMovie(e)
+	e.exec(`UPDATE version SET state = 'wanted' WHERE id = 10`)
+	e.playingRun(7, 1, 10, "movie", "[]", "[]", "")
+	tx, err := e.st.Writer().BeginTx(e.ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := RecordPlayingMiss(e.ctx, tx, h("a"), "ad", e.clock); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	res, err := e.r.Route(e.ctx, freshReq(cand(h("a"), "Movie.2024.2160p.WEB-DL-GRP"), "acquire:7"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Outcome != OutcomeAdded || res.Provider != "tb" || e.ad["ad"].writes() != 0 ||
+		!strings.Contains(steps(res), "aaaa/ad/skipped/miss") {
+		t.Errorf("route %+v: %s", res, steps(res))
+	}
+}
