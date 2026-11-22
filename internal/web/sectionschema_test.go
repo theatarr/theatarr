@@ -139,9 +139,13 @@ func TestSectionSchemaLeavesOutDecypharr(t *testing.T) {
 // msgLooking and msgLater).
 func TestStopWithMessageHelpNamesBothMessages(t *testing.T) {
 	help := sectionHelp["library.plex.stop_with_message"]
-	for _, want := range []string{"Looking for another copy", `"This file stopped working. Try again later."`} {
+	for _, want := range []string{"looking for another copy", `"This file stopped working. Try again later."`} {
 		if !strings.Contains(help, want) {
 			t.Errorf("help %q lacks %q", help, want)
 		}
+	}
+	// The first message is described, not quoted short of its "Try again in a few minutes" (review).
+	if strings.Contains(help, `"This file stopped working. Looking for another copy."`) {
+		t.Errorf("help misquotes the first message: %q", help)
 	}
 }

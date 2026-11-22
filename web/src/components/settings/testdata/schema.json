@@ -540,7 +540,7 @@
             "default": "true",
             "label": "Stop a broken stream with a message",
             "type": "boolean",
-            "help": "When a file someone is playing stops working, this stops that playback with a message on their screen: \"This file stopped working. Looking for another copy.\" while Theatarr searches, or \"This file stopped working. Try again later.\" when nothing is searched. Off, the playback is never stopped and another copy is still looked for. Default on.",
+            "help": "When a file someone is playing stops working, this stops that playback with a message on their screen: that Theatarr is looking for another copy while it searches, or \"This file stopped working. Try again later.\" when nothing is searched. Off, the playback is never stopped and another copy is still looked for. Default on.",
             "nullable": true
           }
         ]
