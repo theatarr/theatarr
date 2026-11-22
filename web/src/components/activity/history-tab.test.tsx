@@ -292,4 +292,6 @@ it("shows a playing row's outcome whole in the desktop table, the RSS sentence i
   const detail = got.querySelector('[data-testid="history-reason"]');
   expect(detail?.textContent).toBe(reason);
   expect(detail!.className.split(/\s+/).some((c) => /line-clamp-\d|truncate/.test(c))).toBe(false);
+  // What the row means is said on it, not only in a tooltip (a phone has none).
+  expect(got.querySelector('[data-testid="history-meaning"]')?.textContent).toContain("The file stopped working while someone played it.");
 });

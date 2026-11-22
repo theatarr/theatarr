@@ -209,6 +209,8 @@ function EventCell({ e, episodes, except }: { e: ActivityEvent; episodes: boolea
   return (
     <div className="min-w-0">
       <EventWords e={e} />
+      {/* A playing row's meaning is said on it: its tooltip alone does not reach a phone. */}
+      {e.event === "playing" ? <p className="mt-0.5 text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="history-meaning">{eventMeaning(e.words)}</p> : null}
       <GrabbedLine e={e} />
       {episodes ? <Episodes e={e} except={except} /> : null}
       {/* A playing row's detail is what came of it: whole, as on the phone card. */}
