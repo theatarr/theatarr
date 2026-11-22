@@ -843,8 +843,9 @@ before 00152 has no snapshot and gets no Undo; nor does one whose trash copy was
   recorded successor still holds the slot (the same row at its path and target, holding the same download's file, in
   the same library, active or dead: a dead one still owns the slot, and Undo helps most then; no active link at the
   earlier path), no other active file of the library holds the film or an episode of the earlier file (more than one
-  file took its place: a one-file Undo would leave two files on one episode), and the earlier file is on the mount (a
-  stat, its size not zero). No quality comparison and no wrong-audio check (the owner's choice, as Manual import); it does
+  file took its place: a one-file Undo would leave two files on one episode), the library writes (the write gate)
+  and the successor's symlink is still in place, and the earlier file is on the mount (a stat, its size not zero).
+  The POST asks the gate again and answers with its reason ("The library does not write now: …"). No quality comparison and no wrong-audio check (the owner's choice, as Manual import); it does
   not wait for a player.
 - **A return** builds a plan of one link (the earlier path, mount target and episodes; no download row) and writes it
   through `installLinks`; no other library, no blocklist from a failure, no retry, no search. Under the leases it
@@ -1005,8 +1006,10 @@ before 00152 has no snapshot and gets no Undo; nor does one whose trash copy was
     current file over it; a tie or any error keeps it aside); today's profile still allows its quality and its format
     score reaches the minimum; the wrong-audio rule, as an import applies it (its saved probe read as a fresh one, an
     untagged track saying nothing; the held file's stored audio), would not refuse it over the current file; and the
-    return's own checks pass. It waits for a later sweep, settling nothing, while Pause is on or the library does not
-    write, while the incident's search is open, while the replacement is being played (a session's link or target),
+    return's own checks pass (a passing obstacle there, a path another run changes, the delete fence, the slot
+    changing between the reads, a read with no verdict or no answer in time, is no "no": the next sweep tries again).
+    A copy read in a renamed mount folder is linked there and its release's mount folder follows. It waits for a later
+    sweep, settling nothing, while Pause is on or the library does not write, while the incident's search is open, while the replacement is being played (a session's link or target),
     while a session of the title does not say which file it plays (Plex lists several media or parts, or the file is
     not Theatarr's for certain), or while Plex has not answered lately (the now playing tracker off, or its last poll
     failed or is over two minutes old; `Tracker.MayPlay`, one question about the one replacement: a session of another title, or with no Theatarr title, never makes it wait). Then the row is settled
