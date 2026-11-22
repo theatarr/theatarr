@@ -177,11 +177,14 @@ broke while playing is searched at once").
   or held back, a cancelled read: no verdict, the check ends quietly. Read 1 fails; 20 s; read 2 fails; the mount still
   lists (`MountListed`, with zurg's `/ready`); the control read (below); read 3 of the same range fails. Any read that
   passes ends the check: nothing is marked, stopped or recorded. That is about a minute from the sign.
-- **Mount, account or release** (the control read, at mid-file of another release). The serving account is zurg's last
-  "Large transfer" account, else the release's only complete holder in the record. A release only it holds reads: only
+- **Mount, account or release** (the control read, at mid-file of another release). The serving account is the account
+  zurg last served the file from (its log's "Large transfer" line, which names the account a large read came from), else
+  the release's only complete holder in the record (state downloaded at 100 %). A release only it holds reads: only
   this release is broken. It fails: one only another account holds is read; that reads: the account is out; it fails,
-  or there is none: the mount, and nothing is done. zurg saying the account cools down also means it is out. With the
-  account unknown any other release must read; the release then counts as broken on each holder.
+  or there is none: the mount, and nothing is done. zurg saying the account cools down also means it is out. With no
+  release held by the serving account alone, any other release must read, and the break is this release on that
+  account. With the account unknown any other release must read too; the release then counts as broken on each
+  holder. Another release's hash is the one its link stored, else the one the registry records for its folder.
 - **The repair.** The bound first: one incident per title and library a day; a second one that day gets no fast
   path (the hourly path as today). Then the incident is recorded, and: **step 1**, the same release on another account
   of the library, in its provider order, as the automatic "Add to other providers" adds it (one account at a time; it
@@ -189,7 +192,9 @@ broke while playing is searched at once").
   configured, and the same range read every 10 s for up to a minute: it reads, the incident settles `copy` (link
   unchanged, outcome "readable again"); it does not, that account gets the release's miss too. **Step 2**, the file is
   marked dead at once and one `playing` search is queued for it, held to its episodes and off the accounts it failed
-  on. Not on a client-routed (decypharr) version, which has no step 1: the miss on the client's key makes its client
+  on (an account found out by an outage gets no miss; the incident keeps the repair off it). Only the copy that was
+  read is marked: a link a same-path import or a sweep changed meanwhile is left, and nothing is said. Not on a
+  client-routed (decypharr) version, which has no step 1: the miss on the client's key makes its client
   take a different release. The account out and no other in the library (or a client version): nothing is replaced,
   the incident settles `none`, outcome unavailable. **The release's other files** are then read the same way, at
   mid-file: one whose read and an immediate retry both fail joins the incident and is marked dead; their search is
@@ -197,11 +202,14 @@ broke while playing is searched at once").
   sent through `Library.OnPlayingOutcome`: `same_release`, `replaced` (an import fixed it), `unavailable` (nothing
   could be done, or its search ended with nothing imported and nothing in flight), `restored`.
 - **Telling the viewer** (`tell`; `plex.Client.Terminate`: `GET /status/sessions/terminate?sessionId=…&reason=…`, the
-  token in the header, through the gateway; `Session.ID` is the nested `Session.id`). Once the break is confirmed (after
-  read 3; when step 1 has a candidate, after 30 s of it; a file that reads again gets no message), the same playback
+  token in the header, through the gateway; `Session.ID` is the nested `Session.id`). Once the break is confirmed: after
+  the dead mark, or, when step 1 has a candidate, after 30 s of it with the link still on the copy read (a file that
+  reads again gets no message, and a message still owed is dropped), the same playback
   (session id, viewer, item and part), read from Plex right before, is stopped with "This file stopped working.
   Looking for another copy. Try again in a few minutes.", or "This file stopped working. Try again later." when nothing
-  will be done (the day's bound reached, the account out with no other). Only when it is buffering or its position has
+  will be done (the day's bound reached, a replacement at the same path breaking the same day included, the account
+  out with no other). Pause, or a library that stopped writing, checked again before each change and each message,
+  ends the check with nothing done or said. Only when it is buffering or its position has
   not moved since the sign; one still advancing gets it at the next fresh Plex sample of it that is buffering or has
   not moved since the sample before (never on a remembered verdict or an old zurg line); a paused one never; no session left: nothing
   is sent. Never when the mount is the problem, never after a read that passed. `Options.StopWithMessage` switches it
