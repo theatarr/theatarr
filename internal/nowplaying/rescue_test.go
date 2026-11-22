@@ -766,6 +766,12 @@ func TestRescueMessageSettingAndSession(t *testing.T) {
 	if got := e.one(`SELECT message FROM playing_break WHERE link_id = 11`); got != NotStoppedNote+notStoppedOff {
 		t.Errorf("setting off: note %q", got)
 	}
+	// A later reason (the file read again) does not replace the first.
+	id, _ := strconv.ParseInt(e.one(`SELECT id FROM playing_break WHERE link_id = 11`), 10, 64)
+	e.tr.notStopped(context.Background(), id, notStoppedRead)
+	if got := e.one(`SELECT message FROM playing_break WHERE link_id = 11`); got != NotStoppedNote+notStoppedOff {
+		t.Errorf("first reason replaced: %q", got)
+	}
 	e2 := newRescueEnv(t, false, false)
 	e2.lib.setBroken("S01E03.mkv", -1)
 	e2.play(3, "playing")
@@ -797,6 +803,40 @@ func TestRescueMessageSettingAndSession(t *testing.T) {
 	}
 }
 
+// An import that replaces the link during step 1, with a message owed: the incident reads replaced, and nothing says
+// the file read again.
+func TestRescueReplacedDuringStepOneNoReadAgainNote(t *testing.T) {
+	e := newRescueEnv(t, false, true)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.copyOK["ad"] = true
+	e.play(2, "playing")
+	e.zurg.stats.BlockedReads = []library.ZurgBlockedRead{{Filename: "S01E02.mkv", Reason: "broken"}}
+	imported := false
+	e.tr.sleep = func(ctx context.Context, d time.Duration) error {
+		e.advance(d)
+		e.plex.mu.Lock()
+		e.plex.ss[0].ViewOffset += d.Milliseconds()
+		e.plex.mu.Unlock()
+		e.tr.mu.Lock()
+		owed := len(e.tr.pending) > 0
+		e.tr.mu.Unlock()
+		if owed && !imported { // the message is owed: an import takes the link's place meanwhile
+			imported = true
+			e.exec(`UPDATE link SET target = '/mnt/zurg/__all__/Other.Release/S01E02.mkv' WHERE id = 11`)
+			e.exec(`UPDATE playing_break SET fixed_by = 'replaced', new_release = 'Other.Release' WHERE link_id = 11`)
+		}
+		return ctx.Err()
+	}
+	e.poll()
+	if !imported {
+		t.Fatal("no message was owed during step 1")
+	}
+	in := e.tr.Incidents()
+	if len(in) != 1 || in[0].Status != "Replaced with another release" || strings.Contains(in[0].Message, notStoppedRead) {
+		t.Errorf("incidents %+v", in)
+	}
+}
+
 // A playback that ends while its message is owed is not stopped, and the incident says why.
 func TestRescueOwedMessagePlaybackEnds(t *testing.T) {
 	e := newRescueEnv(t, false, true)
@@ -819,15 +859,7 @@ func TestRescueOwedMessagePlaybackEnds(t *testing.T) {
 	if got := e.stop.stopped(); len(got) != 0 {
 		t.Errorf("stopped %q", got)
 	}
-	// The note is written beside the poll, not under its lock.
-	got := ""
-	for range 100 {
-		if got = e.one(`SELECT message FROM playing_break WHERE link_id = 11`); got != "" {
-			break
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	if got != NotStoppedNote+notStoppedEnded {
+	if got := e.one(`SELECT message FROM playing_break WHERE link_id = 11`); got != NotStoppedNote+notStoppedEnded {
 		t.Errorf("ended: note %q", got)
 	}
 }

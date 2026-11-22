@@ -14,7 +14,6 @@ import (
 	"github.com/theatarr/theatarr/internal/outcome"
 	"github.com/theatarr/theatarr/internal/plex"
 	"github.com/theatarr/theatarr/internal/router"
-	"github.com/theatarr/theatarr/internal/store"
 )
 
 // A file that stops working while it plays (docs/design/now-playing.md). A sign of trouble on a file someone plays
@@ -69,6 +68,7 @@ type Rescuer interface {
 	SettlePlayingRuns(ctx context.Context) error
 	ForgetRelease(ctx context.Context, target string) error
 	PlayingMessage(ctx context.Context, incident int64, note string) error
+	PlayingNotStopped(ctx context.Context, incident int64, note string) error
 	LastSweep() time.Time
 	ComeBack(ctx context.Context) error
 }
@@ -122,12 +122,13 @@ func (t *Tracker) noteSign(se *session, live bool, why string, now time.Time) {
 }
 
 // liveSigns notes the signs of the open sessions (t.mu held): Plex's buffering verdict, and with zurg a blocked read
-// of the file in /stats or a broken-file or broken-link line about it in its log.
-func (t *Tracker) liveSigns(now time.Time) {
+// of the file in /stats or a broken-file or broken-link line about it in its log. It returns the incidents whose owed
+// message it dropped because their playback ended (the poll notes why once it unlocks).
+func (t *Tracker) liveSigns(now time.Time) (ended []int64) {
 	for k, p := range t.pending {
 		if se := t.sess[k]; se == nil || se.s.ID != p.j.s.ID {
-			delete(t.pending, k) // the playback ended: its message goes nowhere, and the incident says so
-			go t.notStopped(context.Background(), p.incident, notStoppedEnded)
+			delete(t.pending, k) // the playback ended: its message goes nowhere; the poll notes why after unlocking
+			ended = append(ended, p.incident)
 		}
 	}
 	for _, se := range t.sess {
@@ -162,6 +163,7 @@ func (t *Tracker) liveSigns(now time.Time) {
 			t.noteSign(se, true, "zurg says it is broken", now)
 		}
 	}
+	return ended
 }
 
 // blockedRead reports whether zurg's /stats lists a blocked read of se's file.
@@ -313,20 +315,18 @@ func pieceOffset(viewMs, durationMs, size int64) int64 {
 // copy, checked on its own (the day's bound decides what is done for it).
 func copyKey(id int64, target string) string { return fmt.Sprintf("%d\x00%s", id, target) }
 
-// clearPending drops the messages still owed to playbacks of a link: its file reads again.
-func (t *Tracker) clearPending(id int64) {
-	var incidents []int64
+// clearPending drops the messages still owed to playbacks of a link and returns their incidents; a caller that knows
+// the file reads again notes that reason (notStopped).
+func (t *Tracker) clearPending(id int64) (incidents []int64) {
 	t.mu.Lock()
+	defer t.mu.Unlock()
 	for k, p := range t.pending {
 		if p.j.src.LinkID == id {
 			delete(t.pending, k)
 			incidents = append(incidents, p.incident)
 		}
 	}
-	t.mu.Unlock()
-	for _, inc := range incidents {
-		t.notStopped(context.Background(), inc, notStoppedRead)
-	}
+	return incidents
 }
 
 func (t *Tracker) quietFor(id int64, target string, d time.Duration) {
@@ -348,7 +348,9 @@ func (t *Tracker) check(ctx context.Context, lib Rescuer, j *sign) {
 	// passed: a read that passed ends the check, and any message still owed to a playback of the file.
 	passed := func(r readResult) {
 		if r == readOK {
-			t.clearPending(src.LinkID)
+			for _, inc := range t.clearPending(src.LinkID) {
+				t.notStopped(ctx, inc, notStoppedRead)
+			}
 		}
 		fine()
 	}
@@ -853,15 +855,14 @@ const (
 	notStoppedRead   = "the file read again"
 )
 
-// notStopped keeps on an incident why its player was not stopped (NotStoppedNote and why), unless what was done is
-// kept there already: a stop with a message, or Plex's refusal.
+// notStopped keeps on an incident why its player was not stopped (NotStoppedNote and why), only while nothing is kept
+// there yet (Library.PlayingNotStopped).
 func (t *Tracker) notStopped(ctx context.Context, incident int64, why string) {
-	if incident == 0 {
+	lib := t.rescuer()
+	if incident == 0 || lib == nil {
 		return
 	}
-	if _, err := t.o.Store.Writer().ExecContext(ctx, `UPDATE playing_break SET message = ?, updated_at = ?
-		WHERE id = ? AND (message = '' OR message LIKE ?)`, NotStoppedNote+why, store.Millis(t.o.Now()), incident,
-		NotStoppedNote+"%"); err != nil {
+	if err := lib.PlayingNotStopped(ctx, incident, NotStoppedNote+why); err != nil {
 		t.o.Logger.Debug("nowplaying: incident message not kept", "err", err)
 	}
 }

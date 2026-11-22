@@ -534,11 +534,14 @@ func (t *Tracker) poll(ctx context.Context) {
 	// Diagnose foreground playback before admitting any new background read. A file that seems broken is checked
 	// first, by the one rescue worker (rescue.go); the poll never waits for it.
 	t.mu.Lock()
-	t.liveSigns(now)
+	ended := t.liveSigns(now)
 	rescue := t.nextRescue(now)
 	warm := t.nextWarm()
 	full := t.nextCache(ctx)
 	t.mu.Unlock()
+	for _, inc := range ended { // a message owed to a playback that ended: why it was not sent
+		t.notStopped(ctx, inc, notStoppedEnded)
+	}
 	if rescue != nil {
 		go t.runRescue(ctx, rescue)
 	}

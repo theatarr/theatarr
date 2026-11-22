@@ -515,3 +515,11 @@ func (l *Library) PlayingMessage(ctx context.Context, incident int64, note strin
 		store.Millis(l.now()), incident)
 	return err
 }
+
+// PlayingNotStopped keeps on an incident why its player was not stopped (note), only while nothing is kept there: the
+// first reason stays, and a stop with a message or Plex's refusal is never replaced.
+func (l *Library) PlayingNotStopped(ctx context.Context, incident int64, note string) error {
+	_, err := l.st.Writer().ExecContext(ctx, `UPDATE playing_break SET message = ?, updated_at = ?
+		WHERE id = ? AND message = ''`, note, store.Millis(l.now()), incident)
+	return err
+}
