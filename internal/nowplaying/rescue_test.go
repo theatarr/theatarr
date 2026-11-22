@@ -1617,7 +1617,7 @@ func TestRescueFallbackControlLeavesSiblings(t *testing.T) {
 // position. The old copy reads again, or a same-path import put a readable file there: nothing is stopped and the
 // incident says the file read again. Still failing: the player is stopped (TestRescueMessageAtNextSign).
 func TestRescueOwedStopReadsFirst(t *testing.T) {
-	for _, c := range []string{"recovered", "imported"} {
+	for _, c := range []string{"recovered", "imported", "imported under a new link"} {
 		e := newRescueEnv(t, false, true)
 		e.lib.setBroken("S01E02.mkv", -1)
 		e.play(2, "playing")
@@ -1648,6 +1648,17 @@ func TestRescueOwedStopReadsFirst(t *testing.T) {
 				t.Fatal(err)
 			}
 			e.exec(`UPDATE link SET target = ?, state = 'active' WHERE id = 11`, repl)
+		case "imported under a new link":
+			repl := filepath.Join(e.mount, "__all__", "OtherAD", "S01E02.new.mkv")
+			if err := os.WriteFile(repl, nil, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Truncate(repl, fileSize/2); err != nil {
+				t.Fatal(err)
+			}
+			e.exec(`UPDATE link SET path = path || '.old' WHERE id = 11`)
+			e.exec(`INSERT INTO link (id, path, target, title_id, release_title, state, created_at, updated_at)
+				VALUES (30, ?, ?, 1, 'Other', 'active', 0, 0)`, e.plex.ss[0].File, repl)
 		}
 		e.plex.mu.Lock()
 		e.plex.ss[0].State = "buffering"

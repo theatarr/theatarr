@@ -996,14 +996,15 @@ func (t *Tracker) tell(ctx context.Context, j *sign, msg string, incident int64)
 	}
 }
 
-// tellOwed delivers a message owed to a playback once it came due, after one bounded read of the file its link points
-// at now (a same-path import may have put another file there) at the player's current position, inside that file's
-// mounted size. It reads: the message is dropped and the incident notes the file read again. No verdict: dropped,
-// nothing noted. Only a fresh failure goes on to tell, whose fresh look at the session comes right before the stop.
+// tellOwed delivers a message owed to a playback once it came due, after one bounded read of the file the playback's
+// path leads to now (the tracked symlink at that path, the active one first: a same-path import may have put another
+// file there, under a new link row too) at the player's current position, inside that file's mounted size. It reads:
+// the message is dropped and the incident notes the file read again. No verdict: dropped, nothing noted. Only a fresh
+// failure goes on to tell, whose fresh look at the session comes right before the stop.
 func (t *Tracker) tellOwed(ctx context.Context, lib Rescuer, p *pendingTell) {
 	var target string
-	if err := t.o.Store.Reader().QueryRowContext(ctx, `SELECT target FROM link WHERE id = ?`, p.j.src.LinkID).
-		Scan(&target); err != nil {
+	if err := t.o.Store.Reader().QueryRowContext(ctx, `SELECT target FROM link WHERE path = ? AND kind = 'symlink'
+		ORDER BY state = 'active' DESC, id DESC LIMIT 1`, p.j.s.File).Scan(&target); err != nil {
 		return
 	}
 	size, err := lib.MountFileSize(ctx, target)
