@@ -23,7 +23,7 @@ func TestFileAudioWordsAndRefusalWhole(t *testing.T) {
 	b := &builder{}
 	e := &Entry{}
 	e.f.fileAudio = []string{"fre", "fra", "und"}
-	b.checkFile(e, &titleInfo{t: decide.Title{OriginalLanguage: "Japanese"}})
+	b.checkFile(e, &titleInfo{t: decide.Title{OriginalLanguage: "Japanese", NamedOriginalLanguage: "Japanese"}})
 	if len(e.Flags) != 1 || e.Flags[0].Reason != "the file's audio is French; wanted English or Japanese" {
 		t.Errorf("flags %+v", e.Flags)
 	}

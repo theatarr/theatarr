@@ -564,8 +564,9 @@ func TestAudioRulePathImportNotRefused(t *testing.T) {
 	}
 }
 
-// Manual import's list (a dry run) keeps every assignment of a pack with one wrong-audio file: E01 stays matched,
-// and E02's audio is a note.
+// Manual import's list (a dry run under ManualPreview) keeps every assignment of a pack with one wrong-audio file:
+// E01 stays matched, and E02's audio is a note. Any other dry run (theatarr library dry-run) judges as the import
+// would: nothing is linked and the reason is the refusal.
 func TestAudioRulePreviewKeepsAssignments(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true)
@@ -576,12 +577,19 @@ func TestAudioRulePreviewKeepsAssignments(t *testing.T) {
 	e.audio(pack, tracks("eng"))
 	e.probes[filepath.Join(e.mount, "__all__", pack, e2)].Audio = tracks("fra")
 	e.seriesDownload(1, 2, 20, hashA, pack, "[201, 202]", nil)
-	p, err := e.lib.Import(e.ctx, 1, true)
+	p, err := e.lib.Import(ManualPreview(e.ctx), 1, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(p.Links) != 2 || p.Why != "" {
 		t.Fatalf("preview links %d, why %q", len(p.Links), p.Why)
+	}
+	dry, err := e.lib.Import(e.ctx, 1, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "Import refused: French audio only; this library wants English. Use Manual import to take it anyway."; len(dry.Links) != 0 || dry.Why != want {
+		t.Errorf("dry run links %d, why %q", len(dry.Links), dry.Why)
 	}
 	if f := plannedFile(p, e2); f == nil || !strings.Contains(f.Note, "Manual import: French audio only; this library wants English.") {
 		t.Errorf("note %+v", f)
@@ -661,5 +669,30 @@ func TestAudioRuleFilmEmptyDetailsLanguage(t *testing.T) {
 	e.filmImport(1, hashA, movieRelease, tracks("jpn"))
 	if e.state(1) != "imported" {
 		t.Errorf("%s: %s", e.state(1), e.one(`SELECT COALESCE(error, '') FROM download WHERE id = 1`))
+	}
+}
+
+// Manual import does not speak for a partner library: the file a person imported by hand into movie-remux links
+// there, and movie-web (whose copy inherits the source path) refuses it as for any download, keeping its row.
+func TestAudioRuleManualImportPartner(t *testing.T) {
+	t.Parallel()
+	e, _ := otherEnv(t, "movie-state")
+	e.audioFilm("Japanese")
+	e.audio(otherRelease, tracks("fre"))
+	e.exec(`UPDATE download SET source_path = ? WHERE id = 1`, filepath.Join(e.mount, "__all__", otherRelease))
+	e.exec(`INSERT INTO download_file (download_id, rel, episodes, source, how, updated_at) VALUES (1, 'movie.mkv', '[]',
+		'manual', 'manual', 0)`)
+	if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+		t.Fatal(err)
+	}
+	if e.state(1) != "imported" {
+		t.Fatalf("movie-remux: %s", e.state(1))
+	}
+	if got := e.webLinks(); got != "0" {
+		t.Errorf("movie-web links %s", got)
+	}
+	if got := e.one(`SELECT COUNT(*) || '|' || COALESCE(group_concat((download_id IS NULL) || '|' || (researched_at IS NOT NULL)), '')
+		FROM router_blocklist WHERE version_key = 'movie-web'`); got != "1|1|1" {
+		t.Errorf("movie-web blocklist %s", got)
 	}
 }

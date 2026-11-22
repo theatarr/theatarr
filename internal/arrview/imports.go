@@ -449,7 +449,7 @@ func (s *Service) manualFromDownload(ctx context.Context, r *request, hash strin
 	if e == nil {
 		return nil, &manualEmpty{http.StatusConflict, "The title was removed from this library: add it there again first"}
 	}
-	plan, err := s.library.Import(ctx, id, true)
+	plan, err := s.library.Import(library.ManualPreview(ctx), id, true)
 	if err != nil {
 		s.log.Info("manualimport: no plan", "download", id, "err", err)
 		return nil, &manualEmpty{http.StatusConflict, "Its files cannot be listed now: " + planReason(err)}

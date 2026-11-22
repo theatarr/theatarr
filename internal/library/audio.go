@@ -121,10 +121,11 @@ func audioOpening(langs []string) string {
 }
 
 // audioGuard runs the wrong-audio rule on the files the plan links: the reason the import is refused, "" when it
-// goes on. A refused file is put first among the rejected files. An import a person chose (Manual import, an import
-// by path) and a preview (dryRun: Manual import's list) are never refused: the rule's finding is a note on the file.
+// goes on. A refused file is put first among the rejected files. An import a person chose for this library (Manual
+// import, an import by path) and Manual import's own list (a dry run under ManualPreview) are never refused: the
+// rule's finding is a note on the file. Every other dry run judges as the import would.
 func (l *Library) audioGuard(ctx context.Context, d *importDownload, plan *Plan, dryRun bool) (string, error) {
-	noteOnly := dryRun || explicitImport(d)
+	noteOnly := dryRun && ctx.Value(manualPreviewKey{}) != nil || explicitImport(d)
 	var want []string
 	wantRead := false
 	for i := range plan.Links {
@@ -164,13 +165,16 @@ func (l *Library) audioGuard(ctx context.Context, d *importDownload, plan *Plan,
 		switch {
 		case replacing && has == "":
 			continue // it shares a language with every file it displaces
+		case noteOnly && replacing:
+			note = "Manual import: " + languageWords(langs, "and") + " audio only; the file in the library has " + has + "."
+		case noteOnly:
+			note = "Manual import: " + languageWords(langs, "and") + " audio only; this library wants " +
+				languageWords(want, "or") + "."
 		case replacing:
 			reason = audioRefusedPrefix + languageWords(langs, "and") + " audio only; the file in the library has " +
 				has + "."
 		case d.Version.Title.Kind != "movie":
 			reason = audioOpening(langs) + languageWords(want, "or") + ". Use Manual import to take it anyway."
-		case noteOnly:
-			reason = audioOpening(langs) + languageWords(want, "or") + "."
 		default:
 			earlier, err := l.audioRefusedBefore(ctx, d, audioOpening(langs))
 			if err != nil {
@@ -184,12 +188,6 @@ func (l *Library) audioGuard(ctx context.Context, d *importDownload, plan *Plan,
 			reason = audioOpening(langs) + languageWords(want, "or") + ". Another release with the same audio would be taken."
 		}
 		f := plannedFile(plan, lk.File)
-		if noteOnly && reason != "" {
-			// Manual import: the reason's own words, said as what the file holds (no refusal, no next step).
-			note, _, _ = strings.Cut(strings.Replace(reason, audioRefusedPrefix, "Manual import: ", 1), ". ")
-			note = strings.TrimSuffix(note, ".") + "."
-			reason = ""
-		}
 		if note != "" {
 			if f != nil {
 				f.Note = strings.TrimPrefix(f.Note+"; "+note, "; ")
@@ -208,10 +206,22 @@ func (l *Library) audioGuard(ctx context.Context, d *importDownload, plan *Plan,
 	return "", nil
 }
 
-// explicitImport says a person chose the import's files: Manual import (a client's chosen files), or an import that
-// named its path on the mount (the native import by path; a download client's completed download is not one).
+// explicitImport says a person chose the import's files for this library: Manual import (a client's chosen files),
+// or an import that named its path on the mount (the native import by path; a download client's completed download
+// is not one). A partner library's download (other.go) inherits the path to find the file, not the choice.
 func explicitImport(d *importDownload) bool {
+	if strings.HasPrefix(d.Source, OtherSourcePrefix) {
+		return false
+	}
 	return len(d.Manual) > 0 || d.SourcePath != "" && d.Client == ""
+}
+
+type manualPreviewKey struct{}
+
+// ManualPreview marks ctx for Manual import's own list of a download's files (a dry run): the wrong-audio rule
+// refuses nothing there and notes its finding on the file, as the Manual import that follows would.
+func ManualPreview(ctx context.Context) context.Context {
+	return context.WithValue(ctx, manualPreviewKey{}, true)
 }
 
 // displaced are the version's files a link displaces, each judged on its own: for a film every file of the version

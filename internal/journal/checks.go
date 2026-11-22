@@ -373,6 +373,24 @@ func (b *builder) profileLanguage(e *Entry) string {
 	return ""
 }
 
+// fileLanguages is what the version wants of a file's audio, as the import's wrong-audio rule reads it: the
+// profile's named language (strict); for a profile set to original English or the original language (strict); else
+// English and the original language. The original language is the one the import reads (NamedOriginalLanguage).
+func (b *builder) fileLanguages(e *Entry, ti *titleInfo) (langs []string, strict bool) {
+	orig := ti.t.NamedOriginalLanguage
+	switch l := b.profileLanguage(e); {
+	case l == "original" && orig != "":
+		return []string{"English", orig}, true
+	case l != "" && l != "any" && l != "original":
+		return []string{b.pol.Profiles[b.pol.Versions[e.Version].Profile].Language}, true
+	}
+	langs = []string{"English"}
+	if orig != "" {
+		langs = append(langs, orig)
+	}
+	return langs, false
+}
+
 // expectedLanguages is what the version wants: the profile's language (original: the title's), else English and
 // the title's original language. strict is true for a profile language.
 func (b *builder) expectedLanguages(e *Entry, ti *titleInfo) (langs []string, strict bool) {
@@ -517,11 +535,7 @@ func (b *builder) checkFile(e *Entry, ti *titleInfo) {
 		}
 	}
 	if len(e.f.fileAudio) > 0 {
-		want, strict := b.expectedLanguages(e, ti)
-		if strict && b.profileLanguage(e) == "original" {
-			// As the import's wrong-audio rule: a film profile set to original takes English too.
-			want = append([]string{"English"}, want...)
-		}
+		want, strict := b.fileLanguages(e, ti)
 		var codes []string
 		for _, w := range want {
 			if c, ok := decide.LanguageCode(w); ok {

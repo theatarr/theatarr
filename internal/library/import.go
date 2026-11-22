@@ -1254,7 +1254,7 @@ func (l *Library) planMovie(ctx context.Context, d *importDownload, vn *VersionN
 	}
 	lk := PlannedLink{Path: path, Target: l.mount.ToLink(pick.Path), File: pick.Rel, Quality: facts.Quality,
 		probe: pick.Probe, size: pick.Size, facts: facts, manual: manual}
-	existing, err := existingFiles(ctx, l.st.Reader(), v.VersionID, v.Title.ID)
+	existing, err := versionFiles(ctx, l.st.Reader(), v.VersionID, v.Title.ID, "active", true)
 	if err != nil {
 		return err
 	}
@@ -1287,7 +1287,7 @@ func (l *Library) planMovie(ctx context.Context, d *importDownload, vn *VersionN
 		}
 	}
 	// A dead link of the version (its file left the mount) is replaced too: revived later, it would be a second file.
-	dead, err := deadFiles(ctx, l.st.Reader(), v.VersionID, v.Title.ID)
+	dead, err := versionFiles(ctx, l.st.Reader(), v.VersionID, v.Title.ID, "dead", true)
 	if err != nil {
 		return err
 	}
@@ -1397,7 +1397,7 @@ func (l *Library) planSeries(ctx context.Context, d *importDownload, vn *Version
 			byAbs[*e.Absolute] = e
 		}
 	}
-	existing, err := existingFiles(ctx, l.st.Reader(), v.VersionID, v.Title.ID)
+	existing, err := versionFiles(ctx, l.st.Reader(), v.VersionID, v.Title.ID, "active", true)
 	if err != nil {
 		return err
 	}
@@ -1530,7 +1530,7 @@ func (l *Library) planSeries(ctx context.Context, d *importDownload, vn *Version
 	if up != nil {
 		plan.seaDexVeto = up.vetoed
 	}
-	dead, err := deadFiles(ctx, l.st.Reader(), v.VersionID, v.Title.ID)
+	dead, err := versionFiles(ctx, l.st.Reader(), v.VersionID, v.Title.ID, "dead", true)
 	if err != nil {
 		return err
 	}

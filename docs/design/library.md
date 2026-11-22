@@ -377,8 +377,11 @@ mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
    - *An empty series slot*: refused every time, `...; this library wants English. Use Manual import to take it
      anyway.`
    An import a person chose is never refused: Manual import (chosen files), the native import by path (a folder or
-   file named on the mount, `download.source_path` without a download client), and Manual import's list (a dry
-   run), which keeps every planned assignment. The file gets a note instead: `Manual import: French audio only;
+   file named on the mount, `download.source_path` without a download client), and Manual import's own list (a dry
+   run its caller marks with `library.ManualPreview`), which keeps every planned assignment. Every other dry run
+   (`theatarr library dry-run`, a hash-only `/import` plan) judges as the import would. The choice is made for the
+   library imported into only: a partner library's download (source `library:<key>`) inherits the path to find the
+   file and is judged as any download. The file gets a note instead: `Manual import: French audio only;
    this library wants English or Japanese.` An Interactive hand grab is judged like any grab. History, Why, the
    activity list and the journal show the refusal whole (`decide.IsAudioRefusal`: `storedWords` and
    `activityMessage` in the web, the journal's short form do not cut it at 120 characters). A partner library's refusal (`tryOther`) keeps its blocklist row, without the deleted

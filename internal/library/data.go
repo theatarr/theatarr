@@ -317,8 +317,8 @@ func loadEpisodes(ctx context.Context, db *sql.DB, titleID int64, ids []int64) (
 	return out, rows.Err()
 }
 
-// existingFile is a file the version has now: our link. Its stored media (the content file's probe, else for an
-// adopted link the arr's media info) is read for the wrong-audio rule (audio.go).
+// existingFile is a file the version has now: our link. The import planner also reads its stored media (the
+// content file's probe, else for an adopted link the arr's media info) for the wrong-audio rule (audio.go).
 type existingFile struct {
 	LinkID   int64
 	Path     string
@@ -331,19 +331,25 @@ type existingFile struct {
 
 // existingFiles lists the version's current files for a title: its active links.
 func existingFiles(ctx context.Context, db *sql.DB, versionID, titleID int64) ([]existingFile, error) {
-	return versionFiles(ctx, db, versionID, titleID, "active")
+	return versionFiles(ctx, db, versionID, titleID, "active", false)
 }
 
 // deadFiles lists the version's dead links for a title: links whose file left the mount (relink's dead mark).
 func deadFiles(ctx context.Context, db *sql.DB, versionID, titleID int64) ([]existingFile, error) {
-	return versionFiles(ctx, db, versionID, titleID, "dead")
+	return versionFiles(ctx, db, versionID, titleID, "dead", false)
 }
 
-func versionFiles(ctx context.Context, db *sql.DB, versionID, titleID int64, state string) ([]existingFile, error) {
+// versionFiles lists the version's links in state for a title, with their stored media when media is set (the
+// import planner's read).
+func versionFiles(ctx context.Context, db *sql.DB, versionID, titleID int64, state string, media bool) ([]existingFile, error) {
+	cols := "NULL, NULL, 0"
+	if media {
+		cols = "cf.probe, l.adopted_media, l.download_id IS NULL"
+	}
 	var out []existingFile
 	rows, err := db.QueryContext(ctx, `
 		SELECT l.id, l.path, l.target, COALESCE((SELECT json_group_array(le.episode_id) FROM link_episode le WHERE le.link_id = l.id), '[]'),
-			cf.probe, l.adopted_media, l.download_id IS NULL
+			`+cols+`
 		FROM link l JOIN link_version lv ON lv.link_id = l.id LEFT JOIN content_file cf ON cf.id = l.content_file_id
 		WHERE lv.version_id = ? AND l.title_id = ? AND l.state = ? ORDER BY l.id`, versionID, titleID, state)
 	if err != nil {

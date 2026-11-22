@@ -159,3 +159,23 @@ func TestImportAudioNotes(t *testing.T) {
 		}
 	}
 }
+
+// The file audio check reads the original language the import reads: a title row that says Japanese beside cached
+// details with an empty original language wants English or Japanese, so a Japanese file is not flagged.
+func TestImportAudioNamedOriginal(t *testing.T) {
+	e := newEnv(t)
+	e.seedRoute()
+	e.pol.Profiles[e.pol.Versions["movie-remux"].Profile].Language = "original"
+	e.exec(`UPDATE title SET original_language = 'Japanese' WHERE id = 1`)
+	e.exec(`UPDATE metadata_cache SET body = ? WHERE key LIKE '/movie/101?%'`,
+		gz(t, map[string]any{"runtime": 120, "original_language": "", "original_title": ""}))
+	e.exec(`INSERT INTO library_import (download_id, state, mount_folder, last_error, plan, created_at, updated_at)
+		VALUES (1, 'linked', '/m/Alpha', NULL, ?, ?, ?)`, `{"files":[{"path":"/m/Alpha/a.mkv","size":30000000000,
+		"probe":{"container":"matroska","runtime_seconds":7200,"audio":[{"codec":"ac3","channels":6,
+		"language":"jpn","tagged":true}]}}]}`, msOf(testNow), msOf(testNow))
+	for _, f := range e.get("dl:1:import").Flags {
+		if f.Code == CheckFileAudio {
+			t.Errorf("flagged: %s", f.Reason)
+		}
+	}
+}
