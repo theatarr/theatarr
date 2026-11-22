@@ -121,6 +121,7 @@ func TestCommandsUseStoredProviderKeys(t *testing.T) {
 	var hr struct {
 		Checks []struct {
 			Source  string `json:"source"`
+			Name    string `json:"name"`
 			Message string `json:"message"`
 		} `json:"checks"`
 	}
@@ -131,6 +132,10 @@ func TestCommandsUseStoredProviderKeys(t *testing.T) {
 	for _, c := range hr.Checks {
 		if c.Source == "ProviderSyncCheck" {
 			msg = c.Message
+			// Named for what it reads (the registry sync's log), not for reaching the providers.
+			if c.Name != "Debrid provider sync" {
+				t.Errorf("ProviderSyncCheck named %q", c.Name)
+			}
 		}
 	}
 	syncCheck("health", msg)

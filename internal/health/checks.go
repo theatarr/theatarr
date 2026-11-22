@@ -603,9 +603,9 @@ type ProviderOptions struct {
 	Now      func() time.Time
 }
 
-// Providers checks provider account reachability from the registry sync's own log (provider_sync_run): a provider
-// whose latest sync failed, or that has not synced completely for three intervals. Every provider failing is an
-// error.
+// Providers checks the provider registry sync from its own log (provider_sync_run), asking no provider anything: a
+// provider whose latest sync failed, or that has not synced completely for three intervals. Every provider failing is
+// an error.
 func Providers(st *store.Store, o ProviderOptions) Func {
 	if o.Interval <= 0 {
 		o.Interval = 6 * time.Hour
@@ -651,11 +651,11 @@ func Providers(st *store.Store, o ProviderOptions) Func {
 		}
 		switch {
 		case len(bad) == len(o.Providers):
-			return Result{Type: Error, Detail: detail, Message: "Debrid providers unreachable: " + strings.Join(bad, "; ")}
+			return Result{Type: Error, Detail: detail, Message: "Debrid provider sync failing for every provider: " + strings.Join(bad, "; ")}
 		case len(bad) > 0:
 			return Result{Type: Warning, Detail: detail, Message: "Debrid provider sync failing: " + strings.Join(bad, "; ")}
 		}
-		return Result{Type: OK, Detail: detail, Message: "Debrid providers reachable: " + strings.Join(providerLabels(o.Providers), ", ")}
+		return Result{Type: OK, Detail: detail, Message: "Last sync worked: " + strings.Join(providerLabels(o.Providers), ", ")}
 	}
 }
 

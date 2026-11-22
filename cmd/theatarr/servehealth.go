@@ -171,7 +171,7 @@ func newServeHealth(c serveHealthConfig) *health.Checker {
 	hc.Add("JobBacklogCheck", "Job backlog", health.Backlog(c.q, health.BacklogOptions{Urgent: urgentJobKinds}))
 	hc.Add("FailedJobsCheck", "Failed jobs", health.FailedJobs(c.q))
 	hc.Add("BackupCheck", "Backups", health.Backup(health.BackupOptions{Dir: c.backupDir, Started: c.started}))
-	hc.Add("ProviderSyncCheck", "Debrid providers", func(ctx context.Context) health.Result {
+	hc.Add("ProviderSyncCheck", "Debrid provider sync", func(ctx context.Context) health.Result {
 		keys, interval := c.providers, c.providerInterval
 		if c.manager != nil {
 			ctx = c.manager.Capture(ctx)

@@ -266,7 +266,8 @@ func TestProviders(t *testing.T) {
 	ctx := context.Background()
 	now := func() time.Time { return t0 }
 	f := Providers(st, ProviderOptions{Providers: []string{"rd", "tb"}, Interval: time.Hour, Now: now})
-	if r := f(ctx); r.Type != OK || r.Message != "Debrid providers reachable: RD, TB" {
+	// The check reads the sync's log and asks no provider: it says what the sync did, never "reachable".
+	if r := f(ctx); r.Type != OK || r.Message != "Last sync worked: RD, TB" {
 		t.Errorf("never synced: %+v", r)
 	}
 	at := store.Millis(t0.Add(-10 * time.Minute))
@@ -277,7 +278,7 @@ func TestProviders(t *testing.T) {
 	}
 	old := store.Millis(t0.Add(-5 * time.Hour))
 	exec(t, st, `UPDATE provider_sync_run SET finished_at = ? WHERE provider = 'rd'`, old)
-	if r := f(ctx); r.Type != Error || !strings.Contains(r.Message, "no complete sync in 5h") {
+	if r := f(ctx); r.Type != Error || r.Message != "Debrid provider sync failing for every provider: RD: no complete sync in 5h; TB: 401 unauthorized" {
 		t.Errorf("all failing: %+v", r)
 	}
 }
