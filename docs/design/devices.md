@@ -156,7 +156,7 @@ SignalR, Sonarr v5, `downloadclient`.
   - Pipeline events are found by polling the database every `notify.poll` (15 s); applied renames have a durable
     record (migration 00065). Downloads and title adds from before the notifier's first run are never announced.
   - Health changes compare each check's source and level, ignoring moving counts/ages in messages. A check turning
-    bad is announced only once it failed (at any level) on two completed check runs in a row, at the latest run's
+    bad is announced only once it failed (a warning or an error; a notice is no failed run) on two completed check runs in a row, at the latest run's
     level; a later change of level is announced at once. The count is kept where a run completes
     (`health.Result.Runs`; a cached read is no new run, nor is a failed provider read the account check replays),
     so it does not depend on how often the notifier looks; one failed run followed by a pass sends nothing. The

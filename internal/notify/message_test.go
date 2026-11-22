@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"slices"
 	"testing"
+	"time"
 
+	"github.com/theatarr/theatarr/internal/health"
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
@@ -222,23 +224,48 @@ func TestHealthWhileOffNotAnnounced(t *testing.T) {
 	}
 }
 
-// Two failing runs in a row alert whatever their level: a warning then an error is announced as failing.
+// Two failing runs in a row alert whatever their level, counted by the health checker itself: a warning then an
+// error is announced as failing; a notice is no failing run, so a notice then a warning sends nothing.
 func TestHealthAlertAcrossLevels(t *testing.T) {
 	t.Parallel()
-	e := newDiscordEnv(t, true, nil)
+	e := newDiscordEnv(t, true, func(p *policy.Policy) {
+		p.Notify.Targets["loud"] = &policy.NotifyTarget{URL: discordHook, Format: policy.NotifyFormatDiscord, Warnings: true}
+	})
+	now := time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)
+	c := health.New(health.Options{TTL: time.Minute, Now: func() time.Time { return now }})
+	level := health.OK
+	c.Add("MountCheck", "Mount", func(context.Context) health.Result { return health.Result{Type: level, Message: level} })
+	e.n.health = func(ctx context.Context) []HealthItem {
+		var out []HealthItem
+		for _, r := range c.Issues(ctx) {
+			out = append(out, HealthItem{Source: r.Source, Type: r.Type, Message: r.Message, Runs: r.Runs})
+		}
+		return out
+	}
 	ctx := context.Background()
-	for _, h := range [][]HealthItem{
-		{{Source: "MountCheck", Type: "warning", Message: "mount slow", Runs: 1}},
-		{{Source: "MountCheck", Type: "error", Message: "mount not readable", Runs: 2}},
-		nil} {
-		e.hlth = h
+	run := func(l string) {
+		t.Helper()
+		level, now = l, now.Add(2*time.Minute)
 		if err := e.n.Scan(ctx); err != nil {
 			t.Fatal(err)
 		}
 	}
+	for _, l := range []string{health.Warning, health.Error, health.OK} {
+		run(l)
+	}
 	want := []string{"Health check failing: MountCheck", "Health check OK again: MountCheck"}
 	if got, _ := e.sentTitles("chan"); !slices.Equal(got, want) {
-		t.Fatalf("got %q, want %q", got, want)
+		t.Fatalf("warning, error, ok: got %q, want %q", got, want)
+	}
+	before, _ := e.sentTitles("loud")
+	run(health.Notice)
+	run(health.Warning)
+	if got, _ := e.sentTitles("loud"); len(got) != len(before) {
+		t.Fatalf("a notice then a warning sent %q", got[len(before):])
+	}
+	run(health.Warning)
+	if got, _ := e.sentTitles("loud"); !slices.Equal(got[len(before):], []string{"Health warning: MountCheck"}) {
+		t.Fatalf("two warnings: %q", got[len(before):])
 	}
 }
 

@@ -441,10 +441,14 @@ func RecordAccepted(ctx context.Context, tx *sql.Tx, key, id, hash, name string,
 // RecordFailed puts torrent t of provider key in its record as the provider answered it, failed (its error state and
 // status words), so Torrents lists it under Failed before the next listing; a row already there is updated.
 func RecordFailed(ctx context.Context, tx *sql.Tx, key string, t Torrent) error {
+	var added any
+	if !t.Added.IsZero() {
+		added = store.Millis(t.Added) // the upload date the provider gave, as a listing stores it
+	}
 	_, err := tx.ExecContext(ctx, `INSERT INTO provider_torrent (provider, torrent_id, info_hash, name, size_bytes,
-		status, state, progress) VALUES (?, ?, lower(?), ?, ?, ?, ?, ?)
+		status, state, progress, added_at) VALUES (?, ?, lower(?), ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (provider, torrent_id) DO UPDATE SET status = excluded.status, state = excluded.state,
-			progress = excluded.progress`, key, t.ID, t.Hash, t.Name, t.Bytes, t.Status, string(StateError), t.Progress)
+			progress = excluded.progress`, key, t.ID, t.Hash, t.Name, t.Bytes, t.Status, string(StateError), t.Progress, added)
 	return err
 }
 

@@ -609,8 +609,9 @@ func TestAllDebridTooBigAtSettle(t *testing.T) {
 	e.ad["rd"].add = func(adder.Magnet, adder.AddOptions) (*adder.Added, error) {
 		return nil, &adder.Error{Provider: "rd", Code: adder.CodeBlocked, ProviderCode: "29"}
 	}
+	uploaded := time.Date(2026, 10, 26, 11, 59, 0, 0, time.UTC)
 	e.pr["ad"].set("ad-"+h("a")[:4], provider.Torrent{Hash: h("a"), Status: "File too big.", State: provider.StateError,
-		TooLarge: true})
+		TooLarge: true, Added: uploaded})
 	e.pr["tb"].set("tb-"+h("a")[:4], provider.Torrent{Hash: h("a"), Status: "cached", State: provider.StateDownloaded})
 	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
 	if err != nil || res.Provider != "tb" {
@@ -624,7 +625,7 @@ func TestAllDebridTooBigAtSettle(t *testing.T) {
 	}
 	// Our fresh add, not yet listed by a sync, is listed on Torrents as failed.
 	if n := e.count(`SELECT COUNT(*) FROM provider_torrent WHERE provider = 'ad' AND torrent_id = ? AND state = 'error'
-		AND status = 'File too big.'`, "ad-"+h("a")[:4]); n != 1 {
+		AND status = 'File too big.' AND added_at = ?`, "ad-"+h("a")[:4], store.Millis(uploaded)); n != 1 {
 		t.Errorf("registry row of the too-big add: %d", n)
 	}
 }
