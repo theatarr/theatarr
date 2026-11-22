@@ -425,7 +425,7 @@ func TestRescueSameReleaseFromOtherAccount(t *testing.T) {
 	e.mu.Lock()
 	o := e.outcomes[0]
 	e.mu.Unlock()
-	if o.Title != "Show (2020)" || fmt.Sprint(o.Episodes) != "[S01E02]" || o.Viewer != "ann" || o.Account != "ad" ||
+	if o.Title != "Show (2020)" || fmt.Sprint(o.Episodes) != "[S01E02]" || o.Viewer != "ann" || o.Account != "" ||
 		o.OldRelease != "Show.S01.1080p.WEB-DL-GRP" {
 		t.Errorf("outcome %+v", o)
 	}
@@ -1145,5 +1145,28 @@ func TestRescueImportBetweenReads(t *testing.T) {
 	}
 	if len(e.copies) != 0 || len(e.stop.stopped()) != 0 {
 		t.Errorf("copies %v, stops %q", e.copies, e.stop.stopped())
+	}
+}
+
+// The account is named only with evidence of who served the file again: zurg logging a transfer of it from that
+// account after the copy. Without it (a plain mount), it stays empty.
+func TestRescueSameReleaseAccountEvidence(t *testing.T) {
+	e := newRescueEnv(t, false, true)
+	e.lib.setBroken("S01E02.mkv", 4) // reads 1-3 and the first re-read; the next passes
+	e.copyOK["ad"] = true
+	waits := 0
+	e.tr.sleep = func(ctx context.Context, d time.Duration) error {
+		e.advance(d)
+		if waits++; waits == 3 { // during step 1
+			e.tr.ZurgLine("INFO Large transfer: 512 MiB of __all__/Rel/S01E02.mkv from ad for 30s")
+		}
+		return ctx.Err()
+	}
+	e.play(2, "buffering")
+	e.poll()
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if len(e.outcomes) != 1 || e.outcomes[0].Kind != outcome.SameRelease || e.outcomes[0].Account != "ad" {
+		t.Errorf("outcomes %+v", e.outcomes)
 	}
 }

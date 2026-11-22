@@ -621,6 +621,21 @@ func (t *Tracker) repair(ctx context.Context, lib Rescuer, j *sign, hash string,
 	t.siblings(ctx, lib, j, id)
 }
 
+// servedSince is the account zurg last logged serving a file from ("Large transfer") at or after since; "" when it
+// logged none (a plain mount never does).
+func (t *Tracker) servedSince(src *Source, since time.Time) string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	base := path.Base(src.Target)
+	account := ""
+	for _, e := range t.events {
+		if e.Kind == kindTransfer && !e.At.Before(since) && (e.File == base || e.File == path.Base(src.File)) {
+			account = e.Account
+		}
+	}
+	return account
+}
+
 // sameCopy reports whether the link of a checked file still points at the copy that was read (a same-path import or
 // a sweep may have changed it meanwhile), and the library may act on it now.
 func (t *Tracker) sameCopy(ctx context.Context, src *Source) bool {
@@ -686,7 +701,8 @@ func (t *Tracker) sameRelease(ctx context.Context, lib Rescuer, j *sign, id int6
 				return copyFailed, acct
 			}
 			if t.read(ctx, lib, j.src.Target, off) == readOK {
-				return copyReadable, acct
+				// Who serves it now is named only on evidence: zurg logging a transfer of the file since the copy.
+				return copyReadable, t.servedSince(&j.src, start)
 			}
 			if !*told && t.o.Now().Sub(start) >= copyQuiet {
 				if !t.sameCopy(ctx, &j.src) {

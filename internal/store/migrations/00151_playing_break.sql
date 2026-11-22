@@ -8,7 +8,7 @@
 -- settled: '' open (acted on), 'copy' (readable again after another account took the release), 'none' (nothing was
 -- done), 'revived' (the old copy read again and nothing else held its film or episodes), 'restored' (put back in
 -- place of its replacement), 'aside' (it reads again but stays aside). fixed_by: 'copy', 'replaced' (an import took
--- its place) or ''. serving: the account verified to serve the file again (step 1's account once it reads). reported: the outcome sent about the watched file, once ('' none yet).
+-- its place) or ''. serving: the account zurg logged serving the file again after step 1 ('' when unknown). reported: the outcome sent about the watched file, once ('' none yet).
 
 -- +goose Up
 CREATE TABLE playing_break (

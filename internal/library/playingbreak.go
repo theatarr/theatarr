@@ -183,7 +183,8 @@ func (l *Library) PlayingHash(ctx context.Context, linkID int64) (string, error)
 }
 
 // SettlePlayingIncident settles every open row of an incident whose link never went dead: settled copy (step 1 made
-// it readable again; fixed_by copy, and account the one verified to serve it now) or none (nothing was done). A row an
+// it readable again; fixed_by copy, and account the one zurg logged serving it since, "" when unknown) or none
+// (nothing was done). A row an
 // import fixed meanwhile (fixed_by replaced) is left as it is.
 func (l *Library) SettlePlayingIncident(ctx context.Context, incident int64, settled, account string) error {
 	fixed := ""
