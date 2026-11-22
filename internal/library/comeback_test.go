@@ -138,12 +138,12 @@ func TestComeBackRevivesUncoveredCopy(t *testing.T) {
 	}
 }
 
-// A returned copy nothing else holds is left unsettled and dead while paused, or when its version is no longer
-// monitored (a covered one is kept aside: comeback_covered_test.go).
+// A returned copy nothing else holds is left unsettled and dead while paused (a covered one is kept aside:
+// comeback_covered_test.go). Monitoring does not matter: a version no longer monitored gets its copy back as the
+// sweep's own revive would.
 func TestComeBackLeavesStoppedCopy(t *testing.T) {
 	for name, change := range map[string]func(e *env){
-		"paused":      func(e *env) { e.pol.Router.Enabled = false },
-		"unmonitored": func(e *env) { e.exec(`UPDATE version SET monitored = 0 WHERE id = 10`) },
+		"paused": func(e *env) { e.pol.Router.Enabled = false },
 	} {
 		e, id := brokenWhilePlaying(t)
 		change(e)
@@ -401,5 +401,48 @@ func TestComeBackRevivedWatchedIsReportedAndKeepsMiss(t *testing.T) {
 	}
 	if jobs := e.playingJobs(); len(jobs) != 2 || fmt.Sprint(jobs[1].Episodes) != "[202]" {
 		t.Errorf("searches %+v", jobs)
+	}
+}
+
+// A version no longer monitored: the copy that reads again on two sweeps is revived all the same.
+func TestComeBackRevivesUnmonitoredCopy(t *testing.T) {
+	for name, q := range map[string]string{
+		"version": `UPDATE version SET monitored = 0 WHERE id = 10`,
+		"title":   `UPDATE title SET monitored = 0 WHERE id = 1`,
+	} {
+		e, id := brokenWhilePlaying(t)
+		e.exec(q)
+		for range 2 {
+			if err := e.lib.ComeBack(e.ctx); err != nil {
+				t.Fatal(err)
+			}
+			e.now = e.now.Add(time.Hour)
+		}
+		if got := e.one(`SELECT state FROM link WHERE id = 1`) + " " + e.one(`SELECT settled FROM playing_break WHERE id = ?`, id); got != "active revived" {
+			t.Errorf("%s unmonitored: %s", name, got)
+		}
+	}
+}
+
+// A row whose link was removed by hand with its files kept, or whose title is gone, is settled at once without a
+// read (it would never be read again): the kept symlink is not touched and the release's miss stays.
+func TestComeBackSettlesRemovedRowsUnread(t *testing.T) {
+	for name, q := range map[string]string{
+		"unlinked":    `UPDATE link SET state = 'unlinked' WHERE id = 1`,
+		"title gone":  `DELETE FROM version WHERE id = 10`,
+		"arr removed": `INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (10, 'ui', 0)`,
+	} {
+		e, id := brokenWhilePlaying(t)
+		e.exec(q)
+		if err := e.lib.ComeBack(e.ctx); err != nil {
+			t.Fatal(err)
+		}
+		if got := e.one(`SELECT settled || ' ' || (back_since IS NULL) FROM playing_break WHERE id = ?`, id) + " " +
+			e.one(`SELECT COUNT(*) FROM provider_cache WHERE source = 'router:playing'`); got != "aside 1 1" {
+			t.Errorf("%s: %s", name, got)
+		}
+		if _, err := os.Lstat(filepath.Join(e.movies, "Movie (2001)", "Movie.mkv")); err != nil {
+			t.Errorf("%s: the symlink was moved: %v", name, err)
+		}
 	}
 }

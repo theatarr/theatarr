@@ -86,6 +86,9 @@ func (l *Library) ComeBack(ctx context.Context) error {
 	if err := l.asideOldReplaced(ctx); err != nil {
 		return err
 	}
+	if err := l.settleGone(ctx); err != nil {
+		return err
+	}
 	rows, err := l.st.Reader().QueryContext(ctx, `SELECT pb.id, pb.incident, pb.link_id, pb.title_id, pb.version_key,
 		pb.path, pb.old_target, pb.info_hash, pb.inner_file, pb.read_offset, pb.back_since,
 		EXISTS (SELECT 1 FROM link l WHERE l.id = pb.link_id AND l.path = pb.path AND l.target = pb.old_target
@@ -213,9 +216,9 @@ func (l *Library) setBack(ctx context.Context, id int64, back bool) error {
 }
 
 // reviveReturned brings back an old copy that read on two sweeps, when nothing else holds any of its film or
-// episodes (a file held in part or whole by another is kept aside: settleAside), and only with Pause off,
-// the version's library writing, and its title and version still there and monitored (a deliberate removal stays
-// removed). In place it is the sweep's revive: active again, its items filled, Plex scanned, the row settled revived,
+// episodes (a file held in part or whole by another is kept aside: settleAside), and only with Pause off and the
+// version's library writing; whatever the monitoring is now, as the sweep's own revive (a row whose link was removed
+// or whose title is gone was settled unread before: settleGone). In place it is the sweep's revive: active again, its items filled, Plex scanned, the row settled revived,
 // and the release's router:playing miss lifted. In a renamed folder it is the sweep's repoint (repointReturned).
 func (l *Library) reviveReturned(ctx context.Context, r returned, target, newFolder string) error {
 	if !l.PlayingWritable(r.version) {
@@ -226,17 +229,6 @@ func (l *Library) reviveReturned(ctx context.Context, r returned, target, newFol
 		return err
 	} else if held {
 		return l.settleAside(ctx, r, asideWords)
-	}
-	var kept bool
-	err := db.QueryRowContext(ctx, `SELECT t.monitored = 1 AND v.monitored = 1
-		AND NOT EXISTS (SELECT 1 FROM arrview_removed_version rv WHERE rv.version_id = v.id)
-		FROM version v JOIN title t ON t.id = v.title_id WHERE v.title_id = ? AND v.policy_key = ?`, r.titleID,
-		r.version).Scan(&kept)
-	if errors.Is(err, sql.ErrNoRows) || err == nil && !kept {
-		return nil
-	}
-	if err != nil {
-		return err
 	}
 	if newFolder != "" {
 		return l.repointReturned(ctx, r, target, newFolder)

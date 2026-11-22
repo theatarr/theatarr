@@ -385,3 +385,41 @@ func TestSettlePlayingWaitsForTheSiblingPass(t *testing.T) {
 		t.Errorf("after the release: %+v", jobs)
 	}
 }
+
+// PlayingSearchable is the round's own eligibility for a file: a film whose title and version are monitored, or a
+// series file with at least one episode the round would search (title and version monitored, the episode monitored
+// in that version and not dropped), in a version whose library is in the settings.
+func TestPlayingSearchable(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		q       string
+		link    int64
+		version string
+		want    bool
+	}{
+		{"monitored", ``, 2, "tv", true},
+		{"episode unmonitored", `UPDATE episode_version_state SET monitored = 0 WHERE episode_id = 202`, 2, "tv", false},
+		{"another episode unmonitored", `UPDATE episode_version_state SET monitored = 0 WHERE episode_id = 202`, 1, "tv", true},
+		{"episode dropped", `UPDATE episode SET removed_at = 1 WHERE id = 202`, 2, "tv", false},
+		{"version unmonitored", `UPDATE version SET monitored = 0 WHERE id = 20`, 2, "tv", false},
+		{"title unmonitored", `UPDATE title SET monitored = 0 WHERE id = 2`, 2, "tv", false},
+		{"removed from the arr view", `INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (20, 'ui', 0)`, 2, "tv", false},
+		{"no such library", ``, 2, "nope", false},
+	} {
+		e := playingEnv(t)
+		if c.q != "" {
+			e.exec(c.q)
+		}
+		if got, err := e.lib.PlayingSearchable(e.ctx, c.link, c.version); err != nil || got != c.want {
+			t.Errorf("%s: %v %v, want %v", c.name, got, err, c.want)
+		}
+	}
+	e, _, _ := deadEnv(t, true)
+	if got, err := e.lib.PlayingSearchable(e.ctx, 1, "movie-remux"); err != nil || !got {
+		t.Errorf("film: %v %v", got, err)
+	}
+	e.exec(`UPDATE version SET monitored = 0 WHERE id = 10`)
+	if got, err := e.lib.PlayingSearchable(e.ctx, 1, "movie-remux"); err != nil || got {
+		t.Errorf("film unmonitored: %v %v", got, err)
+	}
+}

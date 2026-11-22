@@ -191,8 +191,11 @@ broke while playing is searched at once").
   holder. Another release's hash is the one its link stored, else the one the registry records for its folder;
   with no hash on either side, a release in another folder on the mount is another release (only for the
   account-free control).
-- **The repair.** The bound first: one incident per title and library a day; a second one that day gets no fast
-  path (the hourly path as today). Then the incident is recorded, and: **step 1**, the same release on another account
+- **The repair.** A file the round would not search (`Library.PlayingSearchable`: its title or version not monitored
+  or removed from the arr view, or none of its episodes monitored there) gets no fast path at all, before anything is
+  said or counted: no incident, no mark, no message; the hourly sweep treats it as it always has. The same holds for
+  each of the release's other files. The bound first: one incident per title and library a day; a second one that
+  day gets no fast path (the hourly path as today). Then the incident is recorded, and: **step 1**, the same release on another account
   of the library, in its provider order, as the automatic "Add to other providers" adds it (one account at a time; it
   counts when the release was added there or is there complete), the rclone listing of its folder forgotten where
   configured, and the same range read every 10 s for up to a minute: it reads, the incident settles `copy` (link

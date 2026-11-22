@@ -53,6 +53,26 @@ func (l *Library) asideOldReplaced(ctx context.Context) error {
 	return nil
 }
 
+// settleGone settles aside, unread and with nothing else done, the open rows that would never be read again: the
+// title or its version gone (or removed from the arr view), or a link removed by hand (unlinked or deleted, its
+// symlink left as the removal left it) whose film or episodes no other active file holds now. The release's miss
+// stays (nothing was read); no action is recorded (the removal is the person's own).
+func (l *Library) settleGone(ctx context.Context) error {
+	_, err := l.st.Writer().ExecContext(ctx, `UPDATE playing_break SET settled = 'aside', updated_at = ?
+		WHERE settled = '' AND (NOT EXISTS (SELECT 1 FROM version v WHERE v.title_id = playing_break.title_id
+			AND v.policy_key = playing_break.version_key
+			AND NOT EXISTS (SELECT 1 FROM arrview_removed_version rv WHERE rv.version_id = v.id))
+		OR fixed_by = '' AND NOT EXISTS (SELECT 1 FROM link l WHERE l.path = playing_break.path
+			AND l.target = playing_break.old_target AND l.state IN ('active', 'dead'))
+		AND NOT EXISTS (SELECT 1 FROM link o JOIN link_version ov ON ov.link_id = o.id
+			JOIN version v ON v.id = ov.version_id AND v.title_id = playing_break.title_id
+				AND v.policy_key = playing_break.version_key
+			JOIN title t ON t.id = v.title_id WHERE o.state = 'active' AND (t.kind <> 'series' OR EXISTS (
+				SELECT 1 FROM link_episode oe WHERE oe.link_id = o.id
+				AND oe.episode_id IN (SELECT value FROM json_each(playing_break.episodes))))))`, store.Millis(l.now()))
+	return err
+}
+
 // settleAside settles a row aside with one action, a relink in the words given, and lifts the release's miss (none
 // for a row without a hash, as an expired row is given). A dead
 // symlink of the old copy still in the library goes to the trash in the same step, as the sweep moves a covered dead
