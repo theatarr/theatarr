@@ -2491,3 +2491,29 @@ func TestReleasesWholeSeries(t *testing.T) {
 		t.Fatalf("season 2025: target %q", r.Target)
 	}
 }
+
+// TestAddOptionsSeasonsSkipRemovedCopy: the sheet's season ticks are the current copies' state; a removed copy's
+// monitored episodes do not tick a season the active copy has off.
+func TestAddOptionsSeasonsSkipRemovedCopy(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, nil)
+	now := store.Millis(addNow)
+	e.exec(`UPDATE episode_version_state SET monitored = 0 WHERE version_id = 10 AND episode_id = 103`)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
+		(11, 10, 'tv-1080p', 1, 'wanted', ?, ?)`, now, now)
+	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, updated_at) VALUES
+		(11, 103, 1, 'wanted', ?)`, now)
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (11, 'ui', 0)`)
+	var o AddOptions
+	e.call("GET", APIBase+"/add/options?title_id=10", nil, 200, &o)
+	if len(o.Seasons) != 3 || o.Seasons[2].Number != 2 || *o.Seasons[2].Monitored {
+		t.Errorf("season 2 reads the removed copy: %+v", o.Seasons)
+	}
+	// Every copy removed: the add restores the title, and the sheet shows what its copies had.
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (10, 'ui', 0)`)
+	o = AddOptions{}
+	e.call("GET", APIBase+"/add/options?title_id=10", nil, 200, &o)
+	if len(o.Seasons) != 3 || !*o.Seasons[2].Monitored {
+		t.Errorf("removed title's seasons: %+v", o.Seasons)
+	}
+}

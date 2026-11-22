@@ -174,6 +174,17 @@ it("keeps one Save seasons when only the seasons of a series in the library chan
   expect(await bodyOf(fetch)).toEqual({ title_id: 10, kind: "series", versions: ["tv-old"], seasons: [{ season: 1, monitored: false }], search: false });
 });
 
+it("saves only the season changed for a series in the library, leaving its other seasons as they are", async () => {
+  const seasons = [{ season: 0, episodes: 2, monitored: false }, { season: 1, episodes: 8, monitored: true }, { season: 2, episodes: 8, monitored: false }];
+  const inLibrary = { ...seriesOptions, title_id: 10, episodes_known: true, seasons, versions: [{ ...tv, key: "tv-old", on: true, default: false }] };
+  const fetch = mockFetch(routes(inLibrary));
+  const user = userEvent.setup();
+  renderPage(<AddSheet target={{ kind: "series", name: "Kappa", title_id: 10 }} onClose={() => {}} />);
+  await user.click(within(await screen.findByTestId("add-seasons")).getAllByRole("checkbox")[0]);
+  await user.click(screen.getByTestId("add-submit"));
+  expect(await bodyOf(fetch)).toEqual({ title_id: 10, kind: "series", versions: ["tv-old"], seasons: [{ season: 0, monitored: true }], search: false });
+});
+
 it("sends today's request for a new series when every new choice is left alone", async () => {
   const fetch = mockFetch(routes(seriesOptions));
   const user = userEvent.setup();

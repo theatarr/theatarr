@@ -1176,7 +1176,7 @@ func (w *Web) requestSeasons(ctx context.Context, req *Request, keys []string, s
 		ar.moreSeasons = ss
 		return nil
 	}
-	known, err := w.librarySeasons(ctx, *titleID)
+	known, err := w.librarySeasons(ctx, *titleID, false)
 	if err != nil {
 		return err
 	}
@@ -1194,7 +1194,7 @@ func (w *Web) requestSeasons(ctx context.Context, req *Request, keys []string, s
 func (w *Web) seasonChoices(ctx context.Context, titleID *int64, tmdbID, tvdbID int64, want []int) (_ []catalog.Season, read bool) {
 	known := map[int]bool{}
 	if titleID != nil {
-		if ss, err := w.librarySeasons(ctx, *titleID); err == nil {
+		if ss, err := w.librarySeasons(ctx, *titleID, false); err == nil {
 			for _, s := range ss {
 				known[s.Number] = true
 			}

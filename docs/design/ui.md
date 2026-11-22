@@ -156,7 +156,8 @@ libraries that can search are searched at once); for a title already in the libr
 **Add libraries and search**. Only **Add** is offered when no ticked library can search (with a line saying adding
 searches nothing), or for a new series that monitors no episode (Monitor **None**, or its seasons with every box
 cleared; the switch for seasons that appear later does not change that), and only **Save seasons** when only a
-series' seasons changed. Nothing is remembered between adds. An add from the Search overlay that succeeds closes
+series' seasons changed. A series in the library ticks each season by its current copies (a removed copy is not
+read), and **Save seasons** sends only the seasons changed, so the others keep their episode choices. Nothing is remembered between adds. An add from the Search overlay that succeeds closes
 the overlay too, so the title's page it goes to is not covered; Cancel or a failed add returns to the same search,
 its text and results kept. The request sheet closes the overlay only when the member follows one of its links.
 

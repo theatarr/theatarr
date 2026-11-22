@@ -344,7 +344,7 @@ func (w *Web) apiAddOptions(rw http.ResponseWriter, r *http.Request) {
 	}
 	if kind == policy.KindSeries {
 		if t != nil {
-			if out.Seasons, err = w.librarySeasons(ctx, t.id); err != nil {
+			if out.Seasons, err = w.librarySeasons(ctx, t.id, t.inLib); err != nil {
 				w.internal(rw, err)
 				return
 			}
@@ -400,12 +400,15 @@ func (w *Web) seriesSeasons(ctx context.Context, tmdbID, tvdbID int64) []int {
 }
 
 // librarySeasons are a series' seasons from its episode rows, with whether each is monitored for some version.
-func (w *Web) librarySeasons(ctx context.Context, titleID int64) ([]SeasonOption, error) {
+// current counts only the copies not removed (the title's own state while it has one); a title every copy of which
+// was removed reads what its copies had.
+func (w *Web) librarySeasons(ctx context.Context, titleID int64, current bool) ([]SeasonOption, error) {
 	out := []SeasonOption{}
 	err := scanAll(ctx, w.st.Reader(), `SELECT e.season, COUNT(*), COALESCE(MIN((SELECT MAX(s.monitored) FROM
-		episode_version_state s WHERE s.episode_id = e.id)), 1) FROM episode e WHERE e.title_id = ? AND e.removed_at IS NULL
+		episode_version_state s WHERE s.episode_id = e.id AND (? = 0 OR NOT EXISTS (SELECT 1 FROM arrview_removed_version r
+		WHERE r.version_id = s.version_id)))), 1) FROM episode e WHERE e.title_id = ? AND e.removed_at IS NULL
 		GROUP BY e.season
-		ORDER BY e.season`, []any{titleID}, func(r *sql.Rows) error {
+		ORDER BY e.season`, []any{current, titleID}, func(r *sql.Rows) error {
 		var s SeasonOption
 		var mon bool
 		if err := r.Scan(&s.Number, &s.Episodes, &mon); err != nil {
