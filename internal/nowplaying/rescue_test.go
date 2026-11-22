@@ -43,11 +43,14 @@ type testLib struct {
 	unsearchable map[int64]bool
 	held         int64
 	heldReads    []string
+	// asked: the link and version of each PlayingSearchable call.
+	asked []string
 }
 
-func (l *testLib) PlayingSearchable(_ context.Context, linkID int64, _ string) (bool, error) {
+func (l *testLib) PlayingSearchable(_ context.Context, linkID int64, version string) (bool, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	l.asked = append(l.asked, fmt.Sprintf("%d %s", linkID, version))
 	return !l.unsearchable[linkID], nil
 }
 
@@ -1800,5 +1803,21 @@ func TestRescueOutOfRangeReadDoesNotCount(t *testing.T) {
 		if got := e.one(`SELECT state FROM link WHERE id = 11`); got != c.want {
 			t.Errorf("%d in-range failures: link %s, want %s", c.fails, got, c.want)
 		}
+	}
+}
+
+// A sibling is judged eligible in its own library: a pack whose files belong to several library versions asks for each
+// sibling with the version its link belongs to (the one MarkBrokenPlaying would mark it in).
+func TestRescueSiblingEligibilityInItsOwnLibrary(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, state, created_at, updated_at) VALUES (4, 1, 'anime', 'filled', 0, 0)`)
+	e.exec(`UPDATE link_version SET version_id = 4 WHERE link_id = 12`)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.play(2, "buffering")
+	e.poll()
+	e.lib.mu.Lock()
+	defer e.lib.mu.Unlock()
+	if fmt.Sprint(e.lib.asked) != "[11 tv 10 tv 12 anime]" {
+		t.Errorf("asked %v", e.lib.asked)
 	}
 }

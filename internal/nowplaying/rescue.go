@@ -799,26 +799,30 @@ func (t *Tracker) siblings(ctx context.Context, lib Rescuer, j *sign, id int64) 
 	if folder == "" || hash == "" { // a hash only guessed from the folder: no sibling check
 		return
 	}
-	rows, err := t.o.Store.Reader().QueryContext(ctx, `SELECT id, target FROM link WHERE state = 'active'
-		AND kind = 'symlink' AND id <> ? AND instr(target, ?) > 0 ORDER BY path`, j.src.LinkID,
-		"/"+t.o.AllDir+"/"+folder+"/")
+	// Each file with the library version it is judged in: the incident's when its link belongs to it, else its first
+	// (as MarkBrokenPlaying marks it).
+	rows, err := t.o.Store.Reader().QueryContext(ctx, `SELECT l.id, l.target,
+		COALESCE((SELECT v.policy_key FROM link_version lv JOIN version v ON v.id = lv.version_id
+			WHERE lv.link_id = l.id ORDER BY v.policy_key = ? DESC, v.id LIMIT 1), '')
+		FROM link l WHERE l.state = 'active' AND l.kind = 'symlink' AND l.id <> ? AND instr(l.target, ?) > 0
+		ORDER BY l.path`, j.src.version, j.src.LinkID, "/"+t.o.AllDir+"/"+folder+"/")
 	if err != nil {
 		return
 	}
 	type file struct {
-		id     int64
-		target string
+		id              int64
+		target, version string
 	}
 	var files []file
 	for rows.Next() {
 		var f file
-		if rows.Scan(&f.id, &f.target) == nil && releaseFolder(f.target, t.o.AllDir) == folder {
+		if rows.Scan(&f.id, &f.target, &f.version) == nil && releaseFolder(f.target, t.o.AllDir) == folder {
 			files = append(files, f)
 		}
 	}
 	rows.Close()
 	for _, f := range files {
-		if !searchable(ctx, lib, f.id, j.src.version) {
+		if !searchable(ctx, lib, f.id, f.version) {
 			continue
 		}
 		size, err := lib.MountFileSize(ctx, f.target)
