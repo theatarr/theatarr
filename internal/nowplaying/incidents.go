@@ -19,13 +19,14 @@ type Incident struct {
 	ID      int64  `json:"id"`
 	TitleID int64  `json:"title_id"`
 	Title   string `json:"title"`
-	Version string `json:"version"`
+	// Version is the library's key; Files how many files the incident holds (the watched one and those of the release
+	// found broken with it). Both only for callers who see files (the web API leaves them out for others).
+	Version string `json:"version,omitempty"`
 	// Episodes are the watched file's (S01E02); empty for a film.
 	Episodes []string `json:"episodes,omitempty"`
-	// Files is how many files the incident holds: the watched one and those of the release found broken with it.
-	Files  int    `json:"files"`
-	Viewer string `json:"viewer,omitempty"`
-	Player string `json:"player,omitempty"`
+	Files    int      `json:"files,omitempty"`
+	Viewer   string   `json:"viewer,omitempty"`
+	Player   string   `json:"player,omitempty"`
 	// State is looking, replaced, readable, unavailable or restored; Status says it in words.
 	State      string `json:"state"`
 	Status     string `json:"status"`

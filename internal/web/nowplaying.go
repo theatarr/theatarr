@@ -20,8 +20,8 @@ func (w *Web) mountNowPlayingAPI(mux *http.ServeMux) {
 // apiNowPlaying answers what Plex plays, and the files that stopped working while playing in the last 24 hours.
 // Managers and admins (SeeFiles) see every playback with its source, fetch, pre-warm and the cause detail, and every
 // incident with its releases; anyone else sees only their own playbacks (their Plex account), without file detail, and
-// only the incidents of their own playbacks, without the release names and with the message only when their player
-// was stopped with one.
+// only the incidents of their own playbacks, without the release names, the library and the file count, and with the
+// message only when their player was stopped with one.
 func (w *Web) apiNowPlaying(rw http.ResponseWriter, r *http.Request) {
 	var snap *nowplaying.Snapshot
 	if w.nowPlaying != nil {
@@ -55,7 +55,7 @@ func (w *Web) apiNowPlaying(rw http.ResponseWriter, r *http.Request) {
 		if plexName == "" || !strings.EqualFold(in.Viewer, plexName) {
 			continue
 		}
-		in.OldRelease, in.NewRelease = "", ""
+		in.OldRelease, in.NewRelease, in.Version, in.Files = "", "", "", 0
 		if !strings.HasPrefix(in.Message, nowplaying.StoppedNote) {
 			in.Message = "" // why Plex refused is file detail
 		}

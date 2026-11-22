@@ -30,7 +30,7 @@ func TestNowPlayingAPI(t *testing.T) {
 			Source: src(), Fetch: &nowplaying.Fetch{Speed: 1}, Prewarm: &nowplaying.PrewarmState{Episode: "S01E03", State: "ok"}},
 		{Key: "2", UserID: "9", User: "someone-else", State: "playing", Type: "movie", Title: "Alpha", Source: src()},
 	}, Incidents: []nowplaying.Incident{
-		{ID: 5, TitleID: 3, Title: "Gamma (2020)", Episodes: []string{"S01E02"}, Viewer: "usr-plex", Player: "Den TV",
+		{ID: 5, TitleID: 3, Title: "Gamma (2020)", Version: "tv-secret-lib", Files: 3, Episodes: []string{"S01E02"}, Viewer: "usr-plex", Player: "Den TV",
 			State: "replaced", Status: "Replaced with another release", OldRelease: "Old.Broken-GRP", NewRelease: "New.Fine-GRP",
 			Message: nowplaying.StoppedNote + "This file stopped working."},
 		{ID: 6, TitleID: 4, Title: "Delta (2019)", Viewer: "usr-plex", State: "unavailable", Status: "No other copy yet",
@@ -56,7 +56,7 @@ func TestNowPlayingAPI(t *testing.T) {
 	akey := e.apiKey()
 	admin := get(akey)
 	for _, m := range []string{"someone-else", hashA, "Secret.Release", "rd-main", "S01E03", "10.1.2.3", "realdebrid",
-		"Old.Broken-GRP", "New.Fine-GRP", "Omega", "Kitchen", "HTTP 401"} {
+		"Old.Broken-GRP", "New.Fine-GRP", "Omega", "Kitchen", "HTTP 401", `"version":"tv-secret-lib"`, `"files":3`} {
 		if !strings.Contains(admin, m) {
 			t.Errorf("admin does not see %q: %s", m, admin)
 		}
@@ -68,7 +68,7 @@ func TestNowPlayingAPI(t *testing.T) {
 	}
 	for _, m := range []string{"someone-else", "Alpha", hashA, "Secret.Release", "rd-main", "S01E03", "10.1.2.3",
 		"realdebrid", "/media/", "/mnt/", "fetch", "prewarm", "Old.Broken-GRP", "New.Fine-GRP", "Omega", "Kitchen",
-		"HTTP 401"} {
+		"HTTP 401", "tv-secret-lib", `"files"`, `"version"`} {
 		if strings.Contains(user, m) {
 			t.Errorf("user sees %q: %s", m, user)
 		}

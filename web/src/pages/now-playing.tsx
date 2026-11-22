@@ -98,7 +98,7 @@ function Incidents({ items, seeFiles }: { items: NowPlayingIncident[]; seeFiles:
               <li key={i.id} className="space-y-1 px-4 py-3 text-sm [overflow-wrap:anywhere]" data-testid="now-playing-incident">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium text-[var(--ink)]">
                   <Link to={`/title/${i.title_id}`} className="underline-offset-2 hover:underline">{incidentLabel(i)}</Link>
-                  {seeFiles ? <VersionTag k={i.version} /> : null}
+                  {seeFiles && i.version ? <VersionTag k={i.version} /> : null}
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={cn("size-2 shrink-0 rounded-full", DOT[incidentTone(i.state)])} aria-hidden />
@@ -107,7 +107,7 @@ function Incidents({ items, seeFiles }: { items: NowPlayingIncident[]; seeFiles:
                 <div className="text-muted-foreground">
                   {fmtTime(i.at)} ({fmtAgo(i.at)})
                   {i.viewer ? ` · ${i.viewer}${i.player ? ` on ${i.player}` : ""}` : ""}
-                  {i.files > 1 ? ` · ${i.files} files of the release stopped working` : ""}
+                  {(i.files ?? 0) > 1 ? ` · ${i.files} files of the release stopped working` : ""}
                 </div>
                 {msg ? <div className="text-muted-foreground">{msg}</div> : null}
                 {seeFiles && i.old_release ? (
