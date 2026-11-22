@@ -294,7 +294,8 @@ func settleRevivedTx(ctx context.Context, tx *sql.Tx, id int64, hash string, now
 	return settleReturnTx(ctx, tx, id, hash, "revived", now)
 }
 
-// settleReturnTx settles an open row (revived or aside) and lifts its release's router:playing miss.
+// settleReturnTx settles an open row (revived or aside) and lifts its release's router:playing miss, unless another
+// file of that release is still dead and unsettled (a pack's other episode that does not read).
 func settleReturnTx(ctx context.Context, tx *sql.Tx, id int64, hash, settled string, now int64) error {
 	if _, err := tx.ExecContext(ctx, `UPDATE playing_break SET settled = ?, updated_at = ? WHERE id = ? AND settled = ''`,
 		settled, now, id); err != nil {
@@ -303,8 +304,9 @@ func settleReturnTx(ctx context.Context, tx *sql.Tx, id int64, hash, settled str
 	if hash == "" {
 		return nil
 	}
-	_, err := tx.ExecContext(ctx, `DELETE FROM provider_cache WHERE info_hash = ? AND source = ?`, hash,
-		router.PlayingMissSource)
+	_, err := tx.ExecContext(ctx, `DELETE FROM provider_cache WHERE info_hash = ? AND source = ? AND NOT EXISTS (
+		SELECT 1 FROM playing_break pb JOIN link l ON l.id = pb.link_id AND l.path = pb.path AND l.target = pb.old_target
+		WHERE pb.info_hash = ? AND pb.settled = '' AND l.state = 'dead')`, hash, router.PlayingMissSource, hash)
 	return err
 }
 

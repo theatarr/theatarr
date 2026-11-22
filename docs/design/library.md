@@ -857,8 +857,11 @@ state and Cutoff unmet are its own. The journal records an `edit_file` action (m
     writing, the title and version still there and monitored, and no other active file holding its film or any one of
     its episodes. In place: revived as the sweep revives one (action `relink`, "revived: the copy that broke while
     playing reads again"). In a renamed folder: the sweep's repoint, run by the come-back. Only once the link points
-    there and is active is the row settled `revived` and the release's `router:playing` miss lifted
-    (`TestComeBackRevivesUncoveredCopy`, `TestComeBackRenamedFolder`). While paused, or for a version no longer
+    there and is active is the row settled `revived` and the release's `router:playing` miss lifted, unless another
+    file of that release is still dead and unsettled (`TestComeBackRevivesUncoveredCopy`, `TestComeBackRenamedFolder`;
+    the same rule when a copy is kept aside). A watched copy revived while its search is still open is revived at once;
+    the settle pass reports it once as readable again when that search has ended, then queues the search of the
+    release's other broken files (`TestComeBackRevivedWatchedIsReportedAndKeepsMiss`). While paused, or for a version no longer
     monitored, it stays as it is (`TestComeBackLeavesStoppedCopy`).
   - **Kept aside.** A copy that works again while other files hold its film or some of its episodes, or that an import
     replaced (also when that replacement was removed later), is kept aside once Pause is off, its library writes, and

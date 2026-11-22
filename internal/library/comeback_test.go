@@ -1,6 +1,7 @@
 package library
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/library/decypharrtest"
+	"github.com/theatarr/theatarr/internal/outcome"
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
@@ -347,5 +349,57 @@ func TestComeBackEndsAtATimeOut(t *testing.T) {
 	}
 	if got := back(); got != "0,1" {
 		t.Errorf("the next pass: %s (e2 not read first)", got)
+	}
+}
+
+// A watched copy that reads again on two sweeps is revived at once, also while its search is still open; the settle
+// pass then reports it once as readable again when that search has ended and queues the search of the release's other
+// broken file. The release's miss stays while that other file of the same hash is still dead and unsettled.
+func TestComeBackRevivedWatchedIsReportedAndKeepsMiss(t *testing.T) {
+	e := playingEnv(t)
+	var got []outcome.Outcome
+	e.lib.OnPlayingOutcome(func(o outcome.Outcome) { got = append(got, o) })
+	id, err := e.lib.OpenPlayingIncident(e.ctx, PlayingIncident{TitleID: 2, Version: "tv"}, PlayingFile{LinkID: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := e.lib.MarkBrokenPlaying(e.ctx, id, PlayingFile{LinkID: 1, Target: e.linkTarget(1)}, true,
+		[]string{"rd"}); err != nil || !ok {
+		t.Fatalf("marked %v: %v", ok, err)
+	}
+	if ok, err := e.lib.MarkBrokenPlaying(e.ctx, id, PlayingFile{LinkID: 2, Target: e.linkTarget(2)}, false,
+		nil); err != nil || !ok {
+		t.Fatalf("sibling %v: %v", ok, err)
+	}
+	if err := os.Truncate(e.linkTarget(2), 0); err != nil { // e2 still does not read
+		t.Fatal(err)
+	}
+	for range 2 { // the watched file's search is still queued
+		if err := e.lib.ComeBack(e.ctx); err != nil {
+			t.Fatal(err)
+		}
+		e.now = e.now.Add(deadConfirm + time.Minute)
+	}
+	if got := e.one(`SELECT state FROM link WHERE id = 1`) + " " + e.one(`SELECT settled FROM playing_break WHERE id = ?`, id) +
+		" " + e.one(`SELECT COUNT(*) FROM provider_cache WHERE source = 'router:playing'`); got != "active revived 1" {
+		t.Fatalf("after two reads: %s (want revived, the miss kept for e2)", got)
+	}
+	if err := e.lib.SettlePlayingRuns(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 0 || len(e.playingJobs()) != 1 {
+		t.Fatalf("while its search is open: outcomes %+v, searches %+v", got, e.playingJobs())
+	}
+	e.exec(`UPDATE job SET state = 'done'`)
+	for range 2 {
+		if err := e.lib.SettlePlayingRuns(e.ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(got) != 1 || got[0].Kind != outcome.SameRelease {
+		t.Errorf("outcomes %+v", got)
+	}
+	if jobs := e.playingJobs(); len(jobs) != 2 || fmt.Sprint(jobs[1].Episodes) != "[202]" {
+		t.Errorf("searches %+v", jobs)
 	}
 }

@@ -147,29 +147,34 @@ func playingFixedTx(ctx context.Context, tx *sql.Tx, titleID, versionID int64, v
 	return watched, nil
 }
 
+// playingSearchOpenSQL is an incident's search still open, on its watched row pb: marked dead and searched, not
+// settled (or revived by the come-back while its search was open), and its outcome not sent yet or its other broken
+// files' search not queued yet. The settle pass works on these; a copy is not kept aside while its incident's is.
+const playingSearchOpenSQL = `pb.watched = 1 AND pb.settled IN ('', 'revived') AND pb.searched = 1
+	AND (pb.reported = '' OR EXISTS (SELECT 1 FROM playing_break s WHERE s.incident = pb.id AND s.settled = ''
+		AND s.searched = 0))`
+
 // SettlePlayingRuns looks at each incident whose watched file was marked dead and whose outcome is not sent yet (or
-// whose other broken files wait for their search): once nothing of its search is pending (no search job, due search
+// whose other broken files wait for their search), also one the come-back revived meanwhile (readable again): once nothing of its search is pending (no search job, due search
 // row, running search or route, nor a download in flight of its title's version since the break), the outcome is sent
 // (replaced when an import fixed it, else unavailable) and the other files' search is queued (QueuePlayingSearch).
 // The library's maintenance calls it every 30 s; it holds no incident id anywhere else. While now playing's pass over
 // an incident's other files runs (HoldPlayingSiblings) their search is not queued yet.
 func (l *Library) SettlePlayingRuns(ctx context.Context) error {
 	rows, err := l.st.Reader().QueryContext(ctx, `SELECT pb.id, pb.title_id, pb.version_key, pb.broken_at, pb.episodes,
-		pb.fixed_by, pb.reported FROM playing_break pb WHERE pb.watched = 1 AND pb.settled = '' AND pb.searched = 1
-		AND (pb.reported = '' OR EXISTS (SELECT 1 FROM playing_break s WHERE s.incident = pb.id AND s.settled = ''
-			AND s.searched = 0))`)
+		pb.fixed_by, pb.reported, pb.settled FROM playing_break pb WHERE `+playingSearchOpenSQL)
 	if err != nil {
 		return err
 	}
 	type open struct {
-		id, title, since int64
-		version, eps     string
-		fixed, reported  string
+		id, title, since         int64
+		version, eps             string
+		fixed, reported, settled string
 	}
 	var todo []open
 	for rows.Next() {
 		var o open
-		if err := rows.Scan(&o.id, &o.title, &o.version, &o.since, &o.eps, &o.fixed, &o.reported); err != nil {
+		if err := rows.Scan(&o.id, &o.title, &o.version, &o.since, &o.eps, &o.fixed, &o.reported, &o.settled); err != nil {
 			rows.Close()
 			return err
 		}
@@ -191,8 +196,11 @@ func (l *Library) SettlePlayingRuns(ctx context.Context) error {
 		}
 		if o.reported == "" {
 			kind := outcome.Unavailable
-			if o.fixed == "replaced" {
+			switch {
+			case o.fixed == "replaced":
 				kind = outcome.Replaced
+			case o.settled == "revived":
+				kind = outcome.SameRelease // the old copy read again while its search was open: readable again
 			}
 			if err := l.ReportPlaying(ctx, o.id, kind); err != nil {
 				return err

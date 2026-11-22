@@ -65,10 +65,8 @@ func (l *Library) settleAside(ctx context.Context, r returned, words string) err
 	// The incident's search still open (the settle pass has not reported it, or a sibling's search is not queued
 	// yet): settling now would end its route and strand that search and its outcome. A later sweep.
 	var open bool
-	if err := l.st.Reader().QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM playing_break w WHERE w.id = ?
-		AND w.watched = 1 AND w.settled = '' AND w.searched = 1 AND (w.reported = '' OR EXISTS (
-			SELECT 1 FROM playing_break s WHERE s.incident = w.id AND s.settled = '' AND s.searched = 0)))`,
-		r.incident).Scan(&open); err != nil || open {
+	if err := l.st.Reader().QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM playing_break pb WHERE pb.id = ? AND `+
+		playingSearchOpenSQL+`)`, r.incident).Scan(&open); err != nil || open {
 		return err
 	}
 	now := store.Millis(l.now())
