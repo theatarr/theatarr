@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -570,6 +571,8 @@ func TestMountHelperMatchesInProcess(t *testing.T) {
 	if r, err := hm.ProbeFile(ctx, filepath.Join(rel, "movie.mkv"), 0, nil); err != nil || len(r.Audio) != 2 ||
 		!r.Audio[0].Tagged || r.Audio[1].Tagged {
 		t.Errorf("helper probe audio %+v %v", r, err)
+	} else if b, _ := json.Marshal(r.Audio); strings.Count(string(b), `"tagged":true`) != 1 {
+		t.Errorf("the stored probe's audio %s", b) // what the import stores (content_file.probe)
 	}
 	// Probe errors keep their sentinel.
 	if _, err := hm.ProbeFile(ctx, filepath.Join(rel, "Sub", "ep.mkv"), 0, nil); !errors.Is(err, probe.ErrUnknownFormat) {

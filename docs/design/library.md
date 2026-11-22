@@ -347,20 +347,23 @@ mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
    the whole import before anything is applied, through the ordinary reject: the download fails, the release is
    blocklisted for the library (`router_blocklist`, source `library`) and the poll searches again. No hold.
    - *Judged only on clear audio*: the probe succeeded, the file has an audio track, and every track's language was
-     in the file (`probe.Audio.Tagged`, kept in memory and carried across the mount helper, not stored: a Matroska
-     track without a Language element reads `eng` but is not tagged; MP4 `und` is no tag) and is in the language
+     in the file (`probe.Audio.Tagged`, stored with the probe as `tagged`: a Matroska track without a Language
+     element reads `eng` but is not tagged; MP4 `und` is no tag) and is in the language
      table. One untagged track, or `und`, `zxx`, `mul`, `mis`, a private code or any code the table lacks (`myn`):
      no verdict. Tags read through `decide.AudioLanguage`, the one mapping the journal's `file_audio_language` check
      uses too: region subtags are cut (`ja-JP`), `fre`/`fra` are French, `nob`/`nb`/`nn` Norwegian.
    - *Wanted*: a film profile's named language; a film profile set to `original`, and every series library, the
      title's original language **or** English (the original read by name or code, `ko` is Korean; one the table
      lacks gives English alone). No rule for profile `any`, nor when nothing stores the title's original language
-     (`decide.Title.NamedOriginalLanguage` is empty; LoadTitle's English fallback is not a named language). A
-     series whose stored value is empty or `Unknown` takes the metadata's code.
+     (`decide.Title.NamedOriginalLanguage` is empty; LoadTitle's English fallback is not a named language). It is
+     the first source that names one: the title row, the metadata row, a film's cached details (a series stored
+     as `Unknown` takes the metadata's code; a film whose details are empty keeps the title row's).
    - *Replacing files*: each file the link displaces is judged on its own (a film: every file of the version; a
      series: the files at the link's own path or sharing an episode with it, active or dead). The new file is
      refused unless it shares an audio language with every one of them (their stored probe, else an adopted file's
-     arr media info, read with the version's files when the plan is made); unknown audio shares none. A French-only
+     arr media info, read with the version's files when the plan is made); unknown audio shares none. A stored
+     Matroska `eng` track without `tagged` (untagged, or a probe stored before the fact was kept) is unknown;
+     other languages in an old probe stay known. A French-only
      E01-E02 file does not replace an English E01 beside a French E02.
      `Import refused: French audio only; the file in the library has English.`
    - *An empty film slot*: refused once, `Import refused: French audio only; this library wants English or Japanese.
@@ -385,7 +388,9 @@ mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
    `TestAudioRuleEmptyFilmSlotRefusedOnce`, `TestAudioRuleSeries`, `TestAudioRuleUnlinkedFileNoVeto`,
    `TestAudioRuleManualImportLinks`, `TestAudioRuleProfileAny`, `TestAudioRulePartnerLibrary`,
    `TestAudioRuleNoOriginalLanguage`, `TestAudioRuleEachDisplacedFile`, `TestAudioRuleSeriesUnknownOriginal`,
-   `TestAudioRulePathImportNotRefused`, `TestAudioRulePreviewKeepsAssignments`, `decide.TestAudioLanguage`,
+   `TestAudioRulePathImportNotRefused`, `TestAudioRulePreviewKeepsAssignments`, `TestAudioRuleStoredTagFact`,
+   `TestAudioRuleTagFactStored`, `TestAudioRuleFilmEmptyDetailsLanguage`, `journal.TestImportAudioNotes`,
+   `decide.TestAudioLanguage`,
    `decide.TestLanguageCode`, `journal.TestFileAudioWordsAndRefusalWhole`, `web.TestShortReason`.
 5. **What each file is** (`decide.AggregateSeriesFile`, `AggregateMovieFile`, `library/facts.go`): the
    arrs' import aggregation, per file, with the version's Sonarr parser dialect. Quality (`AggregateQuality`: the

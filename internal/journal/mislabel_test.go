@@ -123,3 +123,39 @@ func TestImportNotUpgradeIsNotPartPack(t *testing.T) {
 		}
 	}
 }
+
+// The wrong-audio rule's notes on the real import entry: the file audio warning names languages and lists English
+// with the original under an original profile, and a note that says the file was taken carries no second
+// "(not refused)".
+func TestImportAudioNotes(t *testing.T) {
+	for _, note := range []string{
+		"audio: French only, not what this library wants; taken because an earlier release with the same audio was refused",
+		"Manual import: French audio only; this library wants English or Japanese.",
+	} {
+		e := newEnv(t)
+		e.seedRoute()
+		e.pol.Profiles[e.pol.Versions["movie-remux"].Profile].Language = "original"
+		e.exec(`UPDATE title SET original_language = 'Japanese' WHERE id = 1`)
+		e.exec(`DELETE FROM metadata_cache`)
+		e.exec(`INSERT INTO library_import (download_id, state, mount_folder, last_error, plan, created_at, updated_at)
+			VALUES (1, 'linked', '/m/Alpha', NULL, ?, ?, ?)`, `{"files":[{"path":"/m/Alpha/a.mkv","size":30000000000,
+			"probe":{"container":"matroska","runtime_seconds":7200,"audio":[{"codec":"ac3","channels":6,
+			"language":"fre","tagged":true}]},"note":"`+note+`"}]}`, msOf(testNow), msOf(testNow))
+		g := e.get("dl:1:import")
+		var audio, guard []string
+		for _, f := range g.Flags {
+			switch f.Code {
+			case CheckFileAudio:
+				audio = append(audio, f.Reason)
+			case CheckGuard:
+				guard = append(guard, f.Reason)
+			}
+		}
+		if len(audio) != 1 || audio[0] != "the file's audio is French; wanted English or Japanese" {
+			t.Errorf("audio flags %q", audio)
+		}
+		if len(guard) != 1 || guard[0] != "the library's guard noted a file: "+note {
+			t.Errorf("guard flags %q", guard)
+		}
+	}
+}

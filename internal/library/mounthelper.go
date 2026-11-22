@@ -62,10 +62,8 @@ type helperResponse struct {
 	Entries []helperEntry `json:"entries,omitempty"`
 	Target  []byte        `json:"target,omitempty"`
 	Probe   *probe.Result `json:"probe,omitempty"`
-	// Tagged carries each probed audio track's probe.Audio.Tagged, which the probe's JSON leaves out.
-	Tagged []bool `json:"tagged,omitempty"`
-	Read   int64  `json:"read,omitempty"` // a head or range read's bytes
-	Size   int64  `json:"size,omitempty"` // a range read's file size
+	Read    int64         `json:"read,omitempty"` // a head or range read's bytes
+	Size    int64         `json:"size,omitempty"` // a range read's file size
 }
 
 // helperErr carries an error across the pipe: its message, and what errors.Is must still find in it (the errno,
@@ -293,11 +291,7 @@ func (s *helperServer) handle(req helperRequest) (resp helperResponse) {
 			resp.Target = []byte(target)
 		}
 	case opProbe:
-		if resp.Probe, err = s.probe(path, rel, req.Max); resp.Probe != nil {
-			for _, a := range resp.Probe.Audio {
-				resp.Tagged = append(resp.Tagged, a.Tagged)
-			}
-		}
+		resp.Probe, err = s.probe(path, rel, req.Max)
 	case opHead:
 		var f *os.File
 		if f, err = s.open("open", path, rel, false); err == nil {

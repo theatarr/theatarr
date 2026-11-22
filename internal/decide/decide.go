@@ -53,10 +53,9 @@ type Title struct {
 	// resolved at load (metadata, else English): its held files with no known language then take it, as an untagged
 	// release does.
 	OriginalLanguageResolved bool
-	// NamedOriginalLanguage is the original language as something stored names it, by name or code: the title's own,
-	// else (a series whose stored value is empty or Unknown) the metadata's code; for a film OriginalLanguage unless
-	// nothing names it. "" when nothing does (OriginalLanguage is then the English fallback). The import's
-	// wrong-audio rule reads it.
+	// NamedOriginalLanguage is the original language as the first stored source names it, by name or code: the
+	// title row, else the metadata row, else (films) the cached details; "" when none does (empty or Unknown). The
+	// import's wrong-audio rule reads it; OriginalLanguage, which the decisions read, is resolved as before.
 	NamedOriginalLanguage string
 	Anime                 bool
 

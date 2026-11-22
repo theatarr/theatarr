@@ -79,8 +79,15 @@ func (b *builder) check(e *Entry) error {
 		}
 	case KindImport:
 		b.checkGuardRejects(e)
-		if e.f.importNotes != "" {
-			e.flag(CheckGuard, SevInfo, "the library's guard noted a file: %s (not refused)", e.f.importNotes)
+		if n := e.f.importNotes; n != "" {
+			// A note that says itself the file was taken (a manual import's, the wrong-audio rule's second release)
+			// needs no "(not refused)".
+			if strings.Contains(n, "not refused") || strings.Contains(n, "Manual import: ") ||
+				strings.Contains(n, "taken because") {
+				e.flag(CheckGuard, SevInfo, "the library's guard noted a file: %s", n)
+			} else {
+				e.flag(CheckGuard, SevInfo, "the library's guard noted a file: %s (not refused)", n)
+			}
 		}
 	}
 	return nil
@@ -354,6 +361,18 @@ func packCoverage(ctx context.Context, release string, eps []int64, claim *decid
 	return eps, true
 }
 
+// profileLanguage is the version's profile language, lower case ("" unset).
+func (b *builder) profileLanguage(e *Entry) string {
+	if b.pol != nil {
+		if vp := b.pol.Versions[e.Version]; vp != nil {
+			if pr := b.pol.Profiles[vp.Profile]; pr != nil {
+				return strings.ToLower(strings.TrimSpace(pr.Language))
+			}
+		}
+	}
+	return ""
+}
+
 // expectedLanguages is what the version wants: the profile's language (original: the title's), else English and
 // the title's original language. strict is true for a profile language.
 func (b *builder) expectedLanguages(e *Entry, ti *titleInfo) (langs []string, strict bool) {
@@ -499,6 +518,10 @@ func (b *builder) checkFile(e *Entry, ti *titleInfo) {
 	}
 	if len(e.f.fileAudio) > 0 {
 		want, strict := b.expectedLanguages(e, ti)
+		if strict && b.profileLanguage(e) == "original" {
+			// As the import's wrong-audio rule: a film profile set to original takes English too.
+			want = append([]string{"English"}, want...)
+		}
 		var codes []string
 		for _, w := range want {
 			if c, ok := decide.LanguageCode(w); ok {

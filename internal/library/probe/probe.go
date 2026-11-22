@@ -87,9 +87,9 @@ type Audio struct {
 	Channels int    `json:"channels"`
 	Language string `json:"language,omitempty"`
 	// Tagged: the language came from the file (a Matroska Language or LanguageIETF element, an MP4 mdhd language);
-	// a Matroska track without one reads as eng, Matroska's default. Not stored: a probe read back from the
-	// database is not tagged, and the import's wrong-audio rule reads only a fresh probe.
-	Tagged bool `json:"-"`
+	// a Matroska track without one reads as eng, Matroska's default. Stored with the probe (left out when false); a
+	// probe stored before it has none, and the import's wrong-audio rule then reads a Matroska eng as unknown.
+	Tagged bool `json:"tagged,omitempty"`
 }
 
 // Result is what a probe found.

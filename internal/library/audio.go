@@ -241,6 +241,9 @@ func storedAudio(pr, media sql.NullString, adopted bool) []string {
 	var tags []string
 	if p, err := parseProbe(pr); err == nil && p != nil {
 		for _, a := range p.Audio {
+			if !a.Tagged && p.Container == "matroska" && strings.EqualFold(a.Language, "eng") {
+				continue // Matroska's default, not a tag (or a probe stored before the fact was kept)
+			}
 			tags = append(tags, a.Language)
 		}
 	} else if adopted && media.String != "" {

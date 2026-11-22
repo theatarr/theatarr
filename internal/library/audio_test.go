@@ -1,6 +1,8 @@
 package library
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -44,6 +46,12 @@ func (e *env) audioFilm(original string) {
 // stored probe holding audio tracks with these tags.
 func (e *env) heldFilm(path string, langs ...string) string {
 	e.t.Helper()
+	return e.heldFilmAudio(path, tracks(langs...))
+}
+
+// heldFilmAudio is heldFilm with the stored probe's audio tracks as given.
+func (e *env) heldFilmAudio(path string, a []probe.Audio) string {
+	e.t.Helper()
 	if path == "" {
 		path = filepath.Join(e.movies, "Amelie The Movie (2001)", "held.mkv")
 	}
@@ -54,7 +62,7 @@ func (e *env) heldFilm(path string, langs ...string) string {
 	if err := os.Symlink(target, path); err != nil {
 		e.t.Fatal(err)
 	}
-	pr, _ := json.Marshal(probe.Result{Container: "matroska", RunTimeSeconds: 7000, Audio: tracks(langs...)})
+	pr, _ := json.Marshal(probe.Result{Container: "matroska", RunTimeSeconds: 7000, Audio: a})
 	e.exec(`INSERT INTO content (id, info_hash, first_seen_at, last_seen_at) VALUES (1, 'held', 0, 0)`)
 	e.exec(`INSERT INTO content_file (id, content_id, path, size_bytes, probe) VALUES (1, 1, 'held.mkv', 1, ?)`, string(pr))
 	e.exec(`INSERT INTO link (id, path, target, kind, title_id, release_title, quality, content_file_id, state,
@@ -577,5 +585,81 @@ func TestAudioRulePreviewKeepsAssignments(t *testing.T) {
 	}
 	if f := plannedFile(p, e2); f == nil || !strings.Contains(f.Note, "Manual import: French audio only; this library wants English.") {
 		t.Errorf("note %+v", f)
+	}
+}
+
+// The held file's stored probe says whether a track's language was in the file. An untagged Matroska track (eng by
+// Matroska's default, and any eng in a Matroska probe stored before the fact was kept) is unknown: an English-only
+// file does not replace it under a French profile, and a refusal does not say it has English. Another language in
+// an old probe stays known.
+func TestAudioRuleStoredTagFact(t *testing.T) {
+	t.Parallel()
+	untagged := []probe.Audio{{Codec: "ac3", Channels: 6, Language: "eng"}}
+	for _, tc := range []struct {
+		name, profile, original string
+		held                    []probe.Audio
+		file                    []string
+		imported                bool
+		reason                  string
+	}{
+		{"English over an untagged track, French profile", "French", "", untagged, []string{"eng"}, false,
+			"Import refused: English audio only; the file in the library has no known audio language."},
+		{"French over an untagged track", "original", "Japanese", untagged, []string{"fre"}, false,
+			"Import refused: French audio only; the file in the library has no known audio language."},
+		{"old probe, eng", "original", "Japanese", untagged, []string{"spa"}, false,
+			"Import refused: Spanish audio only; the file in the library has no known audio language."},
+		{"old probe, jpn stays known", "English", "", []probe.Audio{{Codec: "ac3", Language: "jpn"}}, []string{"jpn"},
+			true, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			e := newEnv(t, true)
+			e.pol.Profiles["movie-state"].Language = tc.profile
+			e.exec(`UPDATE title SET original_language = ? WHERE id = 1`, tc.original)
+			e.heldFilmAudio("", tc.held)
+			e.filmImport(1, hashA, movieRelease, tracks(tc.file...))
+			if got := e.state(1) == "imported"; got != tc.imported {
+				t.Fatalf("imported %v, want %v (%s)", got, tc.imported, e.one(`SELECT COALESCE(error, '') FROM download WHERE id = 1`))
+			}
+			if !tc.imported {
+				if got := e.one(`SELECT reason FROM router_blocklist WHERE info_hash = ?`, hashA); got != tc.reason {
+					t.Errorf("reason %q, want %q", got, tc.reason)
+				}
+			}
+		})
+	}
+}
+
+// The fact is stored with the probe at import: the content file's probe says which tracks were tagged.
+func TestAudioRuleTagFactStored(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
+	e.audio(movieRelease, append(tracks("jpn"), probe.Audio{Codec: "ac3", Language: "eng"}))
+	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
+	if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.one(`SELECT COALESCE(json_extract(probe, '$.audio[0].tagged'), 0) || '|' ||
+		COALESCE(json_extract(probe, '$.audio[1].tagged'), 0) FROM content_file`); got != "1|0" {
+		t.Errorf("stored tagged %s", got)
+	}
+}
+
+// A film whose title row names Japanese while its cached details carry no original language: the rule wants
+// Japanese or English (the first source that names one), so a Japanese file imports.
+func TestAudioRuleFilmEmptyDetailsLanguage(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.audioFilm("Japanese")
+	var b bytes.Buffer
+	zw := gzip.NewWriter(&b)
+	_, _ = zw.Write([]byte(`{"original_title":"Amelie","original_language":"","runtime":120}`))
+	_ = zw.Close()
+	e.exec(`INSERT INTO metadata_cache (source, key, status, body, fetched_at, expires_at) VALUES ('tmdb',
+		'/movie/194?append_to_response=external_ids%2Crelease_dates', 200, ?, 0, 0)`, b.Bytes())
+	e.filmImport(1, hashA, movieRelease, tracks("jpn"))
+	if e.state(1) != "imported" {
+		t.Errorf("%s: %s", e.state(1), e.one(`SELECT COALESCE(error, '') FROM download WHERE id = 1`))
 	}
 }
