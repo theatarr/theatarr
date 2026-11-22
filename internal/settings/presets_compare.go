@@ -184,13 +184,26 @@ func profileFlavour(p *policy.Policy, key string, pr *policy.Profile) string {
 // identity is a format's TRaSH id: its own, or, for a copy without one, the id of the TRaSH format of its name
 // (exact, or without Notifiarr's " - Notifiarr"). definition says which.
 func identity(t *format.Trash, name string, ref *policy.FormatRef) (id, definition string) {
+	return identityOf(t, name, ref, refSpec(ref))
+}
+
+// refSpec is a format's stored arr JSON (Specification), decoded; zero when it has none.
+func refSpec(ref *policy.FormatRef) format.FormatJSON {
+	var j format.FormatJSON
+	if ref != nil && len(ref.Specification) > 0 {
+		_ = json.Unmarshal(ref.Specification, &j)
+	}
+	return j
+}
+
+// identityOf is identity with the specification already decoded (spec).
+func identityOf(t *format.Trash, name string, ref *policy.FormatRef, spec format.FormatJSON) (id, definition string) {
 	if ref != nil {
 		if ref.TrashID != "" {
 			return ref.TrashID, DefinitionTrash
 		}
-		var j format.FormatJSON
-		if len(ref.Specification) > 0 && json.Unmarshal(ref.Specification, &j) == nil && j.TrashID != "" {
-			return j.TrashID, DefinitionTrash
+		if spec.TrashID != "" {
+			return spec.TrashID, DefinitionTrash
 		}
 	}
 	if t != nil {
@@ -266,16 +279,14 @@ func QualityOverviewOf(in OverviewInput) QualityOverview {
 	}
 	addFormat := func(flavour, name, scope string, ref *policy.FormatRef, recordID int64) *FormatSummary {
 		t := in.Trash[flavour]
-		id, def := identity(t, name, ref)
+		spec := refSpec(ref)
+		id, def := identityOf(t, name, ref, spec)
 		k := formatKey(flavour, id, name)
-		// One of ours is shown and found by the name it was saved with; its key stays in Key for editing and
-		// references.
+		// A standalone format of ours is shown by the name it was saved with; its key stays in Key for editing and
+		// references, and a name the list finds. A format set's entry keeps its own name, which its profiles link by.
 		label := name
-		if def == DefinitionOurs && ref != nil && len(ref.Specification) > 0 {
-			var j format.FormatJSON
-			if json.Unmarshal(ref.Specification, &j) == nil && strings.TrimSpace(j.Name) != "" {
-				label = j.Name
-			}
+		if def == DefinitionOurs && recordID != 0 && strings.TrimSpace(spec.Name) != "" {
+			label = spec.Name
 		}
 		f := formats[k]
 		if f == nil {
@@ -299,8 +310,10 @@ func QualityOverviewOf(in OverviewInput) QualityOverview {
 		if def == DefinitionTrash {
 			f.Definition = DefinitionTrash
 		}
-		if !slices.Contains(f.Names, label) {
-			f.Names = append(f.Names, label)
+		for _, n := range []string{label, name} {
+			if !slices.Contains(f.Names, n) {
+				f.Names = append(f.Names, n)
+			}
 		}
 		if !slices.Contains(f.Scopes, scope) {
 			f.Scopes = append(f.Scopes, scope)

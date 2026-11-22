@@ -64,7 +64,7 @@ describe("Custom formats page", () => {
   });
 
   it("lists a standalone format by its saved name, shows its key, and finds it by either (F11)", async () => {
-    const named = { name: "UI sweep 8 test format", names: ["UI sweep 8 test format"], flavour: "radarr", definition: "ours" as const, group: "Our formats", scopes: [], id: 13, key: "ui-sweep-eight", scored_by: [] };
+    const named = { name: "UI sweep 8 test format", names: ["UI sweep 8 test format", "ui-sweep-eight"], flavour: "radarr", definition: "ours" as const, group: "Our formats", scopes: [], id: 13, key: "ui-sweep-eight", scored_by: [] };
     mockFetch(routes(qualityOverview({ formats: [...qualityOverview().formats, named] })));
     const user = userEvent.setup();
     renderPage(<FormatsPage />);
@@ -74,6 +74,8 @@ describe("Custom formats page", () => {
       await user.type(filter, q);
       const row = screen.getByText("UI sweep 8 test format").closest("li")!;
       expect(within(row).getByTestId("format-key").textContent).toBe("ui-sweep-eight");
+      // The key is said once, as the key: not again as another name.
+      expect(within(row).queryByText(/also named/)).toBeNull();
       expect(within(row).getByRole("button", { name: "Edit definition ui-sweep-eight" })).toBeTruthy();
     }
   });

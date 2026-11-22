@@ -20,7 +20,7 @@ import { plural } from "@/lib/format";
 
 function FormatRow({ f, onEdit }: { f: FormatSummary; onEdit?: () => void }) {
   const d = DEFINITION[f.definition] ?? DEFINITION.ours;
-  const other = f.names.filter((n) => n !== f.name);
+  const other = f.names.filter((n) => n !== f.name && n !== f.key);
   return <li className="flex flex-col gap-1.5 px-3 py-2 sm:flex-row sm:items-start sm:gap-4" data-format={f.name} data-flavour={f.flavour}>
     <div className="min-w-0 sm:w-[34%]">
       <div className="text-sm font-medium [overflow-wrap:anywhere]">{f.name}</div>

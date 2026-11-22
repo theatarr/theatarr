@@ -425,4 +425,14 @@ func TestFormatSummaryUsesSavedName(t *testing.T) {
 	if f := formatSummary(t, ov, "plain"); f.Key != "plain" {
 		t.Fatalf("no saved name: %+v", f)
 	}
+	// The key stays a name the list finds, and a format set's entry keeps the name its profiles link by (review).
+	if f := formatSummary(t, ov, "UI sweep 8 test format"); !slices.Contains(f.Names, "ui-sweep-eight") {
+		t.Fatalf("key not searchable: %+v", f)
+	}
+	p.FormatSets = map[string]*policy.FormatSet{"set": {Flavour: "radarr", Formats: map[string]*policy.FormatRef{
+		"Alias X": {Specification: json.RawMessage(`{"name":"Saved X","specifications":[]}`)}}}}
+	ov = QualityOverviewOf(OverviewInput{Policy: p})
+	if f := formatSummary(t, ov, "Alias X"); !slices.Contains(f.Names, "Alias X") {
+		t.Fatalf("set entry: %+v", f)
+	}
 }
