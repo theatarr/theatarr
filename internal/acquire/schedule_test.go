@@ -590,3 +590,32 @@ func TestSearchOnResumeTakesDormantRow(t *testing.T) {
 		t.Fatalf("searches after Pause: %s", e.runs())
 	}
 }
+
+// A first search kept while paused for a series still waiting for its metadata keeps its take-over when the refresh
+// releases it: a due regular row of the season becomes the search's, and the first round after Pause searches it.
+func TestSearchOnResumeHeldTakesDormantRow(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, &policy.Wanted{Missing: new(false), CutoffUnmet: policy.CutoffOff})
+	e.accept = false
+	m := &fakeMeta{}
+	e.a.SetMetadata(m)
+	e.pol.Router.Enabled = false
+	e.exec(`INSERT INTO series_meta (title_id, added_at) VALUES (10, 1)`)
+	e.row(10, "series", OnlyMissing, 1, t0.Add(-time.Hour), "", 0)
+	if n, err := e.a.SearchOnResume(e.ctx, 10, []string{"series"}, []int{1}); err != nil || n != 1 ||
+		e.count(`SELECT COUNT(*) FROM series_search_wait`) != 1 {
+		t.Fatalf("not held: %d, %v", n, err)
+	}
+	e.exec(`UPDATE series_meta SET added_at = NULL, refreshed_at = 2`)
+	if err := e.a.ReleaseWaiting(e.ctx, 10); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, why := e.rowOf(10, "series", OnlyMissing, 1); why != whyAdded {
+		t.Fatalf("the released search left the regular row %q", why)
+	}
+	e.pol.Router.Enabled = true
+	e.round()
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_id = 201 AND season = 1 AND research = 'added'`); n != 1 {
+		t.Fatalf("searches after Pause: %s", e.runs())
+	}
+}

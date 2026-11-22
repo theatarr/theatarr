@@ -656,4 +656,18 @@ func TestPausedAddKeepsItsSearch(t *testing.T) {
 	if len(rs.resumed) != 1 {
 		t.Fatalf("an add without search kept one: %v", rs.resumed)
 	}
+	// A copy already there (Beta's monitored, wanted movie-web) keeps its search when the add turns on another one.
+	e.exec(`UPDATE version SET monitored = 1, state = 'wanted' WHERE id = 3`)
+	e.call("POST", "/radarr/api/v3/movie", map[string]any{"title": "Beta", "year": 2021, "tmdbId": 102,
+		"qualityProfileId": def, "monitored": true, "addOptions": map[string]any{"searchForMovie": true}}, 201, nil)
+	if len(rs.resumed) != 2 || !strings.HasPrefix(rs.resumed[1], "2:") || !strings.Contains(rs.resumed[1], "movie-web") {
+		t.Errorf("existing copy: kept %v", rs.resumed)
+	}
+	// A sync partner outside the view: a movie-web view's add with movie-remux in sync keeps both.
+	e.pol.Library.SyncGroups = [][]string{{"movie-remux", "movie-web"}}
+	e.call("POST", "/v/movie-web/radarr/api/v3/movie", map[string]any{"title": "Mu", "year": 2024, "tmdbId": 122,
+		"monitored": true, "addOptions": map[string]any{"searchForMovie": true}}, 201, nil)
+	if len(rs.resumed) != 3 || !strings.Contains(rs.resumed[2], "movie-remux") || !strings.Contains(rs.resumed[2], "movie-web") {
+		t.Errorf("partner outside the view: kept %v", rs.resumed)
+	}
 }

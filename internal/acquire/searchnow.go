@@ -224,7 +224,7 @@ func (a *Acquirer) searchLater(ctx context.Context, titleID int64, versions []st
 		return 0, nil
 	}
 	sel := Selection{Versions: keys, TitleIDs: []int64{titleID}, Only: OnlyMissing, Seasons: seasons}
-	held, err := a.hold(ctx, 0, &sel, true)
+	held, err := a.hold(ctx, 0, &sel, true, takeOver)
 	if err != nil || len(sel.TitleIDs) == 0 {
 		return held, err
 	}

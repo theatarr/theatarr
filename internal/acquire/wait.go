@@ -11,9 +11,10 @@ import (
 
 // hold takes out of sel the series whose first metadata refresh has not finished (series_meta.added_at, set by an
 // add) and keeps their search in series_search_wait, one row per title, until ReleaseWaiting. A search naming
-// episodes is never held: its episodes exist. later marks a search the schedule serves (RequestSearchLater). It
-// returns how many titles it held.
-func (a *Acquirer) hold(ctx context.Context, commandID int64, sel *Selection, later bool) (int, error) {
+// episodes is never held: its episodes exist. later marks a search the schedule serves (RequestSearchLater), and
+// takeOver one that takes over a due regular row when released (SearchOnResume: markDue). It returns how many titles
+// it held.
+func (a *Acquirer) hold(ctx context.Context, commandID int64, sel *Selection, later, takeOver bool) (int, error) {
 	if a.meta == nil || len(sel.TitleIDs) == 0 || len(sel.EpisodeIDs) > 0 {
 		return 0, nil
 	}
@@ -49,7 +50,7 @@ func (a *Acquirer) hold(ctx context.Context, commandID int64, sel *Selection, la
 	now := store.Millis(a.now())
 	err = a.st.WriteTx(ctx, func(tx *sql.Tx) error {
 		for _, id := range wait {
-			one := heldSearch{Selection: *sel, Later: later}
+			one := heldSearch{Selection: *sel, Later: later, TakeOver: takeOver}
 			one.TitleIDs = []int64{id}
 			b, err := json.Marshal(one)
 			if err != nil {
@@ -80,6 +81,8 @@ func (a *Acquirer) hold(ctx context.Context, commandID int64, sel *Selection, la
 type heldSearch struct {
 	Selection
 	Later bool `json:",omitempty"`
+	// TakeOver (a later search SearchOnResume kept) takes over a due regular row when released, as it would have.
+	TakeOver bool `json:",omitempty"`
 }
 
 // ReleaseWaiting starts the searches held for a series (tvrefresh calls it after the series' first refresh), or for
@@ -113,8 +116,7 @@ func (a *Acquirer) ReleaseWaiting(ctx context.Context, titleID int64) error {
 	}
 	for _, h := range hs {
 		if h.sel.Later {
-			// A series held for its metadata has no rows of its own yet: nothing to take over.
-			if _, err := a.scheduleAdded(ctx, h.sel.Selection, false); err != nil {
+			if _, err := a.scheduleAdded(ctx, h.sel.Selection, h.sel.TakeOver); err != nil {
 				return err
 			}
 			if _, err := a.st.Writer().ExecContext(ctx, `DELETE FROM series_search_wait WHERE id = ?`, h.id); err != nil {
