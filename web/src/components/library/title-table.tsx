@@ -35,6 +35,7 @@ import {
 import { badgeTone, copyTone, copyWords, monitoredHeldWords, type CopyTone } from "@/lib/library-status";
 import { fmtDay, fmtRuntime, notAiredYet, POSTER_STATUS_LABEL, posterStatus, qualityWord, statusDay, titleWatchWords, undatedUpcoming, upcomingRelease, type PosterStatus } from "@/lib/library";
 import { releasedText } from "@/lib/released";
+import { readableCode } from "@/lib/code-words";
 import { addedText, latestFileText, ratingText, sizeText } from "@/lib/sort-line";
 import { cn } from "@/lib/utils";
 import { globalDownloadsOff } from "@/lib/version-grab";
@@ -209,7 +210,8 @@ function cell(id: IndexColumnId, t: TitleRow, open: () => void): ReactNode {
     case "quality":
       return or(vs.length === 1 ? vs[0].quality : vs.map((v) => `${v.label ?? v.key}: ${v.quality || "no file"}`).join(" · "));
     case "profile":
-      return or(perLibrary(vs, (i) => vs[i].profile));
+      // The profile by name, as Add shows it ("Radarr 4K web" for radarr-4k-web).
+      return or(perLibrary(vs, (i) => readableCode(vs[i].profile)));
     case "year":
       return or(t.year, "tabular-nums");
     case "release":

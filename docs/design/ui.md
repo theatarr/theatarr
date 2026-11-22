@@ -937,6 +937,7 @@ including "Imported from Radarr's blocklist" for `arr:<instance>`) and the healt
   offer as well: Latest file, Previous airing (series), Quality, Quality profile, Year, Release date / First aired, In
   cinemas, Digital release and Physical release (movies), Release status / Series status, Series type (series),
   Runtime, Certification, Rating, Genres, Tags (see files), Original language, Minimum availability (movies), Provider and Folder.
+  Quality profile names each profile as Add does ("Radarr 4K web" for `radarr-4k-web`), not by its key.
   **Status** is the poster badge's word in its tone, with the date for Upcoming, or the stage of a download in hand
   linked to Activity. **Libraries** has one pill per library in the colour rule: "4K · Remux-2160p", "WEB ·
   Missing", "4K · 13/17" (a series has no count before anything aired); a click opens the title's Libraries dialog

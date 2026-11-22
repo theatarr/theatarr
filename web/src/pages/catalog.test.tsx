@@ -282,6 +282,18 @@ describe("Library table", () => {
     expect(row.querySelector('[data-column="in_cinemas"]')?.textContent).toMatch(/^Sep 4/);
   });
 
+  it("names each library's quality profile as Add does, not by its key (F24)", async () => {
+    const odyssey = { id: 10, kind: "movie", name: "Odyssey", year: 2001, monitored: true, versions: [
+      { key: "movie-remux", label: "4K Remux", state: "wanted", monitored: true, profile: "radarr-4k-zurg" },
+      { key: "movie-web", label: "4K WEB", state: "wanted", monitored: true, profile: "radarr-4k-web" },
+    ] };
+    window.localStorage.setItem("theatarr.library.columns.movies.7", JSON.stringify({ order: ["profile"], shown: ["profile"] }));
+    mockFetch([{ method: "GET", path: "/auth/me", reply: me }, { method: "GET", path: "/titles", reply: { items: [odyssey], total: 1, offset: 0 } }, { method: "GET", path: "/titles/facets", reply: {} }]);
+    renderPage(<Catalog id="movies" />, "/movies");
+    const row = (await screen.findByRole("link", { name: "Odyssey" })).closest("tr") as HTMLElement;
+    expect(row.querySelector('[data-column="profile"]')?.textContent).toBe("4K Remux: Radarr 4K zurg · 4K WEB: Radarr 4K web");
+  });
+
   it("keeps a sort picked from the menu, dropping the copy and the order with it", async () => {
     const fetch = mockFetch(routes());
     const user = userEvent.setup();
