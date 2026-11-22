@@ -81,6 +81,11 @@ func TestPlexLink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	mid := e.account("manager", auth.RoleManager, auth.StatusActive, true)
+	managerKey, _, err := e.auth.CreateKey(context.Background(), "k-manager", mid)
+	if err != nil {
+		t.Fatal(err)
+	}
 	get := func(path string) PlexLink { return getAs(key, path) }
 	getAs = func(key, path string) PlexLink {
 		t.Helper()
@@ -124,9 +129,11 @@ func TestPlexLink(t *testing.T) {
 		got.Message != "Plex does not answer at "+srv.URL+": check the address under Settings › Plex & playback" {
 		t.Errorf("down %+v", got)
 	}
-	// A member reads no address and no settings page they cannot open.
-	if got := getAs(memberKey, "/titles/801/plex?version=movie-pl"); got.Found || got.Message != "Plex does not answer" {
-		t.Errorf("member down %+v", got)
+	// A member or a manager reads no address and no settings page they cannot open: only an admin can.
+	for who, k := range map[string]string{"member": memberKey, "manager": managerKey} {
+		if got := getAs(k, "/titles/801/plex?version=movie-pl"); got.Found || got.Message != "Plex does not answer" {
+			t.Errorf("%s down %+v", who, got)
+		}
 	}
 }
 

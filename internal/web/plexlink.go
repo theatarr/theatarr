@@ -125,8 +125,8 @@ func (w *Web) apiPlexLink(rw http.ResponseWriter, r *http.Request) {
 		if se := (*plex.StatusError)(nil); errors.As(err, &se) {
 			class = uipages.HTTPClass(se.Status)
 		}
-		msg := "Plex does not answer" // as Now playing: a member reads no address and no settings page
-		if w.permsOf(r).SeeFiles {
+		msg := "Plex does not answer" // only an admin reads the address and the settings page to fix it
+		if w.permsOf(r).Admin {
 			msg = uipages.Fix(uipages.FixPlex, "", pol.Library.Plex.URL, class)
 		}
 		writeJSON(rw, http.StatusOK, PlexLink{Message: msg})
