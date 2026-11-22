@@ -288,7 +288,7 @@ func (l *Library) undoUpgrade(ctx context.Context, actionID int64, by string) (*
 	r.endTx = func(ctx context.Context, tx *sql.Tx, v *importVersion, now int64) error {
 		// The undone release stays out of this library: blocked, researched (no search starts).
 		if err := router.Blocklist(ctx, tx, v.Key, hash, v.Title.ID, e.snap.Successor.DownloadID, release,
-			"the upgrade was undone by "+orSomeone(by), router.BlocklistLibrary, now); err != nil {
+			"the upgrade was undone by "+orSomeone(by), UndoBlockSource(by), now); err != nil {
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, `UPDATE router_blocklist SET researched_at = ? WHERE version_key = ?
@@ -307,6 +307,10 @@ func (l *Library) undoUpgrade(ctx context.Context, actionID int64, by string) (*
 	}
 	return &Undone{TitleID: v.Title.ID, Version: v.Key, Path: e.path, Release: release}, nil
 }
+
+// UndoBlockSource is the blocklist source of an Undo's block: undo:<who> (Activity › Blocklist: "Upgrade undone by
+// <who>").
+func UndoBlockSource(by string) string { return "undo:" + orSomeone(by) }
 
 func orSomeone(by string) string {
 	if by == "" {
@@ -449,6 +453,10 @@ func (l *Library) returnOne(ctx context.Context, r *returnFile) (*importVersion,
 		return nil, err
 	}
 	l.log.Info("library: earlier file put back", "path", e.path, "version", e.version, "replaced", s.Path)
+	// The torrents the library uses changed: Torrents and Sources are worked out again now.
+	if l.recordChanged != nil {
+		l.recordChanged()
+	}
 	return v, nil
 }
 

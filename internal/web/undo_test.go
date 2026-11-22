@@ -76,3 +76,14 @@ func TestHistoryUndo(t *testing.T) {
 		t.Errorf("household undo: %d", code)
 	}
 }
+
+// An Undo's block has its own words in Activity › Blocklist.
+func TestBlockWordsUndo(t *testing.T) {
+	t.Parallel()
+	if got := blockWords(library.UndoBlockSource("ann")); got != "Upgrade undone by ann" {
+		t.Errorf("words %q", got)
+	}
+	if got := blockWords(library.UndoBlockSource("key:auto")); got != "Upgrade undone by auto (API key)" {
+		t.Errorf("words %q", got)
+	}
+}

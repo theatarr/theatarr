@@ -1082,6 +1082,10 @@ func blockWords(source string) string {
 	case "ready_timeout":
 		return "Timed out before import"
 	}
+	// An upgrade undone by hand (library.UndoBlockSource): undo:<who>.
+	if who, ok := strings.CutPrefix(source, "undo:"); ok {
+		return "Upgrade undone by " + actorWords(who)
+	}
 	// Taken over from a Sonarr or Radarr instance's blocklist: arr:<instance key>.
 	if inst, ok := strings.CutPrefix(source, "arr:"); ok {
 		switch {

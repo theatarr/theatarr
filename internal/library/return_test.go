@@ -75,9 +75,14 @@ func TestUndoAdoptedFilm(t *testing.T) {
 	if got := offers[action]; got != "Undo upgrade: puts the earlier file back and blocks "+movieRelease+" in this library" {
 		t.Fatalf("offer %q", got)
 	}
+	signals := 0
+	e.lib.SetRecordChanged(func() { signals++ })
 	u, err := e.lib.UndoUpgrade(e.ctx, action, "ann")
 	if err != nil {
 		t.Fatal(err)
+	}
+	if signals != 1 {
+		t.Errorf("usage worker told %d times", signals)
 	}
 	if u.Path != old || u.Release != movieRelease {
 		t.Errorf("undone %+v", u)
@@ -102,7 +107,7 @@ func TestUndoAdoptedFilm(t *testing.T) {
 	}
 	// Blocked in this library, researched: no search starts.
 	if got := e.one(`SELECT source || '/' || (researched_at IS NOT NULL) FROM router_blocklist WHERE version_key = 'movie-remux'
-		AND info_hash = ?`, hashA); got != "library/1" {
+		AND info_hash = ?`, hashA); got != "undo:ann/1" {
 		t.Errorf("blocklist %s", got)
 	}
 	// History: "Upgrade undone", never "Removed".
