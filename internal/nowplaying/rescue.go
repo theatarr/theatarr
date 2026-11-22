@@ -571,6 +571,10 @@ func (t *Tracker) otherRelease(ctx context.Context, linkID int64, hash, folder, 
 func (t *Tracker) repair(ctx context.Context, lib Rescuer, j *sign, hash string, off int64, v controlVerdict) {
 	src := &j.src
 	log := t.o.Logger.With("title", src.Title, "version", src.version, "link_id", src.LinkID)
+	if !searchable(ctx, lib, src.LinkID, src.version) {
+		log.Info("nowplaying: a playing file stopped working, but nothing of it would be searched (not monitored): left to the hourly sweep")
+		return
+	}
 	if hit, err := lib.PlayingBoundReached(ctx, src.TitleID, src.version); err != nil {
 		return
 	} else if hit {
@@ -779,6 +783,7 @@ func (t *Tracker) sameRelease(ctx context.Context, lib Rescuer, j *sign, id int6
 // handled. One whose read and an immediate retry both fail joins the incident and is marked dead, without a search of
 // its own: their search is queued together once the watched file's search has ended (SettlePlayingRuns).
 func (t *Tracker) siblings(ctx context.Context, lib Rescuer, j *sign, id int64) {
+	defer holdSiblings(lib, id)()
 	folder := releaseFolder(j.src.Target, t.o.AllDir)
 	hash, _ := lib.PlayingHash(ctx, j.src.LinkID)
 	if folder == "" || hash == "" { // a hash only guessed from the folder: no sibling check
@@ -803,6 +808,9 @@ func (t *Tracker) siblings(ctx context.Context, lib Rescuer, j *sign, id int64) 
 	}
 	rows.Close()
 	for _, f := range files {
+		if !searchable(ctx, lib, f.id, j.src.version) {
+			continue
+		}
 		size, err := lib.MountFileSize(ctx, f.target)
 		if err != nil || size < 2*pieceSize {
 			continue
@@ -826,6 +834,28 @@ func (t *Tracker) siblings(ctx context.Context, lib Rescuer, j *sign, id int64) 
 		t.o.Logger.Info("nowplaying: another file of the release stopped working", "link_id", f.id,
 			"file", filepath.Base(f.target), "incident", id)
 	}
+}
+
+// searchable reports whether the round would search a link's file (Library.PlayingSearchable: at least one of its
+// episodes, or its film, monitored in its library version); an error is a no. A library without it answers yes.
+func searchable(ctx context.Context, lib Rescuer, linkID int64, version string) bool {
+	s, ok := lib.(interface {
+		PlayingSearchable(ctx context.Context, linkID int64, version string) (bool, error)
+	})
+	if !ok {
+		return true
+	}
+	yes, err := s.PlayingSearchable(ctx, linkID, version)
+	return err == nil && yes
+}
+
+// holdSiblings holds an incident while its sibling pass runs (Library.HoldPlayingSiblings: the settle pass queues no
+// sibling search for it meanwhile) and returns the release.
+func holdSiblings(lib Rescuer, incident int64) func() {
+	if h, ok := lib.(interface{ HoldPlayingSiblings(incident int64) func() }); ok {
+		return h.HoldPlayingSiblings(incident)
+	}
+	return func() {}
 }
 
 // The messages a stopped stream shows.

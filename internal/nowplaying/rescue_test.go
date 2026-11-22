@@ -38,12 +38,37 @@ type testLib struct {
 	reads  []string
 	// hang, when set, makes the next read wait for it (or its context) and then fail as a time-out.
 	hang chan struct{}
+	// unsearchable: links the round would not search (PlayingSearchable); held: the incident whose sibling pass holds
+	// (HoldPlayingSiblings), heldReads the reads made while it held.
+	unsearchable map[int64]bool
+	held         int64
+	heldReads    []string
+}
+
+func (l *testLib) PlayingSearchable(_ context.Context, linkID int64, _ string) (bool, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return !l.unsearchable[linkID], nil
+}
+
+func (l *testLib) HoldPlayingSiblings(incident int64) func() {
+	l.mu.Lock()
+	l.held = incident
+	l.mu.Unlock()
+	return func() {
+		l.mu.Lock()
+		l.held = 0
+		l.mu.Unlock()
+	}
 }
 
 func (l *testLib) ReadPiece(ctx context.Context, target string, off, n int64, limit time.Duration) (int64, error) {
 	l.mu.Lock()
 	b := path.Base(target)
 	l.reads = append(l.reads, b)
+	if l.held != 0 {
+		l.heldReads = append(l.heldReads, b)
+	}
 	left, broken := l.broken[b]
 	if broken && left > 0 {
 		l.broken[b]--
@@ -233,7 +258,7 @@ func newRescueEnv(t *testing.T, client, zurg bool) *rescueEnv {
 		defer e.mu.Unlock()
 		e.outcomes = append(e.outcomes, o)
 	})
-	e.lib = &testLib{Library: lib, broken: map[string]int{}}
+	e.lib = &testLib{Library: lib, broken: map[string]int{}, unsearchable: map[int64]bool{}}
 	e.plex = &fakePlex{}
 	e.stop = &stoppingPlex{fakePlex: e.plex}
 	o := Options{Plex: e.stop, Store: st, Mount: func() Mount { return e.lib }, LinkPath: e.mount, MountPath: e.mount,
@@ -1693,5 +1718,49 @@ func TestRescueServedByWholePath(t *testing.T) {
 	}
 	if got := e.one(`SELECT group_concat(provider) FROM provider_cache WHERE source = 'router:playing'`); got != "rd" {
 		t.Errorf("misses on %q", got)
+	}
+}
+
+// A file the round would not search (its title, season, episode or library version unmonitored) gets no fast path:
+// nothing is recorded, marked or said. A sibling the round would not search is not read.
+func TestRescueUnsearchableFile(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.lib.unsearchable[11] = true
+	e.play(2, "buffering")
+	e.poll()
+	if got := e.one(`SELECT COUNT(*) FROM playing_break`) + " " + e.one(`SELECT state FROM link WHERE id = 11`); got != "0 active" {
+		t.Errorf("unsearchable watched file: %s", got)
+	}
+	if got := e.stop.stopped(); len(got) != 0 {
+		t.Errorf("stops %q", got)
+	}
+	e2 := newRescueEnv(t, false, false)
+	e2.lib.setBroken("S01E02.mkv", -1)
+	e2.lib.setBroken("S01E03.mkv", -1)
+	e2.lib.unsearchable[12] = true
+	e2.play(2, "buffering")
+	e2.poll()
+	if got := e2.one(`SELECT group_concat(state) FROM (SELECT state FROM link WHERE id IN (10, 11, 12) ORDER BY id)`); got !=
+		"active,dead,active" {
+		t.Errorf("links %s", got)
+	}
+	if n := e2.lib.readsOf("S01E03.mkv"); n != 0 {
+		t.Errorf("an unsearchable sibling was read %d times", n)
+	}
+}
+
+// The sibling pass holds its incident while it runs (the settle pass queues no sibling search meanwhile) and lets go
+// when it ends.
+func TestRescueSiblingPassHoldsIncident(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.lib.setBroken("S01E03.mkv", -1)
+	e.play(2, "buffering")
+	e.poll()
+	e.lib.mu.Lock()
+	defer e.lib.mu.Unlock()
+	if fmt.Sprint(e.lib.heldReads) != "[S01E01.mkv S01E03.mkv S01E03.mkv]" || e.lib.held != 0 {
+		t.Errorf("reads while held %v, held after %d", e.lib.heldReads, e.lib.held)
 	}
 }
