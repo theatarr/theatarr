@@ -161,7 +161,8 @@ broke while playing is searched at once").
 - **Which file.** Only a file that is certain: Plex's own path is an active, tracked Theatarr symlink into the mount,
   and its library is decided (the link's only library, or the one whose roots hold the path). A regular file, an arr's
   or any untracked symlink (even one in a library root pointing at a Theatarr link's file) or a link whose libraries
-  the path does not decide is never checked. The hash it is copied and its
+  the path does not decide is never checked, nor is a session that lists several media or parts without saying which
+  one plays (it still shows in Now playing). The hash it is copied and its
   siblings found by is the one the link has stored (an adopted link's source included), else the one release the
   registry records in its folder; one only guessed from a folder name gives no copy and no sibling check.
 - **The signs.** Plex says buffering; the playback ends below 90 % of its duration (seen where a poll drops the
@@ -179,12 +180,16 @@ broke while playing is searched at once").
   while a helper so killed lingers (without helpers: none after two abandoned reads). An open breaker, every helper busy
   or held back, a cancelled read: no verdict, the check ends quietly. Read 1 fails; 20 s; read 2 fails; the mount still
   lists (`MountListed`, with zurg's `/ready`); the control read (below); read 3 of the same range fails. Any read that
-  passes ends the check: nothing is marked, stopped or recorded. That is about a minute from the sign.
+  passes ends the check: nothing is marked, stopped or recorded. That is about a minute from the sign. After read 1
+  the range comes from the mounted file's size (Plex's may be an older file's at the same path); a range that would
+  start at or past the file's end is no evidence.
 - **Mount, account or release** (the control read, at mid-file of another release). The serving account is the account
-  zurg last served the file from (its log's "Large transfer" line, which names the account a large read came from), else
+  zurg last served the file from (its log's "Large transfer" line for the file's whole path under the release root, not
+  another release's file of the same name), else
   the release's only complete holder in the record (state downloaded at 100 %). A release only it holds reads: only
   this release is broken. It fails: one only another account holds is read; that reads: the account is out; it fails,
-  or there is none: the mount, and nothing is done. zurg saying the account cools down also means it is out. With no
+  or there is none: the mount, and nothing is done. zurg saying the account cools down, in a line logged since read 1
+  failed, also means it is out (an older line means nothing; the control read decides). With no
   release held by the serving account alone, any other release must read, and the break is this release on that
   account; if it fails, there is no verdict (an outage is concluded only from a failed release the serving account
   alone holds). With the account unknown any other release must read too; the release then counts as broken on each
@@ -197,15 +202,20 @@ broke while playing is searched at once").
   each of the release's other files. The bound first: one incident per title and library a day; a second one that
   day gets no fast path (the hourly path as today). Then the incident is recorded, and: **step 1**, the same release on another account
   of the library, in its provider order, as the automatic "Add to other providers" adds it (one account at a time; it
-  counts when the release was added there or is there complete), the rclone listing of its folder forgotten where
+  counts only when the release was added there now: an account that held it already adds nothing and is passed over
+  with no wait and no miss), the rclone listing of its folder forgotten where
   configured, and the same range read every 10 s for up to a minute: it reads, the incident settles `copy` (link
   unchanged, outcome "readable again"); it does not, that account gets the release's miss too. **Step 2**, the file is
   marked dead at once and one `playing` search is queued for it, held to its episodes and off the accounts it failed
-  on (an account found out by an outage gets no miss; the incident keeps the repair off it). Only the copy that was
+  on (an account found out by an outage gets no miss; the incident keeps the repair off it for a day). Every `playing`
+  search of the incident leaves the incident's own release out on every account, for that search only (no miss).
+  Only the copy that was
   read is marked: a link a same-path import or a sweep changed meanwhile is left, and nothing is said. Not on a
   client-routed (decypharr) version, which has no step 1: the miss on the client's key makes its client
   take a different release. The account out and no other in the library (or a client version): nothing is replaced,
-  the incident settles `none`, outcome unavailable. **The release's other files** are then read the same way, at
+  the incident settles `none`, outcome unavailable. **The release's other files**, only when the release is proven
+  broken on the account serving it (a release only that account holds read; never after an outage or a control read
+  of a release on another account, which repair the watched file only), are then read the same way, at
   mid-file: one whose read and an immediate retry both fail joins the incident and is marked dead; their search is
   queued together once the watched file's search has ended. The outcome, one per incident about the watched file, is
   sent through `Library.OnPlayingOutcome`: `same_release`, `replaced` (an import fixed it), `unavailable` (nothing
@@ -222,7 +232,9 @@ broke while playing is searched at once").
   list); the file is checked again at its next sign. Only when it is buffering or its position has
   not moved since the sign; one still advancing gets it at the next fresh Plex sample of it that is buffering, or
   whose position has stayed the same over playing samples for 15 s (Plex reports it about every 10 s; a rewind is
-  movement too, and a pause starts the count again) (never on a remembered verdict or an old zurg line); a paused one never; no session left: nothing
+  movement too, and a pause starts the count again) (never on a remembered verdict or an old zurg line), and only
+  when one read of the file its link points at now, at the player's position, still fails (it reads: the message is
+  dropped, "the file read again"); a paused one never; no session left: nothing
   is sent. Never when the mount is the problem, never after a read that passed. `Options.StopWithMessage` switches it
   (on when unset; serve passes `library.plex.stop_with_message` of the settings in force); off, nothing is ever sent
   to Plex. A refusal by Plex is logged once and kept on the incident. When nothing is sent, why is kept there instead

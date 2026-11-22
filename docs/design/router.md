@@ -1031,9 +1031,12 @@ Search now's count leave it out; `TestResearchPlayingPastTheHour`, `TestResearch
 the title's version's open incident (table `playing_break`, by title and version: no incident id travels with the
 search) and takes only a release holding one of the incident's episodes still `wanted` and not fixed (the run's
 episodes are its whole season; once the watched file's search has ended, its episodes no longer count for the release's
-other files' search; `TestPlayingRouteHoldsToIncidentEpisodes`, `TestPlayingSiblingRouteSkipsWatchedEpisode`), and each account the incident found out answers as not
-holding the release for that route only (`skipProvider`: no miss is recorded there, the next account or release is
-tried at once; `TestPlayingRouteSkipsOutAccount`). The failed release on the account it failed on carries a
+other files' search; `TestPlayingRouteHoldsToIncidentEpisodes`, `TestPlayingSiblingRouteSkipsWatchedEpisode`), each account the incident found out within the last day
+(`PlayingOutFor`, the day Now playing lists it; an older outage steers nothing, `TestPlayingRouteOldOutAccountIgnored`)
+answers as not holding the release for that route only (`skipProvider`: no miss is recorded there, the next account or
+release is tried at once; `TestPlayingRouteSkipsOutAccount`), and the release that broke (the newest open incident's
+hash, not older incidents') is left out on every account, for that route only, with no miss written
+(`playing_same_release`; `TestPlayingRouteLeavesOutIncidentRelease`). The failed release on the account it failed on carries a
 `provider_cache` miss of source `router:playing` for 7 days (`client:<key>` on a client-routed version, whose client
 then takes a different release): no search takes it there again (a live miss, as any), another account may
 (`TestPlayingRouteSkipsBrokenReleaseOnItsAccount`). The router's own all-provider miss does not replace that row
