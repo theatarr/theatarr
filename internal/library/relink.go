@@ -588,13 +588,18 @@ func (l *Library) sweep(ctx context.Context, version string, dryRun bool, hints 
 	if zv != nil {
 		zv.ix = ix
 	}
+	// The dead links of files that broke while playing that only a read brings back, once for the whole sweep.
+	held, err := playingHeld(ctx, l.st.Reader())
+	if err != nil {
+		return nil, err
+	}
 	var out []*LinkScan
 	for _, k := range l.gate.Versions() {
 		if version != "" && k != version {
 			continue
 		}
 		for _, root := range l.gate.Roots(k) {
-			sc, err := l.relinkRoot(ctx, ix, zv, k, root, dryRun, hints)
+			sc, err := l.relinkRoot(ctx, ix, zv, held, k, root, dryRun, hints)
 			if err != nil {
 				return out, err
 			}
@@ -611,11 +616,12 @@ func (l *Library) sweep(ctx context.Context, version string, dryRun bool, hints 
 	return out, nil
 }
 
-// relinkRoot sweeps one root. zv is zurg's view (nil without its API): a candidate folder zurg says belongs to
+// relinkRoot sweeps one root; held are the dead links only a read brings back (playingHeld). zv is zurg's view (nil
+// without its API): a candidate folder zurg says belongs to
 // another torrent is skipped, a link whose torrent has no video upstream is named so, and while zurg repairs (within
 // the grace) a dangling link is reported as repairing and not marked dead.
-func (l *Library) relinkRoot(ctx context.Context, ix *mountIndex, zv *zurgView, version, root string, dryRun bool,
-	hints map[string]string) (*LinkScan, error) {
+func (l *Library) relinkRoot(ctx context.Context, ix *mountIndex, zv *zurgView, held map[string]string, version,
+	root string, dryRun bool, hints map[string]string) (*LinkScan, error) {
 	sc := &LinkScan{Version: version, Root: root, Causes: map[string]int{}, DryRun: dryRun}
 	zv.note(sc)
 	refused, down := l.scanCheck(ctx, version, root)
@@ -644,10 +650,6 @@ func (l *Library) relinkRoot(ctx context.Context, ix *mountIndex, zv *zurgView, 
 		return sc, err
 	}
 	marks, err := linkMarks(ctx, db, version)
-	if err != nil {
-		return sc, err
-	}
-	held, err := playingHeld(ctx, db)
 	if err != nil {
 		return sc, err
 	}
