@@ -15,4 +15,18 @@ describe("confirm dialog answer", () => {
     expect(done.dataset.warning).toBe("true");
     expect(done.className).toContain("--th-warning");
   });
+
+  it("brings a refusal into view above the buttons, as a long dialog on a phone hides its bottom", () => {
+    const scope = retryScope("failed", "movie-web");
+    const scrolled: Element[] = [];
+    const saved = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (this: Element) { scrolled.push(this); };
+    try {
+      const { rerender } = render(<ConfirmDialog scope={scope} onConfirm={() => {}} onClose={() => {}} />);
+      rerender(<ConfirmDialog scope={scope} onConfirm={() => {}} onClose={() => {}} error={new Error("Not changed")} />);
+      expect(scrolled).toContain(screen.getByTestId("confirm-error"));
+    } finally {
+      Element.prototype.scrollIntoView = saved;
+    }
+  });
 });

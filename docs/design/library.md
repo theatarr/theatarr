@@ -759,7 +759,9 @@ takes a corrected episode first, and the other files still import as usual (`Tes
 {episode_ids, replace}`, the episode overview's File section) corrects a file that is already linked to the wrong
 episodes (absolute numbering, a pack, a special) without a re-import. It works on one of Theatarr's active symlinks
 in one library (a series, an active version, the link not shared with another library, made by an import of a
-download); everything else is refused (409) and nothing changes. For a link without a download (taken over from an
+download); everything else is refused (409) and nothing changes (the library's write gate in plain words, "Not
+changed: library writes are off, so the file keeps its episodes (library.enabled is false)"; a dialog's refusal
+comes into view just above its buttons, so a phone shows it). For a link without a download (taken over from an
 arr; the episode file's `no_download`) the page disables the button and says "Taken over from Sonarr or Radarr: use
 Manual import to change its episodes". The chosen episodes must all be the title's. A
 chosen episode that already has another file in that library refuses the change unless the admin chooses

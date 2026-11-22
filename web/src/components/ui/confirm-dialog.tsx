@@ -2,7 +2,7 @@
 // what it will do and what it leaves alone (lib/ops.ts), optional choices, then Cancel and the confirm button. A
 // centred dialog on desktop and a bottom sheet on phones, on the shared Modal (no Radix dialog: CSP).
 import { Check, Loader2, ShieldCheck, X } from "lucide-react";
-import { useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { Link } from "react-router";
 import { ApiError } from "@/api/client";
 import { usePerms } from "@/api/library";
@@ -69,6 +69,11 @@ export function ConfirmDialog({
   cancelWord?: string;
 }) {
   const cancel = useRef<HTMLButtonElement>(null);
+  // A refusal comes into view just above the buttons: in a long dialog on a phone it would land below the fold.
+  const failure = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (error) failure.current?.scrollIntoView?.({ block: "nearest" });
+  }, [error]);
   // A plain question (window.confirm's former callers) may have nothing to list: empty headings, and an empty body,
   // are left out.
   return (
@@ -122,7 +127,7 @@ export function ConfirmDialog({
           </p>
         ) : null}
         {error ? (
-          <div className="rounded-md border border-[var(--th-danger-border)] bg-[var(--bad-soft)] px-3 py-2 text-[var(--bad-ink)] [overflow-wrap:anywhere]" data-testid="confirm-error">
+          <div ref={failure} className="rounded-md border border-[var(--th-danger-border)] bg-[var(--bad-soft)] px-3 py-2 text-[var(--bad-ink)] [overflow-wrap:anywhere]" data-testid="confirm-error">
             {errText(error)}
             {error instanceof ApiError && error.detail?.length ? (
               <ul className="mt-1 list-disc pl-5 text-xs">{error.detail.map((d, i) => <li key={i}>{d}</li>)}</ul>

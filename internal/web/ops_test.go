@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"github.com/theatarr/theatarr/internal/acquire"
 	"net/http"
 	"net/http/httptest"
@@ -41,8 +42,9 @@ type fakeOps struct {
 	unblockedBy []string
 	// retried, when set, is the next RetryDownload's answer.
 	retried *RetriedDownload
-	// unlinkErr, when set, is the next UnlinkLink's error.
-	unlinkErr error
+	// unlinkErr, when set, is the next UnlinkLink's error; reassignErr the next ReassignEpisodes'.
+	unlinkErr   error
+	reassignErr error
 	// onUnlinkRemoved runs after each UnlinkRemoved that went through.
 	onUnlinkRemoved func(id int64)
 	// onUnlink, when set, runs after each UnlinkLink that went through.
@@ -62,6 +64,10 @@ func (f *fakeOps) ReassignEpisodes(_ context.Context, linkID int64, eps []int64,
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if err := f.take(); err != nil {
+		return nil, err
+	}
+	if err := f.reassignErr; err != nil {
+		f.reassignErr = nil
 		return nil, err
 	}
 	f.reassigned = append(f.reassigned, ReassignRequest{EpisodeIDs: eps, Replace: replace})
@@ -289,6 +295,13 @@ func TestReassignAPI(t *testing.T) {
 	if code := o.jsonCall("POST", APIBase+"/links/4/episodes", body, ac, csrf, &e); code != http.StatusConflict ||
 		!strings.Contains(e.Error, "choose replace") {
 		t.Fatalf("refusal: %d %+v", code, e)
+	}
+	// Library writes off: said plainly, with what stays.
+	o.ops.reassignErr = fmt.Errorf("reassign: %w", &library.Refused{Reason: "disabled", Detail: "library.enabled is false"})
+	e = apiError{}
+	if code := o.jsonCall("POST", APIBase+"/links/4/episodes", body, ac, csrf, &e); code != http.StatusConflict ||
+		e.Error != "Not changed: library writes are off, so the file keeps its episodes (library.enabled is false)" {
+		t.Fatalf("writes off: %d %+v", code, e)
 	}
 	if code := o.jsonCall("POST", APIBase+"/links/4/episodes", map[string]any{}, ac, csrf, nil); code != http.StatusBadRequest {
 		t.Fatalf("no episodes: %d", code)

@@ -71,6 +71,16 @@ func (w *Web) apiReassign(rw http.ResponseWriter, r *http.Request) {
 		notFound(rw)
 		return
 	}
+	var gate *library.Refused
+	if errors.As(err, &gate) {
+		// The library's write gate: said plainly, with what stays.
+		why := "the library refused the write"
+		if gate.Reason == "disabled" {
+			why = "library writes are off"
+		}
+		writeJSON(rw, http.StatusConflict, apiError{Error: "Not changed: " + why + ", so the file keeps its episodes (" + gate.Detail + ")"})
+		return
+	}
 	if err != nil {
 		w.opsError(rw, err)
 		return
