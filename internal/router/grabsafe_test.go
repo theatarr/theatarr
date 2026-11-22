@@ -558,6 +558,7 @@ func TestAllDebridTooBigTriesNextProvider(t *testing.T) {
 	}
 	e.pr["ad"].set(res.TorrentID, provider.Torrent{Hash: h("a"), Status: "File too big.", State: provider.StateError,
 		TooLarge: true})
+	e.exec(`INSERT OR IGNORE INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('ad', ?, ?)`, res.TorrentID, h("a"))
 	if _, err := e.r.Poll(e.ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -566,6 +567,11 @@ func TestAllDebridTooBigTriesNextProvider(t *testing.T) {
 	}
 	if n := e.count(`SELECT COUNT(*) FROM download WHERE id = ? AND state = 'queued' AND provider IS NULL`, res.DownloadID); n != 1 {
 		t.Fatalf("download not routed again: %d failed", e.count(`SELECT COUNT(*) FROM download WHERE state = 'failed'`))
+	}
+	// The magnet stays on AllDebrid, and listed on Torrents until the owner clears it.
+	if n := e.count(`SELECT COUNT(*) FROM provider_torrent WHERE provider = 'ad' AND torrent_id = ?`,
+		res.TorrentID); n != 1 {
+		t.Errorf("registry row of the too-big magnet: %d", n)
 	}
 	var raw string
 	if err := e.st.Reader().QueryRow(`SELECT payload FROM job WHERE kind = ? AND state = 'queued'`, JobRoute).Scan(&raw); err != nil {

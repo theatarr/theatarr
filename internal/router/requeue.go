@@ -39,6 +39,11 @@ func (r *Router) requeueReused(ctx context.Context, x pollRow) error {
 // torrent's registry row absent, and queues a route job that resumes it with its own release; nothing is blocklisted.
 // Without a job queue (a CLI poll) it fails with failWhy, still unblocklisted, and reports false.
 func (r *Router) requeue(ctx context.Context, x pollRow, reused int, why, failWhy string) (bool, error) {
+	return r.requeueWith(ctx, x, reused, why, failWhy, true)
+}
+
+// requeueWith is requeue; with drop false the torrent's registry row is kept (the entry is still on the account).
+func (r *Router) requeueWith(ctx context.Context, x pollRow, reused int, why, failWhy string, drop bool) (bool, error) {
 	req, err := r.requestOf(ctx, x.id)
 	if err != nil {
 		return false, err
@@ -61,8 +66,10 @@ func (r *Router) requeue(ctx context.Context, x pollRow, reused int, why, failWh
 			return nil // moved on meanwhile
 		}
 		store.HistoryGrab(ctx, tx, x.id)
-		if err := provider.DropRecordTorrent(ctx, tx, x.pk, x.tid); err != nil {
-			return err
+		if drop {
+			if err := provider.DropRecordTorrent(ctx, tx, x.pk, x.tid); err != nil {
+				return err
+			}
 		}
 		p := routePayload{Request: *req}
 		_, _, err = enqueueRoute(ctx, r.q, tx, p, r.now())

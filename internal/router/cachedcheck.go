@@ -234,7 +234,9 @@ func (r *Router) pollTooLarge(ctx context.Context, x pollRow, now time.Time, sum
 	}
 	why := "too big for " + x.pk + " (File too big.)"
 	r.log.Warn(why+"; a miss on "+x.pk+", the release is routed again", "download", x.id, "provider", x.pk, "torrent", x.tid)
-	queued, err := r.requeue(rctx, x, x.reused, why+"; the release is routed again", why+"; not blocklisted (no route queue)")
+	// The magnet stays on the account, and its registry row with it: Torrents lists it until the owner clears it.
+	queued, err := r.requeueWith(rctx, x, x.reused, why+"; the release is routed again", why+"; not blocklisted (no route queue)",
+		false)
 	if err == nil && !queued {
 		sum.Failed++
 	}
