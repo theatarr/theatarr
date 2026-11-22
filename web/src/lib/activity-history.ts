@@ -16,7 +16,7 @@ export const HISTORY_EVENTS: { id: HistoryEventId; label: string; events: string
   { id: "adopted", label: "Adopted (files found in the library)", events: ["adopted"] },
   { id: "removed", label: "Removed and missing", events: ["removed", "missing", "title_removed"] },
   { id: "failed", label: "Failed and blocked", events: ["failed", "blocked"] },
-  { id: "playing", label: "Stopped working while playing", events: ["playing"] },
+  { id: "playing", label: "Broke while playing", events: ["playing"] },
 ];
 
 /** Event filters of bookmarks from before Radarr's words, and the filter each now is. */

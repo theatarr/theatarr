@@ -75,9 +75,9 @@ describe("Now playing's files that stopped working", () => {
     const rows = await screen.findAllByTestId("now-playing-incident");
     expect(screen.getByRole("heading", { name: "Files that stopped working" })).toBeTruthy();
     expect(rows.map((r) => r.textContent)).toEqual([
-      expect.stringContaining("Show (2020) · S02E07Replaced with another release"),
-      expect.stringContaining("Film (2019)No other copy yet"),
-      expect.stringContaining("Other (2018)Readable again"),
+      expect.stringMatching(/^Show \(2020\) · S02E07(.*)Replaced with another release/),
+      expect.stringMatching(/^Film \(2019\)(.*)No other copy yet/),
+      expect.stringMatching(/^Other \(2018\)(.*)Readable again/),
     ]);
     expect(rows[0].textContent).toContain("(2 h ago) · ann on Living room TV · 2 files of the release stopped working");
     expect(rows[0].textContent).toContain("The player was stopped with the message: This file stopped working. Looking for another copy. Try again in a few minutes.");
