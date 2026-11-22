@@ -296,7 +296,8 @@ function RowIcons({ e, live, act }: { e: Episode; live: ListProps["live"]; act: 
   if ((!act && !live) || e.removed) return null;
   const what = `Search ${epCode(e)} now in ${act?.scope.name}`;
   return (
-    <span className="inline-flex items-center justify-end gap-0.5" onClick={(ev) => ev.stopPropagation()} onKeyDown={(ev) => ev.stopPropagation()}>
+    // Keys stop here so the row does not open, all but Escape, which closes the Interactive search opened from here.
+    <span className="inline-flex items-center justify-end gap-0.5" onClick={(ev) => ev.stopPropagation()} onKeyDown={(ev) => { if (ev.key !== "Escape") ev.stopPropagation(); }}>
       {act ? (
         <Button
           size="icon-xs"

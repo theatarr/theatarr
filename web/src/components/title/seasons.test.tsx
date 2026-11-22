@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, screen, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { Seasons } from "./seasons";
@@ -320,6 +320,18 @@ describe("Interactive search from the episodes", () => {
     expect(api.calls("GET", "/titles/1/episodes/102/releases").map((r) => r.search)).toEqual(["?version=anime-web&live=1"]);
     expect(api.calls("GET", "/titles/1/episodes/102")).toHaveLength(0);
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  });
+
+  it("closes an episode's Interactive search on Escape", async () => {
+    mockFetch([...routes, title, current, { method: "GET", path: "/titles/1/episodes/102/releases", reply: answer }]);
+    renderPage(<Seasons id="1" anime />, "/title/1");
+    await screen.findByTestId("season-summary");
+    const row = document.querySelector('[data-episode="1x13"]') as HTMLElement;
+    const user = userEvent.setup();
+    await user.click(await within(row).findByRole("button", { name: "Interactive search for S01E13" }));
+    expect(await screen.findByText("No releases found.")).toBeTruthy();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByTestId("interactive-search")).toBeNull());
   });
 
   it("offers none when the series' only Live copy was removed (the episodes route no longer lists it)", async () => {
