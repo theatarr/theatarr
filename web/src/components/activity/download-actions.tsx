@@ -7,7 +7,7 @@ import { RotateCcw, Undo2 } from "lucide-react";
 import { createContext, useContext, useState } from "react";
 import type { ActivityBlocked, ActivityDownload, ActivityEvent } from "@/api/activity";
 import { usePerms } from "@/api/library";
-import { useRemoveDownload, useRetryDownload, useUnblock } from "@/api/ops";
+import { useRemoveDownload, useRetryDownload, useUnblock, useUndoReplaced } from "@/api/ops";
 import { Button } from "@/components/ui/button";
 import { Choice, ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { blockedRelease, endedByRemoval, failedDownloadId, removeDownloadScope, retryKind, retryScope, unblockGrabScope, unblockScope, type RemoveMode } from "@/lib/ops";
@@ -174,6 +174,38 @@ export function UnblockAction({ b }: { b: ActivityBlocked }) {
             </div>
           )}
         </ConfirmDialog>
+      ) : null}
+    </>
+  );
+}
+
+/** Undo on an upgrade's replaced file the server offers it for (file.undo, managers): asks first with the server's
+ *  sentence; a refusal is the server's sentence as it is, in the dialog. */
+export function UndoReplaced({ file, titleId }: { file: { id?: number; undo?: string; path: string }; titleId?: number }) {
+  const perms = usePerms();
+  const [open, setOpen] = useState(false);
+  const undo = useUndoReplaced();
+  if (!perms.manage || !file.undo || !file.id) return null;
+  const id = file.id;
+  return (
+    <>
+      <Button size="xs" variant="ghost" onClick={() => setOpen(true)} data-testid="history-undo">
+        <Undo2 /> Undo
+      </Button>
+      {open ? (
+        <ConfirmDialog
+          scope={{ title: "Undo upgrade", does: [file.undo], keeps: [], confirm: "Undo" }}
+          subject={<span className="font-mono">{file.path.split("/").pop()}</span>}
+          busy={undo.isPending}
+          error={undo.error}
+          done={undo.data?.message}
+          onClose={() => {
+            setOpen(false);
+            undo.reset();
+          }}
+          onConfirm={() => undo.mutate({ id, titleId })}
+          testid="undo-upgrade-dialog"
+        />
       ) : null}
     </>
   );

@@ -175,6 +175,16 @@ export function useRetryDownload() {
   });
 }
 
+/** Undo an upgrade: the earlier file History's replacement id displaced goes back, and the replacing release is
+ *  blocked in that library (POST /activity/replaced/{id}/undo). A 409 is the server's one sentence. */
+export function useUndoReplaced() {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: ({ id }: { id: number; titleId?: number }) => api<Schemas["UndoResult"]>(`/activity/replaced/${id}/undo`, { method: "POST" }),
+    onSuccess: (_r, v) => refresh(v.titleId),
+  });
+}
+
 export function useUnblock() {
   const refresh = useRefresh();
   return useMutation({

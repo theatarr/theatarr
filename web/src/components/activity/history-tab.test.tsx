@@ -295,3 +295,25 @@ it("shows a playing row's outcome whole in the desktop table, the RSS sentence i
   // What the row means is said on it, not only in a tooltip (a phone has none).
   expect(got.querySelector('[data-testid="history-meaning"]')?.textContent).toContain("The file stopped working while someone played it.");
 });
+
+it("offers Undo on an upgrade the server allows it for: asks first with the server's sentence, shows a refusal as it is", async () => {
+  const sentence = "Undo upgrade: puts the earlier file back and blocks Alpha.2026.2160p.WEB-DL in this library";
+  const upgraded = { ...link, replaced: [{ id: 31, undo: sentence, path: "/movies/Alpha/old.mkv", release: "Alpha.2026.1080p.WEB" }] };
+  const plain = { ...link, id: "lib:8", replaced: [{ id: 32, path: "/movies/Alpha/older.mkv" }] };
+  const fetch = mockFetch([
+    { method: "GET", path: "/auth/me", reply: me },
+    { method: "GET", path: "/titles/facets", reply: {} },
+    { method: "GET", path: "/activity", reply: { state: "history", admin: true, history: [upgraded, plain] } },
+    { method: "POST", path: "/activity/replaced/31/undo", reply: { status: 409, body: { error: "Not undone: the earlier file is no longer available." } } },
+  ]);
+  renderPage(<HistoryTab admin />, "/activity/history");
+  const rows = await screen.findAllByTestId("history-row");
+  expect(within(rows[1]).queryByRole("button", { name: "Undo" })).toBeNull();
+  const user = userEvent.setup();
+  await user.click(within(rows[0]).getByRole("button", { name: "Undo" }));
+  const dialog = await screen.findByTestId("undo-upgrade-dialog");
+  expect(dialog.textContent).toContain(sentence);
+  await user.click(within(dialog).getByTestId("confirm-ok"));
+  await waitFor(() => expect(fetch.calls("POST", "/activity/replaced/31/undo")).toHaveLength(1));
+  expect((await within(dialog).findByTestId("confirm-error")).textContent).toBe("Not undone: the earlier file is no longer available.");
+});

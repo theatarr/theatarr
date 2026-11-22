@@ -16,7 +16,7 @@ import { createContext, useContext, useState } from "react";
 import { Link } from "react-router";
 import { useActivityHistory, type ActivityEvent } from "@/api/activity";
 import { usePerms } from "@/api/library";
-import { HistoryRetry, RetryPaused } from "@/components/activity/download-actions";
+import { HistoryRetry, RetryPaused, UndoReplaced } from "@/components/activity/download-actions";
 import { HistoryFilters, useHistoryFilters } from "@/components/activity/history-filters";
 import { Dash, episodesWords, FormatPills, Poster, StaleNotice, tight } from "@/components/activity/row-bits";
 import { Empty, ErrorState, Loading, VersionTag } from "@/components/page";
@@ -136,6 +136,8 @@ function ReplacedList({ e }: { e: ActivityEvent }) {
     return as - bs || ae - be || a.path.localeCompare(b.path);
   });
   const named = files.some((f) => f.release);
+  // Several files the server offers Undo for: each has its own (one file at a time).
+  const several = files.filter((f) => f.undo && f.id).length > 1;
   return (
     <div className="text-xs text-muted-foreground" data-testid="history-replaced">
       {e.grabbed_at ? <p className="mb-2 tabular-nums" data-testid="history-grabbed"><GrabbedWords e={e} /></p> : null}
@@ -151,6 +153,7 @@ function ReplacedList({ e }: { e: ActivityEvent }) {
               {scoreWords(f.score) ? <><dt>Score</dt><dd className="tabular-nums">{scoreWords(f.score)}</dd></> : null}
               {f.episodes?.length ? <><dt>Episodes</dt><dd>{episodesWords(f.episodes)}</dd></> : null}
             </dl>
+            {several && f.undo ? <UndoReplaced file={f} titleId={e.title.id} /> : null}
           </li>
         ))}
       </ul>
@@ -273,9 +276,12 @@ function HistoryActions({ e }: { e: ActivityEvent }) {
   // to another provider, a release unblocked since) has none.
   const admin = usePerms().admin;
   const journal = e.entry ? adminLink(admin, journalLink(e.entry)) : undefined;
+  const undoable = (e.replaced ?? []).filter((f) => f.undo && f.id);
   return (
     <span className="inline-flex items-center gap-1.5">
       <HistoryRetry e={e} />
+      {/* Undo on the row when the server offers it for one replaced file; for several, on each file in the list. */}
+      {undoable.length === 1 ? <UndoReplaced file={undoable[0]} titleId={e.title.id} /> : null}
       {journal ? (
         <Link to={journal} className="inline-flex size-6 items-center justify-center text-primary hover:underline" aria-label="Journal entry">
           <NotebookPen className="size-3.5" />
