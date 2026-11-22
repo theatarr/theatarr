@@ -867,7 +867,8 @@ before 00152 has no snapshot and gets no Undo; nor does one whose trash copy was
   or a cancelled request, takes back every symlink change and the trash copies it made, and leaves no row
   (`TestUndoFailedWriteRollsBack`, `TestUndoFailureLeavesNothing`).
 - After it, the undone release is blocked in that library (`router_blocklist`, source `undo:<who>`: Activity ›
-  Blocklist says "Upgrade undone by <who>") and marked researched, so no search starts. When a playing-break incident
+  Blocklist says "Upgrade undone by <who>"); the router searches again after no `undo:` row, so no search starts and
+  the row keeps no researched time (no "handled" line). When a playing-break incident
   made the replacement (an open row whose copy, by its target, is the file put back), the same transaction settles
   that row `restored` quietly: its miss lifted, no outcome sent, no History row of its own, so no sweep keeps aside a
   copy that is in place. Torrents and Sources are

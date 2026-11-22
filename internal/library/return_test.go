@@ -11,9 +11,11 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/decide"
+	"github.com/theatarr/theatarr/internal/jobs"
 	"github.com/theatarr/theatarr/internal/outcome"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/rootprobe/probetest"
+	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -108,9 +110,10 @@ func TestUndoAdoptedFilm(t *testing.T) {
 	if got := e.one(`SELECT state FROM link WHERE path = ?`, newPath); got != "unlinked" {
 		t.Errorf("upgrade's row %s", got)
 	}
-	// Blocked in this library, researched: no search starts.
+	// Blocked in this library, with no researched time (no search was handled for it; none starts:
+	// TestUndoStartsNoSearch).
 	if got := e.one(`SELECT source || '/' || (researched_at IS NOT NULL) FROM router_blocklist WHERE version_key = 'movie-remux'
-		AND info_hash = ?`, hashA); got != "undo:ann/1" {
+		AND info_hash = ?`, hashA); got != "undo:ann/0" {
 		t.Errorf("blocklist %s", got)
 	}
 	// History: "Upgrade undone", never "Removed".
@@ -748,5 +751,33 @@ func TestUndoSettlesThePlayingIncident(t *testing.T) {
 	}
 	if len(outcomes) != 0 {
 		t.Errorf("outcomes %v", outcomes)
+	}
+}
+
+// The Undo's block starts no search: the router's pass over new blocklist rows does not take an Undo's source, and the
+// row keeps no researched time (the Blocklist shows no "handled" line).
+func TestUndoStartsNoSearch(t *testing.T) {
+	t.Parallel()
+	e, _, _, action := adoptedFilm(t)
+	e.pol.Router = &policy.Router{Enabled: true}
+	if _, err := e.lib.UndoUpgrade(e.ctx, action, "ann"); err != nil {
+		t.Fatal(err)
+	}
+	r, err := router.New(router.Config{Store: e.st, Policy: e.pol, Queue: jobs.NewQueue(e.st)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum, err := r.Poll(e.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Researched != 0 {
+		t.Errorf("researched %d", sum.Researched)
+	}
+	if got := e.one(`SELECT COUNT(*) FROM job WHERE kind = ?`, router.JobResearch); got != "0" {
+		t.Errorf("searches queued %s", got)
+	}
+	if got := e.one(`SELECT COUNT(*) FROM router_blocklist WHERE researched_at IS NOT NULL`); got != "0" {
+		t.Errorf("researched rows %s", got)
 	}
 }

@@ -326,7 +326,7 @@ type Undone struct {
 }
 
 // UndoUpgrade puts back the file a History replacement (its library_action id) displaced, from its trash entry's
-// snapshot, and blocks the replacing release in that library, marked researched (no search starts). by names who
+// snapshot, and blocks the replacing release in that library (no search starts). by names who
 // asked. A refusal is a *ReturnRefused; sql.ErrNoRows when the replacement has no trash entry with a snapshot.
 func (l *Library) UndoUpgrade(ctx context.Context, actionID int64, by string) (*Undone, error) {
 	if l.runtime != nil {
@@ -360,14 +360,10 @@ func (l *Library) undoUpgrade(ctx context.Context, actionID int64, by string) (*
 	}
 	r := &returnFile{entry: e, prefix: undoPrefix + " by " + orSomeone(by) + ": "}
 	r.endTx = func(ctx context.Context, tx *sql.Tx, v *importVersion, now int64) error {
-		// The undone release stays out of this library: blocked, researched (no search starts).
+		// The undone release stays out of this library: blocked. Its source is not one the router searches again
+		// after (router researchSources), so no search starts and the row keeps no researched time.
 		if err := router.Blocklist(ctx, tx, v.Key, hash, v.Title.ID, e.snap.Successor.DownloadID, release,
 			"the upgrade was undone by "+orSomeone(by), UndoBlockSource(by), now); err != nil {
-			return err
-		}
-		_, err := tx.ExecContext(ctx, `UPDATE router_blocklist SET researched_at = ? WHERE version_key = ?
-			AND info_hash = ?`, now, v.Key, router.BlocklistKey(hash, release))
-		if err != nil {
 			return err
 		}
 		return settleUndoneIncidents(ctx, tx, v, e.target, now)
