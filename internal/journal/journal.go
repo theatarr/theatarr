@@ -134,9 +134,9 @@ type Filter struct {
 	// WithinVersions narrows Restricted titles listed in it to entries of those versions (and entries naming no
 	// version); a title in Within but not here keeps every entry.
 	WithinVersions map[int64][]string
-	// WithinSeasons narrows Restricted titles listed in it to History rows with an episode of those seasons (and rows
-	// with no episodes); a title in Within but not here keeps every season. History only.
-	WithinSeasons map[int64][]int
+	// WithinScopes narrows Restricted titles listed in it, in History, to rows any one scope covers, library and
+	// seasons together (in place of WithinVersions there); a title in Within but not here keeps every row.
+	WithinScopes map[int64][]Scope
 	// TitleKind keeps entries of titles of this kind: movie, series (both without anime) or anime.
 	TitleKind string
 	// Kinds keeps these kinds.
@@ -561,4 +561,12 @@ func (j *Journal) headOf(ctx context.Context, id string) (head, error) {
 		return head{}, fmt.Errorf("journal: get: %w", err)
 	}
 	return h, nil
+}
+
+// Scope is one request's part of a title: its libraries (none: every one) and seasons (none: every one). A History
+// row is covered when its library is one of them (or it names none) and the episodes it shows are in one of the
+// seasons (or it shows none).
+type Scope struct {
+	Versions []string
+	Seasons  []int
 }

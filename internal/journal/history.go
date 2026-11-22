@@ -739,18 +739,32 @@ func historyMatch(f Filter, titles []int64) ([]string, []any) {
 		for _, t := range f.Within {
 			c := `title_id = ?`
 			args = append(args, t)
-			if vs, narrowed := f.WithinVersions[t]; narrowed {
+			if scopes, narrowed := f.WithinScopes[t]; narrowed {
+				// Library and seasons inside the same request; the seasons of the episodes the row shows.
+				var ors []string
+				for _, sc := range scopes {
+					one := `1 = 1`
+					if len(sc.Versions) > 0 {
+						one += ` AND COALESCE(version_key, '') IN (''` + strings.Repeat(", ?", len(sc.Versions)) + `)`
+						for _, v := range sc.Versions {
+							args = append(args, v)
+						}
+					}
+					if len(sc.Seasons) > 0 {
+						one += ` AND (json_array_length(` + householdEpisodesSQL + `) = 0 OR EXISTS (SELECT 1 FROM json_each(` +
+							householdEpisodesSQL + `) je JOIN episode se ON se.id = je.value WHERE se.season IN (` +
+							store.Placeholders(len(sc.Seasons)) + `)))`
+						for _, n := range sc.Seasons {
+							args = append(args, n)
+						}
+					}
+					ors = append(ors, `(`+one+`)`)
+				}
+				c += ` AND (` + strings.Join(ors, " OR ") + `)`
+			} else if vs, narrowed := f.WithinVersions[t]; narrowed {
 				c += ` AND COALESCE(version_key, '') IN (''` + strings.Repeat(", ?", len(vs)) + `)`
 				for _, v := range vs {
 					args = append(args, v)
-				}
-			}
-			// A title narrowed to seasons: rows with an episode in them, or with none.
-			if ss, narrowed := f.WithinSeasons[t]; narrowed {
-				c += ` AND (json_array_length(episodes) = 0 OR EXISTS (SELECT 1 FROM json_each(episodes) je
-					JOIN episode se ON se.id = je.value WHERE se.season IN (` + store.Placeholders(len(ss)) + `)))`
-				for _, n := range ss {
-					args = append(args, n)
 				}
 			}
 			or = append(or, c)

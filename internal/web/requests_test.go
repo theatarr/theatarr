@@ -1237,3 +1237,38 @@ func TestSeasonRequestImportedMissingFailed(t *testing.T) {
 		t.Errorf("episode airing later today: %s", s)
 	}
 }
+
+// TestHistoryScopedToEachRequest: a member's History matches library and season inside each request: asking for
+// tv-2160p S1 and tv-1080p S2 shows neither tv-2160p S2 nor tv-1080p S1.
+func TestHistoryScopedToEachRequest(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, nil)
+	annID, ann := e.user("ann", auth.RoleUser)
+	now := store.Millis(addNow)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at)
+		VALUES (11, 10, 'tv-1080p', 1, 'wanted', ?, ?)`, now, now)
+	e.exec(`INSERT INTO request (user_id, kind, tmdb_id, title_id, name, versions, seasons, status, created_at,
+		updated_at) VALUES (?, 'series', NULL, 10, 'The Show', '["tv-2160p"]', '[1]', 'approved', ?, ?),
+		(?, 'series', NULL, 10, 'The Show', '["tv-1080p"]', '[2]', 'approved', ?, ?)`, annID, now, now, annID, now, now)
+	for i, d := range []struct {
+		version int64
+		key     string
+		eps     string
+	}{{10, "tv-2160p", "[101]"}, {10, "tv-2160p", "[103]"}, {11, "tv-1080p", "[101]"}} {
+		e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, episodes,
+			state, error, created_at, updated_at) VALUES (10, ?, ?, ?, 'R', 'x', ?, 'failed', 'not cached', ?, ?)`,
+			d.version, d.key, fmt.Sprintf("h%d", i), d.eps, now, now)
+	}
+	e.sqlSources = true
+	var p ActivityPage
+	e.callAs(ann, "GET", APIBase+"/activity?state=history&kinds=failure", nil, 200, &p)
+	var got []string
+	for _, h := range p.History {
+		got = append(got, strings.Join(h.Episodes, ","))
+	}
+	slices.Sort(got)
+	// tv-2160p S1 only: tv-2160p's S2 and tv-1080p's S1 failures are not this member's.
+	if !slices.Equal(got, []string{"S01E01"}) {
+		t.Errorf("ann's failures %v", got)
+	}
+}

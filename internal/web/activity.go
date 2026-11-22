@@ -352,30 +352,12 @@ func (w *Web) apiActivity(rw http.ResponseWriter, r *http.Request) {
 		// History is scoped by the requests' versions, and a row with episodes by their seasons (Queue's scope), before
 		// paging.
 		if scope != nil {
-			f.Restricted, f.WithinVersions, f.WithinSeasons = true, map[int64][]string{}, map[int64][]int{}
+			f.Restricted, f.WithinScopes = true, map[int64][]journal.Scope{}
 			for id, gs := range scope {
 				f.Within = append(f.Within, id)
-				var vs []string
-				var ss []int
-				whole := false
+				// Each request's libraries and seasons together.
 				for _, g := range gs {
-					if len(g.versions) == 0 {
-						vs = nil
-						break
-					}
-					vs = append(vs, g.versions...)
-				}
-				for _, g := range gs {
-					whole = whole || len(g.seasons) == 0
-					ss = append(ss, g.seasons...)
-				}
-				if vs != nil {
-					slices.Sort(vs)
-					f.WithinVersions[id] = slices.Compact(vs)
-				}
-				if !whole {
-					slices.Sort(ss)
-					f.WithinSeasons[id] = slices.Compact(ss)
+					f.WithinScopes[id] = append(f.WithinScopes[id], journal.Scope{Versions: g.versions, Seasons: g.seasons})
 				}
 			}
 			slices.Sort(f.Within)
