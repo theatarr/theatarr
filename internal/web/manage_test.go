@@ -710,6 +710,17 @@ func TestUpgradeWhyNamesThePacksFile(t *testing.T) {
 			t.Errorf("season 2 names S01E02 with its verdict: %+v", su)
 		}
 	}
+	// A same-path, same-quality import after the search: the file took the slot later, so the stored comparison is
+	// about the file it replaced.
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, source,
+		created_at, updated_at) VALUES (7701, 10, 10, 'tv-2160p', 'cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd',
+		'The.Show.S01E02.1080p.WEB-DL-NEW', 'x', 'imported', 'rss', ?, ?)`, time.Now().UnixMilli(), time.Now().UnixMilli())
+	e.exec(`UPDATE link SET download_id = 7701 WHERE id = 901`)
+	d = TitleDetail{}
+	e.call("GET", APIBase+"/titles/10", nil, 200, &d)
+	if u = d.Versions[0].Upgrade; u.Replaces != nil {
+		t.Errorf("same-path import: replaced file still named: %+v", u.Replaces)
+	}
 	// S01E02 got a new file after the search: the stored comparison is about a file that is gone, so neither it nor
 	// a verdict is shown.
 	e.exec(`UPDATE link SET quality = 'WEBDL-2160p', created_at = ? WHERE id = 901`, time.Now().UnixMilli())

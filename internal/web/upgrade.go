@@ -746,7 +746,8 @@ func (s *upgradeSet) explain(v upgradeVersion, episode int64) *UpgradeInfo {
 					Quality: paired.quality, Score: paired.score}
 			}
 			// Only while the named file is still that episode's current file (looked up across every season of the
-			// copy): a file added since the search, or none, makes the stored comparison about a file that is gone.
+			// copy): a file that took the slot since the search (its since: the later of its link and its download),
+			// or none, makes the stored comparison about a file that is gone.
 			every := s.episodes[v.id]
 			if s.allEpisodes != nil {
 				every = s.allEpisodes[v.id]
@@ -763,7 +764,7 @@ func (s *upgradeSet) explain(v upgradeVersion, episode int64) *UpgradeInfo {
 				cur, ok = s.files[v.id][named.id]
 			}
 			switch {
-			case !ok || cur.added > u.Next.SeenAt.UnixMilli() || (u.Replaces.Quality != "" && cur.quality != u.Replaces.Quality):
+			case !ok || cur.since > u.Next.SeenAt.UnixMilli() || (u.Replaces.Quality != "" && cur.quality != u.Replaces.Quality):
 				u.Replaces = nil
 			case s.qualityJudged[v.id]:
 				met := !named.belowQuality
