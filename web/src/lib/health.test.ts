@@ -95,14 +95,22 @@ describe("accountNotice", () => {
   it("keeps the API-key advice for a refused key or an unreadable account", () => {
     const n = accountNotice(check({ rd: { error: "provider: authentication refused", refused: true }, tb: { premium: true, expires: "2026-11-17T12:00:00Z" } }), (k) => k, now);
     expect(n?.effect).toBe("Real-Debrid refused the API key. TorBox premium ends Nov 17 (in 43 h).");
-    expect(n?.next).toBe("Renew at TorBox to keep premium access. Check the account and its API key under Settings › Download clients.");
+    expect(n?.next).toBe("Renew at TorBox to keep premium access.\nCheck the account and its API key under Settings › Download clients.");
     expect(accountNotice(check({ rd: { premium: true, expires: "2027-03-01T00:00:00Z" } }), (k) => k, now)).toBeNull();
   });
   it("gives the health check's own advice for an account it could not read, so both lists agree", () => {
     const advice = "Theatarr could not reach AllDebrid: check the network and the VPN.";
     const n = accountNotice(check({ ad: { error: "dial tcp: i/o timeout", advice }, rd: { error: "provider: authentication refused", refused: true } }), (k) => k, now);
     expect(n?.effect).toBe("AllDebrid's account could not be read. Real-Debrid refused the API key.");
-    expect(n?.next).toBe(`${advice} Check the account and its API key under Settings › Download clients.`);
+    expect(n?.next).toBe(`${advice}\nCheck the account and its API key under Settings › Download clients.`);
     expect(accountNotice(check({ ad: { error: "dial tcp: i/o timeout", advice } }), (k) => k, now)?.next).toBe(advice);
+  });
+  it("gives each account's advice as a sentence of its own line", () => {
+    // The health check's advice comes without a full stop (its Checks row joins the lines with semicolons).
+    const n = accountNotice(check({
+      rd: { error: "dial tcp: i/o timeout", advice: "Real-Debrid cannot be reached: check this server's network and VPN" },
+      tb: { error: "dial tcp: i/o timeout", advice: "TorBox cannot be reached: check this server's network and VPN" },
+    }), (k) => k, now);
+    expect(n?.next).toBe("Real-Debrid cannot be reached: check this server's network and VPN.\nTorBox cannot be reached: check this server's network and VPN.");
   });
 });

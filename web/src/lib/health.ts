@@ -91,7 +91,8 @@ function inWords(ms: number): string {
  * The debrid-account check (internal/health Accounts) as Status's notice: each account that needs attention by its
  * provider's name, and what to do. A premium plan that ends or ended says to renew it at the provider; a refused key
  * or an account that could not be read keeps the advice to check the key. code gives an account key's cache code (rd,
- * ad, tb: useProviderCode); null when the check's detail names no account that needs attention.
+ * ad, tb: useProviderCode); null when the check's detail names no account that needs attention. next holds one sentence
+ * per line.
  */
 export function accountNotice(c: HealthCheck, code: (key: string) => string = (k) => k, now: Date = new Date()): { effect: string; next: string } | null {
   // advice: ProviderAccountCheck's own sentence for an account it could not read (internal/health, detail[k].advice:
@@ -110,7 +111,10 @@ export function accountNotice(c: HealthCheck, code: (key: string) => string = (k
     if (d.refused || d.error) {
       lines.push(d.refused ? `${name} refused the API key.` : `${name}'s account could not be read.`);
       if (d.advice) {
-        if (!advice.includes(d.advice)) advice.push(d.advice);
+        // The check's advice has no full stop (its Checks row joins the lines with semicolons): one here, so each
+        // account's advice reads as a sentence on its own line.
+        const a = /[.!?]$/.test(d.advice) ? d.advice : `${d.advice}.`;
+        if (!advice.includes(a)) advice.push(a);
       } else key = true;
     } else if (left !== null && left <= 0) {
       lines.push(`${name} premium ended ${fmtDay(d.expires!, now)}.`);
@@ -128,7 +132,7 @@ export function accountNotice(c: HealthCheck, code: (key: string) => string = (k
     ...renew.map((n) => `Renew at ${n} to keep premium access.`),
     ...advice,
     key ? "Check the account and its API key under Settings › Download clients." : "",
-  ].filter(Boolean).join(" ");
+  ].filter(Boolean).join("\n");
   return { effect: lines.join(" "), next };
 }
 

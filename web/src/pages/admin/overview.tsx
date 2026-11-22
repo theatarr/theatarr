@@ -235,7 +235,7 @@ export function Overview() {
                   <div className="min-w-0 flex-1">
                     <div className="font-medium">{a.title}</div>
                     <div className="break-words text-[13px] text-muted-foreground">{a.effect}</div>
-                    <div className="mt-0.5 text-[12.5px] text-[var(--accent-ink)]">Next: {a.next}</div>
+                    <div className="mt-0.5 whitespace-pre-line break-words text-[12.5px] text-[var(--accent-ink)]">Next: {a.next}</div>
                   </div>
                   <div className={cn("flex items-center gap-2", a.job ? "col-start-2 flex-wrap sm:shrink-0 sm:flex-nowrap" : "shrink-0")} data-testid="attention-actions">
                     {a.job ? <JobActions job={a.job} newest={a.grouped} /> : null}
