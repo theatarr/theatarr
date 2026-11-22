@@ -120,6 +120,9 @@ type accountProvider struct {
 	reads   int
 }
 
+// Kind is unknown for this fake (the embedded Provider is nil): the account check names it by its key.
+func (p *accountProvider) Kind() string { return "" }
+
 func (p *accountProvider) Account(context.Context) (*provider.Account, error) {
 	p.reads++
 	a := p.account
