@@ -200,11 +200,22 @@ func (a *Acquirer) RequestSearchLater(ctx context.Context, titleID int64, versio
 	if !a.pol.RouterSettings().Enabled {
 		return nil
 	}
+	return a.searchLater(ctx, titleID, versions, nil)
+}
+
+// SearchOnResume keeps the first search asked for with a title added while Pause is on (an approved request, an arr
+// client's add with its search flag): its missing items (of seasons only, when given) are put on the search schedule
+// as RequestSearchLater puts them, also while paused, and the first round once Pause is off searches them.
+func (a *Acquirer) SearchOnResume(ctx context.Context, titleID int64, versions []string, seasons []int) error {
+	return a.searchLater(a.captureRuntime(ctx), titleID, versions, seasons)
+}
+
+func (a *Acquirer) searchLater(ctx context.Context, titleID int64, versions []string, seasons []int) error {
 	keys := a.Active(versions)
 	if len(keys) == 0 {
 		return nil
 	}
-	sel := Selection{Versions: keys, TitleIDs: []int64{titleID}, Only: OnlyMissing}
+	sel := Selection{Versions: keys, TitleIDs: []int64{titleID}, Only: OnlyMissing, Seasons: seasons}
 	if _, err := a.hold(ctx, 0, &sel, true); err != nil || len(sel.TitleIDs) == 0 {
 		return err
 	}

@@ -845,16 +845,25 @@ func (s *Service) addTitle(w http.ResponseWriter, r *request) {
 			}
 		}
 	}
-	// The add's own search runs only while Pause is off, as the native add's (catalog.Searchable).
-	if in.AddOptions != nil && (in.AddOptions.SearchForMovie || in.AddOptions.SearchForMissingEpisodes) &&
-		s.pol.RouterSettings().Enabled {
-		name, body := "MoviesSearch", map[string]any{"movieIds": []any{float64(viewID(titleID))}}
-		if v.Flavour == Sonarr {
-			name, body = "MissingEpisodeSearch", map[string]any{"seriesId": float64(viewID(titleID))}
-		}
-		if err := s.recordSearch(ctx, v, name, body, r.Header.Get("User-Agent")); err != nil {
-			s.internal(w, r, err)
-			return
+	// The add's own search runs only while Pause is off, as the native add's (catalog.Searchable). While Pause is on
+	// it is kept for when Pause is off (SearchOnResume: the view's libraries, missing items), as an approved
+	// request's first search is.
+	if in.AddOptions != nil && (in.AddOptions.SearchForMovie || in.AddOptions.SearchForMissingEpisodes) {
+		if !s.pol.RouterSettings().Enabled {
+			if sr, ok := s.searcher.(searchOnResume); ok {
+				if err := sr.SearchOnResume(context.WithoutCancel(ctx), titleID, v.Versions, nil); err != nil {
+					s.log.Warn("add: first search not kept for after Pause", "title", titleID, "err", err)
+				}
+			}
+		} else {
+			name, body := "MoviesSearch", map[string]any{"movieIds": []any{float64(viewID(titleID))}}
+			if v.Flavour == Sonarr {
+				name, body = "MissingEpisodeSearch", map[string]any{"seriesId": float64(viewID(titleID))}
+			}
+			if err := s.recordSearch(ctx, v, name, body, r.Header.Get("User-Agent")); err != nil {
+				s.internal(w, r, err)
+				return
+			}
 		}
 	}
 	s.respondTitle(w, r, titleID, http.StatusCreated)

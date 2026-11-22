@@ -118,6 +118,11 @@ func TestRequestFlow(t *testing.T) {
 		t.Fatalf("approval searched in shadow: %+v", ap.Add.Search)
 	}
 	tid := *ap.Request.TitleID
+	// Paused: the first search is kept for when Pause is off, as the request sheet promises.
+	if want := fmt.Sprintf("%d:movie-remux,movie-web:[]", tid); !slices.Equal(e.acq.resume, []string{want}) ||
+		!strings.Contains(ap.Add.Search.Message, "when Pause is turned off") {
+		t.Fatalf("paused approval: kept %v, %q", e.acq.resume, ap.Add.Search.Message)
+	}
 	var states []string
 	scanAll(context.Background(), e.st.Reader(), `SELECT policy_key || ':' || state || ':' || monitored FROM version
 		WHERE title_id = ? ORDER BY policy_key`, []any{tid}, func(rows *sql.Rows) error {
@@ -257,6 +262,8 @@ func TestRequestVersionsAndAutoApprove(t *testing.T) {
 	e.callAs(ann, "POST", APIBase+"/requests", map[string]any{"kind": "movie", "tmdb_id": 108, "name": "Theta"}, 201, &cr)
 	if !cr.Approved || cr.Request.Status != ReqApproved || cr.Request.TitleID == nil {
 		t.Errorf("auto-approve: %+v", cr)
+	} else if want := fmt.Sprintf("%d:movie-remux,movie-web:[]", *cr.Request.TitleID); !slices.Contains(e.acq.resume, want) {
+		t.Errorf("paused auto-approval kept no first search: %v", e.acq.resume)
 	}
 	// A manager's own request is approved at once (managers auto-approve) and may name versions.
 	e.callAs(mgr, "POST", APIBase+"/requests", map[string]any{"kind": "movie", "tmdb_id": 109, "name": "Iota",

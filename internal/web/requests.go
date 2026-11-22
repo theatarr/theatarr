@@ -1079,7 +1079,7 @@ func (w *Web) approve(ctx context.Context, id, by int64, versions []string, seas
 		}
 	}
 	anime := req.Anime
-	ar := AddRequest{Kind: req.Kind, Title: req.Name, Anime: &anime, Versions: keys, Search: true}
+	ar := AddRequest{Kind: req.Kind, Title: req.Name, Anime: &anime, Versions: keys, Search: true, searchOnResume: true}
 	if req.TMDbID != nil {
 		ar.TMDbID = *req.TMDbID
 	}

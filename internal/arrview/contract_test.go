@@ -11,13 +11,17 @@ package arrview
 //   - decypharr 917cfa2: pkg/arr/client.go L140-160, media.go L44-220, content.go L60-140.
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/theatarr/theatarr/internal/acquire"
 )
 
 // client sends requests the way a caller does: Seerr and Homepage put the key in the apikey query parameter,
@@ -598,5 +602,46 @@ func TestDecypharrContract(t *testing.T) {
 	s.must("POST", "/command", nil, map[string]any{"name": "EpisodeSearch", "episodeIds": []int64{102}}, 201, nil)
 	if code := s.do("GET", "/command/1", nil, nil, nil); code != http.StatusOK {
 		t.Errorf("command/1: %d", code)
+	}
+}
+
+// resumeSearcher records the first searches an add keeps while Pause is on (SearchOnResume).
+type resumeSearcher struct {
+	resumed []string
+}
+
+func (r *resumeSearcher) Submit(context.Context, int64, acquire.Selection) (int, int, error) {
+	return 0, 0, nil
+}
+
+func (r *resumeSearcher) SearchOnResume(_ context.Context, titleID int64, versions []string, seasons []int) error {
+	r.resumed = append(r.resumed, fmt.Sprintf("%d:%s:%v", titleID, strings.Join(versions, ","), seasons))
+	return nil
+}
+
+// While Pause is on, a client's add with its search flag records no command and keeps the search for when Pause
+// is off; without the flag nothing is kept.
+func TestPausedAddKeepsItsSearch(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	rs := &resumeSearcher{}
+	e.searcher = rs
+	e.start()
+	c := &client{t: t, e: e, base: "/radarr/api/v3"}
+	profiles, roots := seerrSettingsTest(t, c, "6")
+	def := profileNamed(t, profiles, "Rules default")
+	opts := map[string]any{"qualityProfileId": def, "rootFolderPath": roots[0].Path, "minimumAvailability": "released",
+		"title": "Kappa", "tmdbId": 120, "year": 2025, "monitored": true}
+	movie := seerrAddMovie(t, c, opts, true)
+	tid := int64(movie["id"].(float64)) - IDBase
+	var cmds []map[string]any
+	c.must("GET", "/command", nil, nil, 200, &cmds)
+	if len(cmds) != 0 || len(rs.resumed) != 1 || !strings.HasPrefix(rs.resumed[0], fmt.Sprintf("%d:", tid)) {
+		t.Fatalf("paused add: commands %v, kept %v", cmds, rs.resumed)
+	}
+	opts["tmdbId"], opts["title"] = 121, "Lambda"
+	seerrAddMovie(t, c, opts, false)
+	if len(rs.resumed) != 1 {
+		t.Fatalf("an add without search kept one: %v", rs.resumed)
 	}
 }

@@ -50,6 +50,8 @@ type fakeAcquirer struct {
 	nextTitles []int64
 	// later: the titles put on the search schedule, as "id:key,key".
 	later []string
+	// resume: the first searches kept for when Pause is off (SearchOnResume), as "id:key,key:seasons".
+	resume []string
 	// notRequested makes Submit report that no named library was queued (Selection.RequestedQueued).
 	notRequested bool
 	// whole answers a search without a season as the series-level search does (router.Searched.Whole): these
@@ -106,6 +108,14 @@ func (f *fakeAcquirer) RequestSearchLater(_ context.Context, titleID int64, vers
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.later = append(f.later, fmt.Sprintf("%d:%s", titleID, strings.Join(versions, ",")))
+	return nil
+}
+
+// SearchOnResume records a first search kept while paused.
+func (f *fakeAcquirer) SearchOnResume(_ context.Context, titleID int64, versions []string, seasons []int) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.resume = append(f.resume, fmt.Sprintf("%d:%s:%v", titleID, strings.Join(versions, ","), seasons))
 	return nil
 }
 

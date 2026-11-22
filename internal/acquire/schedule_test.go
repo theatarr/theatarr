@@ -407,6 +407,38 @@ func TestAddedRowOnTheSchedule(t *testing.T) {
 	}
 }
 
+// The first search of a title added while paused with a search asked for (an approved request, a client's add):
+// SearchOnResume writes its rows while paused (the seasons named only), nothing runs while paused, and the first
+// round once Pause is off searches them.
+func TestSearchOnResume(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, &policy.Wanted{Missing: new(false), CutoffUnmet: policy.CutoffOff})
+	e.accept = false
+	e.pol.Router.Enabled = false
+	if err := e.a.SearchOnResume(e.ctx, 1, []string{"movie", "movie-shadow"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.a.SearchOnResume(e.ctx, 10, []string{"series"}, []int{1}); err != nil {
+		t.Fatal(err)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM search_request WHERE why = 'added' AND reason = 'missing' AND
+		((title_id = 1 AND version_key = 'movie' AND season = -1) OR (title_id = 10 AND version_key = 'series' AND season = 1))`); n != 2 ||
+		e.count(`SELECT COUNT(*) FROM search_request`) != 2 {
+		t.Fatalf("rows while paused: %d", e.count(`SELECT COUNT(*) FROM search_request`))
+	}
+	if sum := e.round(); sum.Queued != 0 || e.count(`SELECT COUNT(*) FROM acquire_run`) != 0 {
+		t.Fatalf("searched while paused: %+v %s", sum, e.runs())
+	}
+	e.pol.Router.Enabled = true
+	if sum := e.round(); sum.Queued != 2 {
+		t.Fatalf("round after Pause: %+v %s", sum, e.runs())
+	}
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE research = 'added' AND ((version_id = 101) OR
+		(version_id = 201 AND season = 1))`); n != 2 {
+		t.Fatalf("first searches not run: %s", e.runs())
+	}
+}
+
 // A new series from a list: it has no episodes until its metadata refresh, so it waits (as later) and the refresh
 // makes one added row per season with something wanted; the loop searches them, nothing at once.
 func TestAddedSeriesWaitsForMetadata(t *testing.T) {

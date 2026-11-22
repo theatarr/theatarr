@@ -230,4 +230,9 @@ func TestSearchOnAddPaused(t *testing.T) {
 	if n := e.one(`SELECT COUNT(*) FROM title WHERE tmdb_id = 109`); n != 1 {
 		t.Errorf("the add did not add the title: %d", n)
 	}
+	// The search is kept for when Pause is off: a row of the view's library on the search schedule.
+	if n := e.one(`SELECT COUNT(*) FROM search_request r JOIN title t ON t.id = r.title_id WHERE t.tmdb_id = 109
+		AND r.version_key = 'movie-web' AND r.why = 'added'`); n != 1 {
+		t.Errorf("paused add kept %d searches", n)
+	}
 }

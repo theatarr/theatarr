@@ -284,3 +284,6 @@ password for local accounts, own keys). API keys are managed in Users and Profil
 Request detail, request lists, add options and title request cards share the server's effective grab decision
 (`grab_state.will_grab`, also exposed as add option `searchable`). It requires active mode (Live) and Pause off.
 Approval records monitoring intent while these gates are closed; it does not make a library Live or turn Pause off.
+An approval while Pause is on (an automatic one too) keeps its first search: the missing items it would search (the
+requested seasons only for more seasons) go on the search schedule (`SearchOnResume`, written also while paused), and
+the first search round once Pause is off searches them, whatever the backlog switches say.

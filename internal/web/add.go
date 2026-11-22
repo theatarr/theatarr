@@ -462,6 +462,9 @@ type AddRequest struct {
 	// searchSeasons, when set, makes the add's search the missing episodes of these seasons only (an approval for
 	// more seasons of a series a library has: the seasons it asked for, not upgrades of the ones already there).
 	searchSeasons []int
+	// searchOnResume: the add's search, when Pause stops it, is kept for when Pause is off (an approved request:
+	// "Your request is saved and starts when they are turned back on"; SearchOnResume).
+	searchOnResume bool
 	// newSeasonsOff: the copies this add turns on (and their partners in sync) leave a season they do not name
 	// unmonitored when it appears (monitor new items none); the copies the title had keep their own choice.
 	newSeasonsOff bool
@@ -824,6 +827,14 @@ func (w *Web) addTitle(ctx context.Context, req AddRequest, source string) (*Add
 			return nil, err
 		}
 		out.Search = so
+		if sr, ok := w.add.Acquirer.(searchOnResume); ok && req.searchOnResume && len(res.Versions) > 0 &&
+			!w.pol.RouterSettings().Enabled {
+			if err := sr.SearchOnResume(context.WithoutCancel(ctx), res.TitleID, res.Versions, req.searchSeasons); err != nil {
+				w.log.Warn("add: first search not kept for after Pause", "title", res.TitleID, "err", err)
+			} else {
+				so.Message = "Paused: the search starts when Pause is turned off"
+			}
+		}
 	}
 	t, err := w.loadAdded(ctx, res.TitleID)
 	if err != nil || t == nil {
@@ -836,6 +847,11 @@ func (w *Web) addTitle(ctx context.Context, req AddRequest, source string) (*Add
 }
 
 var errNoFit = errors.New("no library fits")
+
+// searchOnResume is the part of acquire.Acquirer that keeps a first search Pause stopped for when it is off.
+type searchOnResume interface {
+	SearchOnResume(ctx context.Context, titleID int64, versions []string, seasons []int) error
+}
 
 // labelList names libraries for people: "4K Remux and 4K WEB", "4K, 4K WEB and Anime movies".
 func (w *Web) labelList(keys []string) string {

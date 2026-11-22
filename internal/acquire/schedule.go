@@ -37,7 +37,8 @@ import (
 const (
 	whyAsked = "asked"
 	whyNew   = "new"
-	// whyAdded: a title a list sync or a timed collection sync added (RequestSearchLater).
+	// whyAdded: a title a list sync or a timed collection sync added (RequestSearchLater), or a first search Pause
+	// stopped (SearchOnResume).
 	whyAdded = "added"
 )
 

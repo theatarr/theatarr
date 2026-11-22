@@ -137,6 +137,11 @@ type Searcher interface {
 	Submit(ctx context.Context, commandID int64, sel acquire.Selection) (queued, found int, err error)
 }
 
+// searchOnResume is the part of acquire.Acquirer that keeps an add's search Pause stopped for when it is off.
+type searchOnResume interface {
+	SearchOnResume(ctx context.Context, titleID int64, versions []string, seasons []int) error
+}
+
 // Service serves every view.
 type Service struct {
 	st             *store.Store
