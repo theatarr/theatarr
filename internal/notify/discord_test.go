@@ -343,6 +343,9 @@ func TestDigest(t *testing.T) {
 	// Old activity is outside the window.
 	e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, state,
 		created_at, updated_at, added_at) VALUES (1, 2, 'movie-web', 'old', 'r', 'x', 'added', 0, 0, 0)`)
+	// A candidate every provider missed before an add is no failed download.
+	e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, state, error,
+		created_at, updated_at) VALUES (1, 2, 'movie-web', 'missed', 'r', 'x', 'failed', 'miss on every provider: not cached', ?, ?)`, now, now)
 	e.exec(`INSERT INTO router_blocklist (version_key, info_hash, title_id, reason, source, created_at) VALUES
 		('movie-web', 'bad', 1, 'failed', 'router', ?)`, now)
 	// Dead links found in the window count even when relinked since; one found earlier and a vanished symlink do not.

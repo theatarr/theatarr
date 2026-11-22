@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/tasks"
@@ -145,7 +146,9 @@ func (n *Notifier) digest(ctx context.Context, now time.Time) (*DigestSummary, e
 		dst *int
 		q   string
 	}{
-		{&d.Failed, `SELECT COUNT(*) FROM download WHERE state = 'failed' AND updated_at >= ?`},
+		// A candidate every provider missed before an add is passed over, not a failed download (activity.MissedSQL).
+		{&d.Failed, `SELECT COUNT(*) FROM download WHERE state = 'failed' AND updated_at >= ? AND NOT ` +
+			activity.MissedSQL("download")},
 		{&d.Blocklisted, `SELECT COUNT(*) FROM router_blocklist WHERE created_at >= ?`},
 		// A symlink gone from the library is recorded as a dead action too ("vanished: ..."); it is not a dead link.
 		{&d.DeadLinks, `SELECT COUNT(DISTINCT link_id) FROM library_action WHERE kind = 'dead' AND mode = 'applied'

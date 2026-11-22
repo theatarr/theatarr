@@ -229,7 +229,7 @@ SignalR, Sonarr v5, `downloadclient`.
     resolved (claimed in `notify_event` as `error:<regressions>`). Groups that existed when this first ran are the
     baseline. At most 3 error alerts per hour; the rest are held (`error_held:<regressions>`) and counted in the digest.
   - Daily digest: job `notify.digest`, queued once `notify.digest_at` (local `HH:MM`, default 09:00) has passed. It
-    covers the 24 hours before: grabs and imports (counts and up to 10 titles), failed downloads, blocklisted releases,
+    covers the 24 hours before: grabs and imports (counts and up to 10 titles), failed downloads (not a candidate every provider missed before an add: `activity.MissedSQL`, as Indexer stats, arr History and Requests count), blocklisted releases,
     dead links (found: the relink sweep's applied `dead` actions in the window, so one relinked or replaced since
     still counts; "N dead links found, M still dead"), open error groups, health checks not OK, debrid accounts expiring (`ProviderAccountCheck`) and
     "grabbing is off". A quiet day is one line. The claim (`notify_event` digest/<yyyymmdd>) commits with the
