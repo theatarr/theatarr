@@ -171,14 +171,28 @@ func (l *Library) undoEntryOf(ctx context.Context, actionID int64) (*undoEntry, 
 	return e, nil
 }
 
-// holdsSlot says whether the successor still holds the slot: its row active at its path and target, and (when the
-// earlier file had another path) no active link at that path.
+// slotHeldSQL says whether the recorded successor still holds the slot of a return r (columns version_key, path and
+// snapshot): the same row at its path and target, holding the same download's file, in the return's library, active
+// or dead (a dead successor still owns the slot: Undo then helps most); and, when the earlier file had another path,
+// no active link at that path.
+const slotHeldSQL = `(EXISTS (SELECT 1 FROM link s JOIN link_version sv ON sv.link_id = s.id
+		JOIN version v ON v.id = sv.version_id AND v.policy_key = r.version_key AND v.title_id = s.title_id
+		WHERE s.id = json_extract(r.snapshot, '$.successor.link_id')
+		AND s.path = json_extract(r.snapshot, '$.successor.path') AND s.target = json_extract(r.snapshot, '$.successor.target')
+		AND COALESCE(s.download_id, 0) = COALESCE(json_extract(r.snapshot, '$.successor.download_id'), 0)
+		AND s.state IN ('active', 'dead'))
+	AND (r.path = json_extract(r.snapshot, '$.successor.path')
+		OR NOT EXISTS (SELECT 1 FROM link WHERE path = r.path AND state = 'active')))`
+
+// holdsSlot is slotHeldSQL for this entry.
 func (e *undoEntry) holdsSlot(ctx context.Context, q rowQuerier) (bool, error) {
-	s := e.snap.Successor
+	snap, err := json.Marshal(&e.snap)
+	if err != nil {
+		return false, err
+	}
 	var ok bool
-	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM link WHERE id = ? AND path = ? AND target = ?
-		AND state = 'active') AND (? = ? OR NOT EXISTS (SELECT 1 FROM link WHERE path = ? AND state = 'active'))`,
-		s.LinkID, s.Path, s.Target, s.Path, e.path, e.path).Scan(&ok)
+	err = q.QueryRowContext(ctx, `WITH r (version_key, path, snapshot) AS (SELECT ?, ?, ?) SELECT `+slotHeldSQL+` FROM r`,
+		e.version, e.path, string(snap)).Scan(&ok)
 	return ok, err
 }
 

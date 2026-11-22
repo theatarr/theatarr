@@ -395,3 +395,47 @@ func TestUndoEndsPendingRetry(t *testing.T) {
 		t.Errorf("download %s", got)
 	}
 }
+
+// The successor is the recorded one in full: the same row holding another download's file (an earlier release
+// imported again) is a change; the recorded successor marked dead still owns the slot, and Undo then helps.
+func TestUndoSuccessorIdentity(t *testing.T) {
+	t.Parallel()
+	t.Run("another download in the row", func(t *testing.T) {
+		e, _, _, action := adoptedFilm(t)
+		e.download(7, "movie-remux", 1, 10, "Amelie.other", "x", "[]")
+		e.exec(`UPDATE download SET info_hash = '7777777777777777777777777777777777777777' WHERE id = 7`)
+		e.exec(`UPDATE link SET download_id = 7 WHERE download_id = 1`)
+		if offers, _ := e.lib.UndoOffers(e.ctx, []int64{action}); len(offers) != 0 {
+			t.Errorf("offered: %v", offers)
+		}
+		var rr *ReturnRefused
+		if _, err := e.lib.UndoUpgrade(e.ctx, action, ""); !errors.As(err, &rr) || rr.Sentence != returnChanged {
+			t.Errorf("undo: %v", err)
+		}
+	})
+	t.Run("another library's row", func(t *testing.T) {
+		e, _, _, action := adoptedFilm(t)
+		e.exec(`INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (11, 1, 'movie-web', 0, 0)`)
+		e.exec(`UPDATE link_version SET version_id = 11 WHERE link_id = (SELECT id FROM link WHERE download_id = 1)`)
+		var rr *ReturnRefused
+		if _, err := e.lib.UndoUpgrade(e.ctx, action, ""); !errors.As(err, &rr) || rr.Sentence != returnChanged {
+			t.Errorf("undo: %v", err)
+		}
+	})
+	t.Run("dead successor", func(t *testing.T) {
+		e, old, target, action := adoptedFilm(t)
+		e.exec(`UPDATE link SET state = 'dead' WHERE download_id = 1`)
+		if offers, _ := e.lib.UndoOffers(e.ctx, []int64{action}); offers[action] == "" {
+			t.Errorf("not offered")
+		}
+		if _, err := e.lib.UndoUpgrade(e.ctx, action, ""); err != nil {
+			t.Fatal(err)
+		}
+		if got, _ := os.Readlink(old); got != target {
+			t.Errorf("old path %q", got)
+		}
+		if got := e.one(`SELECT state FROM link WHERE download_id = 1`); got != "unlinked" {
+			t.Errorf("successor %s", got)
+		}
+	})
+}
