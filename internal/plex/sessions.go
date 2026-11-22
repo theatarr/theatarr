@@ -47,6 +47,9 @@ type Session struct {
 	File             string
 	Size             int64
 	Decision         string // directplay, copy, transcode
+	// Ambiguous: Plex lists several media, or several parts of the media, without saying which one plays; File is
+	// then only the first one's.
+	Ambiguous bool
 	// Transcode is set only while Plex transcodes.
 	Transcode *Transcode
 }
@@ -126,10 +129,13 @@ func (c *Client) Sessions(ctx context.Context) ([]Session, error) {
 			s.Player = s.Product
 		}
 		// The selected media and part; the first when none is marked (a single version).
-		if mi := selected(len(j.Media), func(i int) bool { return j.Media[i].Selected }); mi >= 0 {
+		mediaSel := func(i int) bool { return j.Media[i].Selected }
+		if mi := selected(len(j.Media), mediaSel); mi >= 0 {
 			md := j.Media[mi]
+			partSel := func(i int) bool { return md.Part[i].Selected }
+			s.Ambiguous = unsure(len(j.Media), mediaSel) || unsure(len(md.Part), partSel)
 			s.Bitrate, s.Resolution, s.Container = md.Bitrate, md.VideoResolution, md.Container
-			if pi := selected(len(md.Part), func(i int) bool { return md.Part[i].Selected }); pi >= 0 {
+			if pi := selected(len(md.Part), partSel); pi >= 0 {
 				pt := md.Part[pi]
 				s.File, s.Size, s.Decision = pt.File, pt.Size, pt.Decision
 				if s.File == "" && s.Type != "track" && s.RatingKey != "" {
@@ -201,6 +207,19 @@ func selected(n int, sel func(int) bool) int {
 		}
 	}
 	return min(0, n-1)
+}
+
+// unsure reports whether there are several items and none is selected.
+func unsure(n int, sel func(int) bool) bool {
+	if n < 2 {
+		return false
+	}
+	for i := range n {
+		if sel(i) {
+			return false
+		}
+	}
+	return true
 }
 
 // PlayEvent is one playing-state change from the notification websocket.

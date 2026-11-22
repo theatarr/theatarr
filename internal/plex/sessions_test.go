@@ -167,3 +167,33 @@ func TestTerminate(t *testing.T) {
 		t.Error("no session id: no error")
 	}
 }
+
+// A session that lists several media, or several parts of its media, without saying which one plays is ambiguous: its
+// file is only a guess (the first). One entry, or a selected one, is not.
+func TestSessionAmbiguousMedia(t *testing.T) {
+	for _, c := range []struct {
+		media string
+		want  bool
+	}{
+		{`[{"Part":[{"file":"/a.mkv"}]}]`, false},
+		{`[{"Part":[{"file":"/a.mkv"}]},{"Part":[{"file":"/b.mkv"}]}]`, true},
+		{`[{"Part":[{"file":"/a.mkv"}]},{"selected":true,"Part":[{"file":"/b.mkv"}]}]`, false},
+		{`[{"Part":[{"file":"/a.mkv"},{"file":"/b.mkv"}]}]`, true},
+		{`[{"Part":[{"file":"/a.mkv"},{"file":"/b.mkv","selected":true}]}]`, false},
+		{`[{"selected":true,"Part":[{"file":"/a.mkv"},{"file":"/b.mkv"}]}]`, true},
+	} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			io.WriteString(w, `{"MediaContainer":{"Metadata":[{"sessionKey":"1","type":"movie","Player":{"state":"playing"},"Media":`+
+				c.media+`}]}}`)
+		}))
+		cl, _ := New(&httpDoer{}, srv.URL, "test-token")
+		ss, err := cl.Sessions(context.Background())
+		srv.Close()
+		if err != nil || len(ss) != 1 {
+			t.Fatalf("%v %#v", err, ss)
+		}
+		if ss[0].Ambiguous != c.want {
+			t.Errorf("%s: ambiguous %v, want %v", c.media, ss[0].Ambiguous, c.want)
+		}
+	}
+}

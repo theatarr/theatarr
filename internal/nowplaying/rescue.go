@@ -92,9 +92,10 @@ type rescueStart struct {
 	tell  *pendingTell
 }
 
-// eligible reports whether a playing file may be checked: a certain Theatarr symlink into the mount (Source.certain).
+// eligible reports whether a playing file may be checked: a certain Theatarr symlink into the mount (Source.certain),
+// in a session that says which of its media and parts plays (plex.Session.Ambiguous).
 func eligible(se *session) bool {
-	return se.src != nil && se.src.LinkID != 0 && se.src.certain
+	return se.src != nil && se.src.LinkID != 0 && se.src.certain && !se.s.Ambiguous
 }
 
 // noteSign queues a check of se's file for why (t.mu held): one per link, a live session's before a stopped one's,
@@ -360,6 +361,17 @@ func (t *Tracker) check(ctx context.Context, lib Rescuer, j *sign) {
 	}
 	// A zurg cooldown line counts only when logged from here on (control).
 	failedAt := t.o.Now()
+	// Plex's size may be an older file's at the same path: the next reads take their range from the mounted file's size,
+	// and one that would start at or past its end is no evidence (the first read may have failed only for that).
+	mounted, err := lib.MountFileSize(ctx, src.Target)
+	if err != nil || mounted < 2*pieceSize {
+		fine()
+		return
+	}
+	if off = pieceOffset(j.s.ViewOffset, j.s.Duration, mounted); off >= mounted {
+		fine()
+		return
+	}
 	log.Info("nowplaying: a playing file did not read; reading it again", "offset", off)
 	if t.sleep(ctx, retryGap) != nil {
 		fine()

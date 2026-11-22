@@ -1638,3 +1638,41 @@ func TestRescueOwedStopReadsFirst(t *testing.T) {
 		}
 	}
 }
+
+// Plex's size may be an older file's at the same path: after the first failed read the range is taken from the mounted
+// file's size, so a readable shorter replacement stopped early is not judged broken.
+func TestRescueStaleSizeRecomputedFromMount(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	if err := os.Truncate(filepath.Join(e.mount, "__all__", "Rel", "S01E02.mkv"), fileSize/2); err != nil {
+		t.Fatal(err)
+	}
+	e.play(2, "buffering")
+	e.plex.mu.Lock()
+	e.plex.ss[0].ViewOffset = 2_100_000 // 70 %: Plex's 4 MiB size puts the read past the 2 MiB file's end
+	e.plex.mu.Unlock()
+	e.poll()
+	if got := e.one(`SELECT COUNT(*) FROM playing_break`) + " " + e.one(`SELECT state FROM link WHERE id = 11`); got != "0 active" {
+		t.Errorf("a readable shorter file: %s", got)
+	}
+	if n := e.lib.readsOf("S01E02.mkv"); n != 2 {
+		t.Errorf("%d reads, want 2 (the stale range, then the mounted one after the gap)", n)
+	}
+}
+
+// A session listing several media or parts without saying which plays gets no automatic check; it still shows in Now
+// playing.
+func TestRescueAmbiguousSessionNotChecked(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.play(2, "buffering")
+	e.plex.mu.Lock()
+	e.plex.ss[0].Ambiguous = true
+	e.plex.mu.Unlock()
+	e.poll()
+	if n := e.lib.readsOf("S01E02.mkv"); n != 0 || e.one(`SELECT state FROM link WHERE id = 11`) != "active" {
+		t.Errorf("an ambiguous session was checked: %d reads", n)
+	}
+	if got := e.tr.Snapshot(); len(got.Sessions) != 1 {
+		t.Errorf("now playing lists %d sessions", len(got.Sessions))
+	}
+}
