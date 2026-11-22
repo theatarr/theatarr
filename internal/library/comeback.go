@@ -30,7 +30,7 @@ const (
 // playingHeld are the open incidents' links by path, with the old target: a dead link still pointing there is the
 // incident's to bring back.
 func playingHeld(ctx context.Context, db *sql.DB) (map[string]string, error) {
-	rows, err := db.QueryContext(ctx, `SELECT path, old_target FROM playing_break WHERE settled = ''`)
+	rows, err := db.QueryContext(ctx, `SELECT path, old_target FROM playing_break WHERE settled = '' AND released = 0`)
 	if err != nil {
 		return nil, err
 	}
@@ -71,10 +71,13 @@ func (l *Library) ComeBack(ctx context.Context) error {
 	if l.mount == nil {
 		return nil
 	}
+	if err := l.settleRepointed(ctx); err != nil {
+		return err
+	}
 	rows, err := l.st.Reader().QueryContext(ctx, `SELECT pb.id, pb.link_id, pb.title_id, pb.version_key, pb.path,
 		pb.old_target, pb.info_hash, pb.inner_file, pb.read_offset, pb.back_since FROM playing_break pb
 		JOIN link l ON l.id = pb.link_id AND l.path = pb.path AND l.target = pb.old_target AND l.state = 'dead'
-		WHERE pb.settled = '' ORDER BY pb.id`)
+		WHERE pb.settled = '' AND pb.released = 0 ORDER BY pb.id`)
 	if err != nil {
 		return err
 	}
@@ -169,8 +172,9 @@ func (l *Library) renamedTarget(ctx context.Context, r returned) string {
 // episodes (a file held in part or whole by another is the later comparison's: left as it is), and only with Pause off,
 // the version's library writing, and its title and version still there and monitored (a deliberate removal stays
 // removed). In place it is the sweep's revive: active again, its items filled, Plex scanned, the row settled revived,
-// and the release's router:playing miss lifted. In a renamed folder the row is settled and the miss lifted, and the
-// next sweep repoints the link as it would any renamed one.
+// and the release's router:playing miss lifted. In a renamed folder the row is released to the sweep, whose ordinary
+// repoint revives the link; the row is settled and the miss lifted on the next pass that sees the link active
+// (settleRepointed).
 func (l *Library) reviveReturned(ctx context.Context, r returned, renamed bool) error {
 	if !l.PlayingWritable(r.version) {
 		return nil
@@ -203,33 +207,27 @@ func (l *Library) reviveReturned(ctx context.Context, r returned, renamed bool) 
 		if err := l.linksHeldTx(lctx, tx); err != nil {
 			return err
 		}
-		if !renamed {
-			res, err := tx.ExecContext(lctx, `UPDATE link SET state = 'active', missing_since = NULL, last_checked_at = ?,
-				updated_at = ? WHERE id = ? AND path = ? AND target = ? AND state = 'dead'`, now, now, r.linkID, r.path, r.old)
-			if err != nil {
-				return err
-			}
-			if n, err := res.RowsAffected(); err != nil || n == 0 {
-				return err
-			}
-			if revived, err = reviveLink(lctx, tx, r.linkID, now); err != nil {
-				return err
-			}
-			if err := l.record(lctx, tx, action{Kind: "relink", Mode: "applied", Version: r.version, LinkID: r.linkID,
-				Path: r.path, Target: r.old, Detail: "revived: the copy that broke while playing reads again"}); err != nil {
-				return err
-			}
-		}
-		if _, err := tx.ExecContext(lctx, `UPDATE playing_break SET settled = 'revived', updated_at = ? WHERE id = ?`,
-			now, r.id); err != nil {
+		if renamed {
+			// Handed to the sweep's ordinary repoint; settled once its link is active again (settleRepointed).
+			_, err := tx.ExecContext(lctx, `UPDATE playing_break SET released = 1, updated_at = ? WHERE id = ?`, now, r.id)
 			return err
 		}
-		if r.hash == "" {
-			return nil
+		res, err := tx.ExecContext(lctx, `UPDATE link SET state = 'active', missing_since = NULL, last_checked_at = ?,
+			updated_at = ? WHERE id = ? AND path = ? AND target = ? AND state = 'dead'`, now, now, r.linkID, r.path, r.old)
+		if err != nil {
+			return err
 		}
-		_, err := tx.ExecContext(lctx, `DELETE FROM provider_cache WHERE info_hash = ? AND source = ?`, r.hash,
-			router.PlayingMissSource)
-		return err
+		if n, err := res.RowsAffected(); err != nil || n == 0 {
+			return err
+		}
+		if revived, err = reviveLink(lctx, tx, r.linkID, now); err != nil {
+			return err
+		}
+		if err := l.record(lctx, tx, action{Kind: "relink", Mode: "applied", Version: r.version, LinkID: r.linkID,
+			Path: r.path, Target: r.old, Detail: "revived: the copy that broke while playing reads again"}); err != nil {
+			return err
+		}
+		return settleRevivedTx(lctx, tx, r.id, r.hash, now)
 	})
 	if errors.Is(err, ErrLinkChanged) {
 		return nil
@@ -237,12 +235,14 @@ func (l *Library) reviveReturned(ctx context.Context, r returned, renamed bool) 
 	if err != nil {
 		return err
 	}
-	l.log.Info("library: the copy that broke while playing reads again; revived", "link", r.path, "incident_row", r.id,
-		"renamed", renamed)
-	if !renamed {
-		if err := l.EnqueueScan(ctx, r.version, filepath.Dir(r.path)); err != nil {
-			l.log.Warn("library: plex scan not queued", "path", r.path, "err", err)
-		}
+	if renamed {
+		l.log.Info("library: the copy that broke while playing reads again in a renamed folder; left to the sweep's repoint",
+			"link", r.path, "incident_row", r.id)
+		return nil
+	}
+	l.log.Info("library: the copy that broke while playing reads again; revived", "link", r.path, "incident_row", r.id)
+	if err := l.EnqueueScan(ctx, r.version, filepath.Dir(r.path)); err != nil {
+		l.log.Warn("library: plex scan not queued", "path", r.path, "err", err)
 	}
 	for _, v := range revived {
 		if _, err := l.recomputeVersion(ctx, v); err != nil {
@@ -250,6 +250,55 @@ func (l *Library) reviveReturned(ctx context.Context, r returned, renamed bool) 
 		}
 	}
 	return nil
+}
+
+// settleRevivedTx settles a row revived and lifts its release's router:playing miss.
+func settleRevivedTx(ctx context.Context, tx *sql.Tx, id int64, hash string, now int64) error {
+	if _, err := tx.ExecContext(ctx, `UPDATE playing_break SET settled = 'revived', updated_at = ? WHERE id = ?`,
+		now, id); err != nil {
+		return err
+	}
+	if hash == "" {
+		return nil
+	}
+	_, err := tx.ExecContext(ctx, `DELETE FROM provider_cache WHERE info_hash = ? AND source = ?`, hash,
+		router.PlayingMissSource)
+	return err
+}
+
+// settleRepointed settles the rows handed to the sweep's repoint whose link is active again.
+func (l *Library) settleRepointed(ctx context.Context) error {
+	return l.st.WriteTx(ctx, func(tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, `SELECT pb.id, pb.info_hash FROM playing_break pb JOIN link l
+			ON l.id = pb.link_id AND l.path = pb.path AND l.state = 'active' WHERE pb.settled = '' AND pb.released = 1`)
+		if err != nil {
+			return err
+		}
+		type done struct {
+			id   int64
+			hash string
+		}
+		var ds []done
+		for rows.Next() {
+			var d done
+			if err := rows.Scan(&d.id, &d.hash); err != nil {
+				rows.Close()
+				return err
+			}
+			ds = append(ds, d)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		for _, d := range ds {
+			if err := settleRevivedTx(ctx, tx, d.id, d.hash, store.Millis(l.now())); err != nil {
+				return err
+			}
+			l.log.Info("library: the copy that broke while playing works again after its repoint", "incident_row", d.id)
+		}
+		return nil
+	})
 }
 
 // partlyCovered reports whether another active link of any of a link's versions holds its film, or any one of its

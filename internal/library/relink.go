@@ -459,8 +459,10 @@ func (l *Library) relink(ctx context.Context, version string, dryRun bool, hints
 		return nil, errors.New("library: library.mount.path is not set")
 	}
 	out, err := l.sweep(ctx, version, dryRun, hints)
-	if err == nil && !dryRun {
-		l.swept.Store(l.now().UnixMilli()) // now playing's worker reads returned copies after it (ComeBack)
+	if err == nil && !dryRun && hints == nil {
+		// now playing's worker reads returned copies after it (ComeBack); a sweep a zurg rename started is not one
+		// of those.
+		l.swept.Store(l.now().UnixMilli())
 	}
 	if errors.Is(err, ErrMountDown) && !dryRun {
 		// A sweep refused for the mount forgets the misses noted before: the listing that noted them may have been

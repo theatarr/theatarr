@@ -836,8 +836,10 @@ state and Cutoff unmet are its own. The journal records an `edit_file` action (m
   least 30 min (`deadConfirm`) after the streak began decides: with Pause off, the library writing, the title and
   version still there and monitored, and no other active file holding its film or any one of its episodes, the link is
   revived as the sweep revives one (action `relink`, "revived: the copy that broke while playing reads again"), the
-  row is settled `revived` and the release's `router:playing` miss is lifted; in a renamed folder the row is settled
-  and the next sweep repoints the link (`TestComeBackRevivesUncoveredCopy`). A copy another file now holds, in part or
+  row is settled `revived` and the release's `router:playing` miss is lifted; in a renamed folder the row is released to
+  the next sweep, whose ordinary repoint revives the link, and it is settled (the miss lifted) on the first pass that
+  sees the link active (`TestComeBackRevivesUncoveredCopy`, `TestComeBackRenamedWaitsForRepoint`). Only an hourly
+  sweep counts, not one a zurg rename started. A copy another file now holds, in part or
   whole, is left as it is for the comparison that puts it back or keeps it aside; so is one while paused or of a
   version no longer monitored (`TestComeBackLeavesCoveredOrStoppedCopy`). The import after which an open row's film,
   or every one of its episodes, has a file again notes it fixed (`fixed_by` `replaced`, the new release) in its

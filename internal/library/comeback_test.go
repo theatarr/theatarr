@@ -159,3 +159,42 @@ func TestComeBackLeavesCoveredOrStoppedCopy(t *testing.T) {
 		}
 	}
 }
+
+// An old copy that reads again in a renamed folder is not called revived until its link works: the come-back hands it
+// to the sweep's ordinary repoint, and settles it (lifting the miss) on the next pass that sees the link active. A
+// sweep a zurg rename started is not one of the come-back's hourly sweeps.
+func TestComeBackRenamedWaitsForRepoint(t *testing.T) {
+	e, id := brokenWhilePlaying(t)
+	if err := os.Rename(filepath.Join(e.mount, "__all__", "Name"), filepath.Join(e.mount, "__all__", "Name.Renamed")); err != nil {
+		t.Fatal(err)
+	}
+	e.exec(`UPDATE content SET mount_folder = 'Name.Renamed' WHERE id = 1`)
+	before := e.lib.LastSweep()
+	if _, err := e.lib.RelinkRenamed(e.ctx, map[string]string{"Name": "Name.Renamed"}); err != nil {
+		t.Fatal(err)
+	}
+	if e.lib.LastSweep() != before {
+		t.Error("a rename's sweep counted as an hourly sweep")
+	}
+	for range 2 {
+		if err := e.lib.ComeBack(e.ctx); err != nil {
+			t.Fatal(err)
+		}
+		e.now = e.now.Add(time.Hour)
+	}
+	if got := e.one(`SELECT settled FROM playing_break WHERE id = ?`, id) + " " + e.one(`SELECT state FROM link WHERE id = 1`) +
+		" " + e.one(`SELECT COUNT(*) FROM provider_cache WHERE source = 'router:playing'`); got != " dead 1" {
+		t.Fatalf("before the repoint: %q", got)
+	}
+	e.sweep()
+	if got := e.one(`SELECT state || ' ' || target FROM link WHERE id = 1`); got != "active "+filepath.Join(e.mount, "__all__", "Name.Renamed", "episode.mkv") {
+		t.Fatalf("the sweep did not repoint it: %s", got)
+	}
+	if err := e.lib.ComeBack(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.one(`SELECT settled FROM playing_break WHERE id = ?`, id) + " " +
+		e.one(`SELECT COUNT(*) FROM provider_cache WHERE source = 'router:playing'`); got != "revived 0" {
+		t.Errorf("after the repoint: %q", got)
+	}
+}
