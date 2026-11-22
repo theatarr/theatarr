@@ -595,6 +595,43 @@ func TestHandGrabOfUnairedTVCapturePassesRoute(t *testing.T) {
 		}
 	})
 
+	// A download a provider already accepted once (requeued after a stall) is not erased by the hold: it is cancelled
+	// the usual way and keeps its attempts.
+	t.Run("postponed_after_stall", func(t *testing.T) {
+		t.Parallel()
+		e := setup(t, false)
+		e.exec(`UPDATE episode SET air_date_utc_at = ? WHERE id = 101`, e.clock.Add(time.Hour).UnixMilli())
+		for _, k := range []string{"rd", "ad", "tb"} {
+			e.exec(`INSERT INTO router_pacing (provider, backoff_until, failures, reason, updated_at)
+				VALUES (?, ?, 1, 'x', 0)`, k, e.clock.Add(time.Minute).UnixMilli())
+		}
+		c := hdtv("f")
+		c.Origin = OriginRSS
+		res, err := e.r.Route(e.ctx, Request{TitleID: 2, VersionID: 20, Version: "series", Source: "rss",
+			Candidates: []Candidate{c}})
+		if err != nil || res.Outcome != OutcomeDeferred {
+			t.Fatalf("defer: %+v %v steps=%s", res, err, steps(res))
+		}
+		// The stall's requeue: an accepted add, then added_at cleared and the row queued again.
+		e.exec(`INSERT INTO download_attempt (download_id, provider, outcome, attempted_at) VALUES (?, 'rd', 'accepted', 0)`,
+			res.DownloadID)
+		req, err := DownloadRequest(e.ctx, e.st.Reader(), e.pol, res.DownloadID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		e.exec(`UPDATE episode SET air_date_utc_at = ? WHERE id = 101`, e.clock.Add(5*24*time.Hour).UnixMilli())
+		e.clock = e.clock.Add(2 * time.Minute)
+		if res, err = e.r.Route(e.ctx, *req); err != nil || res.Outcome != OutcomeCancelled {
+			t.Fatalf("resume: %+v %v steps=%s", res, err, steps(res))
+		}
+		if n := e.count(`SELECT COUNT(*) FROM download_attempt WHERE download_id = ? AND outcome = 'accepted'`, req.DownloadID); n != 1 {
+			t.Errorf("the accepted attempt is gone (%d)", n)
+		}
+		if n := e.count(`SELECT COUNT(*) FROM download WHERE id = ? AND state = 'failed'`, req.DownloadID); n != 1 {
+			t.Errorf("the download was not cancelled the usual way")
+		}
+	})
+
 	// The same, with a WEB fallback the route adds: the held HDTV's queued row closes quietly too.
 	t.Run("postponed_with_fallback", func(t *testing.T) {
 		t.Parallel()

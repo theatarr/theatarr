@@ -551,13 +551,16 @@ func notAiredOnly(d *decide.Decision) bool {
 // again.
 func (r *Router) closeNotAired(ctx context.Context, s *routeState) ([]Candidate, error) {
 	const msg = "not aired yet: the release is decided again when it is seen later"
-	s.res.Outcome = OutcomeCancelled
-	s.res.Steps = append(s.res.Steps, Step{Outcome: "cancelled", Code: "not_aired", Message: msg})
 	if s.req.DownloadID != 0 {
-		if err := r.closeHeldQueued(ctx, s.req.DownloadID); err != nil {
-			return nil, err
+		if closed, err := r.closeHeldQueued(ctx, s.req.DownloadID); err != nil || !closed {
+			if err != nil {
+				return nil, err
+			}
+			return r.finishFresh(ctx, s, "no release is accepted under the current policy")
 		}
 	}
+	s.res.Outcome = OutcomeCancelled
+	s.res.Steps = append(s.res.Steps, Step{Outcome: "cancelled", Code: "not_aired", Message: msg})
 	return nil, nil
 }
 
@@ -579,13 +582,17 @@ func (r *Router) noteHeldResume(ctx context.Context, s *routeState, c Candidate)
 }
 
 // closeHeldQueued removes a queued download, never added, that waits only for its episode to air: a hold, not a
-// failure, so no History or blocklist row is left.
-func (r *Router) closeHeldQueued(ctx context.Context, dl int64) error {
-	if _, err := r.st.Writer().ExecContext(ctx, `DELETE FROM download WHERE id = ? AND state = ? AND added_at IS NULL`,
-		dl, StateQueued); err != nil {
-		return fmt.Errorf("router: close not aired: %w", err)
+// failure, so no History or blocklist row is left. One a provider or client already accepted once (requeued after a
+// stall) is kept: false, and the caller cancels it the usual way so its attempts stay.
+func (r *Router) closeHeldQueued(ctx context.Context, dl int64) (bool, error) {
+	res, err := r.st.Writer().ExecContext(ctx, `DELETE FROM download WHERE id = ? AND state = ? AND added_at IS NULL
+		AND NOT EXISTS (SELECT 1 FROM download_attempt a WHERE a.download_id = download.id AND a.outcome = 'accepted')`,
+		dl, StateQueued)
+	if err != nil {
+		return false, fmt.Errorf("router: close not aired: %w", err)
 	}
-	return nil
+	n, err := res.RowsAffected()
+	return n == 1, err
 }
 
 func (r *Router) skipFresh(s *routeState, c Candidate, code, message string) {

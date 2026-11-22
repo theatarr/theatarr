@@ -488,7 +488,9 @@ func (r *Router) endSuperseded(ctx context.Context, s *routeState, res *Result) 
 		return nil
 	}
 	if s.heldResume {
-		return r.closeHeldQueued(ctx, s.resumeID)
+		if closed, err := r.closeHeldQueued(ctx, s.resumeID); err != nil || closed {
+			return err
+		}
 	}
 	err := r.endQueued(ctx, s.resumeID, fmt.Sprintf("route ended: its release was not placed by the route that "+
 		"resumed it (outcome %s)", res.Outcome))

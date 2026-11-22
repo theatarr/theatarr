@@ -73,8 +73,9 @@ from ordinary matching loads.
   reuse for another library: `decide.WithOnDisk`), and packs (they keep `FullSeason`). Automatic search, RSS and the route's second
   decision apply it alike; RSS does not remember it, so a later sighting is decided again. When a queued route resumes
   and this hold alone refuses the release its download holds (the listing moved later while it waited for a
-  provider), that unstarted download is removed quietly, with no failure, History or blocklist row; the route goes
-  on with its other releases. A grab by
+  provider), that unstarted download is removed quietly, with no failure, History or blocklist row (one a provider
+  or client already accepted once, requeued after a stall, is cancelled the usual way and keeps its attempts); the
+  route goes on with its other releases. A grab by
   hand from Interactive search still works: the release is listed with the reason and Grab overrides it (the route
   never decides a grab by hand again). Words: "Not aired yet: S02E05 airs Thu 26 Nov, 9 pm UTC; a TV recording cannot
   exist before then.", in the server's zone with its short name; the day alone when the deciding episode's instant is the refresh's placeholder
