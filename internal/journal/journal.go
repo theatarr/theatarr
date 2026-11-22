@@ -221,9 +221,9 @@ const failureRunSQL = `(` + router.FailureResearchSQL + `)`
 const runHeadSQL = `SELECT 'run:' || r.id AS id, r.created_at AS at, r.title_id, r.version_key,
 	CASE WHEN ` + failureRunSQL + ` THEN 'research' ELSE 'search' END AS kind, NULL AS parent FROM acquire_run r`
 
-// grabKindSQL is a download's kind (alias d): upgrade when an earlier download of the version had imported a file
-// of its episodes, else grab.
-const grabKindSQL = store.HistoryGrabKindSQL
+// grabKindSQL is a download's kind (alias d): upgrade when its import replaced a file, as its "Upgraded" label says
+// (store.JournalGrabKindSQL), else grab.
+const grabKindSQL = store.JournalGrabKindSQL
 
 // headParts are every source's entries as (id, at, title_id, version_key, kind, parent), by id prefix. parent is the
 // entry whose line stands for this one in the list (docs/journal.md "The list"), or NULL: a download's failure, import

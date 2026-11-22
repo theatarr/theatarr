@@ -865,9 +865,9 @@ before 00152 has no snapshot and gets no Undo; nor does one whose trash copy was
   (event `undone`) with the undone release, never "Removed"; the journal labels both actions "Upgrade undone".
 - A replacement of a gone (dead) file by a lower quality is no upgrade: its replace action's detail ends "its file
   was gone, and a lower quality took its place", History says "Replaced" and the journal "Replaced", and the journal
-  kind is `grab`. The journal's `upgrade` kind is a download whose import replaced any other file (an adopted file's
-  replacement too), or one still on its way (not imported, not failed) with an earlier import of its episodes; a
-  failed grab is never one (`store.HistoryGrabKindSQL`).
+  kind is `grab`. The journal's `upgrade` kind (its Upgraded filter) is exactly a download whose import replaced another
+  file, as its "Upgraded" label says (an adopted file's replacement too; `store.JournalGrabKindSQL`); a grab still on
+  its way or a failed one is `grab`. History's own kinds are unchanged (`store.HistoryGrabKindSQL`).
 
 ## Relink and verify
 

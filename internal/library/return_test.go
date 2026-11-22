@@ -309,7 +309,7 @@ func TestUndoDisplacedExtraEpisode(t *testing.T) {
 func TestReplacementOfGoneFileIsNoUpgrade(t *testing.T) {
 	t.Parallel()
 	kind := func(e *env) string {
-		return e.one(`SELECT ` + store.HistoryGrabKindSQL + ` FROM download d WHERE d.id = 1`)
+		return e.one(`SELECT ` + store.JournalGrabKindSQL + ` FROM download d WHERE d.id = 1`)
 	}
 	t.Run("dead, lower", func(t *testing.T) {
 		e := importUpEnv(t, "")
@@ -351,6 +351,15 @@ func TestReplacementOfGoneFileIsNoUpgrade(t *testing.T) {
 		e.exec(`UPDATE download SET state = 'imported', imported_at = -1, info_hash = 'ffffffffffffffffffffffffffffffffffffffff' WHERE id = 9`)
 		e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 		e.exec(`UPDATE download SET state = 'failed' WHERE id = 1`)
+		if got := kind(e); got != "grab" {
+			t.Errorf("kind %s", got)
+		}
+	})
+	t.Run("on its way, after an earlier import", func(t *testing.T) {
+		e := importUpEnv(t, "")
+		e.download(9, "movie-remux", 1, 10, "Amelie.2001.held-OLD", "x", "[]")
+		e.exec(`UPDATE download SET state = 'imported', imported_at = -1, info_hash = 'ffffffffffffffffffffffffffffffffffffffff' WHERE id = 9`)
+		e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
 		if got := kind(e); got != "grab" {
 			t.Errorf("kind %s", got)
 		}

@@ -412,8 +412,10 @@ func TestDownloadChecks(t *testing.T) {
 		"Gamma.Complete.Series.2160p.WEB-DL-X", "WEBDL-2160p", 100, 40<<30, []int64{201, 202}, "")
 	e.dlEvent(53, "added", base.Add(-28*time.Hour), 3, 3, "tv-2160p", fmt.Sprintf("%040d", 53),
 		"Gamma.S01.to.S02.2160p.WEB-DL-X", "WEBDL-2160p", 100, 40<<30, []int64{201, 202}, "")
+	// Still on its way, it replaced nothing yet: the journal's kind is grab (its Upgraded filter holds only applied
+	// replacements), and the upgrade checks still judge it against the earlier import.
 	up := e.get("dl:3")
-	if up.Kind != KindUpgrade || up.Source != "theatarr" {
+	if up.Kind != KindGrab || up.Source != "theatarr" {
 		t.Fatalf("upgrade: %+v", up)
 	}
 	for _, code := range []string{CheckTitle, CheckYear, CheckSize, CheckLowerScore, CheckLowerQual} {
