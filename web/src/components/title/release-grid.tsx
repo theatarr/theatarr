@@ -39,7 +39,6 @@ import {
   columnSortKey,
   episodesText,
   filterChoices,
-  filterCounts,
   filterReleases,
   fmtAge,
   indexerWords,
@@ -380,7 +379,7 @@ function Choice({ label, any, value, values, words, count, onChange, testid }: {
   // Each value with how many loaded releases have it: "Nyaa (40)".
   const counted = (v: string) => { const n = count?.(v); return n === undefined ? "" : ` (${n})`; };
   return (
-    <Select className="w-auto max-w-44" aria-label={label} value={value} onChange={(e) => onChange(e.target.value)} data-testid={testid}>
+    <Select className="w-auto max-w-44 max-sm:w-full max-sm:max-w-none" aria-label={label} value={value} onChange={(e) => onChange(e.target.value)} data-testid={testid}>
       <option value="">{any}</option>
       {values.map((v) => <option key={v} value={v}>{words ? words(v) : v}{counted(v)}</option>)}
     </Select>
@@ -451,7 +450,7 @@ export function ReleaseGrid({
   // The list as Show more counts it: a new one for other items, filter, reason or sort, never for a fresh outcome.
   const list = useMemo(() => ({ items, filter, reason, sortKey, sortDir }), [items, filter, reason, sortKey, sortDir]);
   const choices = useMemo(() => filterChoices(items), [items]);
-  const counts = useMemo(() => filterCounts(items), [items]);
+  const counts = choices.counts;
   // The rows whose matched formats are open (the table), by row key.
   const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
   const openOf = (c: Candidate, part = "") => ({

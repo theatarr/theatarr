@@ -11,7 +11,6 @@ import {
   columnSortKey,
   episodesText,
   filterChoices,
-  filterCounts,
   filterReleases,
   fmtAge,
   indexersText,
@@ -97,7 +96,8 @@ describe("filterReleases", () => {
       c(2, { indexer: "alpha", quality: "Remux-2160p", quality_rank: 9, languages: ["English", "Japanese"], cached_on: ["tb", "rd"] }),
       c(3, { quality: "WEBDL-1080p", quality_rank: 5 }),
     ];
-    expect(filterChoices(xs)).toEqual({
+    const got = filterChoices(xs);
+    expect({ indexer: got.indexer, quality: got.quality, language: got.language, cached: got.cached }).toEqual({
       indexer: ["alpha", "prowlarr-zeta"],
       quality: ["Remux-2160p", "WEBDL-1080p"],
       language: ["English", "Japanese"],
@@ -113,7 +113,8 @@ describe("filterReleases", () => {
       c(2, { indexer: "alpha", quality: "Remux-2160p", languages: ["English", "Japanese"], cached_on: ["tb", "rd"], accepted: false }),
       c(3, { quality: "WEBDL-1080p" }),
     ];
-    const n = filterCounts(xs);
+    // One pass gives the values and their counts.
+    const n = filterChoices(xs).counts;
     expect([n.accepted, n.packs, n.cachedAny]).toEqual([xs.filter((x) => x.accepted).length, 1, 2]);
     expect([n.indexer.get("alpha"), n.quality.get("WEBDL-1080p"), n.language.get("Japanese"), n.cached.get("rd"), n.cached.get("tb")]).toEqual([2, 2, 2, 2, 1]);
   });

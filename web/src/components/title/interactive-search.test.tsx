@@ -382,6 +382,8 @@ it("filters by indexer, quality, language and provider across pages, and a new s
   // Each filter counts the loaded releases it keeps.
   expect([...screen.getByTestId("release-indexer").querySelectorAll("option")].map((o) => o.textContent)).toEqual(expect.arrayContaining(["Other (40)"]));
   expect(screen.getByTestId("release-accepted-only").textContent).toBe("Accepted only (1)");
+  // On a phone a select takes the row's width, so a chosen value keeps its count in view.
+  expect(screen.getByTestId("release-indexer").className.split(" ")).toEqual(expect.arrayContaining(["max-sm:w-full", "max-sm:max-w-none"]));
   fireEvent.change(screen.getByTestId("release-indexer"), { target: { value: "Other" } });
   expect(await rows()).toBe(40);
   fireEvent.change(screen.getByTestId("release-quality"), { target: { value: "WEBDL-2160p" } });

@@ -206,47 +206,43 @@ export function filterReleases(items: Candidate[], f: ReleaseFilter): Candidate[
 
 /** The values the indexer, quality, language and cached-on filters offer: those in this search's releases (all of
  *  them, not only the shown page); qualities best first, the rest A to Z. A filter that cannot narrow the list (one
- *  value, which every release has) offers none. */
-export function filterChoices(items: Candidate[]): { indexer: string[]; quality: string[]; language: string[]; cached: string[] } {
-  const indexer = new Set<string>();
-  const quality = new Map<string, number>();
-  const language = new Set<string>();
-  const cached = new Set<string>();
-  for (const c of items) {
-    for (const i of rowIndexers(c)) indexer.add(i);
-    if (c.quality) quality.set(c.quality, Math.max(quality.get(c.quality) ?? 0, c.quality_rank ?? 0));
-    for (const l of c.languages ?? []) language.add(l);
-    for (const p of c.cached_on ?? []) cached.add(p);
-  }
-  const az = (s: Set<string>) => [...s].sort((a, b) => a.localeCompare(b));
-  const narrows = (vs: string[], has: (c: Candidate) => boolean) => (vs.length > 1 || items.some((c) => !has(c)) ? vs : []);
-  return {
-    indexer: narrows([...indexer].sort((a, b) => indexerWords(a).localeCompare(indexerWords(b))), (c) => rowIndexers(c).length > 0),
-    quality: narrows([...quality].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([q]) => q), (c) => !!c.quality),
-    language: narrows(az(language), (c) => !!c.languages?.length),
-    cached: narrows(az(cached), (c) => !!c.cached_on?.length),
-  };
-}
-
-/** How many of the loaded releases each filter keeps on its own (the counts beside the filters): Accepted only,
- *  Packs only, Cached anywhere and each value filterChoices offers. Only from the rows already loaded. */
-export function filterCounts(items: Candidate[]) {
+ *  value, which every release has) offers none. In the same pass, counts: how many of the loaded releases each
+ *  filter keeps on its own (Accepted only, Packs only, Cached anywhere and each value), the numbers beside them. */
+export function filterChoices(items: Candidate[]) {
   const indexer = new Map<string, number>();
   const quality = new Map<string, number>();
+  const rankOf = new Map<string, number>();
   const language = new Map<string, number>();
   const cached = new Map<string, number>();
   const bump = (m: Map<string, number>, k: string) => m.set(k, (m.get(k) ?? 0) + 1);
   let accepted = 0, packs = 0, cachedAny = 0;
+  let noIndexer = false, noQuality = false, noLanguage = false, noCache = false;
   for (const c of items) {
     if (c.accepted) accepted++;
     if ((c.episodes?.length ?? 0) > 1) packs++;
-    if (c.cached_on?.length) cachedAny++;
-    for (const i of new Set(rowIndexers(c))) bump(indexer, i);
-    if (c.quality) bump(quality, c.quality);
+    const ix = new Set(rowIndexers(c));
+    for (const i of ix) bump(indexer, i);
+    if (c.quality) {
+      bump(quality, c.quality);
+      rankOf.set(c.quality, Math.max(rankOf.get(c.quality) ?? 0, c.quality_rank ?? 0));
+    }
     for (const l of new Set(c.languages ?? [])) bump(language, l);
     for (const p of new Set(c.cached_on ?? [])) bump(cached, p);
+    if (c.cached_on?.length) cachedAny++;
+    noIndexer ||= ix.size === 0;
+    noQuality ||= !c.quality;
+    noLanguage ||= !c.languages?.length;
+    noCache ||= !c.cached_on?.length;
   }
-  return { accepted, packs, cachedAny, indexer, quality, language, cached };
+  const az = (m: Map<string, number>) => [...m.keys()].sort((a, b) => a.localeCompare(b));
+  const narrows = (vs: string[], missing: boolean) => (vs.length > 1 || missing ? vs : []);
+  return {
+    indexer: narrows([...indexer.keys()].sort((a, b) => indexerWords(a).localeCompare(indexerWords(b))), noIndexer),
+    quality: narrows([...rankOf].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([q]) => q), noQuality),
+    language: narrows(az(language), noLanguage),
+    cached: narrows(az(cached), noCache),
+    counts: { accepted, packs, cachedAny, indexer, quality, language, cached },
+  };
 }
 
 /** How long ago it was published: "12 min", "5 h", "468 d", "1,411 d"; "—" when unknown. */
