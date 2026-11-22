@@ -214,3 +214,39 @@ func TestRetryKeepsItsScope(t *testing.T) {
 		}
 	}
 }
+
+// Ruddarr's editor with Move Files (moveFiles true) and another root: refused before anything is stored, since
+// Theatarr links files and never moves them; the same root, or another root without Move Files, is saved as before.
+func TestEditorRefusesMoveFiles(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	for _, tc := range []struct{ view, ids string }{{"radarr", "movieIds"}, {"sonarr", "seriesIds"}} {
+		id := IDBase + 1
+		res := "movie"
+		if tc.view == "sonarr" {
+			id, res = IDBase+10, "series"
+		}
+		var before map[string]any
+		e.call("GET", fmt.Sprintf("/%s/api/v3/%s/%d", tc.view, res, id), nil, 200, &before)
+		root := before["rootFolderPath"].(string)
+		var errs []map[string]any
+		e.call("PUT", "/"+tc.view+"/api/v3/"+res+"/editor", map[string]any{tc.ids: []int{id},
+			"rootFolderPath": "/elsewhere", "moveFiles": true}, 400, &errs)
+		if len(errs) != 1 || errs[0]["propertyName"] != "MoveFiles" {
+			t.Fatalf("%s: %v", tc.view, errs)
+		}
+		if n := e.one(`SELECT COUNT(*) FROM arrview_title WHERE root_folder_path <> ''`); n != 0 {
+			t.Fatalf("%s: a refused move stored %d roots", tc.view, n)
+		}
+		e.call("PUT", "/"+tc.view+"/api/v3/"+res+"/editor", map[string]any{tc.ids: []int{id},
+			"rootFolderPath": root, "moveFiles": true}, 202, nil)
+		e.call("PUT", "/"+tc.view+"/api/v3/"+res+"/editor", map[string]any{tc.ids: []int{id},
+			"rootFolderPath": "/elsewhere/" + tc.view, "moveFiles": false}, 202, nil)
+		var after map[string]any
+		e.call("GET", fmt.Sprintf("/%s/api/v3/%s/%d", tc.view, res, id), nil, 200, &after)
+		if after["rootFolderPath"] != "/elsewhere/"+tc.view {
+			t.Errorf("%s: root without Move Files %v", tc.view, after["rootFolderPath"])
+		}
+		e.exec(`DELETE FROM arrview_title`)
+	}
+}

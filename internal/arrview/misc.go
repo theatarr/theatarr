@@ -3,6 +3,7 @@ package arrview
 import (
 	"context"
 	"net/http"
+	"path"
 	"slices"
 	"sort"
 	"strconv"
@@ -425,13 +426,16 @@ type editorIn struct {
 	MonitorNewItems     enumText `json:"monitorNewItems"`
 	SeriesType          enumText `json:"seriesType"`
 	SeasonFolder        *bool    `json:"seasonFolder"`
+	// MoveFiles asks the arr to move the files to the new root (Ruddarr's Move Files): refused, Theatarr never moves.
+	MoveFiles bool `json:"moveFiles"`
 }
 
 // PUT movie/editor and series/editor (MovieEditorController / SeriesEditorController.SaveAll): bulk changes to the
 // view's versions of the titles, as a full PUT would make them (except that a supplied minimum availability is
 // always stored, where a PUT skips the value the view shows): monitored, profile (turns on its versions, never
 // turns any off), minimum availability, root folder, series type, season folder, monitor new items, and tags with
-// applyTags add (default), remove or replace. Files never move. 202 with the titles.
+// applyTags add (default), remove or replace. Files never move: a new root with moveFiles is refused (400, nothing
+// stored), as Theatarr links files and cannot move them; the root alone is saved. 202 with the titles.
 func (s *Service) editor(w http.ResponseWriter, r *request) {
 	ctx := r.Context()
 	var in editorIn
@@ -464,6 +468,15 @@ func (s *Service) editor(w http.ResponseWriter, r *request) {
 	if err != nil {
 		s.internal(w, r, err)
 		return
+	}
+	if in.MoveFiles && in.RootFolderPath != "" {
+		for _, e := range es {
+			if root, _ := s.rootAndPath(r.v, e); path.Clean(root) != path.Clean(in.RootFolderPath) {
+				badRequest(w, "MoveFiles", "Theatarr does not move files: save without Move Files to change only the root folder",
+					true)
+				return
+			}
+		}
 	}
 	apply := in.ApplyTags.value("add", "remove", "replace")
 	if apply == "" {
