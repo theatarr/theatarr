@@ -221,7 +221,9 @@ broke while playing is searched at once").
   broken on the account serving it (a release only that account holds read; never after an outage or a control read
   of a release on another account, which repair the watched file only), are then read the same way, at
   mid-file: one whose read and an immediate retry both fail joins the incident and is marked dead; their search is
-  queued together once the watched file's search has ended. The outcome, one per incident about the watched file, is
+  queued together once the watched file's search has ended and the pass is done (`Library.HoldPlayingSiblings` holds
+  the incident from before the watched file's mark until then, so a search ending meanwhile queues nothing for them
+  yet). The outcome, one per incident about the watched file, is
   sent through `Library.OnPlayingOutcome`: `same_release`, `replaced` (an import fixed it), `unavailable` (nothing
   could be done, or its search ended with nothing imported and nothing in flight).
 - **Telling the viewer** (`tell`; `plex.Client.Terminate`: `GET /status/sessions/terminate?sessionId=…&reason=…`, the

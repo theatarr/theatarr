@@ -61,21 +61,27 @@ func (l *testLib) MountFileSize(ctx context.Context, target string) (int64, erro
 	return l.Library.MountFileSize(ctx, target)
 }
 
-func (l *testLib) PlayingSearchable(_ context.Context, linkID int64, version string) (bool, error) {
+func (l *testLib) PlayingSearchable(ctx context.Context, linkID int64, version string) (bool, error) {
 	l.mu.Lock()
-	defer l.mu.Unlock()
 	l.asked = append(l.asked, fmt.Sprintf("%d %s", linkID, version))
-	return !l.unsearchable[linkID], nil
+	no := l.unsearchable[linkID]
+	l.mu.Unlock()
+	if no {
+		return false, nil
+	}
+	return l.Library.PlayingSearchable(ctx, linkID, version)
 }
 
 func (l *testLib) HoldPlayingSiblings(incident int64) func() {
 	l.mu.Lock()
 	l.held = incident
 	l.mu.Unlock()
+	release := l.Library.HoldPlayingSiblings(incident)
 	return func() {
 		l.mu.Lock()
 		l.held = 0
 		l.mu.Unlock()
+		release()
 	}
 }
 
@@ -1928,6 +1934,69 @@ func TestRescueOwedStopFileGone(t *testing.T) {
 		}
 		if n := e.lib.readsOf("S01E02.mkv") - reads; n != want {
 			t.Errorf("listed %v: %d reads before the stop, want %d", listed, n, want)
+		}
+	}
+}
+
+// The watched file's search ends while the release's other files are still being read: the settle pass running then
+// queues nothing for them; once the pass is done, exactly one search is queued, holding every broken sibling.
+func TestRescueWatchedSearchEndsDuringSiblingPass(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.lib.setBroken("S01E01.mkv", -1)
+	e.lib.setBroken("S01E03.mkv", -1)
+	settled := false
+	e.lib.onRead = func(name string) {
+		if name == "S01E03.mkv" && !settled { // E01 is marked already
+			settled = true
+			e.exec(`UPDATE job SET state = 'done'`)
+			e.settle()
+		}
+	}
+	e.play(2, "buffering")
+	e.poll()
+	if !settled {
+		t.Fatal("the settle pass did not run during the sibling pass")
+	}
+	if jobs := e.playingJobs(); len(jobs) != 1 {
+		t.Fatalf("searches during the sibling pass: %+v", jobs)
+	}
+	e.settle()
+	jobs := e.playingJobs()
+	if len(jobs) != 2 || fmt.Sprint(jobs[1].Episodes) != "[1 3]" {
+		t.Errorf("searches %+v", jobs)
+	}
+	e.exec(`UPDATE job SET state = 'done'`)
+	e.settle()
+	if n := len(e.playingJobs()); n != 2 {
+		t.Errorf("%d searches after settling again", n)
+	}
+}
+
+// The real eligibility: a watched episode not aired yet, or with no air date, gets no fast path (no incident, mark,
+// message or search); a sibling of that kind is not read or marked.
+func TestRescueUnairedEpisodeNotRepaired(t *testing.T) {
+	for _, air := range []string{"4102444800000", "NULL"} { // 2100, none
+		e := newRescueEnv(t, false, false)
+		e.exec(`UPDATE episode SET air_date_utc_at = ` + air + ` WHERE id = 2`)
+		e.lib.setBroken("S01E02.mkv", -1)
+		e.play(2, "buffering")
+		e.poll()
+		if got := e.one(`SELECT COUNT(*) FROM playing_break`) + " " + e.one(`SELECT state FROM link WHERE id = 11`); got != "0 active" {
+			t.Errorf("air %s: %s", air, got)
+		}
+		if len(e.stop.stopped()) != 0 || len(e.playingJobs()) != 0 {
+			t.Errorf("air %s: stops %q, searches %+v", air, e.stop.stopped(), e.playingJobs())
+		}
+		e2 := newRescueEnv(t, false, false)
+		e2.exec(`UPDATE episode SET air_date_utc_at = ` + air + ` WHERE id = 3`)
+		e2.lib.setBroken("S01E02.mkv", -1)
+		e2.lib.setBroken("S01E03.mkv", -1)
+		e2.play(2, "buffering")
+		e2.poll()
+		if got := e2.one(`SELECT group_concat(state) FROM (SELECT state FROM link WHERE id IN (10, 11, 12) ORDER BY id)`); got !=
+			"active,dead,active" || e2.lib.readsOf("S01E03.mkv") != 0 {
+			t.Errorf("air %s: sibling links %s, reads %d", air, got, e2.lib.readsOf("S01E03.mkv"))
 		}
 	}
 }

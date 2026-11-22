@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/library"
@@ -64,12 +65,11 @@ type Rescuer interface {
 		missKeys []string) (bool, error)
 	QueuePlayingSearch(ctx context.Context, incident int64) (int, error)
 	ReportPlaying(ctx context.Context, incident int64, kind string) error
-	SettlePlayingRuns(ctx context.Context) error
 	ForgetRelease(ctx context.Context, target string) error
 	PlayingMessage(ctx context.Context, incident int64, note string) error
 	PlayingNotStopped(ctx context.Context, incident int64, note string) error
-	LastSweep() time.Time
-	ComeBack(ctx context.Context) error
+	PlayingSearchable(ctx context.Context, linkID int64, version string) (bool, error)
+	HoldPlayingSiblings(incident int64) (release func())
 }
 
 // The library is the check's Rescuer.
@@ -642,10 +642,12 @@ func (t *Tracker) repair(ctx context.Context, lib Rescuer, j *sign, hash string,
 				log.Warn("nowplaying: outcome not sent", "err", err)
 			}
 			if v.sameAccount {
+				release := lib.HoldPlayingSiblings(id) // the settle pass queues no search of them meanwhile
 				t.siblings(ctx, lib, j, id)
 				if _, err := lib.QueuePlayingSearch(ctx, id); err != nil {
 					log.Warn("nowplaying: search of the release's other files not queued", "err", err)
 				}
+				release()
 			}
 			return
 		}
@@ -661,12 +663,20 @@ func (t *Tracker) repair(ctx context.Context, lib Rescuer, j *sign, hash string,
 	if v.where == whereProvider {
 		miss = nil
 	}
+	// The incident is held from before the watched file's search is queued until its other files have been read: a
+	// search that ends meanwhile does not get theirs queued by the settle pass before they are all found.
+	release := sync.OnceFunc(lib.HoldPlayingSiblings(id))
+	defer release()
 	ok, err := lib.MarkBrokenPlaying(ctx, id, library.PlayingFile{LinkID: src.LinkID, Target: src.Target, Offset: off},
 		true, miss)
 	if err != nil || !ok {
 		log.Info("nowplaying: the broken file was not marked (its link changed, or Pause came on)", "err", err)
+		release()
 		t.settleQuiet(ctx, j, id)
 		return
+	}
+	if !v.sameAccount {
+		release() // no sibling pass
 	}
 	log.Info("nowplaying: the broken file is marked dead and searched for at once")
 	if !told {
@@ -800,7 +810,6 @@ func (t *Tracker) sameRelease(ctx context.Context, lib Rescuer, j *sign, id int6
 // handled. One whose read and an immediate retry both fail joins the incident and is marked dead, without a search of
 // its own: their search is queued together once the watched file's search has ended (SettlePlayingRuns).
 func (t *Tracker) siblings(ctx context.Context, lib Rescuer, j *sign, id int64) {
-	defer holdSiblings(lib, id)()
 	folder := releaseFolder(j.src.Target, t.o.AllDir)
 	hash, _ := lib.PlayingHash(ctx, j.src.LinkID)
 	if folder == "" || hash == "" { // a hash only guessed from the folder: no sibling check
@@ -857,26 +866,11 @@ func (t *Tracker) siblings(ctx context.Context, lib Rescuer, j *sign, id int64) 
 	}
 }
 
-// searchable reports whether the round would search a link's file (Library.PlayingSearchable: at least one of its
-// episodes, or its film, monitored in its library version); an error is a no. A library without it answers yes.
+// searchable reports whether the round would search a link's file in version (Library.PlayingSearchable); an error is
+// a no.
 func searchable(ctx context.Context, lib Rescuer, linkID int64, version string) bool {
-	s, ok := lib.(interface {
-		PlayingSearchable(ctx context.Context, linkID int64, version string) (bool, error)
-	})
-	if !ok {
-		return true
-	}
-	yes, err := s.PlayingSearchable(ctx, linkID, version)
+	yes, err := lib.PlayingSearchable(ctx, linkID, version)
 	return err == nil && yes
-}
-
-// holdSiblings holds an incident while its sibling pass runs (Library.HoldPlayingSiblings: the settle pass queues no
-// sibling search for it meanwhile) and returns the release.
-func holdSiblings(lib Rescuer, incident int64) func() {
-	if h, ok := lib.(interface{ HoldPlayingSiblings(incident int64) func() }); ok {
-		return h.HoldPlayingSiblings(incident)
-	}
-	return func() {}
 }
 
 // The messages a stopped stream shows.
