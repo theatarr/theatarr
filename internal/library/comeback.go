@@ -125,6 +125,13 @@ func (l *Library) ComeBack(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		if target == r.old && len(r.hash) == 40 {
+			// The old folder may now be another torrent's (the old one left, another took the name): what zurg or
+			// decypharr says holds it must be this hash. With no such evidence (a plain mount) it is read as it is.
+			if _, ok := l.zurgConfirm(ctx, r.hash, folder, inner); !ok || !l.relinkHolds(ctx, db, lists, ml, r.hash, folder) {
+				target = ""
+			}
+		}
 		if target == "" {
 			if err := l.setBack(ctx, r.id, false); err != nil { // not where its torrent is: the streak ends
 				return err

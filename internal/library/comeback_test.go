@@ -281,3 +281,25 @@ func TestComeBackNoFallbackToBareName(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 }
+
+// The old torrent left the account and another took its bare folder name with a same-named file (no hash-suffixed
+// folder anywhere): where zurg names another hash for that file, the come-back reads nothing there and revives
+// nothing; without any such evidence (a plain mount) it reads as before (TestComeBackRevivesUncoveredCopy).
+func TestComeBackConfirmsTheOldFolder(t *testing.T) {
+	e, id := brokenWhilePlaying(t)
+	srv := newZurgServer(t)
+	srv.set(func(s *zurgServer) {
+		s.entries[davPath("Name", "episode.mkv")] = ZurgEntry{Hash: hashB, Name: "Name"}
+	})
+	e.withZurg(srv)
+	for range 3 {
+		if err := e.lib.ComeBack(e.ctx); err != nil {
+			t.Fatal(err)
+		}
+		e.now = e.now.Add(time.Hour)
+	}
+	if got := e.one(`SELECT state FROM link WHERE id = 1`) + " " + e.one(`SELECT settled FROM playing_break WHERE id = ?`, id) +
+		" " + e.one(`SELECT back_since IS NULL FROM playing_break WHERE id = ?`, id); got != "dead  1" {
+		t.Errorf("got %q", got)
+	}
+}
