@@ -232,7 +232,7 @@ func digestText(d *DigestSummary, markdown bool) (string, []string, messageLevel
 }
 
 // requestText is the subject of a request-ready message, "<Title> (year)", and what happened to it ("is ready in
-// Plex", or "is partly ready in Plex" for a partial series).
+// Plex", or "is partly ready in the library" for a partial series).
 func (n *Notifier) requestText(ctx context.Context, ev Event) (name, ready string, err error) {
 	r := ev.Request
 	name = r.Name
@@ -251,9 +251,9 @@ func (n *Notifier) requestText(ctx context.Context, ev Event) (name, ready strin
 	if year > 0 && !strings.HasSuffix(name, "("+strconv.Itoa(year)+")") {
 		name += " (" + strconv.Itoa(year) + ")"
 	}
-	ready = "is ready in Plex"
+	ready = "is ready in the library"
 	if ev.Kind == RequestPartial {
-		ready = "is partly ready in Plex"
+		ready = "is partly ready in the library"
 	}
 	return name, ready, nil
 }

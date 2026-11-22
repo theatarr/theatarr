@@ -163,7 +163,7 @@ func TestRequestNotifications(t *testing.T) {
 	}
 }
 
-// Request ready on a Discord target: "<Title> (year) is ready in Plex, requested by <name>", mentioning the requester
+// Request ready on a Discord target: "<Title> (year) is ready in the library, requested by <name>", mentioning the requester
 // whose account has a Discord id and nobody else; the id never reaches the SSE event or the native payload.
 func TestRequestReadyDiscord(t *testing.T) {
 	t.Parallel()
@@ -240,7 +240,7 @@ func TestRequestReadyDiscord(t *testing.T) {
 	if year > 0 {
 		title = fmt.Sprintf("%s (%d)", name, year)
 	}
-	if want := "**" + title + "** is ready in Plex, requested by Ann (<@123456789012345678>) and bob"; m.Content != want {
+	if want := "**" + title + "** is ready in the library, requested by Ann (<@123456789012345678>) and bob"; m.Content != want {
 		t.Errorf("content %q, want %q", m.Content, want)
 	}
 	if len(m.Mentions.Parse) != 0 || !slices.Equal(m.Mentions.Users, []string{"123456789012345678"}) {

@@ -254,13 +254,13 @@ func TestDiscordRequestReady(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("messages %d (pending is not a ready message)", len(got))
 	}
-	if got[0].Content != "**Alpha (2020)** is ready in Plex, requested by Ann (<@123456789012345678>) and bob" {
+	if got[0].Content != "**Alpha (2020)** is ready in the library, requested by Ann (<@123456789012345678>) and bob" {
 		t.Errorf("ready %q", got[0].Content)
 	}
 	if u := got[0].AllowedMentions.Users; len(u) != 1 || u[0] != "123456789012345678" {
 		t.Errorf("mentions %v", u)
 	}
-	if got[1].Content != "**Alpha (2020)** is partly ready in Plex, requested by bob" || got[1].AllowedMentions.Users != nil {
+	if got[1].Content != "**Alpha (2020)** is partly ready in the library, requested by bob" || got[1].AllowedMentions.Users != nil {
 		t.Errorf("partial %+v", got[1])
 	}
 	// The native payload never carries the Discord id.

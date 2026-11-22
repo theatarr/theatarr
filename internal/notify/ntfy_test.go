@@ -185,11 +185,11 @@ func TestNtfyTargetGetsMessages(t *testing.T) {
 		t.Errorf("digest %+v", got[1])
 	}
 	// Request ready names the requesters; a Discord user id never leaves for ntfy.
-	if got[2].Title != "Request ready" || got[2].Message != "Alpha (2020) is ready in Plex, requested by Ann and bob" ||
+	if got[2].Title != "Request ready" || got[2].Message != "Alpha (2020) is ready in the library, requested by Ann and bob" ||
 		len(got[2].Tags) != 1 || got[2].Tags[0] != "white_check_mark" {
 		t.Errorf("ready %+v", got[2])
 	}
-	if got[3].Title != "Request partly ready" || got[3].Message != "Alpha (2020) is partly ready in Plex" {
+	if got[3].Title != "Request partly ready" || got[3].Message != "Alpha (2020) is partly ready in the library" {
 		t.Errorf("partial %+v", got[3])
 	}
 	if n := e.one(`SELECT COUNT(*) FROM notify_delivery WHERE payload LIKE '%123456789012345678%'`); n != 0 {

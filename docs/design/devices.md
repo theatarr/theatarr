@@ -230,7 +230,7 @@ SignalR, Sonarr v5, `downloadclient`.
     still counts; "N dead links found, M still dead"), open error groups, health checks not OK, debrid accounts expiring (`ProviderAccountCheck`) and
     "grabbing is off". A quiet day is one line. The claim (`notify_event` digest/<yyyymmdd>) commits with the
     deliveries, so a day is sent once even across a restart.
-  - Request ready: "**Title (year)** is ready in Plex, requested by Ann (@Ann)" (partly ready for a partial series),
+  - Request ready: "**Title (year)** is ready in the library, requested by Ann (@Ann)" (partly ready for a partial series),
     mentioning each requester with a Discord user id (`web_user.discord_id`, docs/design/users.md).
   - Problem reported: an amber embed "Problem reported: <Title (year)> S01E02" with what is wrong, who reported it and
     the note (docs/design/users.md "Report a problem"); its policy event name is `request_ready`, so it reaches the
@@ -260,7 +260,7 @@ SignalR, Sonarr v5, `downloadclient`.
   - Priority and tags: priority 4 (high) and tag `warning` for a failing health check and an error; priority 3
     (default) otherwise, with tag `warning` for a check eased to a warning or a digest with problems, and
     `white_check_mark` for a check OK again and request ready; tag `warning` for a problem report.
-  - Text: no markdown and no Discord mention; request ready names the requesters ("Alpha (2020) is ready in Plex,
+  - Text: no markdown and no Discord mention; request ready names the requesters ("Alpha (2020) is ready in the library,
     requested by Ann and bob"). The title is kept to 250 bytes and the message to 3800 bytes; lines that do not fit
     become "and N more".
   - **Not tested against an ntfy server.** The request follows ntfy's JSON publishing as remembered from its

@@ -86,7 +86,7 @@ func (n *Notifier) discordPayload(ctx context.Context, ev Event) (discordMessage
 	return discordMessage{}, fmt.Errorf("notify: no Discord message for %s", ev.Kind)
 }
 
-// discordRequest is "<Title> (year) is ready in Plex, requested by <name>", mentioning the requesters who have a
+// discordRequest is "<Title> (year) is ready in the library, requested by <name>", mentioning the requesters who have a
 // Discord user id.
 func (n *Notifier) discordRequest(ctx context.Context, ev Event) (discordMessage, error) {
 	name, ready, err := n.requestText(ctx, ev)
