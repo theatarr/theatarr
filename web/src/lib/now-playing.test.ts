@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fmtClock, fmtMbps, healthBadge, itemLabel, placeLabel, prewarmText, progress, streamLabel } from "./now-playing";
+import { fmtClock, fmtMbps, healthBadge, incidentTone, itemLabel, placeLabel, prewarmText, progress, streamLabel } from "./now-playing";
 
 describe("now playing", () => {
   it("clock and progress", () => {
@@ -42,5 +42,10 @@ describe("now playing", () => {
   });
   it("does not guess a cause when diagnostic evidence is missing", () => {
     expect(healthBadge({ verdict: "buffering", cause: "unknown" }).label).toBe("Buffering: cause unknown");
+  });
+  it("dots a removed incident neutral, not like a repaired one", () => {
+    expect(incidentTone("removed")).toBe("neutral");
+    expect(incidentTone("replaced")).toBe("ok");
+    expect(incidentTone("unavailable")).toBe("bad");
   });
 });

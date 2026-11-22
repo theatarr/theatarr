@@ -95,10 +95,11 @@ export function prewarmText(p: NowPlayingSession["prewarm"]): { text: string; to
 }
 
 /** A file that stopped working while playing: its state's dot colour (looking, replaced, readable, unavailable,
- *  removed, restored). */
-export function incidentTone(state: string): "ok" | "warn" | "bad" {
+ *  restored); removed from the library is neutral (nothing was repaired). */
+export function incidentTone(state: string): "ok" | "warn" | "bad" | "neutral" {
   if (state === "unavailable") return "bad";
   if (state === "looking") return "warn";
+  if (state === "removed") return "neutral";
   return "ok";
 }
 

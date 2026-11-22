@@ -83,7 +83,7 @@ export function NowPlayingPage() {
   );
 }
 
-const DOT = { ok: "bg-[var(--ok)]", warn: "bg-[var(--warn)]", bad: "bg-[var(--bad)]" } as const;
+const DOT = { ok: "bg-[var(--ok)]", warn: "bg-[var(--warn)]", bad: "bg-[var(--bad)]", neutral: "bg-[var(--ink-3)]" } as const;
 
 /** The files that stopped working while playing in the last 24 hours, newest first: each row wraps, nothing is cut. */
 function Incidents({ items, seeFiles }: { items: NowPlayingIncident[]; seeFiles: boolean }) {
