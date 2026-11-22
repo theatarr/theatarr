@@ -635,8 +635,8 @@ func TestUpgradeWhyPairsTheEpisode(t *testing.T) {
 	}
 }
 
-// TestUpgradeWhyChosenOver: Why? gives its search's explanation only for a release the route took (tried and
-// failed since), not for one only seen.
+// TestUpgradeWhyChosenOver: Why? does not say why its release found was chosen (Last search and the journal do):
+// a release seen in a search, taken or not, gets no "Chosen over" there.
 func TestUpgradeWhyChosenOver(t *testing.T) {
 	t.Parallel()
 	e := newManageEnv(t, nil)
@@ -645,19 +645,15 @@ func TestUpgradeWhyChosenOver(t *testing.T) {
 		"accepted":true,"upgrade":true,"quality":"Remux-2160p","score":3500,"upgrade_reason":"better quality: Remux-2160p over WEBDL-2160p",
 		"over":{"release":"Alpha.2020.2160p.WEB-DL-NEXT","reason":"higher quality (Remux-2160p over WEBDL-2160p)"}}]'
 		WHERE title_id = 1`)
-	next := func() *UpgradeNext {
-		var d TitleDetail
-		e.call("GET", APIBase+"/titles/1", nil, 200, &d)
-		return d.Versions[0].Upgrade.Next
-	}
-	if n := next(); n == nil || n.ChosenOver != "" {
-		t.Fatalf("seen only: %+v", n)
-	}
 	e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, provider, state,
 		error, source, created_at, updated_at, added_at) VALUES (1, 1, 'movie-remux', ?, 'Alpha.2020.2160p.BluRay.REMUX-BEST',
 		'x', 'rd', 'failed', 'stalled', 'acquire:9', 3000, 3000, 3000)`, h)
-	if n := next(); n == nil || n.ChosenOver != "Chosen over Alpha.2020.2160p.WEB-DL-NEXT: higher quality (Remux-2160p over WEBDL-2160p)" {
-		t.Fatalf("taken: %+v", n)
+	r := httptest.NewRequest("GET", APIBase+"/titles/1", nil)
+	r.Header.Set(auth.APIKeyHeader, e.key)
+	rec := httptest.NewRecorder()
+	e.mux.ServeHTTP(rec, r)
+	if rec.Code != 200 || strings.Contains(rec.Body.String(), "Chosen over") || strings.Contains(rec.Body.String(), "chosen_over") {
+		t.Errorf("Why says the choice: %d %s", rec.Code, rec.Body.String())
 	}
 }
 

@@ -593,12 +593,14 @@ func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt6
 	pick := pickDownload(dls, current)
 	out.Grabbed = searchSummary(dls, pick, current, candidatesOf(out.Candidates), oc, state, message, w.providerTag)
 	if len(dls) > 0 {
-		// What its route recorded (the downloads of the run, or of the RSS read), not the release's newest outcome.
-		routed, err := snapshot.RunOutcomes(ctx, db, source, at)
+		// Only for the release its route took for this title and library.
+		taken, err := snapshot.Taken(ctx, db, source, at, out.TitleID, out.Version, dls[pick].hash)
 		if err != nil {
 			return err
 		}
-		out.Chosen = snapshot.ChosenLine(candidatesOf(out.Candidates), dls[pick].hash, routed)
+		if taken {
+			out.Chosen = snapshot.ChosenLine(candidatesOf(out.Candidates), dls[pick].hash)
+		}
 	}
 	return nil
 }

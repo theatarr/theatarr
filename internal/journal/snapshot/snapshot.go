@@ -294,111 +294,54 @@ func Record(ctx context.Context, db Execer, s Search) error {
 	return err
 }
 
-// Route outcomes of a run's releases (RunOutcomes), by lower-case info hash.
-const (
-	OutcomeTaken  = "taken"  // a provider took it (added), whatever came of it after
-	OutcomeMissed = "missed" // every provider missed it before any took it: not cached
-	OutcomeFailed = "failed" // the route failed before a provider took it, for another reason
-)
+// Taken says whether the route of a stored search took the release hash for that title and library: a download of
+// the search's source (an acquire run's, or an RSS read's since at) that a provider added.
+func Taken(ctx context.Context, db Querier, source string, at, titleID int64, version, hash string) (bool, error) {
+	if hash == "" || source == "" {
+		return false, nil
+	}
+	q := `SELECT 1 FROM download WHERE source = ? AND title_id = ? AND version_key = ? AND lower(info_hash) = ?
+		AND added_at IS NOT NULL`
+	args := []any{source, titleID, version, strings.ToLower(hash)}
+	if source == "rss" {
+		q, args = q+` AND created_at >= ?`, append(args, at)
+	}
+	rows, err := db.QueryContext(ctx, q+` LIMIT 1`, args...)
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+	return rows.Next(), rows.Err()
+}
 
 // Querier is a *sql.DB or *sql.Tx.
 type Querier interface {
 	QueryContext(ctx context.Context, q string, args ...any) (*sql.Rows, error)
 }
 
-// RunOutcomes is what the route of a stored search recorded for its releases: the downloads its source opened (an
-// acquire run's, or an RSS read's since at), by hash. A release with no download has no outcome.
-func RunOutcomes(ctx context.Context, db Querier, source string, at int64) (map[string]string, error) {
-	q := `SELECT lower(info_hash), added_at IS NOT NULL, state = 'failed' AND added_at IS NULL AND (` + missedSQL +
-		` OR COALESCE(provider, '') = '') FROM download WHERE source = ?`
-	args := []any{source}
-	if source == "rss" {
-		q, args = q+` AND created_at >= ?`, append(args, at)
-	}
-	rows, err := db.QueryContext(ctx, q, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := map[string]string{}
-	for rows.Next() {
-		var h string
-		var taken, missed bool
-		if err := rows.Scan(&h, &taken, &missed); err != nil {
-			return nil, err
-		}
-		switch {
-		case taken:
-			out[h] = OutcomeTaken
-		case out[h] == OutcomeTaken:
-		case missed:
-			if out[h] == "" {
-				out[h] = OutcomeMissed
-			}
-		default:
-			out[h] = OutcomeFailed
-		}
-	}
-	return out, rows.Err()
-}
+// betterNotTaken is said when a lower-ranked release was taken: the router takes the first release in rank order a
+// provider has, so the better ones were not cached or failed.
+const betterNotTaken = "Better-ranked releases were not cached or failed."
 
-// missedSQL is activity.MissedSQL on the download table (this package is a leaf): failed, never added, missed on
-// every provider.
-const missedSQL = `COALESCE(error, '') GLOB 'miss on every provider*'`
-
-// ChosenLine is the one explanation of a stored search's choice (Last search, Why?, the journal): for the release the
-// route took (taken, by hash: outcomes says it was taken), how many better-ranked accepted releases of its episodes
-// the route recorded as not cached or failed, then why it ranked before the next one ("2 better releases were not
-// cached. Chosen over <release>: higher quality (Remux-2160p over WEBDL-2160p)"). A better release with no recorded
-// outcome is not counted. "" for a release that was not taken, or with nothing to say.
-func ChosenLine(cands []Candidate, taken string, outcomes map[string]string) string {
-	taken = strings.ToLower(taken)
-	if taken == "" || outcomes[taken] != OutcomeTaken {
+// ChosenLine is the one explanation of a stored search's choice, for the release its route took (Last search, the
+// journal's grab entry; the caller checks Taken): "Chosen over <next>: <reason>", after "Better-ranked releases
+// were not cached or failed." when an accepted release of its episodes ranked above it. "" when nothing was ranked
+// after it.
+func ChosenLine(cands []Candidate, taken string) string {
+	i := slices.IndexFunc(cands, func(c Candidate) bool { return c.Accepted && taken != "" && strings.EqualFold(c.InfoHash, taken) })
+	if i < 0 || cands[i].Over == nil || cands[i].Over.Reason == "" {
 		return ""
 	}
-	i := slices.IndexFunc(cands, func(c Candidate) bool { return c.Accepted && strings.EqualFold(c.InfoHash, taken) })
-	if i < 0 {
-		return ""
-	}
+	line := "Chosen over " + cands[i].Over.Release + ": " + cands[i].Over.Reason
 	eps := cands[i].Episodes
-	missed, failed := 0, 0
-	seen := map[string]bool{taken: true}
 	for _, c := range cands[:i] {
-		h := strings.ToLower(c.InfoHash)
-		if !c.Accepted || h == "" || seen[h] {
+		if !c.Accepted || strings.EqualFold(c.InfoHash, taken) {
 			continue
 		}
-		seen[h] = true
 		if len(eps) > 0 && len(c.Episodes) > 0 && !slices.ContainsFunc(c.Episodes, func(e string) bool { return slices.Contains(eps, e) }) {
 			continue
 		}
-		switch outcomes[h] {
-		case OutcomeMissed:
-			missed++
-		case OutcomeFailed:
-			failed++
-		}
-	}
-	var parts []string
-	if missed > 0 {
-		parts = append(parts, countWords(missed, "better release was", "better releases were")+" not cached")
-	}
-	if failed > 0 {
-		parts = append(parts, countWords(failed, "better release", "better releases")+" failed")
-	}
-	line := strings.Join(parts, "; ")
-	if line != "" {
-		line += "."
-	}
-	if o := cands[i].Over; o != nil && o.Reason != "" {
-		line = strings.TrimSpace(line + " Chosen over " + o.Release + ": " + o.Reason)
+		return betterNotTaken + " " + line
 	}
 	return line
-}
-
-func countWords(n int, one, many string) string {
-	if n == 1 {
-		return "1 " + one
-	}
-	return strconv.Itoa(n) + " " + many
 }

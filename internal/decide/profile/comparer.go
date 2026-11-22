@@ -8,7 +8,7 @@ package profile
 // Sonarr: quality, format score, protocol, episode count (season packs first; anime prefers more episodes, others
 // fewer), lowest episode number, indexer priority, peers, age, size.
 //
-// Theatarr adds one step the arrs don't have, cache standing (compareCached): for Radarr right after the format score,
+// Theatarr adds one step the arrs don't have, cache standing (compareCachedAny, compareCachedFirst, compareCachedCount): for Radarr right after the format score,
 // for Sonarr after the lowest episode number (a season pack still wins at an equal score).
 
 import (
@@ -24,20 +24,26 @@ func (e *Engine) Compare(x, y *Subject) int {
 	return c
 }
 
-// The comparer's steps (compareStep; Explain words each).
+// The comparer's steps, as compareStep names the one that decided (Explain words it).
 const (
 	StepSeaDex          = "seadex"
-	StepQuality         = "quality" // the quality, or with an equal quality its revision (a proper or repack)
+	StepQuality         = "quality"
+	StepRevision        = "revision" // with an equal quality: a proper, repack or REAL
 	StepScore           = "score"
-	StepCached          = "cached"
+	StepCached          = "cached"       // cached against not cached
+	StepCachedFirst     = "cached_first" // cached on an earlier provider of the version's list
+	StepCachedCount     = "cached_count" // cached on more of them
 	StepProtocol        = "protocol"
 	StepEpisodeCount    = "episode_count"
 	StepEpisodeNumber   = "episode_number"
 	StepIndexerPriority = "indexer_priority"
 	StepIndexerFlags    = "indexer_flags"
+	StepSeeders         = "seeders"
 	StepPeers           = "peers"
 	StepAge             = "age"
 	StepSize            = "size"
+	StepPack            = "pack"   // merged search: a pack before any other release
+	StepScoped          = "scoped" // merged search: more of the searched episodes
 )
 
 type compareFunc struct {
@@ -45,22 +51,25 @@ type compareFunc struct {
 	cmp  func(x, y *Subject) int
 }
 
+// compareStep is Compare's walk: the order, and the step that decided it ("" for a tie).
 func (e *Engine) compareStep(x, y *Subject) (int, string) {
 	if c, ok := SeaDexOrder(e.Config.PreferSeaDex, x.Release.Quality.SeaDexPreference, y.Release.Quality.SeaDexPreference); ok {
 		return c, StepSeaDex
 	}
+	quality := []compareFunc{{StepQuality, e.compareQualityIndex}, {StepRevision, e.compareRevision}}
+	cached := []compareFunc{{StepCached, compareCachedAny}, {StepCachedFirst, compareCachedFirst}, {StepCachedCount, compareCachedCount}}
+	peers := []compareFunc{{StepSeeders, e.compareSeeders}, {StepPeers, e.comparePeerCount}}
 	var cmps []compareFunc
 	if e.Flavour == format.Sonarr {
-		cmps = []compareFunc{{StepQuality, e.compareQuality}, {StepScore, compareFormatScore}, {StepProtocol, e.compareProtocol},
-			{StepEpisodeCount, compareEpisodeCount}, {StepEpisodeNumber, compareEpisodeNumber}, {StepCached, compareCached},
-			{StepIndexerPriority, compareIndexerPriority}, {StepPeers, e.comparePeers}, {StepAge, e.compareAge},
-			{StepSize, e.compareSize}}
+		cmps = append(append(append(append(quality, compareFunc{StepScore, compareFormatScore}, compareFunc{StepProtocol, e.compareProtocol},
+			compareFunc{StepEpisodeCount, compareEpisodeCount}, compareFunc{StepEpisodeNumber, compareEpisodeNumber}), cached...),
+			compareFunc{StepIndexerPriority, compareIndexerPriority}), peers...)
 	} else {
-		cmps = []compareFunc{{StepQuality, e.compareQuality}, {StepScore, compareFormatScore}, {StepCached, compareCached},
-			{StepProtocol, e.compareProtocol}, {StepIndexerPriority, compareIndexerPriority},
-			{StepIndexerFlags, e.compareIndexerFlags}, {StepPeers, e.comparePeers}, {StepAge, e.compareAge},
-			{StepSize, e.compareSize}}
+		cmps = append(append(append(append(quality, compareFunc{StepScore, compareFormatScore}), cached...),
+			compareFunc{StepProtocol, e.compareProtocol}, compareFunc{StepIndexerPriority, compareIndexerPriority},
+			compareFunc{StepIndexerFlags, e.compareIndexerFlags}), peers...)
 	}
+	cmps = append(cmps, compareFunc{StepAge, e.compareAge}, compareFunc{StepSize, e.compareSize})
 	for _, c := range cmps {
 		if r := c.cmp(x, y); r != 0 {
 			return r, c.step
@@ -75,26 +84,33 @@ func (e *Engine) compareStep(x, y *Subject) (int, string) {
 // release is for in this search) first; everything else in Compare's order. Pack status is its own step, so the order
 // is a proper one (Compare's season-pack step reads FullSeason only).
 func (e *Engine) compareMerged(x, y *Subject, scoped func(*Subject) int) int {
+	c, _ := e.compareMergedStep(x, y, scoped)
+	return c
+}
+
+// compareMergedStep is compareMerged's walk: the order and the step that decided it.
+func (e *Engine) compareMergedStep(x, y *Subject, scoped func(*Subject) int) (int, string) {
 	if c, ok := SeaDexOrder(e.Config.PreferSeaDex, x.Release.Quality.SeaDexPreference, y.Release.Quality.SeaDexPreference); ok {
-		return c
+		return c, StepSeaDex
 	}
-	for _, c := range []func(x, y *Subject) int{e.compareQuality, compareFormatScore, e.compareProtocol} {
-		if r := c(x, y); r != 0 {
-			return r
+	for _, c := range []compareFunc{{StepQuality, e.compareQualityIndex}, {StepRevision, e.compareRevision},
+		{StepScore, compareFormatScore}, {StepProtocol, e.compareProtocol}} {
+		if r := c.cmp(x, y); r != 0 {
+			return r, c.step
 		}
 	}
 	if c := cmpBool(x.Release.pack(), y.Release.pack()); c != 0 {
-		return c
+		return c, StepPack
 	}
 	if x.Release.pack() {
-		if c := cmpBool(x.Cached.Count > 0, y.Cached.Count > 0); c != 0 {
-			return c
+		if c := compareCachedAny(x, y); c != 0 {
+			return c, StepCached
 		}
 		if c := cmpInt(scoped(x), scoped(y)); c != 0 {
-			return c
+			return c, StepScoped
 		}
 	}
-	return e.Compare(x, y)
+	return e.compareStep(x, y)
 }
 
 // PrioritizeMerged is Prioritize with compareMerged's order.
@@ -112,12 +128,17 @@ func (e *Engine) Prioritize(subjects []*Subject) []*Subject {
 	return out
 }
 
-func (e *Engine) compareQuality(x, y *Subject) int {
+// compareQualityIndex and compareRevision are the arr's quality comparison in its two steps: the quality, then (with
+// propers and repacks preferred) the revision.
+func (e *Engine) compareQualityIndex(x, y *Subject) int {
 	qi := func(s *Subject) QualityIndex { return s.Profile.GetIndex(s.Release.Quality.Quality.ID, false) }
 	// QualityIndex's IComparable compares with respectGroupOrder = true; GetIndex leaves GroupIndex 0 here.
-	c := qi(x).CompareTo(qi(y), true)
-	if e.Config.DownloadPropersAndRepacks == DoNotPrefer || c != 0 {
-		return c
+	return qi(x).CompareTo(qi(y), true)
+}
+
+func (e *Engine) compareRevision(x, y *Subject) int {
+	if e.Config.DownloadPropersAndRepacks == DoNotPrefer {
+		return 0
 	}
 	return x.Release.Quality.Revision.CompareTo(y.Release.Quality.Revision)
 }
@@ -130,15 +151,22 @@ func compareFormatScore(x, y *Subject) int {
 // version's providers has fallbacks when one fails. Cached beats not cached; then cached on an earlier provider of the
 // version's list wins (Cached.First, 0 with no provider preference), then cached on more of them. With rd, ad, tb:
 // rd+ad+tb, rd, ad+tb, ad, tb, none. Releases without evidence keep their order among themselves.
-func compareCached(x, y *Subject) int {
-	cx, cy := x.Cached, y.Cached
-	if c := cmpBool(cx.Count > 0, cy.Count > 0); c != 0 || cx.Count == 0 {
-		return c
+// It is three steps: cached or not (compareCachedAny), the earlier provider (compareCachedFirst), more providers
+// (compareCachedCount); the last two only between releases both cached.
+func compareCachedAny(x, y *Subject) int { return cmpBool(x.Cached.Count > 0, y.Cached.Count > 0) }
+
+func compareCachedFirst(x, y *Subject) int {
+	if x.Cached.Count == 0 || y.Cached.Count == 0 || x.Cached.First == y.Cached.First {
+		return 0
 	}
-	if cx.First != cy.First {
-		return -cmpInt(cx.First, cy.First)
+	return -cmpInt(x.Cached.First, y.Cached.First)
+}
+
+func compareCachedCount(x, y *Subject) int {
+	if x.Cached.Count == 0 || y.Cached.Count == 0 {
+		return 0
 	}
-	return cmpInt(cx.Count, cy.Count)
+	return cmpInt(x.Cached.Count, y.Cached.Count)
 }
 
 func (e *Engine) compareProtocol(x, y *Subject) int {
@@ -181,20 +209,27 @@ func scoreFlags(flags int) int {
 	return score
 }
 
-func (e *Engine) comparePeers(x, y *Subject) int {
+// compareSeeders and comparePeerCount are the arr's peers comparison in its two steps (torrents only): seeders,
+// then peers, each by its rounded order of magnitude.
+func (e *Engine) compareSeeders(x, y *Subject) int {
 	if x.Release.Protocol != ProtocolTorrent || y.Release.Protocol != ProtocolTorrent {
 		return 0
 	}
-	logRound := func(v *int) float64 {
-		if v != nil && *v > 0 {
-			return math.RoundToEven(math.Log10(float64(*v)))
-		}
+	return cmpFloat(logRound(x.Release.Seeders), logRound(y.Release.Seeders))
+}
+
+func (e *Engine) comparePeerCount(x, y *Subject) int {
+	if x.Release.Protocol != ProtocolTorrent || y.Release.Protocol != ProtocolTorrent {
 		return 0
 	}
-	if c := cmpFloat(logRound(x.Release.Seeders), logRound(y.Release.Seeders)); c != 0 {
-		return c
-	}
 	return cmpFloat(logRound(x.Release.Peers), logRound(y.Release.Peers))
+}
+
+func logRound(v *int) float64 {
+	if v != nil && *v > 0 {
+		return math.RoundToEven(math.Log10(float64(*v)))
+	}
+	return 0
 }
 
 func (e *Engine) compareAge(x, y *Subject) int {

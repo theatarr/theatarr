@@ -114,30 +114,27 @@ func TestDropPublicVolumeFlags(t *testing.T) {
 	}
 }
 
-// TestChosenLine: the one explanation of a search's choice: only for a release the route took; better ones counted
-// by what the route recorded (not cached, failed; none without a record), of the same episodes; then the recorded
-// reason against the next one.
+// TestChosenLine: the one explanation of a search's choice: the recorded reason against the next one, after one
+// fixed sentence when a better-ranked accepted release of its episodes was not the one taken; nothing without one.
 func TestChosenLine(t *testing.T) {
 	over := &Over{Release: "A.WEB-THREE", Reason: "higher quality (Remux-2160p over WEBDL-2160p)"}
-	cands := []Candidate{
-		{Accepted: true, InfoHash: "h1"}, {Accepted: true, InfoHash: "h2"}, {Accepted: true, InfoHash: "h0"},
-		{Accepted: true, InfoHash: "h3", Over: over}, {Accepted: true, InfoHash: "h4"},
+	cands := []Candidate{{Accepted: true, InfoHash: "h1"}, {Accepted: true, InfoHash: "h3", Over: over}, {Accepted: true, InfoHash: "h4"}}
+	if got := ChosenLine(cands, "H3"); got != "Better-ranked releases were not cached or failed. Chosen over A.WEB-THREE: higher quality (Remux-2160p over WEBDL-2160p)" {
+		t.Errorf("lower one taken: %q", got)
 	}
-	out := map[string]string{"h1": OutcomeMissed, "h2": OutcomeFailed, "h3": OutcomeTaken}
-	if got := ChosenLine(cands, "H3", out); got != "1 better release was not cached; 1 better release failed. Chosen over A.WEB-THREE: higher quality (Remux-2160p over WEBDL-2160p)" {
-		t.Errorf("line %q", got)
+	if got := ChosenLine(cands[1:], "h3"); got != "Chosen over A.WEB-THREE: higher quality (Remux-2160p over WEBDL-2160p)" {
+		t.Errorf("best taken: %q", got)
 	}
-	// Not taken (only seen, or nothing taken): nothing.
-	if got := ChosenLine(cands, "h4", out); got != "" {
-		t.Errorf("not taken: %q", got)
+	// Nothing after it (one accepted release), or not among the candidates.
+	if got := ChosenLine([]Candidate{{Accepted: true, InfoHash: "h4"}}, "h4"); got != "" {
+		t.Errorf("one release: %q", got)
 	}
-	// The first taken: just the reason.
-	if got := ChosenLine([]Candidate{{Accepted: true, InfoHash: "h3", Over: over}}, "h3", out); got != "Chosen over A.WEB-THREE: higher quality (Remux-2160p over WEBDL-2160p)" {
-		t.Errorf("first: %q", got)
+	if got := ChosenLine(cands, "h9"); got != "" {
+		t.Errorf("unknown: %q", got)
 	}
-	// Another episode's better release is not counted.
+	// Another episode's better release is no better choice for this one.
 	eps := []Candidate{{Accepted: true, InfoHash: "h1", Episodes: []string{"S01E02"}}, {Accepted: true, InfoHash: "h3", Episodes: []string{"S01E01"}, Over: over}}
-	if got := ChosenLine(eps, "h3", out); got != "Chosen over A.WEB-THREE: higher quality (Remux-2160p over WEBDL-2160p)" {
+	if got := ChosenLine(eps, "h3"); got != "Chosen over A.WEB-THREE: higher quality (Remux-2160p over WEBDL-2160p)" {
 		t.Errorf("episodes: %q", got)
 	}
 }

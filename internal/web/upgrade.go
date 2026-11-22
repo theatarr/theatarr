@@ -13,7 +13,6 @@ import (
 	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/indexer"
-	"github.com/theatarr/theatarr/internal/journal/snapshot"
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -78,14 +77,8 @@ type UpgradeNext struct {
 	// "Tried …") but is not found: the state stays below_cutoff. Why? renders this decision, not its own guess.
 	Tried   bool       `json:"tried,omitempty"`
 	TriedAt *time.Time `json:"tried_at,omitempty"`
-	// ChosenOver, for a release its search's route took (then tried and failed), is the search's explanation of its
-	// choice (snapshot.ChosenLine, as Last search and the journal say it); absent for a release only seen, when nothing was ranked after it or the search predates the record.
-	ChosenOver string `json:"chosen_over,omitempty"`
 	// file is the file Reason compares with (the decision's upgrade_file), with its episode; nil when not recorded.
 	file *decide.Existing
-	// rec and hash are the stored search it was seen in and its torrent, for ChosenOver (snapshot.ChosenLine).
-	rec  *evRecord
-	hash string
 }
 
 // UpgradeInfo explains a version's (or one episode's) state against its cutoff.
@@ -148,8 +141,6 @@ type evCand struct {
 	// Published is the listing's publication time; CachedOn the cache codes (rd, ad, tb) it was listed cached on.
 	Published *time.Time `json:"published"`
 	CachedOn  []string   `json:"cached_on"`
-	// Over is why its search ranked it before the next accepted release (snapshot.ChosenLine).
-	Over *snapshot.Over `json:"over"`
 	// UpgradeFile is the file UpgradeWhy compares with, and its episode.
 	UpgradeFile *decide.Existing `json:"upgrade_file"`
 }
@@ -162,9 +153,7 @@ type evRecord struct {
 	source string
 	// target is the journal's search target: "" or movie (the whole title), sNN, sNNeMM, or rss.
 	target string
-	// route is the journal's route source (acquire:<run>, rss), whose downloads say what came of its releases.
-	route string
-	cands []evCand
+	cands  []evCand
 }
 
 // evItem is one file below its cutoff: a movie version's (episodeID 0) or one episode's.
@@ -280,7 +269,7 @@ func judgeUpgrade(it evItem, recs []evRecord, failed map[string]failedTry, cache
 			if better {
 				best = &UpgradeNext{Release: c.Release, Indexer: c.Indexer, Quality: c.Quality, Score: c.Score,
 					Reason: c.UpgradeWhy, Source: r.source, SeenAt: ts(r.at), Episodes: c.Episodes, Tried: tried,
-					file: c.UpgradeFile, rec: r, hash: c.InfoHash}
+					file: c.UpgradeFile}
 				if tried {
 					at := ts(f.at)
 					best.TriedAt = &at
@@ -358,11 +347,11 @@ func loadEvidence(ctx context.Context, db *sql.DB, titleIDs []int64, items map[t
 	list, _ := json.Marshal(titleIDs)
 	ids := []any{string(list)}
 	in := `SELECT value FROM json_each(?)`
-	err := scanAll(ctx, db, `SELECT id, title_id, version_key, created_at, target, source FROM journal_decision
+	err := scanAll(ctx, db, `SELECT id, title_id, version_key, created_at, target FROM journal_decision
 		WHERE title_id IN (`+in+`)`, ids, func(r *sql.Rows) error {
 		var k titleKey
 		var rec evRecord
-		if err := r.Scan(&rec.id, &k.titleID, &k.key, &rec.at, &rec.target, &rec.route); err != nil {
+		if err := r.Scan(&rec.id, &k.titleID, &k.key, &rec.at, &rec.target); err != nil {
 			return err
 		}
 		if len(items[k]) == 0 {
@@ -493,8 +482,6 @@ type upgradeSet struct {
 	// movie version's flag (version.below_quality_cutoff).
 	qualityJudged map[int64]bool
 	belowQuality  map[int64]bool
-	// outcomes is what a stored search's route recorded (snapshot.RunOutcomes), by its source and time; nil none.
-	outcomes func(source string, at int64) map[string]string
 }
 
 // upgradeLoadChunk is how many versions loadUpgrades reads files and episodes for at once (bound parameters).
@@ -584,19 +571,6 @@ func (w *Web) upgradesWith(ctx context.Context, db *sql.DB, vs []upgradeVersion,
 	}
 	// The eligible cache codes, worked out once per library and indexer for this read.
 	pol, codes := w.pol, map[[2]string]map[string]bool{}
-	routes := map[string]map[string]string{}
-	s.outcomes = func(source string, at int64) map[string]string {
-		k := fmt.Sprintf("%s@%d", source, at)
-		if o, ok := routes[k]; ok {
-			return o
-		}
-		o, err := snapshot.RunOutcomes(ctx, db, source, at)
-		if err != nil {
-			w.log.Warn("upgrade: route outcomes", "source", source, "err", err)
-		}
-		routes[k] = o
-		return o
-	}
 	s.cachedOK = func(library, ix, code string) bool {
 		if pol == nil {
 			return false
@@ -775,14 +749,6 @@ func (s *upgradeSet) explain(v upgradeVersion, episode int64) *UpgradeInfo {
 	}
 	if u.Next.found() {
 		u.State = "upgrade_available"
-	}
-	// A release its search's route took (and that failed since): the search's own explanation of the choice.
-	if n := u.Next; n != nil && n.rec != nil && s.outcomes != nil {
-		cands := make([]snapshot.Candidate, len(n.rec.cands))
-		for i, c := range n.rec.cands {
-			cands[i] = snapshot.Candidate{Accepted: c.Accepted, InfoHash: c.InfoHash, Episodes: c.Episodes, Over: c.Over}
-		}
-		n.ChosenOver = snapshot.ChosenLine(cands, n.hash, s.outcomes(n.rec.route, n.rec.at))
 	}
 	if s.qualityJudged[v.id] && u.State != "none" && u.State != "cutoff_met" {
 		met := !belowQuality

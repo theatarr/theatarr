@@ -189,11 +189,3 @@ describe("a season's Why", () => {
   });
 });
 
-describe("Why's release found", () => {
-  it("says why its search ranked it before the next", () => {
-    const u = { state: "upgrade_available" as const, quality: "WEBDL-1080p", score: 100,
-      next: { release: "A.2160p.REMUX", quality: "Remux-2160p", score: 900, source: "search" as const, seen_at: "2026-11-13T12:00:00Z",
-        chosen_over: "Chosen over A.2160p.WEB: higher quality (Remux-2160p over WEBDL-2160p)" } };
-    expect(whyLines(u, 100, null, null, new Date("2026-11-15T12:00:00Z")).at(-1)).toBe("Chosen over A.2160p.WEB: higher quality (Remux-2160p over WEBDL-2160p).");
-  });
-});

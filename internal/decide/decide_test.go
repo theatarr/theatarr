@@ -478,9 +478,44 @@ func TestRankRecordsWhy(t *testing.T) {
 			got[d.Release[strings.LastIndex(d.Release, "-")+1:]] = o.Release[strings.LastIndex(o.Release, "-")+1:] + ": " + o.Reason
 		}
 	}
-	if !strings.HasPrefix(got["FraMeSToR"], "GRP: higher score (+") || got["GRP"] != "FLUX: higher quality (Remux-2160p over WEBDL-2160p)" ||
+	if !strings.HasPrefix(got["FraMeSToR"], "GRP: higher score (2450 over 0") || got["GRP"] != "FLUX: higher quality (Remux-2160p over WEBDL-2160p)" ||
 		got["FLUX"] != "" {
 		t.Errorf("why %v", got)
+	}
+}
+
+// TestRankOverSkipsCopiesAndOtherEpisodes: the runner-up is another torrent of the same episodes: another indexer's
+// copy of the release taken is skipped, and so is a release for other episodes; one accepted release has none.
+func TestRankOverSkipsCopiesAndOtherEpisodes(t *testing.T) {
+	t.Parallel()
+	e := testEngine(t)
+	ctx := context.Background()
+	mk := func(name, idx, hash string, eps ...string) *Decision {
+		r := rel(name, idx, 60*gb)
+		r.InfoHash = hash
+		d, err := e.Decide(ctx, r, dune, Version{Key: "movie-remux"}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		d.Episodes = eps
+		return d
+	}
+	const fra = "Dune.Part.Two.2024.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-FraMeSToR"
+	const grp = "Dune.Part.Two.2024.2160p.UHD.BluRay.REMUX.HDR.HEVC-GRP"
+	a, copyA, b := mk(fra, "public", strings.Repeat("a", 40)), mk(fra, "multi", strings.Repeat("a", 40)), mk(grp, "public", strings.Repeat("b", 40))
+	Rank([]*Decision{a, copyA, b})
+	if o := a.ChosenOver(); o == nil || o.Release != grp {
+		t.Errorf("over the copy: %+v", o)
+	}
+	x, other, y := mk(fra, "public", strings.Repeat("c", 40), "S01E01"), mk(fra, "multi", strings.Repeat("d", 40), "S01E02"),
+		mk(grp, "public", strings.Repeat("e", 40), "S01E01")
+	Rank([]*Decision{x, other, y})
+	if o := x.ChosenOver(); o == nil || o.Release != grp {
+		t.Errorf("over another episode's release: %+v", o)
+	}
+	solo := mk(grp, "public", strings.Repeat("f", 40))
+	if Rank([]*Decision{solo}); solo.ChosenOver() != nil {
+		t.Errorf("one accepted release: %+v", solo.ChosenOver())
 	}
 }
 

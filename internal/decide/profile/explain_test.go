@@ -20,7 +20,7 @@ func TestExplain(t *testing.T) {
 	e, x, y = pair()
 	x.Cached = CacheStanding{First: 1, Count: 1, FirstKind: "alldebrid"}
 	y.Cached = CacheStanding{First: 2, Count: 2, FirstKind: "torbox"}
-	if got := e.Explain(x, y); got != "cached on AllDebrid, earlier in the library's provider order" {
+	if got := e.Explain(x, y); got != "cached on AllDebrid" {
 		t.Errorf("cache order: %q", got)
 	}
 	e, x, y = pair()
@@ -38,7 +38,17 @@ func TestExplain(t *testing.T) {
 	x.Release.FullSeason, y.Release.FullSeason = true, true
 	x.Cached, y.Cached = CacheStanding{Count: 1}, CacheStanding{Count: 1}
 	scoped := map[*Subject]int{x: 20, y: 10}
-	if got := e.ExplainMerged(x, y, func(s *Subject) int { return scoped[s] }); got != "more of the searched episodes (20 over 10)" {
+	if got := e.ExplainMerged(x, y, func(s *Subject) int { return scoped[s] }); got != "more of the searched episodes" {
 		t.Errorf("merged: %q", got)
+	}
+	// Size decides by its name only: the walk that ranks says it, whatever the sizes are.
+	e, x, y = pair()
+	x.Release.Size, y.Release.Size = 4<<30, 1<<30
+	if c := e.Compare(x, y); c > 0 {
+		if got := e.Explain(x, y); got != "its size" {
+			t.Errorf("size: %q", got)
+		}
+	} else if got := e.Explain(y, x); got != "its size" {
+		t.Errorf("size the other way: %q", got)
 	}
 }
