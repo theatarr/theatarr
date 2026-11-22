@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -200,15 +201,81 @@ func (s *Service) historyFailed(w http.ResponseWriter, r *request) {
 	notFound(w, "History with ID "+strconv.FormatInt(id, 10)+" does not exist")
 }
 
-// redownload starts a search for a title's versions in the view (MoviesSearch / SeriesSearch), as the arrs'
-// failed-download handling does.
-func (s *Service) redownload(ctx context.Context, r *request, titleID int64) error {
+// redownload starts the search the arrs' failed-download handling starts for a failed download (Sonarr's
+// RedownloadFailedDownloadService), in the download's library (version) only, never another library of the title
+// (Selection.NoJoin): a movie its title (MoviesSearch); a series download its one episode (EpisodeSearch), its whole
+// season (SeasonSearch), else its episodes; several seasons those seasons together, as a series search of just
+// them; no episodes known the series (SeriesSearch).
+func (s *Service) redownload(ctx context.Context, r *request, titleID int64, version string, episodes []int64) error {
 	name := "MoviesSearch"
 	body := map[string]any{"name": name, "movieIds": []any{float64(viewID(titleID))}}
+	var seasons []int
 	if r.v.Flavour == Sonarr {
 		name = "SeriesSearch"
 		body = map[string]any{"name": name, "seriesId": float64(viewID(titleID))}
+		var err error
+		if name, seasons, err = s.retryScope(ctx, titleID, episodes, body); err != nil {
+			return err
+		}
 	}
-	_, err := s.runCommand(ctx, r.v, name, body, true, r.Header.Get("User-Agent"))
+	_, err := s.runScopedCommand(ctx, r.v, name, body, r.Header.Get("User-Agent"), func(sc *commandScope) {
+		sc.versions = slices.DeleteFunc(sc.versions, func(k string) bool { return k != version })
+		sc.sel.NoJoin, sc.sel.Seasons = true, seasons
+	})
 	return err
+}
+
+// retryScope fills body for a series download's retry (redownload) and names its command: EpisodeSearch for one
+// episode or part of one season, SeasonSearch for the whole of one season (every current episode of it), and
+// SeriesSearch with the seasons for several; SeriesSearch alone when no episode is known.
+func (s *Service) retryScope(ctx context.Context, titleID int64, episodes []int64, body map[string]any) (string, []int, error) {
+	if len(episodes) == 0 {
+		return "SeriesSearch", nil, nil
+	}
+	ids := make([]any, len(episodes))
+	for i, id := range episodes {
+		ids[i] = id
+	}
+	var seasons []int
+	rows, err := s.st.Reader().QueryContext(ctx, `SELECT DISTINCT season FROM episode WHERE id IN (`+
+		store.Placeholders(len(ids))+`) ORDER BY season`, ids...)
+	if err != nil {
+		return "", nil, err
+	}
+	for rows.Next() {
+		var n int
+		if err := rows.Scan(&n); err != nil {
+			rows.Close()
+			return "", nil, err
+		}
+		seasons = append(seasons, n)
+	}
+	if err := closeRows(rows); err != nil {
+		return "", nil, err
+	}
+	if len(seasons) > 1 {
+		return "SeriesSearch", seasons, nil
+	}
+	episodeSearch := func() (string, []int, error) {
+		delete(body, "seriesId")
+		list := make([]any, len(episodes))
+		for i, id := range episodes {
+			list[i] = float64(id)
+		}
+		body["name"], body["episodeIds"] = "EpisodeSearch", list
+		return "EpisodeSearch", nil, nil
+	}
+	if len(episodes) == 1 || len(seasons) == 0 {
+		return episodeSearch()
+	}
+	var inSeason int
+	if err := s.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM episode WHERE title_id = ? AND season = ?
+		AND removed_at IS NULL`, titleID, seasons[0]).Scan(&inSeason); err != nil {
+		return "", nil, err
+	}
+	if len(episodes) != inSeason {
+		return episodeSearch()
+	}
+	body["name"], body["seasonNumber"] = "SeasonSearch", float64(seasons[0])
+	return "SeasonSearch", nil, nil
 }

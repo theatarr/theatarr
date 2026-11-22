@@ -200,6 +200,9 @@ type Selection struct {
 	// Seasons, when set, limits a series search to these seasons, searched together as a whole-series search
 	// would (an approved request for more seasons: the seasons it names, not the ones already there).
 	Seasons []int `json:",omitempty"`
+	// NoJoin keeps a search that names titles to the named versions: no other version of the titles joins it (an
+	// arr client's retry of one library's failed download).
+	NoJoin bool `json:",omitempty"`
 	// Only is "" (every monitored item: MoviesSearch, SeriesSearch, SeasonSearch, EpisodeSearch), OnlyMissing or
 	// OnlyCutoff.
 	Only string
@@ -298,7 +301,7 @@ func (a *Acquirer) Submit(ctx context.Context, commandID int64, sel Selection) (
 	// versions it asked for (the view's), never another view's or another kind. A version the command did not name
 	// joins only where the title (or episode) is monitored there, not removed and available, as an automatic search
 	// would take it; the user-invoked semantics (unmonitored, before availability) are for the named versions only.
-	if named {
+	if named && !sel.NoJoin {
 		sel.requested = requested
 		sel.Versions = a.pol.VersionKeys()
 	}

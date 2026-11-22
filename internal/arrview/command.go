@@ -104,6 +104,18 @@ func (s *Service) postCommand(w http.ResponseWriter, r *request) {
 // runCommand stores a command and starts what it asks for: the searches of its active versions.
 func (s *Service) runCommand(ctx context.Context, v *View, canon string, body map[string]any, search bool,
 	ua string) (int64, error) {
+	return s.runCommandIn(ctx, v, canon, body, search, ua, nil)
+}
+
+// runScopedCommand is runCommand for a search the views start themselves, with narrow applied to its scope once it
+// is resolved (redownload: the failed download's library and episodes).
+func (s *Service) runScopedCommand(ctx context.Context, v *View, canon string, body map[string]any, ua string,
+	narrow func(*commandScope)) (int64, error) {
+	return s.runCommandIn(ctx, v, canon, body, true, ua, narrow)
+}
+
+func (s *Service) runCommandIn(ctx context.Context, v *View, canon string, body map[string]any, search bool,
+	ua string, narrow func(*commandScope)) (int64, error) {
 	body["name"] = canon
 	for k := range body {
 		if strings.EqualFold(k, "_mmJobs") {
@@ -119,6 +131,9 @@ func (s *Service) runCommand(ctx context.Context, v *View, canon string, body ma
 		var err error
 		if sc, err = s.commandScope(ctx, v, canon, body); err != nil {
 			return 0, err
+		}
+		if narrow != nil {
+			narrow(sc)
 		}
 		status, result, msg, started, ended = s.searchOutcome(sc.versions, now)
 		if canon == "RssSync" {

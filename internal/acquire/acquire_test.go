@@ -828,6 +828,14 @@ func TestTitleSearchFanoutSkipsUnmonitoredAndRemovedVersions(t *testing.T) {
 	if want := "movie-copy:movie:0 movie:movie:1 series:s01e01:1"; strings.Join(got, " ") != want {
 		t.Fatalf("runs %s, want %s", strings.Join(got, " "), want)
 	}
+	// NoJoin (a client's retry of one library's download): the named version only.
+	e.exec(`DELETE FROM acquire_run`)
+	if _, _, err := e.a.Submit(e.ctx, 1, Selection{Versions: []string{"movie"}, TitleIDs: []int64{1}, NoJoin: true}); err != nil {
+		t.Fatal(err)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_key <> 'movie'`); n != 0 || e.count(`SELECT COUNT(*) FROM acquire_run`) != 1 {
+		t.Fatalf("NoJoin searched other versions: %d", n)
+	}
 }
 
 // A season search that names a library monitoring none of the season's searchable episodes (its one monitored

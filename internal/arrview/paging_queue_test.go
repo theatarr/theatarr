@@ -107,7 +107,8 @@ func TestSeasonPackBulkRedownloadOnce(t *testing.T) {
 	e := newEnv(t)
 	e.seedDownloads()
 	e.call("DELETE", "/sonarr/api/v3/queue/bulk?blocklist=true", map[string]any{"ids": []int64{queueEpisodeID(3, 101), queueEpisodeID(3, 102)}}, 200, nil)
-	if e.one(`SELECT COUNT(*) FROM arrview_command WHERE name='SeriesSearch'`) != 1 {
+	// The pack's two episodes (part of season 1) are searched again, once (redownload: its episodes, not the series).
+	if e.one(`SELECT COUNT(*) FROM arrview_command`) != 1 || e.one(`SELECT COUNT(*) FROM arrview_command WHERE name='EpisodeSearch'`) != 1 {
 		t.Fatal("pack searched more than once")
 	}
 	e.call("DELETE", "/v/anime-tv/sonarr/api/v3/queue/"+strconv.FormatInt(queueEpisodeID(3, 101), 10), nil, 404, nil)

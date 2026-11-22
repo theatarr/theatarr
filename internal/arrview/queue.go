@@ -3,6 +3,7 @@ package arrview
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -477,12 +478,13 @@ func (s *Service) deleteQueue(w http.ResponseWriter, r *request) {
 	writeJSON(w, http.StatusOK, struct{}{})
 }
 
-// removeDownload ends one download of the view's versions (router.Dismiss), and with redownload starts a search for
-// its title's active versions. false when the view has no such download.
+// removeDownload ends one download of the view's versions (router.Dismiss), and with redownload starts the search
+// of what it was for, in its library (redownload). false when the view has no such download.
 func (s *Service) removeDownload(ctx context.Context, r *request, id int64, reason string, block bool, source string,
 	redownload bool) (bool, error) {
-	var version string
-	err := s.st.Reader().QueryRowContext(ctx, `SELECT version_key FROM download WHERE id = ?`, id).Scan(&version)
+	var version, eps string
+	err := s.st.Reader().QueryRowContext(ctx, `SELECT version_key, COALESCE(episodes, '[]') FROM download WHERE id = ?`,
+		id).Scan(&version, &eps)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && !slices.Contains(r.v.Versions, version) {
 		return false, nil
 	}
@@ -505,7 +507,9 @@ func (s *Service) removeDownload(ctx context.Context, r *request, id int64, reas
 	s.log.Info("download dismissed", "view", r.v.Key, "download", id, "version", d.Version, "ended", d.Ended,
 		"blocklisted", block)
 	if redownload {
-		if err := s.redownload(ctx, r, d.TitleID); err != nil {
+		var episodes []int64
+		_ = json.Unmarshal([]byte(eps), &episodes)
+		if err := s.redownload(ctx, r, d.TitleID, version, episodes); err != nil {
 			return true, err
 		}
 	}

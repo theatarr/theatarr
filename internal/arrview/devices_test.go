@@ -1,9 +1,15 @@
 package arrview
 
 import (
+	"context"
+	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/theatarr/theatarr/internal/acquire"
 )
 
 // seedDownloads adds router downloads: 1 movie-web downloading (title 1), 2 movie-remux imported (title 1),
@@ -147,4 +153,64 @@ func (e *env) str(q string, args ...any) string {
 		e.t.Fatalf("%s: %v", q, err)
 	}
 	return s
+}
+
+// selSearcher records the selections the views hand to the acquirer.
+type selSearcher struct {
+	sels []acquire.Selection
+}
+
+func (f *selSearcher) Submit(_ context.Context, _ int64, sel acquire.Selection) (int, int, error) {
+	f.sels = append(f.sels, sel)
+	return 1, 1, nil
+}
+
+// A retry asked through a view (queue removal with blocklist, History marked failed) searches what the arrs' failed
+// download handling searches, in the failed download's library only: its one episode, its whole season, else its
+// episodes; a movie its title. Another library of the title, also one the same view shows, is not searched.
+func TestRetryKeepsItsScope(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	fs := &selSearcher{}
+	e.searcher = fs
+	e.start()
+	at := ms(testNow.Add(-time.Hour))
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, monitored, created_at, updated_at) VALUES
+		(104, 10, 2, 1, 'Next', 1, ?, ?)`, at, at)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, episodes,
+		source, created_at, updated_at, added_at) VALUES
+		(21, 10, 10, 'tv-2160p', ?, 'The.Show.S01E02', 'dmm', 'downloading', '[102]', 'rss', ?, ?, ?),
+		(22, 10, 10, 'tv-2160p', ?, 'The.Show.S01', 'dmm', 'downloading', '[101,102,103]', 'rss', ?, ?, ?),
+		(23, 10, 10, 'tv-2160p', ?, 'The.Show.S01E01E02', 'dmm', 'downloading', '[101,102]', 'rss', ?, ?, ?),
+		(24, 1, 2, 'movie-web', ?, 'Alpha.WEB', 'dmm', 'downloading', '[]', 'rss', ?, ?, ?)`,
+		strings.Repeat("1", 40), at, at, at, strings.Repeat("2", 40), at, at, at,
+		strings.Repeat("3", 40), at, at, at, strings.Repeat("4", 40), at, at, at)
+	one := 1
+	for _, tc := range []struct {
+		name, path string
+		want       acquire.Selection
+	}{
+		{"one episode", "DELETE /sonarr/api/v3/queue/21?blocklist=true", acquire.Selection{EpisodeIDs: []int64{102}}},
+		{"whole season", fmt.Sprintf("POST /sonarr/api/v3/history/failed/%d", HistoryBase+22*10+1),
+			acquire.Selection{TitleIDs: []int64{10}, Season: &one}},
+		{"two episodes", "DELETE /v/tv-2160p/sonarr/api/v3/queue/23?blocklist=true", acquire.Selection{EpisodeIDs: []int64{101, 102}}},
+		{"movie", "DELETE /radarr/api/v3/queue/24?blocklist=true", acquire.Selection{TitleIDs: []int64{1}}},
+	} {
+		fs.sels = nil
+		method, path, _ := strings.Cut(tc.path, " ")
+		e.call(method, path, nil, 200, nil)
+		if len(fs.sels) != 1 {
+			t.Fatalf("%s: %d searches", tc.name, len(fs.sels))
+		}
+		got := fs.sels[0]
+		version := "tv-2160p"
+		if tc.name == "movie" {
+			version = "movie-web"
+		}
+		if !slices.Equal(got.Versions, []string{version}) || !got.NoJoin || !slices.Equal(got.EpisodeIDs, tc.want.EpisodeIDs) ||
+			(tc.want.Season == nil) != (got.Season == nil) || got.Season != nil && *got.Season != *tc.want.Season ||
+			tc.want.TitleIDs != nil && !slices.Equal(got.TitleIDs, tc.want.TitleIDs) {
+			t.Errorf("%s: %+v", tc.name, got)
+		}
+	}
 }
