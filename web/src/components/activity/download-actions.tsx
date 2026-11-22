@@ -200,6 +200,8 @@ export function UndoReplaced({ file, titleId }: { file: { id?: number; undo?: st
           error={undo.error}
           done={undo.data?.message}
           onClose={() => {
+            // While the request runs the dialog stays: its answer is shown, and it cannot be sent twice.
+            if (undo.isPending) return;
             setOpen(false);
             undo.reset();
           }}

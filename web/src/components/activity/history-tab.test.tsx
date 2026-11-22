@@ -332,3 +332,28 @@ it("words an undone upgrade with who undid it, and lists it under Imported and u
   expect(within(row).getByTestId("history-by").textContent).toBe("By ann");
   expect(historyParams({ ...NO_HISTORY_FILTERS, event: "imported" }).events?.split(",")).toContain("undone");
 });
+
+it("keeps Undo's dialog open while its request runs, so it cannot be sent twice and its answer is not lost", async () => {
+  const sentence = "Undo upgrade: puts the earlier file back and blocks Alpha.2026.2160p.WEB-DL in this library";
+  const upgraded = { ...link, replaced: [{ id: 31, undo: sentence, path: "/movies/Alpha/old.mkv" }] };
+  let answer: (v: unknown) => void = () => {};
+  const fetch = mockFetch([
+    { method: "GET", path: "/auth/me", reply: me },
+    { method: "GET", path: "/titles/facets", reply: {} },
+    { method: "GET", path: "/activity", reply: { state: "history", admin: true, history: [upgraded] } },
+    { method: "POST", path: "/activity/replaced/31/undo", reply: () => new Promise((r) => { answer = r; }) },
+  ]);
+  renderPage(<HistoryTab admin />, "/activity/history");
+  const [row] = await screen.findAllByTestId("history-row");
+  const user = userEvent.setup();
+  await user.click(within(row).getByRole("button", { name: "Undo" }));
+  const dialog = await screen.findByTestId("undo-upgrade-dialog");
+  await user.click(within(dialog).getByTestId("confirm-ok"));
+  await waitFor(() => expect(fetch.calls("POST", "/activity/replaced/31/undo")).toHaveLength(1));
+  await user.click(within(dialog).getByTestId("confirm-cancel"));
+  await user.keyboard("{Escape}");
+  expect(screen.getByTestId("undo-upgrade-dialog")).toBeTruthy();
+  answer({ status: 409, body: { error: "Not undone: the library changed since." } });
+  expect((await screen.findByTestId("confirm-error")).textContent).toBe("Not undone: the library changed since.");
+  expect(fetch.calls("POST", "/activity/replaced/31/undo")).toHaveLength(1);
+});
