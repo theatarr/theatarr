@@ -261,7 +261,30 @@ func TestEditorRefusesMoveFiles(t *testing.T) {
 		if n := e.one(`SELECT COUNT(*) FROM arrview_title WHERE root_folder_path <> ''`); n != 0 {
 			t.Fatalf("%s: a refused single-title move stored %d roots", tc.view, n)
 		}
-		e.call("PUT", fmt.Sprintf("/%s/api/v3/%s/%d?moveFiles=true", tc.view, res, id), before, 202, nil)
+		// The edit dialogs echo the root and change the path: refused too. An unchanged path with the flag saves
+		// another edit.
+		renamed := map[string]any{}
+		for k, v := range before {
+			renamed[k] = v
+		}
+		renamed["path"] = before["path"].(string) + " (moved)"
+		errs = nil
+		e.call("PUT", fmt.Sprintf("/%s/api/v3/%s/%d?moveFiles=true", tc.view, res, id), renamed, 400, &errs)
+		if len(errs) != 1 || errs[0]["propertyName"] != "MoveFiles" {
+			t.Fatalf("%s: changed path: %v", tc.view, errs)
+		}
+		edit := map[string]any{}
+		for k, v := range before {
+			edit[k] = v
+		}
+		edit["path"], edit["monitored"] = before["path"].(string)+"/", false
+		var saved map[string]any
+		e.call("PUT", fmt.Sprintf("/%s/api/v3/%s/%d?moveFiles=true", tc.view, res, id), edit, 202, &saved)
+		if saved["monitored"] != false {
+			t.Errorf("%s: an edit with an unchanged path and Move Files was not saved: %v", tc.view, saved["monitored"])
+		}
+		edit["monitored"] = true
+		e.call("PUT", fmt.Sprintf("/%s/api/v3/%s/%d", tc.view, res, id), edit, 202, nil)
 		e.call("PUT", "/"+tc.view+"/api/v3/"+res+"/editor", map[string]any{tc.ids: []int{id},
 			"rootFolderPath": root, "moveFiles": true}, 202, nil)
 		e.call("PUT", "/"+tc.view+"/api/v3/"+res+"/editor", map[string]any{tc.ids: []int{id},

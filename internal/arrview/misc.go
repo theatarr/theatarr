@@ -432,12 +432,11 @@ type editorIn struct {
 
 // refuseMove answers 400 when root (a client's Move Files target) differs from the root a title shows: Theatarr links
 // files and never moves them, so nothing may be stored (the editor, and the single-title PUT with ?moveFiles=true).
-func (s *Service) refuseMove(w http.ResponseWriter, v *View, es []*entry, root string) bool {
-	if root == "" {
-		return false
-	}
+// dir, given (the single-title PUT's path), is refused the same way when it differs from the folder the title shows.
+func (s *Service) refuseMove(w http.ResponseWriter, v *View, es []*entry, root, dir string) bool {
+	changed := func(given, shown string) bool { return given != "" && path.Clean(given) != path.Clean(shown) }
 	for _, e := range es {
-		if shown, _ := s.rootAndPath(v, e); path.Clean(shown) != path.Clean(root) {
+		if shownRoot, shownDir := s.rootAndPath(v, e); changed(root, shownRoot) || changed(dir, shownDir) {
 			badRequest(w, "MoveFiles", "Theatarr does not move files: save without Move Files to change only the root folder", true)
 			return true
 		}
@@ -484,7 +483,7 @@ func (s *Service) editor(w http.ResponseWriter, r *request) {
 		s.internal(w, r, err)
 		return
 	}
-	if in.MoveFiles && s.refuseMove(w, r.v, es, in.RootFolderPath) {
+	if in.MoveFiles && s.refuseMove(w, r.v, es, in.RootFolderPath, "") {
 		return
 	}
 	apply := in.ApplyTags.value("add", "remove", "replace")
