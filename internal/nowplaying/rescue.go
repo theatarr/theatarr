@@ -57,8 +57,8 @@ type Rescuer interface {
 	OpenPlayingIncident(ctx context.Context, inc library.PlayingIncident, f library.PlayingFile) (int64, error)
 	SettlePlayingIncident(ctx context.Context, incident int64, settled, account string) error
 	PlayingMiss(ctx context.Context, incident int64, keys []string) error
-	MarkBrokenPlaying(ctx context.Context, incident int64, files []library.PlayingFile, search bool,
-		missKeys []string) (int, error)
+	MarkBrokenPlaying(ctx context.Context, incident int64, f library.PlayingFile, search bool,
+		missKeys []string) (bool, error)
 	QueuePlayingSearch(ctx context.Context, incident int64) (int, error)
 	ReportPlaying(ctx context.Context, incident int64, kind string) error
 	SettlePlayingRuns(ctx context.Context) error
@@ -574,24 +574,34 @@ func (t *Tracker) repair(ctx context.Context, lib Rescuer, j *sign, hash string,
 		t.settleQuiet(ctx, id)
 		return
 	}
-	if !told {
-		t.tell(ctx, j, msgLooking, id)
-	}
-	n, err := lib.MarkBrokenPlaying(ctx, id, []library.PlayingFile{{LinkID: src.LinkID, Offset: off}}, true, failed)
-	if err != nil || n == 0 {
-		log.Info("nowplaying: the broken file was not marked", "err", err)
-		if err := lib.SettlePlayingIncident(ctx, id, "none", ""); err != nil {
-			log.Warn("nowplaying: incident not settled", "err", err)
-		}
+	ok, err := lib.MarkBrokenPlaying(ctx, id, library.PlayingFile{LinkID: src.LinkID, Target: src.Target, Offset: off},
+		true, failed)
+	if err != nil || !ok {
+		log.Info("nowplaying: the broken file was not marked (its link changed, or Pause came on)", "err", err)
+		t.settleQuiet(ctx, id)
 		return
 	}
 	log.Info("nowplaying: the broken file is marked dead and searched for at once")
+	if !told {
+		t.tell(ctx, j, msgLooking, id)
+	}
 	t.siblings(ctx, lib, j, id)
 }
 
-// settleQuiet settles an incident Pause (or a library that stopped writing) cut short: nothing done, nothing said.
+// sameCopy reports whether the link of a checked file still points at the copy that was read (a same-path import or
+// a sweep may have changed it meanwhile), and the library may act on it now.
+func (t *Tracker) sameCopy(ctx context.Context, src *Source) bool {
+	var target, state string
+	err := t.o.Store.Reader().QueryRowContext(ctx, `SELECT target, state FROM link WHERE id = ?`, src.LinkID).
+		Scan(&target, &state)
+	return err == nil && state == "active" && target == src.Target && t.live(src.version) != nil
+}
+
+// settleQuiet settles an incident cut short (Pause came on, the library stopped writing, or the link no longer
+// points at the copy read): nothing done, nothing said. A row an import fixed meanwhile stays as it is.
 func (t *Tracker) settleQuiet(ctx context.Context, id int64) {
-	t.o.Logger.Info("nowplaying: Pause is on or the library writes nothing now: the broken file is left", "incident", id)
+	t.o.Logger.Info("nowplaying: the broken file is left (Pause is on, its library writes nothing now, or its link changed)",
+		"incident", id)
 	if lib := t.rescuer(); lib != nil {
 		if err := lib.SettlePlayingIncident(ctx, id, "none", ""); err != nil {
 			t.o.Logger.Warn("nowplaying: incident not settled", "incident", id, "err", err)
@@ -614,7 +624,7 @@ const (
 	copyNone     = iota // no other account has the release cached
 	copyReadable        // the file reads again
 	copyFailed          // an account took it, yet the file still does not read
-	copyStopped         // Pause came on (or the library stopped writing) meanwhile
+	copyStopped         // Pause came on, the library stopped writing, or the link changed, meanwhile
 )
 
 // sameRelease is step 1: the same release added on another account with it cached, one account at a time in the
@@ -646,9 +656,15 @@ func (t *Tracker) sameRelease(ctx context.Context, lib Rescuer, j *sign, id int6
 				return copyReadable, acct
 			}
 			if !*told && t.o.Now().Sub(start) >= copyQuiet {
+				if !t.sameCopy(ctx, &j.src) {
+					return copyStopped, ""
+				}
 				*told = true
 				t.tell(ctx, j, msgLooking, id)
 			}
+		}
+		if !t.sameCopy(ctx, &j.src) {
+			return copyStopped, ""
 		}
 		if err := lib.PlayingMiss(ctx, id, []string{acct}); err != nil {
 			t.o.Logger.Warn("nowplaying: miss not recorded", "err", err)
@@ -700,8 +716,8 @@ func (t *Tracker) siblings(ctx context.Context, lib Rescuer, j *sign, id int64) 
 		if lib = t.live(j.src.version); lib == nil {
 			return
 		}
-		if n, err := lib.MarkBrokenPlaying(ctx, id, []library.PlayingFile{{LinkID: f.id, Offset: off}}, false,
-			nil); err != nil || n == 0 {
+		if ok, err := lib.MarkBrokenPlaying(ctx, id, library.PlayingFile{LinkID: f.id, Target: f.target, Offset: off},
+			false, nil); err != nil || !ok {
 			t.o.Logger.Info("nowplaying: a broken file of the release was not marked", "link_id", f.id, "err", err)
 			continue
 		}

@@ -1011,3 +1011,39 @@ func TestRescueKeepsKnownServingAccount(t *testing.T) {
 		t.Errorf("link %s", got)
 	}
 }
+
+// A same-path import replaces the file while step 1 waits: the copy that was read is no longer the link's, so nothing
+// is marked, no miss is written and the viewer is told nothing.
+func TestRescueCopyReplacedDuringStepOne(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.copyOK["ad"] = true
+	repl := filepath.Join(e.mount, "__all__", "OtherAD", "S01E02.mkv")
+	if err := os.WriteFile(repl, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Truncate(repl, fileSize); err != nil {
+		t.Fatal(err)
+	}
+	waits := 0
+	e.tr.sleep = func(ctx context.Context, d time.Duration) error {
+		e.advance(d)
+		if waits++; waits == 2 { // the first wait of step 1: the import lands
+			e.exec(`UPDATE link SET target = ? WHERE id = 11`, repl)
+		}
+		return ctx.Err()
+	}
+	e.play(2, "buffering")
+	e.poll()
+	if got := e.one(`SELECT state FROM link WHERE id = 11`) + " " +
+		e.one(`SELECT COUNT(*) FROM provider_cache WHERE source = 'router:playing'`) + " " +
+		e.one(`SELECT COUNT(*) FROM library_action WHERE kind = 'dead'`); got != "active 0 0" {
+		t.Errorf("after the replacement: %s", got)
+	}
+	if got := e.stop.stopped(); len(got) != 0 {
+		t.Errorf("stops %q", got)
+	}
+	if len(e.playingJobs()) != 0 {
+		t.Errorf("searches %+v", e.playingJobs())
+	}
+}

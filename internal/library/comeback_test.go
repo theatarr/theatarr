@@ -28,9 +28,9 @@ func brokenWhilePlaying(t *testing.T) (*env, int64) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n, err := e.lib.MarkBrokenPlaying(e.ctx, id, []PlayingFile{{LinkID: 1, Offset: 1 << 20}}, true,
-		[]string{"rd"}); err != nil || n != 1 {
-		t.Fatalf("marked %d: %v", n, err)
+	if ok, err := e.lib.MarkBrokenPlaying(e.ctx, id, PlayingFile{LinkID: 1, Target: e.linkTarget(1), Offset: 1 << 20}, true,
+		[]string{"rd"}); err != nil || !ok {
+		t.Fatalf("marked %v: %v", ok, err)
 	}
 	return e, id
 }

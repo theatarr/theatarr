@@ -79,9 +79,9 @@ func TestMarkBrokenPlaying(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	n, err := e.lib.MarkBrokenPlaying(e.ctx, id, []PlayingFile{{LinkID: 2, Offset: 4096}}, true, []string{"realdebrid"})
-	if err != nil || n != 1 {
-		t.Fatalf("marked %d: %v", n, err)
+	ok, err := e.lib.MarkBrokenPlaying(e.ctx, id, PlayingFile{LinkID: 2, Target: e.linkTarget(2), Offset: 4096}, true, []string{"realdebrid"})
+	if err != nil || !ok {
+		t.Fatalf("marked %v: %v", ok, err)
 	}
 	if got := e.one(`SELECT state || ' ' || COALESCE(missing_since, 'null') FROM link WHERE id = 2`); got != "dead null" {
 		t.Errorf("watched link %s", got)
@@ -131,12 +131,12 @@ func TestMarkBrokenPlayingSiblingsSearchedTogether(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.lib.MarkBrokenPlaying(e.ctx, id, []PlayingFile{{LinkID: 2}}, true, nil); err != nil {
+	if _, err := e.lib.MarkBrokenPlaying(e.ctx, id, PlayingFile{LinkID: 2, Target: e.linkTarget(2)}, true, nil); err != nil {
 		t.Fatal(err)
 	}
 	for _, link := range []int64{1, 3} {
-		if n, err := e.lib.MarkBrokenPlaying(e.ctx, id, []PlayingFile{{LinkID: link, Offset: 7}}, false, nil); err != nil || n != 1 {
-			t.Fatalf("sibling %d: %d %v", link, n, err)
+		if ok, err := e.lib.MarkBrokenPlaying(e.ctx, id, PlayingFile{LinkID: link, Target: e.linkTarget(link), Offset: 7}, false, nil); err != nil || !ok {
+			t.Fatalf("sibling %d: %v %v", link, ok, err)
 		}
 	}
 	if jobs := e.playingJobs(); len(jobs) != 1 {
@@ -165,7 +165,7 @@ func TestMarkBrokenPlayingStopsWhilePaused(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.pol.Router.Enabled = false
-	if _, err := e.lib.MarkBrokenPlaying(e.ctx, id, []PlayingFile{{LinkID: 2}}, true, nil); !errors.Is(err, ErrPlayingStopped) {
+	if _, err := e.lib.MarkBrokenPlaying(e.ctx, id, PlayingFile{LinkID: 2, Target: e.linkTarget(2)}, true, nil); !errors.Is(err, ErrPlayingStopped) {
 		t.Errorf("paused: %v", err)
 	}
 	if got := e.one(`SELECT state FROM link WHERE id = 2`); got != "active" {
@@ -189,8 +189,8 @@ func TestPlayingReplacedByImport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n, err := e.lib.MarkBrokenPlaying(e.ctx, id, []PlayingFile{{LinkID: 1}}, true, nil); err != nil || n != 1 {
-		t.Fatalf("marked %d: %v", n, err)
+	if ok, err := e.lib.MarkBrokenPlaying(e.ctx, id, PlayingFile{LinkID: 1, Target: e.linkTarget(1)}, true, nil); err != nil || !ok {
+		t.Fatalf("marked %v: %v", ok, err)
 	}
 	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
 	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
@@ -232,8 +232,8 @@ func TestPlayingPartialImportNotReplaced(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n, err := e.lib.MarkBrokenPlaying(e.ctx, id, []PlayingFile{{LinkID: 1}}, true, nil); err != nil || n != 1 {
-		t.Fatalf("marked %d: %v", n, err)
+	if ok, err := e.lib.MarkBrokenPlaying(e.ctx, id, PlayingFile{LinkID: 1, Target: e.linkTarget(1)}, true, nil); err != nil || !ok {
+		t.Fatalf("marked %v: %v", ok, err)
 	}
 	importEp := func(dl int64, hash, ep string, eps string) {
 		rel := "Show." + ep + ".2160p.WEB-DL.DDP5.1.H.265-GRP"
@@ -268,10 +268,10 @@ func TestSettlePlayingIgnoresOtherSeasons(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.lib.MarkBrokenPlaying(e.ctx, id, []PlayingFile{{LinkID: 2}}, true, nil); err != nil {
+	if _, err := e.lib.MarkBrokenPlaying(e.ctx, id, PlayingFile{LinkID: 2, Target: e.linkTarget(2)}, true, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.lib.MarkBrokenPlaying(e.ctx, id, []PlayingFile{{LinkID: 3}}, false, nil); err != nil {
+	if _, err := e.lib.MarkBrokenPlaying(e.ctx, id, PlayingFile{LinkID: 3, Target: e.linkTarget(3)}, false, nil); err != nil {
 		t.Fatal(err)
 	}
 	e.exec(`UPDATE job SET state = 'done'`)
@@ -287,6 +287,34 @@ func TestSettlePlayingIgnoresOtherSeasons(t *testing.T) {
 		t.Errorf("reported %q with only another season pending", got)
 	}
 	if jobs := e.playingJobs(); len(jobs) != 2 || fmt.Sprint(jobs[1].Episodes) != "[203]" {
+		t.Errorf("searches %+v", jobs)
+	}
+}
+
+func (e *env) linkTarget(id int64) string {
+	e.t.Helper()
+	return e.one(`SELECT target FROM link WHERE id = ?`, id)
+}
+
+// Only the copy the check read is marked: a link that points elsewhere now (a same-path import during the check) is
+// left, with no miss, no search and no history written.
+func TestMarkBrokenPlayingOnlyTheCheckedCopy(t *testing.T) {
+	e := playingEnv(t)
+	id, err := e.lib.OpenPlayingIncident(e.ctx, PlayingIncident{TitleID: 2, Version: "tv"}, PlayingFile{LinkID: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	read := e.linkTarget(2)
+	e.exec(`UPDATE link SET target = ? WHERE id = 2`, filepath.Join(e.mount, "__all__", "Other", "a.mkv"))
+	ok, err := e.lib.MarkBrokenPlaying(e.ctx, id, PlayingFile{LinkID: 2, Target: read}, true, []string{"rd"})
+	if err != nil || ok {
+		t.Fatalf("marked %v: %v", ok, err)
+	}
+	if got := e.one(`SELECT state FROM link WHERE id = 2`) + " " + e.one(`SELECT COUNT(*) FROM provider_cache`) + " " +
+		e.one(`SELECT COUNT(*) FROM library_action WHERE kind = 'dead'`); got != "active 0 0" {
+		t.Errorf("after a changed copy: %s", got)
+	}
+	if jobs := e.playingJobs(); len(jobs) != 0 {
 		t.Errorf("searches %+v", jobs)
 	}
 }

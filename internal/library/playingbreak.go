@@ -44,9 +44,11 @@ type PlayingIncident struct {
 	OutAccount string
 }
 
-// PlayingFile is a file of an incident: an active link, and where its check read (the come-back reads the same range).
+// PlayingFile is a file of an incident: an active link, the target its check read (the copy judged), and where it
+// read (the come-back reads the same range).
 type PlayingFile struct {
 	LinkID int64
+	Target string
 	Offset int64
 }
 
@@ -177,14 +179,16 @@ func (l *Library) PlayingHash(ctx context.Context, linkID int64) (string, error)
 }
 
 // SettlePlayingIncident settles every open row of an incident whose link never went dead: settled copy (step 1 made
-// it readable again; fixed_by copy, and account the one verified to serve it now) or none (nothing was done).
+// it readable again; fixed_by copy, and account the one verified to serve it now) or none (nothing was done). A row an
+// import fixed meanwhile (fixed_by replaced) is left as it is.
 func (l *Library) SettlePlayingIncident(ctx context.Context, incident int64, settled, account string) error {
 	fixed := ""
 	if settled == "copy" {
 		fixed = "copy"
 	}
 	_, err := l.st.Writer().ExecContext(ctx, `UPDATE playing_break SET settled = ?, fixed_by = ?, serving = ?,
-		updated_at = ? WHERE incident = ? AND settled = ''`, settled, fixed, account, store.Millis(l.now()), incident)
+		updated_at = ? WHERE incident = ? AND settled = '' AND fixed_by <> 'replaced'`, settled, fixed, account,
+		store.Millis(l.now()), incident)
 	return err
 }
 
@@ -212,98 +216,102 @@ func (l *Library) playingMissTx(ctx context.Context, tx *sql.Tx, incident int64,
 	return nil
 }
 
-// MarkBrokenPlaying marks files of an incident dead at once and wants their film or episodes again: each under its
-// link lease, only while it is still the active link the check read (compare and swap), with no 30-minute rule and
-// no repair grace, as the sweep's dead mark does it otherwise (markDead). The watched file's row exists
-// (OpenPlayingIncident); another file gets its own row of the incident. missKeys get the router:playing miss of the
-// release (PlayingMiss), in the same transaction. With search, one search per version is queued for the marked
-// files' episodes (the incident's version: reason playing; another version sharing a link: dead_link); without it,
-// QueuePlayingSearch queues it later (a release's other files, once the watched file's search has ended). It returns
-// how many files it marked. Pause on or a version that does not write: ErrPlayingStopped, nothing marked.
-func (l *Library) MarkBrokenPlaying(ctx context.Context, incident int64, files []PlayingFile, search bool,
-	missKeys []string) (int, error) {
+// MarkBrokenPlaying marks one file of an incident dead at once and wants its film or episodes again, as the sweep's
+// dead mark does but with no 30-minute rule and no repair grace (markDead): under its link lease, and only while the
+// link still points at f.Target, the copy the check read (a same-path import or a sweep may have changed it during the
+// check). In that one transaction: the file's row of the incident (the watched one exists already, OpenPlayingIncident;
+// another file gets its own), the release's miss on missKeys (PlayingMiss), the dead mark, the history line and, with
+// search, one search per version (the incident's version: reason playing; another version sharing the link:
+// dead_link); without search, QueuePlayingSearch queues it later (a release's other files, once the watched file's
+// search has ended). It reports whether it marked the file; a copy that changed is left, with nothing written. Pause
+// on or a version that does not write: ErrPlayingStopped, nothing marked.
+func (l *Library) MarkBrokenPlaying(ctx context.Context, incident int64, f PlayingFile, search bool,
+	missKeys []string) (bool, error) {
 	var inc PlayingIncident
 	err := l.st.Reader().QueryRowContext(ctx, `SELECT title_id, version_key, viewer, player, out_account
 		FROM playing_break WHERE id = ?`, incident).Scan(&inc.TitleID, &inc.Version, &inc.Viewer, &inc.Player,
 		&inc.OutAccount)
 	if err != nil {
-		return 0, fmt.Errorf("library: playing incident %d: %w", incident, err)
+		return false, fmt.Errorf("library: playing incident %d: %w", incident, err)
 	}
 	if !l.PlayingWritable(inc.Version) {
-		return 0, ErrPlayingStopped
+		return false, ErrPlayingStopped
 	}
-	lctx, unlockAll, _ := l.lockLinks(ctx)
-	defer unlockAll()
-	marked := 0
-	err = l.st.WriteTx(lctx, func(tx *sql.Tx) error { return l.playingMissTx(lctx, tx, incident, missKeys) })
+	var path, target, state string
+	fi := inc // a file of another title or version (a pack shared across them) has its own row there
+	if err := l.st.Reader().QueryRowContext(ctx, `SELECT l.path, l.target, l.state, l.title_id,
+		COALESCE((SELECT v.policy_key FROM link_version lv JOIN version v ON v.id = lv.version_id
+			WHERE lv.link_id = l.id ORDER BY v.policy_key = ? DESC, v.id LIMIT 1), '')
+		FROM link l WHERE l.id = ?`, inc.Version, f.LinkID).Scan(&path, &target, &state, &fi.TitleID,
+		&fi.Version); err != nil {
+		return false, nil
+	}
+	if state != "active" || target != f.Target || !l.PlayingWritable(fi.Version) {
+		return false, nil
+	}
+	lctx, unlock, err := l.lockLinks(ctx, path)
+	defer unlock()
 	if err != nil {
-		return 0, err
+		l.log.Info("library: broken file left: another run is changing it", "link", path, "err", err)
+		return false, nil
 	}
-	for _, f := range files {
-		var path, target, state string
-		fi := inc // a file of another title or version (a pack shared across them) has its own row there
-		if err := l.st.Reader().QueryRowContext(ctx, `SELECT l.path, l.target, l.state, l.title_id,
-			COALESCE((SELECT v.policy_key FROM link_version lv JOIN version v ON v.id = lv.version_id
-				WHERE lv.link_id = l.id ORDER BY v.policy_key = ? DESC, v.id LIMIT 1), '')
-			FROM link l WHERE l.id = ?`, inc.Version, f.LinkID).Scan(&path, &target, &state, &fi.TitleID,
-			&fi.Version); err != nil || state != "active" || !l.PlayingWritable(fi.Version) {
-			continue
+	now := store.Millis(l.now())
+	marked := false
+	err = l.st.WriteTx(lctx, func(tx *sql.Tx) error {
+		marked = false
+		if err := l.linksHeldTx(lctx, tx); err != nil {
+			return err
 		}
-		if _, _, err := l.lockLinks(lctx, path); err != nil {
-			l.log.Info("library: broken file left: another run is changing it", "link", path, "err", err)
-			continue
+		var cur string
+		if err := tx.QueryRowContext(lctx, `SELECT target FROM link WHERE id = ? AND path = ? AND state = 'active'`,
+			f.LinkID, path).Scan(&cur); errors.Is(err, sql.ErrNoRows) || err == nil && cur != f.Target {
+			return nil // the copy the check read is no longer the link's
+		} else if err != nil {
+			return err
 		}
-		now := store.Millis(l.now())
-		ok := false
-		err := l.st.WriteTx(lctx, func(tx *sql.Tx) error {
-			ok = false
-			if err := l.linksHeldTx(lctx, tx); err != nil {
+		var row int64
+		err := tx.QueryRowContext(lctx, `SELECT id FROM playing_break WHERE incident = ? AND link_id = ?
+			AND old_target = ? AND settled = ''`, incident, f.LinkID, f.Target).Scan(&row)
+		if errors.Is(err, sql.ErrNoRows) {
+			if row, err = l.insertBreak(lctx, tx, incident, fi, f, search); err != nil {
 				return err
 			}
-			var row int64
-			err := tx.QueryRowContext(lctx, `SELECT id FROM playing_break WHERE incident = ? AND link_id = ?
-				AND old_target = ? AND settled = ''`, incident, f.LinkID, target).Scan(&row)
-			if errors.Is(err, sql.ErrNoRows) {
-				if row, err = l.insertBreak(lctx, tx, incident, fi, f, search); err != nil {
-					return err
-				}
-			} else if err != nil {
-				return err
-			}
-			dead, err := l.markDead(lctx, tx, f.LinkID, path, target, now)
-			if err != nil || !dead {
-				return err
-			}
-			ok = true
-			if _, err := tx.ExecContext(lctx, `UPDATE playing_break SET searched = ?, updated_at = ? WHERE id = ?`,
-				search, now, row); err != nil {
-				return err
-			}
-			if search {
-				if err := l.queueLinkSearch(lctx, tx, f.LinkID, fi.Version); err != nil {
-					return err
-				}
-			} else if err := l.queueOtherVersions(lctx, tx, f.LinkID, fi.Version); err != nil {
-				return err
-			}
-			return l.record(lctx, tx, action{Kind: "dead", Mode: "applied", Version: fi.Version, LinkID: f.LinkID,
-				Path: path, Target: target, Detail: "stopped working while playing: a read through the mount failed",
-				Rel: linkFacts(lctx, tx, f.LinkID, path)})
-		})
-		if errors.Is(err, ErrLinkChanged) {
-			l.log.Info("library: broken file left: its link changed", "link", path, "err", err)
-			continue
+		} else if err != nil {
+			return err
 		}
-		if err != nil {
-			return marked, err
+		if err := l.playingMissTx(lctx, tx, incident, missKeys); err != nil {
+			return err
 		}
-		if ok {
-			marked++
-			l.log.Info("library: file marked dead while playing", "link", f.LinkID, "version", fi.Version,
-				"title", fi.TitleID, "incident", incident)
+		dead, err := l.markDead(lctx, tx, f.LinkID, path, f.Target, now)
+		if err != nil || !dead {
+			return err
 		}
+		if _, err := tx.ExecContext(lctx, `UPDATE playing_break SET searched = ?, updated_at = ? WHERE id = ?`,
+			search, now, row); err != nil {
+			return err
+		}
+		if search {
+			if err := l.queueLinkSearch(lctx, tx, f.LinkID, fi.Version); err != nil {
+				return err
+			}
+		} else if err := l.queueOtherVersions(lctx, tx, f.LinkID, fi.Version); err != nil {
+			return err
+		}
+		marked = true
+		return l.record(lctx, tx, action{Kind: "dead", Mode: "applied", Version: fi.Version, LinkID: f.LinkID,
+			Path: path, Target: f.Target, Detail: "stopped working while playing: a read through the mount failed",
+			Rel: linkFacts(lctx, tx, f.LinkID, path)})
+	})
+	if errors.Is(err, ErrLinkChanged) {
+		l.log.Info("library: broken file left: its link changed", "link", path, "err", err)
+		return false, nil
 	}
-	return marked, nil
+	if err != nil || !marked {
+		return false, err
+	}
+	l.log.Info("library: file marked dead while playing", "link", f.LinkID, "version", fi.Version, "title", fi.TitleID,
+		"incident", incident)
+	return true, nil
 }
 
 // markDead turns an active link dead by compare and swap on its path and target and wants its film or episodes
