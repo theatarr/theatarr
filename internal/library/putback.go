@@ -127,6 +127,10 @@ func (l *Library) putBackCopy(ctx context.Context, r returned, target string) (d
 	if err != nil {
 		return false, false, nil
 	}
+	// An unknown quality on either side (none, or the ranked Unknown, id 0) decides nothing: aside.
+	if !knownQuality(kind, oldF.Quality) || !knownQuality(kind, curF.Quality) {
+		return false, false, nil
+	}
 	dv := decide.Version{ID: versionID, Key: r.version, Policy: vp}
 	if ok, _, err := l.engine.ImportUpgrade(t, dv, &oldF, &curF); err != nil || !ok {
 		return false, false, nil
@@ -227,4 +231,14 @@ func deref(p *string) string {
 		return ""
 	}
 	return *p
+}
+
+// knownQuality says whether q is a quality of the title kind other than Unknown (id 0).
+func knownQuality(kind, q string) bool {
+	fl := format.Radarr
+	if policy.Kind(kind) == policy.KindSeries {
+		fl = format.Sonarr
+	}
+	x, ok := profile.QualityByName(fl, q)
+	return ok && x.ID != 0
 }

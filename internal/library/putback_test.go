@@ -81,6 +81,7 @@ func TestPutBack(t *testing.T) {
 	t.Run("tie", func(t *testing.T) { aside(t, newCoveredEnv(t, "WEBDL-1080p", "WEBDL-1080p", false)) })
 	t.Run("worse", func(t *testing.T) { aside(t, newCoveredEnv(t, "WEBDL-1080p", "Remux-2160p", false)) })
 	t.Run("unknown", func(t *testing.T) { aside(t, newCoveredEnv(t, "Unknown", "WEBDL-1080p", false)) })
+	t.Run("current unknown", func(t *testing.T) { aside(t, newCoveredEnv(t, "Remux-2160p", "Unknown", false)) })
 	t.Run("SeaDex library", func(t *testing.T) {
 		c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
 		c.pol.Versions["movie-remux"].PreferSeaDex = true
