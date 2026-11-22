@@ -485,6 +485,14 @@ mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
    copy removed with its links) queue the same scan of each folder they change; a refused (dry-run) unlink queues
    none (`TestUnlinkQueuesPlexScan`).
 
+Steps 7 to 9 are one helper, `installLinks` (`install.go`): the leases on every link path, the torrent delete fence
+through the commit, the trash copy of a displaced link, the `link` / `link_version` / `link_episode` rows, the
+replaced links' state, the trash rows and the journal, then the recompute of the version's states (`storeCutoffs`)
+and the Plex scans. Its inputs are the version, root and plan, each link's file inputs, the version's current files,
+the download the journal names, and the caller's hooks around those steps; an import's hooks are its claim and
+fence, the download's `importing` mark, its `content`, `content_file`, `provider_torrent` and `download_file` rows,
+the playing-break fix, the `library_import` and download state, and the undo of a removed download.
+
 Idempotent: a second import of the same download changes nothing on disk (`TestImportMovie`).
 
 ### Client downloads (`add_via: client`)

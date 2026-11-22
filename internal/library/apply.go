@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/jobs"
@@ -85,245 +84,91 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 		}
 		files[lk.Path] = lf
 	}
-	// One mutation per link path (linklock.go): every path this import makes or moves aside is held from here to the
-	// commit. A path another run is changing now leaves the import to the next pass, before anything changed.
-	var paths []string
-	for _, lk := range plan.Links {
-		paths = append(append(paths, lk.Path), lk.Replaces...)
-	}
-	ctx, unlock, err := l.lockLinks(ctx, paths...)
-	defer unlock()
-	if err != nil {
-		return errf(d.ID, "%w", err)
-	}
-	// The torrent delete fence is held from before the first link is made through the commit (refFence).
-	// An import that waited for a delete plans again: the delete may have taken its files.
-	ctx, waited, release, err := l.refFence(ctx)
-	defer release()
-	if err != nil {
-		return errf(d.ID, "%w", err)
-	}
-	if waited {
-		return errf(d.ID, "%w: a torrent delete ran while the import waited; it plans again", ErrLinkChanged)
-	}
-	if err := l.st.WriteTx(ctx, func(tx *sql.Tx) error {
-		if err := holdsClaim(ctx, tx, d); err != nil {
-			return err
-		}
-		res, err := tx.ExecContext(ctx, `UPDATE download SET state = 'importing', updated_at = ? WHERE id = ?
-			AND state IN ('ready', 'importing')`, now, d.ID)
-		if err != nil {
-			return err
-		}
-		if n, err := res.RowsAffected(); err != nil {
-			return err
-		} else if n == 0 {
-			return errf(d.ID, "%w: no longer ready", ErrClaimed)
-		}
-		return nil
-	}); err != nil {
-		return err
-	}
-	var moved, gone []trashed
-	var failures []string
-	raced := 0 // failures from a concurrent change of a path: the import is retried, not failed
-	var linked, made []PlannedLink
-	var pending []int
-	for i := range plan.Links {
-		pending = append(pending, i)
-	}
-	for len(pending) > 0 {
-		var deferred []int
-		for _, i := range pending {
-			lk := &plan.Links[i]
-			// An in-place replacement cannot be undone by keeping the old path. Wait until its other episodes
-			// have links before overwriting it, just as removals below wait for the successful batch.
-			if !lk.Exists && unsafeSeriesReplacements(append(linked, *lk), existing)[lk.Path] {
-				deferred = append(deferred, i)
-				continue
-			}
-			fail := func(msg string) {
-				failures = append(failures, msg)
-				lk.Error = msg
-			}
-			// The path must still hold what the plan saw, and no other title's or version's link (linkReady).
-			if why, err := l.linkReady(ctx, v, lk); err != nil {
-				return err
-			} else if why != "" {
-				raced++
-				fail(why)
-				continue
-			}
-			// A link in place already (this import, interrupted after it, made it) still moves its old files aside.
-			if !lk.Exists {
-				// Each replacement is fenced: an import that lost its claim (or its job lease) stops before it.
-				if err := l.fence(ctx, d); err != nil {
-					return l.stopped(ctx, d, root, plan, made, moved, err)
-				}
-				// A different link already at this path: keep a copy in the trash before it is replaced.
-				if fi, err := os.Lstat(lk.Path); err == nil {
-					if fi.Mode()&os.ModeSymlink == 0 {
-						fail(fmt.Sprintf("%s exists and is not a symlink", lk.Path))
-						continue
-					}
-					tp, target, err := l.w.copyToTrash(v.Key, root, lk.Path)
-					if err != nil {
-						fail(err.Error())
-						continue
-					}
-					moved = append(moved, trashed{v.Key, lk.Path, tp, target, "replaced in place", lk.Path, 0})
-				}
-				if err := l.w.symlink(v.Key, lk.Target, lk.Path); err != nil {
-					fail(err.Error())
-					_ = l.record(ctx, nil, action{Kind: "link", Mode: modeOf(err), Version: v.Key, DownloadID: d.ID, Path: lk.Path,
-						Target: lk.Target, Detail: err.Error()})
-					continue
-				}
-				made = append(made, *lk)
-			}
-			lk.Done = true
-			linked = append(linked, *lk)
-		}
-		if len(deferred) == len(pending) {
-			for _, i := range deferred {
-				lk := &plan.Links[i]
-				lk.Error = fmt.Sprintf("old file %s not replaced: batch did not link every episode", lk.Path)
-				failures = append(failures, lk.Error)
-			}
-			break
-		}
-		pending = deferred
-	}
-	// Make every new link before removing old ones. A failed link must not leave a shared old file's other
-	// episodes uncovered, even though the whole batch passed planning. The retry finishes the replacement.
-	unsafe := unsafeSeriesReplacements(linked, existing)
-	for i := range plan.Links {
-		lk := &plan.Links[i]
-		if !lk.Done {
-			continue
-		}
-		fail := func(msg string) {
-			failures = append(failures, msg)
-			lk.Error = msg
-		}
-		for j, old := range lk.Replaces {
-			if unsafe[old] {
-				continue
-			}
-			// The replaced link by its id: a rename since the plan moved it, and that path is the one to move aside.
-			oldID := lk.replaceID(j)
-			if oldID > 0 {
-				var cur string
-				err := l.st.Reader().QueryRowContext(ctx, `SELECT path FROM link WHERE id = ? AND state = 'active'`,
-					oldID).Scan(&cur)
-				if err != nil && !errors.Is(err, sql.ErrNoRows) {
-					return err
-				}
-				if cur != "" && cur != old {
-					l.log.Info("library: replaced link was renamed since the plan", "download", d.ID, "link", oldID,
-						"planned", old, "now", cur)
-					old = cur
-					if _, _, err := l.lockLinks(ctx, old); err != nil {
-						raced++
-						fail(err.Error())
-						continue
-					}
-				}
-			}
-			fi, err := os.Lstat(old)
-			if errors.Is(err, os.ErrNotExist) {
-				// Gone already (an interrupted run of this import moved it aside): its row follows.
-				gone = append(gone, trashed{version: v.Key, path: old, linkPath: lk.Path, linkID: oldID})
-				continue
-			}
-			if err != nil || fi.Mode()&os.ModeSymlink == 0 {
-				fail(fmt.Sprintf("old file %s not moved aside: not a symlink", old))
-				continue
-			}
-			if err := l.fence(ctx, d); err != nil {
-				return l.stopped(ctx, d, root, plan, made, moved, err)
-			}
-			tp, target, err := l.w.copyToTrash(v.Key, root, old)
-			if err == nil {
-				err = l.w.removeLink(v.Key, old)
-			}
-			if err != nil {
-				fail(err.Error())
-				continue
-			}
-			moved = append(moved, trashed{v.Key, old, tp, target, "upgrade", lk.Path, oldID})
-		}
-	}
-
-	pj, _ := json.Marshal(plan)
-	var strays []trashed
+	var contentID int64
 	recorded := false // the import put its torrent in the record (RecordChanged after the commit)
 	// playingFixed are the incidents whose watched file this import fixed (reported after the commit).
 	var playingFixed []int64
-	err = l.refWriteTx(ctx, func(tx *sql.Tx) error {
-		recorded = false
-		if err := holdsClaim(ctx, tx, d); err != nil {
-			return err
-		}
-		if err := l.linksHeldTx(ctx, tx); err != nil {
-			return err
-		}
-		// A client may have removed the download from the queue while the links were made (router.Dismiss): the
-		// removal wins, and nothing of this import is recorded.
-		if err := stillImporting(ctx, tx, d.ID); err != nil {
-			return err
-		}
-		contentID := d.ContentID
-		if contentID == 0 && d.InfoHash != "" {
-			res, err := tx.ExecContext(ctx, `INSERT INTO content (info_hash, name, mount_folder, state, first_seen_at, last_seen_at)
-				VALUES (?, ?, ?, 'present', ?, ?) ON CONFLICT (info_hash) DO NOTHING`,
-				d.InfoHash, d.Name, filepath.Base(plan.Folder), now, now)
-			if err != nil {
-				return err
-			}
-			if n, _ := res.RowsAffected(); n > 0 {
-				contentID, _ = res.LastInsertId()
-			} else if err := tx.QueryRowContext(ctx, `SELECT id FROM content WHERE info_hash = ?`, d.InfoHash).Scan(&contentID); err != nil {
-				return err
-			}
-		}
-		if contentID != 0 {
-			if _, err := tx.ExecContext(ctx, `UPDATE content SET mount_folder = ?, last_seen_at = ? WHERE id = ?`,
-				filepath.Base(plan.Folder), now, contentID); err != nil {
-				return err
-			}
-		}
-		// A debrid provider's download linked from the mount: the provider holds the content, complete, now. The
-		// record (provider_torrent) shows that at once, for the readers of what the accounts hold (the router's
-		// guards, Cached on); a row the sync wrote stays unless it was unfinished. Without a torrent id (a manual or
-		// arr import) the provider's next listing finds it: one sync of that provider is asked for now.
-		if contentID != 0 && len(linked) > 0 && l.pol.Providers[d.Provider] != nil {
-			if d.TorrentID != "" {
-				if err := provider.RecordImport(ctx, tx, d.Provider, l.pol.Providers[d.Provider].Kind, d.TorrentID, d.InfoHash, d.Name, d.Size); err != nil {
+	r, err := l.installLinks(ctx, &install{v: v, root: root, plan: plan, files: files, existing: existing,
+		downloadID: d.ID, now: now,
+		begin: func(ctx context.Context) error {
+			return l.st.WriteTx(ctx, func(tx *sql.Tx) error {
+				if err := holdsClaim(ctx, tx, d); err != nil {
 					return err
 				}
-				recorded = true
-			} else if l.queue != nil {
-				if _, _, err := l.queue.EnqueueTx(ctx, tx, provider.JobKind, provider.SyncPayload{
-					Providers: []string{d.Provider}}, jobs.EnqueueOptions{DedupeKey: provider.JobKind + "/import/" +
-					d.Provider, MaxAttempts: 1}); err != nil {
+				res, err := tx.ExecContext(ctx, `UPDATE download SET state = 'importing', updated_at = ? WHERE id = ?
+					AND state IN ('ready', 'importing')`, now, d.ID)
+				if err != nil {
+					return err
+				}
+				if n, err := res.RowsAffected(); err != nil {
+					return err
+				} else if n == 0 {
+					return errf(d.ID, "%w: no longer ready", ErrClaimed)
+				}
+				return nil
+			})
+		},
+		fence: func(ctx context.Context) error { return l.fence(ctx, d) },
+		stopped: func(ctx context.Context, made []PlannedLink, moved []trashed, cause error) error {
+			return l.stopped(ctx, d, root, plan, made, moved, cause)
+		},
+		claimTx: func(ctx context.Context, tx *sql.Tx) error {
+			recorded = false
+			return holdsClaim(ctx, tx, d)
+		},
+		beginTx: func(ctx context.Context, tx *sql.Tx, linked []PlannedLink) error {
+			// A client may have removed the download from the queue while the links were made (router.Dismiss): the
+			// removal wins, and nothing of this import is recorded.
+			if err := stillImporting(ctx, tx, d.ID); err != nil {
+				return err
+			}
+			contentID = d.ContentID
+			if contentID == 0 && d.InfoHash != "" {
+				res, err := tx.ExecContext(ctx, `INSERT INTO content (info_hash, name, mount_folder, state, first_seen_at, last_seen_at)
+					VALUES (?, ?, ?, 'present', ?, ?) ON CONFLICT (info_hash) DO NOTHING`,
+					d.InfoHash, d.Name, filepath.Base(plan.Folder), now, now)
+				if err != nil {
+					return err
+				}
+				if n, _ := res.RowsAffected(); n > 0 {
+					contentID, _ = res.LastInsertId()
+				} else if err := tx.QueryRowContext(ctx, `SELECT id FROM content WHERE info_hash = ?`, d.InfoHash).Scan(&contentID); err != nil {
 					return err
 				}
 			}
-			// Held by a provider and linked: present, as the sync's recompute (nextState) would set it.
-			if _, err := tx.ExecContext(ctx, `UPDATE content SET state = 'present' WHERE id = ? AND state <> 'present'`,
-				contentID); err != nil {
-				return err
+			if contentID != 0 {
+				if _, err := tx.ExecContext(ctx, `UPDATE content SET mount_folder = ?, last_seen_at = ? WHERE id = ?`,
+					filepath.Base(plan.Folder), now, contentID); err != nil {
+					return err
+				}
 			}
-		}
-		// The old files' release facts, before a link at the same path is overwritten (History, 00129).
-		oldRel := map[string]relFacts{}
-		for _, m := range append(slices.Clone(moved), gone...) {
-			oldRel[m.path] = linkFacts(ctx, tx, m.linkID, m.path)
-		}
-		playingFixed = nil
-		for _, lk := range linked {
-			var cfID any
+			// A debrid provider's download linked from the mount: the provider holds the content, complete, now. The
+			// record (provider_torrent) shows that at once, for the readers of what the accounts hold (the router's
+			// guards, Cached on); a row the sync wrote stays unless it was unfinished. Without a torrent id (a manual or
+			// arr import) the provider's next listing finds it: one sync of that provider is asked for now.
+			if contentID != 0 && len(linked) > 0 && l.pol.Providers[d.Provider] != nil {
+				if d.TorrentID != "" {
+					if err := provider.RecordImport(ctx, tx, d.Provider, l.pol.Providers[d.Provider].Kind, d.TorrentID, d.InfoHash, d.Name, d.Size); err != nil {
+						return err
+					}
+					recorded = true
+				} else if l.queue != nil {
+					if _, _, err := l.queue.EnqueueTx(ctx, tx, provider.JobKind, provider.SyncPayload{
+						Providers: []string{d.Provider}}, jobs.EnqueueOptions{DedupeKey: provider.JobKind + "/import/" +
+						d.Provider, MaxAttempts: 1}); err != nil {
+						return err
+					}
+				}
+				// Held by a provider and linked: present, as the sync's recompute (nextState) would set it.
+				if _, err := tx.ExecContext(ctx, `UPDATE content SET state = 'present' WHERE id = ? AND state <> 'present'`,
+					contentID); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+		row: func(ctx context.Context, tx *sql.Tx, lk *PlannedLink) (linkRow, error) {
+			row := linkRow{downloadID: d.ID, release: d.ReleaseTitle}
 			if contentID != 0 {
 				var probeJSON any
 				if lk.probe != nil {
@@ -336,56 +181,16 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 					probe = COALESCE(excluded.probe, content_file.probe), probed_at = excluded.probed_at RETURNING id`,
 					contentID, lk.File, lk.size, probeJSON, now).Scan(&id)
 				if err != nil {
-					return err
+					return row, err
 				}
-				cfID = id
+				row.contentFileID = id
 			}
-			if err := takePathTx(ctx, tx, lk.Path, v.Title.ID, v.VersionID, lk.Target); err != nil {
-				return err
-			}
-			var linkID int64
-			lf := files[lk.Path]
-			// The row at the path is this title's (takePathTx): its title never changes, and a new file starts with
-			// no noted miss, none of an adopted file's facts, and no folder hash (usage finds the new one).
-			err = tx.QueryRowContext(ctx, `INSERT INTO link (path, target, kind, content_file_id, title_id, download_id,
-					release_title, quality, score, file_metadata, state, last_checked_at, created_at, updated_at)
-				VALUES (?, ?, 'symlink', ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)
-				ON CONFLICT (path) DO UPDATE SET target = excluded.target, content_file_id = excluded.content_file_id,
-					download_id = excluded.download_id, release_title = excluded.release_title,
-					quality = excluded.quality, score = excluded.score, state = 'active', adopted = 0,
-					adopted_from = NULL, adopted_source = NULL, adopted_media = NULL, folder_hash = NULL,
-					file_metadata = excluded.file_metadata, missing_since = NULL,
-					last_checked_at = excluded.last_checked_at, updated_at = excluded.updated_at
-				WHERE link.title_id = excluded.title_id
-				RETURNING id`, lk.Path, lk.Target, cfID, v.Title.ID, d.ID, d.ReleaseTitle, lf.quality, lf.score, lf.metadata, now, now, now).
-				Scan(&linkID)
-			if errors.Is(err, sql.ErrNoRows) {
-				return linkChanged(0, lk.Path, lk.Target, "the path holds another title's link")
-			}
-			if err != nil {
-				return err
-			}
-			if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO link_version (link_id, version_id) VALUES (?, ?)`, linkID, v.VersionID); err != nil {
-				return err
-			}
-			if _, err := tx.ExecContext(ctx, `DELETE FROM link_episode WHERE link_id = ?`, linkID); err != nil {
-				return err
-			}
-			for _, e := range lk.Episodes {
-				if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO link_episode (link_id, episode_id) VALUES (?, ?)`, linkID, e); err != nil {
-					return err
-				}
-			}
-			if lf.state != "" {
-				if err := recordImportedState(ctx, tx, v, lk.Episodes, lf.state, len(failures) > 0, now); err != nil {
-					return err
-				}
-			}
-			if err := recordFile(ctx, tx, d.ID, &lk, now); err != nil {
-				return err
-			}
-
-			mode := "applied"
+			return row, nil
+		},
+		linkTx: func(ctx context.Context, tx *sql.Tx, lk *PlannedLink) error {
+			return recordFile(ctx, tx, d.ID, lk, now)
+		},
+		detail: func(lk *PlannedLink) string {
 			detail := ""
 			if lk.Exists {
 				detail = "already linked"
@@ -393,175 +198,96 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 			if o := d.Manual[lk.File].Overrides; o != nil && o.ImportMode != "" {
 				detail += "; client importMode " + o.ImportMode + "; Theatarr linked instead; source left in place"
 			}
-			if err := l.record(ctx, tx, action{Kind: "link", Mode: mode, Version: v.Key, DownloadID: d.ID, LinkID: linkID,
-				Path: lk.Path, Target: lk.Target, Detail: detail, Rel: relFacts{Release: d.ReleaseTitle, Quality: lf.quality,
-					Score: sql.NullInt64{Int64: int64(lf.score), Valid: true}, TitleID: v.Title.ID,
-					Episodes: lk.Episodes}}); err != nil {
+			return detail
+		},
+		linkedTx: func(ctx context.Context, tx *sql.Tx, linked []PlannedLink) error {
+			// A file that broke while playing whose film or every episode has a file again: fixed by this import.
+			playingFixed = nil
+			if len(linked) > 0 {
+				var eps []int64
+				for _, lk := range linked {
+					eps = append(eps, lk.Episodes...)
+				}
+				fixed, err := playingFixedTx(ctx, tx, v.Title.ID, v.VersionID, v.Key, eps, d.ReleaseTitle, now)
+				if err != nil {
+					return err
+				}
+				playingFixed = append(playingFixed, fixed...)
+			}
+			return nil
+		},
+		endTx: func(ctx context.Context, tx *sql.Tx, r *installed) error {
+			failures := r.failures
+			// Every link made: imported. Some made, some failed: partial, and the download stays importing so the
+			// periodic pass (after a back-off) or a manual import finishes it. None made: failed.
+			// A row entering partial starts its count again: the back-off (partialBackoff) counts partial attempts, not
+			// the passes the download spent waiting for the mount before.
+			state, dl := "linked", "imported"
+			var lastErr any
+			if len(failures) > 0 {
+				lastErr = fmt.Sprint(failures)
+				state, dl = "partial", "importing"
+			}
+			if len(r.linked) == 0 && r.raced < len(failures) {
+				state, dl = "failed", "failed"
+			}
+			if d.rescoped != nil {
+				eps, _ := json.Marshal(d.rescoped)
+				if _, err := tx.ExecContext(ctx, `UPDATE download SET episodes = ? WHERE id = ?`, string(eps), d.ID); err != nil {
+					return err
+				}
+			}
+			pj, _ := json.Marshal(plan)
+			if _, err := tx.ExecContext(ctx, `INSERT INTO library_import (download_id, state, mount_folder, last_error, plan, attempts, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, 1, ?, ?) ON CONFLICT (download_id) DO UPDATE SET state = excluded.state,
+				mount_folder = excluded.mount_folder, last_error = excluded.last_error, plan = excluded.plan,
+				attempts = CASE WHEN excluded.state = 'partial' AND library_import.state <> 'partial' THEN 1
+					ELSE library_import.attempts + 1 END, updated_at = excluded.updated_at`,
+				d.ID, state, plan.Folder, lastErr, string(pj), now, now); err != nil {
 				return err
 			}
-		}
-		// A file that broke while playing whose film or every episode has a file again: fixed by this import.
-		if len(linked) > 0 {
-			var eps []int64
-			for _, lk := range linked {
-				eps = append(eps, lk.Episodes...)
+			var err error
+			switch dl {
+			case "imported":
+				_, err = tx.ExecContext(ctx, `UPDATE download SET state = 'imported', imported_at = ?, error = NULL, updated_at = ? WHERE id = ?`, now, now, d.ID)
+			case "importing":
+				_, err = tx.ExecContext(ctx, `UPDATE download SET error = ?, updated_at = ? WHERE id = ?`,
+					"library: partial import, retried: "+fmt.Sprint(failures), now, d.ID)
+			default:
+				_, err = tx.ExecContext(ctx, `UPDATE download SET state = 'failed', error = ?, updated_at = ? WHERE id = ?`,
+					"library: "+fmt.Sprint(failures), now, d.ID)
 			}
-			fixed, err := playingFixedTx(ctx, tx, v.Title.ID, v.VersionID, v.Key, eps, d.ReleaseTitle, now)
 			if err != nil {
 				return err
 			}
-			playingFixed = append(playingFixed, fixed...)
-		}
-		strays = nil
-		for _, m := range moved {
-			var oldID sql.NullInt64
-			if m.linkID > 0 && m.path != m.linkPath {
-				// By id: a rename that moved the row after the old symlink was moved aside leaves its new symlink,
-				// which goes too once this commits (strays).
-				oldID = sql.NullInt64{Int64: m.linkID, Valid: true}
-				var cur string
-				if err := tx.QueryRowContext(ctx, `SELECT path FROM link WHERE id = ? AND state = 'active'`,
-					m.linkID).Scan(&cur); err == nil && cur != m.path {
-					strays = append(strays, trashed{version: m.version, path: cur, target: m.target, reason: "upgrade",
-						linkPath: m.linkPath, linkID: m.linkID})
-				} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
-					return err
-				}
+			if dl == "failed" {
+				store.HistoryFailure(ctx, tx, d.ID)
 			} else {
-				_ = tx.QueryRowContext(ctx, `SELECT id FROM link WHERE path = ?`, m.path).Scan(&oldID)
+				store.HistoryImport(ctx, tx, d.ID)
 			}
-			if oldID.Valid && m.path != m.linkPath {
-				if _, err := tx.ExecContext(ctx, `UPDATE link SET state = 'unlinked', updated_at = ? WHERE id = ?`, now, oldID.Int64); err != nil {
-					return err
-				}
-				if err := reconcileRemovedLink(ctx, tx, oldID.Int64, now); err != nil {
-					return err
-				}
-			}
-			if _, err := tx.ExecContext(ctx, `INSERT INTO link_trash (link_id, version_key, path, trash_path, target, reason, moved_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?)`, oldID, m.version, m.path, m.trashPath, m.target, m.reason, now); err != nil {
-				return err
-			}
-			if err := l.record(ctx, tx, action{Kind: "replace", Mode: "applied", Version: m.version, DownloadID: d.ID,
-				Path: m.path, Target: m.target, Detail: "moved aside to " + m.trashPath, Rel: oldRel[m.path]}); err != nil {
-				return err
-			}
-		}
-		for _, m := range gone {
-			if m.path == m.linkPath {
-				continue
-			}
-			linkID := m.linkID
-			if linkID == 0 {
-				if err := tx.QueryRowContext(ctx, `SELECT id FROM link WHERE path = ? AND state = 'active'`,
-					m.path).Scan(&linkID); errors.Is(err, sql.ErrNoRows) {
-					continue
-				} else if err != nil {
-					return err
+			return nil
+		},
+		after: func(ctx context.Context) {
+			for _, inc := range playingFixed {
+				if err := l.ReportPlaying(ctx, inc, outcome.Replaced); err != nil {
+					l.log.Warn("library: outcome of a file that broke while playing not sent", "incident", inc, "err", err)
 				}
 			}
-			res, err := tx.ExecContext(ctx, `UPDATE link SET state = 'unlinked', updated_at = ? WHERE id = ?
-				AND state IN ('active', 'dead')`, now, linkID)
-			if err != nil {
-				return err
+			if recorded && l.recordChanged != nil {
+				l.recordChanged()
 			}
-			if n, _ := res.RowsAffected(); n == 0 {
-				continue
+			if recorded && l.imported != nil {
+				l.imported(ctx, d.Provider, d.InfoHash)
 			}
-			if err := reconcileRemovedLink(ctx, tx, linkID, now); err != nil {
-				return err
-			}
-			if err := l.record(ctx, tx, action{Kind: "replace", Mode: "applied", Version: m.version, DownloadID: d.ID,
-				Path: m.path, Detail: "already gone from the library (moved aside by an interrupted import)",
-				Rel: oldRel[m.path]}); err != nil {
-				return err
-			}
-		}
-		// Every link made: imported. Some made, some failed: partial, and the download stays importing so the
-		// periodic pass (after a back-off) or a manual import finishes it. None made: failed.
-		// A row entering partial starts its count again: the back-off (partialBackoff) counts partial attempts, not
-		// the passes the download spent waiting for the mount before.
-		state, dl := "linked", "imported"
-		var lastErr any
-		if len(failures) > 0 {
-			lastErr = fmt.Sprint(failures)
-			state, dl = "partial", "importing"
-		}
-		if len(linked) == 0 && raced < len(failures) {
-			state, dl = "failed", "failed"
-		}
-		if d.rescoped != nil {
-			eps, _ := json.Marshal(d.rescoped)
-			if _, err := tx.ExecContext(ctx, `UPDATE download SET episodes = ? WHERE id = ?`, string(eps), d.ID); err != nil {
-				return err
-			}
-		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO library_import (download_id, state, mount_folder, last_error, plan, attempts, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, 1, ?, ?) ON CONFLICT (download_id) DO UPDATE SET state = excluded.state,
-			mount_folder = excluded.mount_folder, last_error = excluded.last_error, plan = excluded.plan,
-			attempts = CASE WHEN excluded.state = 'partial' AND library_import.state <> 'partial' THEN 1
-				ELSE library_import.attempts + 1 END, updated_at = excluded.updated_at`,
-			d.ID, state, plan.Folder, lastErr, string(pj), now, now); err != nil {
-			return err
-		}
-		var err error
-		switch dl {
-		case "imported":
-			_, err = tx.ExecContext(ctx, `UPDATE download SET state = 'imported', imported_at = ?, error = NULL, updated_at = ? WHERE id = ?`, now, now, d.ID)
-		case "importing":
-			_, err = tx.ExecContext(ctx, `UPDATE download SET error = ?, updated_at = ? WHERE id = ?`,
-				"library: partial import, retried: "+fmt.Sprint(failures), now, d.ID)
-		default:
-			_, err = tx.ExecContext(ctx, `UPDATE download SET state = 'failed', error = ?, updated_at = ? WHERE id = ?`,
-				"library: "+fmt.Sprint(failures), now, d.ID)
-		}
-		if err != nil {
-			return err
-		}
-		if dl == "failed" {
-			store.HistoryFailure(ctx, tx, d.ID)
-		} else {
-			store.HistoryImport(ctx, tx, d.ID)
-		}
-		return nil
+		},
 	})
-	if errors.Is(err, ErrRemoved) {
-		return l.stopped(ctx, d, root, plan, made, moved, err)
-	}
 	if err != nil {
 		return err
 	}
-	for _, inc := range playingFixed {
-		if err := l.ReportPlaying(ctx, inc, outcome.Replaced); err != nil {
-			l.log.Warn("library: outcome of a file that broke while playing not sent", "incident", inc, "err", err)
-		}
+	if len(r.failures) > 0 {
+		return errf(d.ID, "%d step(s) failed: %v", len(r.failures), r.failures)
 	}
-	if recorded && l.recordChanged != nil {
-		l.recordChanged()
-	}
-	if recorded && l.imported != nil {
-		l.imported(ctx, d.Provider, d.InfoHash)
-	}
-	l.storeCutoffs(ctx, []stateVersion{{id: v.VersionID, titleID: v.Title.ID, key: v.Key}})
-	for _, m := range strays {
-		l.moveStray(ctx, d, root, m)
-	}
-	dirs := map[string]bool{}
-	for _, lk := range linked {
-		dirs[filepath.Dir(lk.Path)] = true
-	}
-	for _, m := range moved {
-		dirs[filepath.Dir(m.path)] = true
-	}
-	for dir := range dirs {
-		if err := l.EnqueueScan(ctx, v.Key, dir); err != nil {
-			l.log.Warn("library: plex scan not queued", "dir", dir, "err", err)
-		}
-	}
-	if len(failures) > 0 {
-		return errf(d.ID, "%d step(s) failed: %v", len(failures), failures)
-	}
-	l.log.Info("library: imported", "download", d.ID, "version", v.Key, "links", len(linked), "moved_aside", len(moved))
+	l.log.Info("library: imported", "download", d.ID, "version", v.Key, "links", len(r.linked), "moved_aside", len(r.moved))
 	return nil
 }
 
@@ -755,11 +481,11 @@ func (l *Library) undo(ctx context.Context, d *importDownload, root string, plan
 // moveStray moves aside a replaced link that a rename moved to path after the upgrade had moved its old symlink aside
 // (the row, unlinked by id, no longer holds it). Only a symlink still pointing at the replaced target goes; a failure
 // is logged and left for a human (the link's row is unlinked already).
-func (l *Library) moveStray(ctx context.Context, d *importDownload, root string, m trashed) {
+func (l *Library) moveStray(ctx context.Context, downloadID int64, root string, m trashed) {
 	ctx, unlock, err := l.lockLinks(ctx, m.path)
 	defer unlock()
 	if err != nil {
-		l.log.Warn("library: a link renamed during an upgrade was not moved aside", "download", d.ID, "link", m.linkID,
+		l.log.Warn("library: a link renamed during an upgrade was not moved aside", "download", downloadID, "link", m.linkID,
 			"path", m.path, "err", err)
 		return
 	}
@@ -777,13 +503,13 @@ func (l *Library) moveStray(ctx context.Context, d *importDownload, root string,
 				store.Millis(l.now())); err != nil {
 				return err
 			}
-			return l.record(ctx, tx, action{Kind: "replace", Mode: "applied", Version: m.version, DownloadID: d.ID,
+			return l.record(ctx, tx, action{Kind: "replace", Mode: "applied", Version: m.version, DownloadID: downloadID,
 				LinkID: m.linkID, Path: m.path, Target: target, Detail: "moved aside to " + tp + " (renamed during the upgrade)",
 				Rel: linkFacts(ctx, tx, m.linkID, m.path)})
 		})
 	}
 	if err != nil {
-		l.log.Warn("library: a link renamed during an upgrade was not moved aside", "download", d.ID, "link", m.linkID,
+		l.log.Warn("library: a link renamed during an upgrade was not moved aside", "download", downloadID, "link", m.linkID,
 			"path", m.path, "err", err)
 	}
 }
