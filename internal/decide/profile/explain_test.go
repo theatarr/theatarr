@@ -52,3 +52,17 @@ func TestExplain(t *testing.T) {
 		t.Errorf("size the other way: %q", got)
 	}
 }
+
+// TestCompareAllocatesNothing: the ranking walk (ordinary and merged) allocates nothing, a tied pair included.
+func TestCompareAllocatesNothing(t *testing.T) {
+	e, x := radarrSubject(t)
+	_, y := radarrSubject(t)
+	y.Profile = x.Profile
+	scoped := func(*Subject) int { return 1 }
+	if n := testing.AllocsPerRun(100, func() { e.Compare(x, y) }); n != 0 {
+		t.Errorf("Compare allocates %v", n)
+	}
+	if n := testing.AllocsPerRun(100, func() { e.compareMerged(x, y, scoped) }); n != 0 {
+		t.Errorf("compareMerged allocates %v", n)
+	}
+}

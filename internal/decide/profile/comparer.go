@@ -48,31 +48,42 @@ const (
 
 type compareFunc struct {
 	step string
-	cmp  func(x, y *Subject) int
+	cmp  func(e *Engine, x, y *Subject) int
 }
+
+// plain lifts a comparison that needs no engine into a step.
+func plain(f func(x, y *Subject) int) func(*Engine, *Subject, *Subject) int {
+	return func(_ *Engine, x, y *Subject) int { return f(x, y) }
+}
+
+// The two orders, one per flavour, walked in place (nothing is built per comparison).
+var (
+	sonarrSteps = [...]compareFunc{{StepQuality, (*Engine).compareQualityIndex}, {StepRevision, (*Engine).compareRevision},
+		{StepScore, plain(compareFormatScore)}, {StepProtocol, (*Engine).compareProtocol},
+		{StepEpisodeCount, plain(compareEpisodeCount)}, {StepEpisodeNumber, plain(compareEpisodeNumber)},
+		{StepCached, plain(compareCachedAny)}, {StepCachedFirst, plain(compareCachedFirst)}, {StepCachedCount, plain(compareCachedCount)},
+		{StepIndexerPriority, plain(compareIndexerPriority)}, {StepSeeders, (*Engine).compareSeeders},
+		{StepPeers, (*Engine).comparePeerCount}, {StepAge, (*Engine).compareAge}, {StepSize, (*Engine).compareSize}}
+	radarrSteps = [...]compareFunc{{StepQuality, (*Engine).compareQualityIndex}, {StepRevision, (*Engine).compareRevision},
+		{StepScore, plain(compareFormatScore)},
+		{StepCached, plain(compareCachedAny)}, {StepCachedFirst, plain(compareCachedFirst)}, {StepCachedCount, plain(compareCachedCount)},
+		{StepProtocol, (*Engine).compareProtocol}, {StepIndexerPriority, plain(compareIndexerPriority)},
+		{StepIndexerFlags, (*Engine).compareIndexerFlags}, {StepSeeders, (*Engine).compareSeeders},
+		{StepPeers, (*Engine).comparePeerCount}, {StepAge, (*Engine).compareAge}, {StepSize, (*Engine).compareSize}}
+)
 
 // compareStep is Compare's walk: the order, and the step that decided it ("" for a tie).
 func (e *Engine) compareStep(x, y *Subject) (int, string) {
 	if c, ok := SeaDexOrder(e.Config.PreferSeaDex, x.Release.Quality.SeaDexPreference, y.Release.Quality.SeaDexPreference); ok {
 		return c, StepSeaDex
 	}
-	quality := []compareFunc{{StepQuality, e.compareQualityIndex}, {StepRevision, e.compareRevision}}
-	cached := []compareFunc{{StepCached, compareCachedAny}, {StepCachedFirst, compareCachedFirst}, {StepCachedCount, compareCachedCount}}
-	peers := []compareFunc{{StepSeeders, e.compareSeeders}, {StepPeers, e.comparePeerCount}}
-	var cmps []compareFunc
+	steps := radarrSteps[:]
 	if e.Flavour == format.Sonarr {
-		cmps = append(append(append(append(quality, compareFunc{StepScore, compareFormatScore}, compareFunc{StepProtocol, e.compareProtocol},
-			compareFunc{StepEpisodeCount, compareEpisodeCount}, compareFunc{StepEpisodeNumber, compareEpisodeNumber}), cached...),
-			compareFunc{StepIndexerPriority, compareIndexerPriority}), peers...)
-	} else {
-		cmps = append(append(append(append(quality, compareFunc{StepScore, compareFormatScore}), cached...),
-			compareFunc{StepProtocol, e.compareProtocol}, compareFunc{StepIndexerPriority, compareIndexerPriority},
-			compareFunc{StepIndexerFlags, e.compareIndexerFlags}), peers...)
+		steps = sonarrSteps[:]
 	}
-	cmps = append(cmps, compareFunc{StepAge, e.compareAge}, compareFunc{StepSize, e.compareSize})
-	for _, c := range cmps {
-		if r := c.cmp(x, y); r != 0 {
-			return r, c.step
+	for i := range steps {
+		if r := steps[i].cmp(e, x, y); r != 0 {
+			return r, steps[i].step
 		}
 	}
 	return 0, ""
@@ -93,11 +104,18 @@ func (e *Engine) compareMergedStep(x, y *Subject, scoped func(*Subject) int) (in
 	if c, ok := SeaDexOrder(e.Config.PreferSeaDex, x.Release.Quality.SeaDexPreference, y.Release.Quality.SeaDexPreference); ok {
 		return c, StepSeaDex
 	}
-	for _, c := range []compareFunc{{StepQuality, e.compareQualityIndex}, {StepRevision, e.compareRevision},
-		{StepScore, compareFormatScore}, {StepProtocol, e.compareProtocol}} {
-		if r := c.cmp(x, y); r != 0 {
-			return r, c.step
-		}
+	// A merged search starts with quality (then revision), format score and protocol.
+	if r := e.compareQualityIndex(x, y); r != 0 {
+		return r, StepQuality
+	}
+	if r := e.compareRevision(x, y); r != 0 {
+		return r, StepRevision
+	}
+	if r := compareFormatScore(x, y); r != 0 {
+		return r, StepScore
+	}
+	if r := e.compareProtocol(x, y); r != 0 {
+		return r, StepProtocol
 	}
 	if c := cmpBool(x.Release.pack(), y.Release.pack()); c != 0 {
 		return c, StepPack
