@@ -1,7 +1,9 @@
 package library
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -473,4 +475,55 @@ func TestUndoSplitUpgradeRefused(t *testing.T) {
 	if _, err := os.Lstat(old); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("old path: %v", err)
 	}
+}
+
+// A failed or cancelled Undo leaves nothing behind: no trash copy without a row, no restored symlink, no row.
+func TestUndoFailureLeavesNothing(t *testing.T) {
+	t.Parallel()
+	state := func(e *env) string {
+		trash, _ := filepath.Glob(filepath.Join(e.trash, "*", "*", "*", "*"))
+		return fmt.Sprint(len(trash), " ", e.one(`SELECT (SELECT COUNT(*) FROM library_action) || '/' ||
+			(SELECT COUNT(*) FROM link_trash) || '/' || (SELECT group_concat(state) FROM link ORDER BY id)`))
+	}
+	t.Run("the successor's removal fails", func(t *testing.T) {
+		e, old, _, action := adoptedFilm(t)
+		newPath := e.one(`SELECT path FROM link WHERE download_id = 1`)
+		before := state(e)
+		e.lib.w.after = func(op, p string) {
+			if op == "trash" && p == newPath {
+				// The successor's symlink can no longer be removed: a directory now stands at its path.
+				_ = os.Remove(p)
+				_ = os.Mkdir(p, 0o755)
+			}
+		}
+		if _, err := e.lib.UndoUpgrade(e.ctx, action, ""); err == nil {
+			t.Fatal("undone")
+		}
+		if got := state(e); got != before {
+			t.Errorf("left %s, was %s", got, before)
+		}
+		if _, err := os.Lstat(old); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("old path: %v", err)
+		}
+	})
+	t.Run("cancelled", func(t *testing.T) {
+		e, old, _, action := adoptedFilm(t)
+		before := state(e)
+		ctx, cancel := context.WithCancel(e.ctx)
+		defer cancel()
+		e.lib.w.after = func(op, p string) {
+			if op == "symlink" && p == old {
+				cancel()
+			}
+		}
+		if _, err := e.lib.UndoUpgrade(ctx, action, ""); err == nil {
+			t.Fatal("undone")
+		}
+		if _, err := os.Lstat(old); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("old path left: %v", err)
+		}
+		if got := state(e); got != before {
+			t.Errorf("left %s, was %s", got, before)
+		}
+	})
 }

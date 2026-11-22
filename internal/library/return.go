@@ -406,6 +406,11 @@ func (l *Library) returnOne(ctx context.Context, r *returnFile) (*importVersion,
 			l.rollbackReturn(v, made, moved)
 			return cause
 		},
+		orphan: func(version, tp string) {
+			if err := l.w.purgeTrash(version, tp); err != nil {
+				l.log.Warn("library: return: a trash copy not taken back", "path", tp, "err", err)
+			}
+		},
 		row: func(ctx context.Context, tx *sql.Tx, lk *PlannedLink) (linkRow, error) {
 			row := linkRow{downloadID: dl, release: release, quality: &quality, score: &score, kept: &kept}
 			if e.snap.ContentFileID != nil {

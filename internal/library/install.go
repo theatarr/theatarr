@@ -41,6 +41,9 @@ type install struct {
 	row func(ctx context.Context, tx *sql.Tx, lk *PlannedLink) (linkRow, error)
 	// linkFailed runs when a link could not be made (an import records it at once).
 	linkFailed func(ctx context.Context, lk *PlannedLink, err error)
+	// orphan is told of a trash copy left without a row (the link it copies could not be removed); nil: it stays,
+	// for the purge of rowless copies (an import).
+	orphan func(version, trashPath string)
 	// prefix starts the detail of every replace action and the reason of every trash row ("" for an import): a
 	// return's own words, so History does not read its moves as removals.
 	prefix string
@@ -164,7 +167,7 @@ func (l *Library) installLinks(ctx context.Context, in *install) (*installed, er
 			}
 			// The path must still hold what the plan saw, and no other title's or version's link (linkReady).
 			if why, err := l.linkReady(ctx, v, lk); err != nil {
-				return nil, err
+				return nil, stopped(ctx, made, moved, err)
 			} else if why != "" {
 				raced++
 				fail(why)
@@ -234,7 +237,7 @@ func (l *Library) installLinks(ctx context.Context, in *install) (*installed, er
 				err := l.st.Reader().QueryRowContext(ctx, `SELECT path FROM link WHERE id = ? AND state = 'active'`,
 					oldID).Scan(&cur)
 				if err != nil && !errors.Is(err, sql.ErrNoRows) {
-					return nil, err
+					return nil, stopped(ctx, made, moved, err)
 				}
 				if cur != "" && cur != old {
 					l.log.Info("library: replaced link was renamed since the plan", "download", in.downloadID, "link", oldID,
@@ -262,7 +265,9 @@ func (l *Library) installLinks(ctx context.Context, in *install) (*installed, er
 			}
 			tp, target, err := l.w.copyToTrash(v.Key, root, old)
 			if err == nil {
-				err = l.w.removeLink(v.Key, old)
+				if err = l.w.removeLink(v.Key, old); err != nil && in.orphan != nil {
+					in.orphan(v.Key, tp) // its trash copy, without a row
+				}
 			}
 			if err != nil {
 				fail(err.Error())
