@@ -2,6 +2,7 @@ package policy
 
 import (
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
@@ -89,7 +90,7 @@ func TestNotifyFormats(t *testing.T) {
 	got := e.Error()
 	for _, want := range []string{"targets[ntfy-views].views: an ntfy target gets Theatarr's own messages",
 		"targets[ntfy-root].url: an ntfy target's URL ends in the topic", "targets[ntfy-bad].url: want an http(s) URL",
-		`targets[slack].format: unknown format "slack" (want discord or ntfy, or leave it empty)`} {
+		`targets[slack].format: unknown format "slack" (want discord, ntfy or telegram, or leave it empty)`} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in %s", want, got)
 		}
@@ -139,5 +140,58 @@ func TestNotifyTargetWarnings(t *testing.T) {
 	}
 	if b, _ = yaml.Marshal(targets["chan"]); !strings.Contains(string(b), "warnings: true") {
 		t.Errorf("set warnings not written: %s", b)
+	}
+}
+
+// A Telegram target sends to the fixed Bot API host with its own bot token secret and a chat id; it takes no URL, no
+// views. Its host joins the allowlist and its secret is known to the redactor (SecretEnvs).
+func TestNotifyTelegramTarget(t *testing.T) {
+	t.Parallel()
+	p := &Policy{Views: map[string]*View{"radarr": {}}, Notify: &Notify{Targets: map[string]*NotifyTarget{
+		"tg":       {Format: NotifyFormatTelegram, ChatID: "-1001234567890", BotTokenEnv: "THEATARR_TG_TOKEN"},
+		"tg-name":  {Format: NotifyFormatTelegram, ChatID: "@theatarr_alerts", BotTokenEnv: "THEATARR_TG_TOKEN", Events: []string{"playing"}},
+		"tg-url":   {URL: "https://api.telegram.org/botX/sendMessage", Format: NotifyFormatTelegram, ChatID: "1", BotTokenEnv: "T"},
+		"tg-bare":  {Format: NotifyFormatTelegram},
+		"tg-chat":  {Format: NotifyFormatTelegram, ChatID: "not a chat", BotTokenEnv: "T"},
+		"tg-views": {Format: NotifyFormatTelegram, ChatID: "1", BotTokenEnv: "T", Views: []string{"radarr"}},
+	}}}
+	e := &Errors{}
+	p.validateNotify(e)
+	got := e.Error()
+	for _, want := range []string{"targets[tg-url].url: a Telegram target sends to api.telegram.org: leave the URL empty",
+		"targets[tg-bare].chat_id: required", "targets[tg-bare].bot_token_env: required",
+		"targets[tg-chat].chat_id: want a chat id", "targets[tg-views].views: a Telegram target gets Theatarr's own messages"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in %s", want, got)
+		}
+	}
+	for _, not := range []string{"targets[tg]", "targets[tg-name]", "not a chat"} {
+		if strings.Contains(got, not) {
+			t.Errorf("%s in %s", not, got)
+		}
+	}
+	if got := p.Notify.Targets["tg"].Endpoint(); got != TelegramAPI || TelegramAPI != "https://api.telegram.org" {
+		t.Errorf("endpoint %q", got)
+	}
+	if got := p.Notify.Targets["tg-url"].Endpoint(); got != TelegramAPI {
+		t.Errorf("a Telegram target's URL is never its endpoint: %q", got)
+	}
+	hosts := map[string][]string{}
+	for _, h := range p.OutboundHosts() {
+		hosts[h.Host] = h.Users
+	}
+	if users := hosts["api.telegram.org"]; len(users) == 0 || users[0] != "notify.targets[tg]" {
+		t.Errorf("hosts %v", hosts)
+	}
+	if users := p.SecretEnvs()["THEATARR_TG_TOKEN"]; !slices.Contains(users, "notify.targets[tg].bot_token_env") {
+		t.Errorf("secret envs %v", p.SecretEnvs())
+	}
+	if !slices.Contains(NotifyEvents, "playing") {
+		t.Error("no playing event name")
+	}
+	// The new fields are left out while unset, so a config without them marshals as before.
+	b, err := yaml.Marshal(&NotifyTarget{URL: "http://192.168.1.50:8080/hook", Native: true})
+	if err != nil || strings.Contains(string(b), "chat_id") || strings.Contains(string(b), "bot_token") {
+		t.Errorf("unset Telegram fields written: %s %v", b, err)
 	}
 }

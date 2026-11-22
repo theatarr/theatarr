@@ -417,7 +417,7 @@ func New(ctx context.Context, p *policy.Policy, o Options) (*Gateway, error) {
 	}
 	if p.Notify != nil {
 		for k, t := range p.Notify.Targets {
-			if err := add(&targetInfo{class: ClassWebhook, key: k, budget: p.Notify.Budget, endpoint: endpoint(t.URL)},
+			if err := add(&targetInfo{class: ClassWebhook, key: k, budget: p.Notify.Budget, endpoint: endpoint(t.Endpoint())},
 				""); err != nil {
 				return nil, err
 			}

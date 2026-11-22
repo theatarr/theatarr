@@ -19,7 +19,7 @@ const plainFields = (fields: import("@/api/settings").SchemaField[], prefix: str
   "library.versions": { label: "Libraries", help: "Choose the Plex library that shows each Theatarr library." },
   "library.versions.plex_section": { help: "The Plex library ID that shows this library’s folder: open that library in Plex Web, and it is the number after source= in the address. 0: no scans." },
   "notify.enabled": { label: "Send notifications", help: "Off: events are recorded, nothing is sent." + (notifyForced ? " Locked off by THEATARR_FORCE_OFF. Remove it and restart to send notifications." : "") },
-  "notify.targets": { help: "Where events go, by name: a webhook, a Discord channel webhook or an ntfy topic (its Format says which)." },
+  "notify.targets": { help: "Where events go, by name: a webhook, a Discord channel webhook, an ntfy topic or a Telegram chat (its Format says which). A Telegram destination needs no URL: fill in its chat ID and bot token." },
   "notify.targets.versions": { label: "Libraries", help: "Send events only for these libraries, by key. Empty: every library." },
   "cardigann.definitions": { help: "Where the catalog's indexer definitions come from. Empty repository and branch: prowlarr/indexers, master." },
  };

@@ -168,7 +168,8 @@ SignalR, Sonarr v5, `downloadclient`.
   - Policy event names: `grab`, `download`, `upgrade`, `rename`, `delete` (also file deletes), `health`,
     `health_restored`, `series_add`, `movie_added`, `manual_interaction_required`, `test`; empty means all events.
   - `notify.targets[k]`: the views it lists, filtered by `events`. With `native: true` it also gets Theatarr's own
-    `theatarr.<kind>` payload (version, title, download, episodes, file, reason, health).
+    `theatarr.<kind>` payload (version, title, download, episodes, file, reason, health; `playing` for the playing
+    messages below).
 - **Sending.**
   - `Emit` only inserts `notify_delivery` rows. `Run` posts the due ones through the gateway: `webhook:installed`,
     or `webhook:<key>`.
@@ -192,7 +193,7 @@ SignalR, Sonarr v5, `downloadclient`.
   - Tests: `arrview.TestWebhookReleaseDetails`, `notify.TestOldPrivateDeliverySent` (a delivery queued by an older
     release is sent).
 - **Policy** (`examples/policy/notify.yaml`): `notify.enabled` (default false), `allow_hosts`, `budget`, `retries`,
-  `poll`, `digest_at`, `targets{url, format, views, native, events, versions, auth_header_env, warnings}`. `installed` is a reserved key. Hosts join
+  `poll`, `digest_at`, `targets{url, format, views, native, events, versions, auth_header_env, chat_id, bot_token_env, warnings}`. `installed` is a reserved key. Hosts join
   the gateway allowlist.
 
 - **Discord** (`format: discord`). A target with `format: discord` gets Discord webhook messages
@@ -202,7 +203,7 @@ SignalR, Sonarr v5, `downloadclient`.
     ("Health check OK again") or eased to a warning ("Health check no longer failing, now warning: <check>", amber,
     with the new and the old message; the warning clearing after that sends nothing). Also new error-inbox groups,
     the daily digest, request ready and the test. Other warnings and notices only appear in the digest.
-  - Warnings (`warnings: true` on a Discord or ntfy target, default off; refused on a webhook target, which is
+  - Warnings (`warnings: true` on a Discord, ntfy or Telegram target, default off; refused on a webhook target, which is
     filtered by `events`): the target also gets a check starting to warn ("Health warning: <check>", amber), a
     warning easing to a notice ("Health warning eased, now notice: <check>") and a warning clearing ("Health check OK
     again"). Error messages are the same with the option on or off, and a notice is never sent. The field is left out
@@ -228,8 +229,8 @@ SignalR, Sonarr v5, `downloadclient`.
     the note (docs/design/users.md "Report a problem"); its policy event name is `request_ready`, so it reaches the
     targets that get request messages. Native targets get `theatarr.problem_reported` with `problem`; arr webhooks
     nothing. Test: `notify.TestProblemReportedMessage`.
-  - Policy event names for filters: `health`, `health_restored`, `error`, `digest`, `request_ready`, `test`.
-  - theatarr.* targets get no error or digest events (Discord and ntfy targets do).
+  - Policy event names for filters: `health`, `health_restored`, `error`, `digest`, `request_ready`, `playing`, `test`.
+  - theatarr.* targets get no error or digest events (Discord, ntfy and Telegram targets do).
   - Send test: `POST /api/theatarr/v1/settings/notify/targets/{name}/test` (admin) sends a test to the saved target now, through
     the gateway, and answers `{ok}` or `{ok:false, error}`; it needs `notify.enabled`.
   - Tests: `notify.TestDiscord*`, `notify.TestDigest*`, `web.TestRequestReadyDiscord`, `web.TestNotifyTargetTest`.
@@ -261,6 +262,55 @@ SignalR, Sonarr v5, `downloadclient`.
     and `tags` (emoji short codes) are the field names; a message up to 4096 bytes is accepted as text; an access
     token is accepted as `Authorization: Bearer <token>`. Use **Send test** after saving to check a target.
   - Tests: `notify.TestNtfy*`, `policy.TestNotifyFormats`.
+
+- **Telegram** (`format: telegram`). A target with `format: telegram` gets the same messages as a Discord target, for
+  the same events and with the same `events` and `versions` filters, as plain text: the builder ntfy uses
+  (`message.go` `plainText`), laid out by `internal/notify/telegram.go`. It takes no `views` and uses the same outbox
+  and retries as every target.
+  - Settings: `chat_id` (the chat's number, a group's starting with -100, or a public channel's `@name`) and the bot
+    token as the target's own write-only credential **Telegram bot token** (`bot_token`, or `bot_token_env`). The
+    target has no URL (validation refuses one): it sends to the fixed address `https://api.telegram.org`
+    (`policy.TelegramAPI`), whose host joins the allowlist and the gateway's webhook class as `webhook:<key>`.
+    Validation needs both the chat id and the bot token.
+  - Secret: the bot token is never sent as an Authorization header, and the Authorization-header credential is
+    never sent to Telegram (also after a target changes format). The token and the chat id are added only when a
+    delivery is sent, so the stored delivery (`notify_delivery.payload`, event `telegram.<kind>`) is `{"text"}`
+    alone; the gateway shows the request as scheme and host and masks the token (`policy.SecretEnvs`), and no
+    error names it. A delivery queued under another format is dropped when the target is now Telegram, and a
+    `telegram.*` delivery is dropped when it no longer is. No token: nothing is sent, the delivery is dropped.
+  - Request: `POST https://api.telegram.org/bot<token>/sendMessage` with JSON `{"chat_id", "text"}`, plain text
+    (no `parse_mode`).
+  - Length: the title and the lines in at most 4096 characters, counted as UTF-16 code units; lines that do not fit
+    become "and N more". Source: sendMessage's `text` is "1-4096 characters after entities parsing"
+    (<https://core.telegram.org/bots/api#sendmessage>); the Bot API counts text positions in UTF-16 code units
+    (<https://core.telegram.org/bots/api#messageentity>). Messages are never split.
+  - Pace: one message every 3 s per chat, **Send test** included. Source: the Bot FAQ "My bot is hitting limits, how
+    do I avoid this?" (<https://core.telegram.org/bots/faq#my-bot-is-hitting-limits-how-do-i-avoid-this>): avoid
+    more than one message per second in a single chat, and a bot cannot send more than 20 messages per minute to
+    the same group. A delivery due before its chat's next slot stays in the outbox until then (no attempt counted);
+    the sender goes on with the others. Send test waits for the slot (at most 3 s).
+  - 429: the answer is read before it is dropped, and its `parameters.retry_after` (seconds; Telegram's
+    `ResponseParameters`, <https://core.telegram.org/bots/api#responseparameters>) sets when the delivery is tried
+    again and when the chat's next message may go; the sender is not held meanwhile. A Send test inside that wait
+    answers "try again in N s".
+  - **Not tested against Telegram's servers.** Built from the Bot API documentation above, tested on fakes. Use
+    **Send test** after saving to check a target.
+  - Tests: `notify.TestTelegram*`, `policy.TestNotifyTelegramTarget`, `web.TestSettingsNotifyTelegramTarget`.
+
+- **Playing messages** (`internal/notify/playing.go`). When a file broke while someone was playing it, its outcome
+  (`internal/outcome`) is told once, about the watched file, through `Notifier.PlayingOutcome`: at once (not only in
+  the digest), to Discord, ntfy and Telegram targets and as JSON to native targets, under the policy event name
+  `playing` and the targets' `versions` filter. Arr webhooks get nothing, and there are no per-user messages.
+  - Kinds: `playing_replaced` (another release in its place; also a same-release outcome, worded "readable again"),
+    `playing_unavailable` (nothing available) and `playing_restored` (the earlier copy put back).
+  - Text: what (the title and episodes), by what (the old and new release) and for whom it was playing (the Plex
+    user and player): "Replaced while playing: Show (2020) S02E07 / The file stopped working while ann was watching
+    on Living room TV. Another copy is in its place: play it again. / Was: … / Now: …"; "Readable again: …" (naming
+    the account when known); "No other copy: … No other copy is available right now."; "Earlier copy put back: …".
+  - Native: `theatarr.playing_replaced|unavailable|restored` with the outcome under `playing` in snake_case
+    (`incident`, `kind`, `title_id`, `version_key`, `title`, `episodes`, `old_release`, `new_release`, `account`,
+    `viewer`, `player`, `at`), beside the usual `version` and `title`.
+  - Tests: `notify.TestPlayingOutcome`, `notify.TestPlayingText`.
 
 ## Callers
 

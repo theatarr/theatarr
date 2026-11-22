@@ -3,7 +3,7 @@
 // SeriesAdd/MovieAdded, ManualInteractionRequired, Test) to
 // the notifications clients installed through that view (Ruddarr's push relay) and to the policy's targets, and
 // Theatarr's own per-version events (eventType theatarr.*) to policy targets that ask for them. Targets with a
-// message format (discord, ntfy) get Theatarr's own messages instead (message.go).
+// message format (discord, ntfy, telegram) get Theatarr's own messages instead (message.go).
 //
 // # Never blocking
 //
@@ -35,6 +35,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/gateway"
@@ -85,6 +86,10 @@ type Notifier struct {
 	getenv func(string) string
 	polFor func(context.Context) *policy.Policy
 	tasks  *tasks.Table
+	// tgNext is each Telegram chat's next free message slot (telegram.go); sleep waits for one (Send test).
+	tgMu   sync.Mutex
+	tgNext map[string]time.Time
+	sleep  func(context.Context, time.Duration) error
 }
 
 // New builds the notifier.
@@ -100,7 +105,7 @@ func New(cfg Config) (*Notifier, error) {
 	}
 	return &Notifier{st: cfg.Store, pol: cfg.Policy, set: cfg.Policy.NotifySettings(), doer: cfg.Doer,
 		pay: cfg.Payloads, health: cfg.Health, log: cfg.Logger.With("component", "notify"), now: cfg.Now,
-		getenv: cfg.Getenv, polFor: cfg.PolicyFor, tasks: cfg.Tasks}, nil
+		getenv: cfg.Getenv, polFor: cfg.PolicyFor, tasks: cfg.Tasks, sleep: sleepCtx}, nil
 }
 
 func (n *Notifier) enabled(ctx context.Context) bool {
@@ -183,7 +188,7 @@ func (n *Notifier) deliveries(ctx context.Context, ev Event) ([]delivery, error)
 	if ev.Kind == Health || ev.Kind == HealthRestored || ev.Kind == SeriesAdd || ev.Kind == MovieAdded || ev.Kind == Rename {
 		ev.Reason = ""
 	}
-	if ev.Request == nil && ev.Digest == nil && ev.Problem == nil && n.pay != nil && !(ev.Kind == Test && ev.Target != "") {
+	if ev.Request == nil && ev.Digest == nil && ev.Problem == nil && ev.Playing == nil && n.pay != nil && !(ev.Kind == Test && ev.Target != "") {
 		ps, err := n.pay.Payloads(ctx, ev)
 		if err != nil {
 			return nil, err
@@ -230,12 +235,13 @@ func (n *Notifier) deliveries(ctx context.Context, ev Event) ([]delivery, error)
 	if ev.NotificationID > 0 {
 		return out, nil
 	}
-	var native, discord, ntfy any
+	var native, discord, ntfy, telegram any
 	for _, k := range sortedKeys(set.Targets) {
 		t := set.Targets[k]
 		isDiscord, isNtfy := t.Format == policy.NotifyFormatDiscord, t.Format == policy.NotifyFormatNtfy
-		isMessage := isDiscord || isNtfy
-		// Errors and the digest go to message targets (Discord, ntfy) only; a message target gets only its kinds.
+		isTelegram := t.Format == policy.NotifyFormatTelegram
+		isMessage := isDiscord || isNtfy || isTelegram
+		// The digest goes to message targets (Discord, ntfy, Telegram) only; a message target gets only its kinds.
 		if isMessage && !messageWants(ev, t) || !isMessage && (!t.Native || ev.Digest != nil) {
 			continue
 		}
@@ -281,6 +287,17 @@ func (n *Notifier) deliveries(ctx context.Context, ev Event) ([]delivery, error)
 				ntfy = b
 			}
 			out = append(out, delivery{target: "policy:" + k, event: "ntfy." + string(ev.Kind), body: ntfy})
+			continue
+		}
+		if isTelegram {
+			if telegram == nil {
+				b, err := n.telegramPayload(ctx, ev)
+				if err != nil {
+					return nil, err
+				}
+				telegram = b
+			}
+			out = append(out, delivery{target: "policy:" + k, event: telegramEventPrefix + string(ev.Kind), body: telegram})
 			continue
 		}
 		if native == nil {
@@ -344,6 +361,9 @@ func (n *Notifier) nativePayload(ctx context.Context, ev Event) (map[string]any,
 	}
 	if ev.Problem != nil {
 		b["problem"] = ev.Problem
+	}
+	if ev.Playing != nil {
+		b["playing"] = playingPayload(ev.Playing)
 	}
 	if len(ev.Health) > 0 || ev.Kind == Health {
 		b["health"] = append([]HealthItem{}, ev.Health...)
@@ -435,9 +455,16 @@ func (n *Notifier) Test(ctx context.Context, target string) error {
 }
 
 // testDeliveries are the Test bodies of one policy target: each of its views', the native one for a native target,
-// and the test message for a Discord or ntfy target.
+// and the test message for a Discord, ntfy or Telegram target.
 func (n *Notifier) testDeliveries(ctx context.Context, target string, t *policy.NotifyTarget) ([]delivery, error) {
 	var ds []delivery
+	if t.Format == policy.NotifyFormatTelegram {
+		b, err := n.telegramPayload(ctx, Event{Kind: Test, At: n.now()})
+		if err != nil {
+			return nil, err
+		}
+		return []delivery{{target: "policy:" + target, event: telegramEventPrefix + "test", body: b}}, nil
+	}
 	if t.Format == policy.NotifyFormatDiscord {
 		b, err := n.discordPayload(ctx, Event{Kind: Test, At: n.now()})
 		if err != nil {
@@ -474,7 +501,8 @@ func (n *Notifier) testDeliveries(ctx context.Context, target string, t *policy.
 }
 
 // SendTest posts a policy target's Test bodies right away (the settings page's Send test), outside the outbox, and
-// returns the first failure. notify.enabled and the gateway's gates apply.
+// returns the first failure. notify.enabled and the gateway's gates apply. A Telegram test waits for the chat's next
+// message slot.
 func (n *Notifier) SendTest(ctx context.Context, target string) error {
 	if !n.enabled(ctx) {
 		return errors.New("notifications are off (notify.enabled is false)")
@@ -492,17 +520,26 @@ func (n *Notifier) SendTest(ctx context.Context, target string) error {
 		if err != nil {
 			return err
 		}
-		if _, err := n.sendPolicy(ctx, target, d.event, b); err != nil {
+		if _, err := n.sendPolicy(ctx, target, d.event, b, true); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// errStatus is a non-2xx answer.
-type errStatus struct{ code int }
+// errStatus is a non-2xx answer. after is the wait a 429 names in parameters.retry_after (Telegram's Bot API), 0 when
+// it names none.
+type errStatus struct {
+	code  int
+	after time.Duration
+}
 
-func (e errStatus) Error() string { return "status " + strconv.Itoa(e.code) }
+func (e errStatus) Error() string {
+	if e.after > 0 {
+		return fmt.Sprintf("status %d (asked to wait %d s)", e.code, int(e.after/time.Second))
+	}
+	return "status " + strconv.Itoa(e.code)
+}
 
 // sendInstalled posts a body to an installed notification (basic auth from username/password, its headers).
 func (n *Notifier) sendInstalled(ctx context.Context, in *Notification, body []byte) (int, error) {
@@ -530,15 +567,44 @@ type errNotAllowed struct{ host string }
 
 func (e errNotAllowed) Error() string { return "host " + e.host + " is not in notify.allow_hosts" }
 
-// sendPolicy posts a delivery's body to policy target key. event is the delivery's event name: it tells an ntfy
-// message from the other bodies, so a delivery queued under one format is dropped, not sent, once the target's format
-// changed to or from ntfy.
-func (n *Notifier) sendPolicy(ctx context.Context, key, event string, body []byte) (int, error) {
+// sendPolicy posts a delivery's body to policy target key. event is the delivery's event name: it tells an ntfy or
+// Telegram message from the other bodies, so a delivery queued under one format is dropped, not sent, once the
+// target's format changed to or from ntfy or Telegram. wait (Send test) waits for a Telegram chat's next message
+// slot; without it a delivery due sooner answers errPaced.
+func (n *Notifier) sendPolicy(ctx context.Context, key, event string, body []byte, wait bool) (int, error) {
 	// The target and its credential come from one generation: the one in force for ctx.
 	p := n.policy(ctx)
 	t := p.NotifySettings().Targets[key]
 	if t == nil {
 		return 0, errGone
+	}
+	getenv := p.Getenv
+	if n.getenv != nil {
+		getenv = n.getenv
+	}
+	// A Telegram target is POSTed at the Bot API with its own bot token and chat id, and never gets the
+	// Authorization-header secret.
+	if t.Format == policy.NotifyFormatTelegram {
+		token := ""
+		if t.BotTokenEnv != "" {
+			token = getenv(t.BotTokenEnv)
+		}
+		req, err := telegramRequest(ctx, t, token, event, body)
+		if err != nil {
+			return 0, err
+		}
+		if err := n.telegramSlot(ctx, t.ChatID, wait); err != nil {
+			return 0, err
+		}
+		code, err := n.do(ctx, gateway.Target{Class: gateway.ClassWebhook, Key: key}, req)
+		var st errStatus
+		if errors.As(err, &st) && st.after > 0 {
+			n.telegramWait(t.ChatID, st.after)
+		}
+		return code, err
+	}
+	if strings.HasPrefix(event, telegramEventPrefix) {
+		return 0, fmt.Errorf("queued while the target was a Telegram target: %w", errGone)
 	}
 	// An ntfy target is POSTed at its server address, with the topic of its URL in the body.
 	isNtfy, to := t.Format == policy.NotifyFormatNtfy, t.URL
@@ -553,10 +619,6 @@ func (n *Notifier) sendPolicy(ctx context.Context, key, event string, body []byt
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, to, bytes.NewReader(body))
 	if err != nil {
 		return 0, err
-	}
-	getenv := p.Getenv
-	if n.getenv != nil {
-		getenv = n.getenv
 	}
 	if t.AuthHeaderEnv != "" {
 		if v := getenv(t.AuthHeaderEnv); v != "" {
@@ -582,9 +644,21 @@ func (n *Notifier) do(ctx context.Context, t gateway.Target, req *http.Request) 
 		return 0, err
 	}
 	defer resp.Body.Close()
-	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<16))
+	// The answer is read (at most 64 KiB) before it is dropped: a 429 may name its wait in parameters.retry_after.
+	data, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return resp.StatusCode, errStatus{resp.StatusCode}
+		st := errStatus{code: resp.StatusCode}
+		if resp.StatusCode == http.StatusTooManyRequests {
+			var a struct {
+				Parameters struct {
+					RetryAfter int `json:"retry_after"`
+				} `json:"parameters"`
+			}
+			if json.Unmarshal(data, &a) == nil && a.Parameters.RetryAfter > 0 {
+				st.after = time.Duration(a.Parameters.RetryAfter) * time.Second
+			}
+		}
+		return resp.StatusCode, st
 	}
 	return resp.StatusCode, nil
 }
@@ -657,12 +731,19 @@ func (n *Notifier) SendDue(ctx context.Context, limit int) (int, error) {
 				err = errGone
 			}
 		case "policy":
-			code, err = n.sendPolicy(ctx, ref, d.event, d.payload)
+			code, err = n.sendPolicy(ctx, ref, d.event, d.payload, false)
 		default:
 			err = errGone
 		}
 		var na errNotAllowed
+		var paced errPaced
 		switch {
+		case errors.As(err, &paced):
+			// A Telegram chat's next slot is later: the delivery waits for it, no attempt counted.
+			if _, uerr := n.st.Writer().ExecContext(ctx, `UPDATE notify_delivery SET next_at = ? WHERE id = ?`,
+				store.Millis(paced.until), d.id); uerr != nil {
+				return sent, uerr
+			}
 		case err == nil:
 			sent++
 			n.finish(ctx, d.id, "sent", code, "", d.attempts+1)
@@ -677,8 +758,13 @@ func (n *Notifier) SendDue(ctx context.Context, limit int) (int, error) {
 			}
 			next := now.Add(backoff(attempts))
 			var ref *gateway.Refused
+			var st errStatus
 			if errors.As(err, &ref) && ref.RetryAt.After(next) {
 				next = ref.RetryAt
+			}
+			if errors.As(err, &st) && st.after > 0 {
+				// The service named its wait (a Telegram 429): retry after exactly that.
+				next = now.Add(st.after)
 			}
 			_, uerr := n.st.Writer().ExecContext(ctx, `UPDATE notify_delivery SET attempts = ?, next_at = ?,
 				last_status = ?, last_error = ? WHERE id = ?`, attempts, store.Millis(next), nullCode(code),

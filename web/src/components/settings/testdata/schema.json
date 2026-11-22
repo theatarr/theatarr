@@ -792,7 +792,7 @@
             "name": "url",
             "label": "Destination URL",
             "type": "string",
-            "help": "This is where payloads are POSTed. Its host joins the gateway's allowlist."
+            "help": "This is where payloads are POSTed. Its host joins the gateway's allowlist. Empty for a telegram target."
           },
           {
             "name": "views",
@@ -812,9 +812,10 @@
             "type": "enum",
             "enum": [
               "discord",
-              "ntfy"
+              "ntfy",
+              "telegram"
             ],
-            "help": "This is the message format: empty for the Sonarr/Radarr and Theatarr JSON payloads, discord for a Discord channel webhook, or ntfy. For ntfy the URL is the server address followed by the topic, and an access token goes in the Authorization header."
+            "help": "This is the message format: empty for the Sonarr/Radarr and Theatarr JSON payloads, discord for a Discord channel webhook, ntfy, or telegram. For ntfy the URL is the server address followed by the topic, and an access token goes in the Authorization header. For telegram leave the URL empty and fill in the Telegram chat ID and bot token."
           },
           {
             "name": "events",
@@ -834,7 +835,8 @@
               "test",
               "error",
               "digest",
-              "request_ready"
+              "request_ready",
+              "playing"
             ],
             "help": "This limits what this target is sent to the events chosen. Empty: all."
           },
@@ -859,10 +861,30 @@
             "help": "This names an environment variable holding the Authorization header value, when the target needs one. Environment variable fallback."
           },
           {
+            "name": "chat_id",
+            "label": "Telegram chat ID",
+            "type": "string",
+            "help": "This is the Telegram chat a telegram target posts to: the chat's number (a group's starts with -100) or a public channel's @name."
+          },
+          {
+            "name": "bot_token",
+            "path": "notify.targets.*.bot_token",
+            "label": "Telegram bot token",
+            "type": "secret",
+            "help": "Stored credential. Leave unchanged to keep the current value."
+          },
+          {
+            "name": "bot_token_env",
+            "label": "Telegram bot token environment variable fallback",
+            "advanced": true,
+            "type": "string",
+            "help": "This names an environment variable holding the Telegram bot token of a telegram target. It is only ever sent to api.telegram.org, never as an Authorization header. Environment variable fallback."
+          },
+          {
             "name": "warnings",
             "label": "Also send warnings",
             "type": "boolean",
-            "help": "This also sends health warnings, such as a mount that stopped answering, to this message target (format discord or ntfy). Errors are always sent; notices never are. Default off."
+            "help": "This also sends health warnings, such as a mount that stopped answering, to this message target (format discord, ntfy or telegram). Errors are always sent; notices never are. Default off."
           }
         ]
       },
@@ -871,7 +893,7 @@
         "default": "09:00",
         "label": "Daily digest time",
         "type": "string",
-        "help": "This is the local time (HH:MM, the container's TZ) the daily digest goes to Discord and ntfy targets. Default 09:00."
+        "help": "This is the local time (HH:MM, the container's TZ) the daily digest goes to Discord, ntfy and Telegram targets. Default 09:00."
       }
     ],
     "playlists": [

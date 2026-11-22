@@ -67,7 +67,7 @@ func (p *Policy) OutboundHosts() []OutboundHost {
 	if p.Notify != nil {
 		for _, k := range sortedKeys(p.Notify.Targets) {
 			if t := p.Notify.Targets[k]; t != nil {
-				add(fmt.Sprintf("notify.targets[%s]", k), t.URL)
+				add(fmt.Sprintf("notify.targets[%s]", k), t.Endpoint())
 			}
 		}
 		for _, h := range p.Notify.AllowHosts {
@@ -130,6 +130,7 @@ func (p *Policy) SecretEnvs() map[string][]string {
 		for _, k := range sortedKeys(p.Notify.Targets) {
 			if t := p.Notify.Targets[k]; t != nil {
 				add(fmt.Sprintf("notify.targets[%s].auth_header_env", k), t.AuthHeaderEnv)
+				add(fmt.Sprintf("notify.targets[%s].bot_token_env", k), t.BotTokenEnv)
 			}
 		}
 	}

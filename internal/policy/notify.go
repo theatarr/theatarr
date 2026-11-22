@@ -28,23 +28,24 @@ type Notify struct {
 	Poll Duration `yaml:"poll"`
 	// Targets lists webhook targets defined in the policy, by key.
 	Targets map[string]*NotifyTarget `yaml:"targets"`
-	// DigestAt is the local time (HH:MM, the container's TZ) the daily digest goes to Discord and ntfy targets.
+	// DigestAt is the local time (HH:MM, the container's TZ) the daily digest goes to Discord, ntfy and Telegram targets.
 	// Default 09:00.
 	DigestAt string `yaml:"digest_at"`
 }
 
 // NotifyTarget is a webhook defined in the policy.
 type NotifyTarget struct {
-	// URL is where payloads are POSTed. Its host joins the gateway's allowlist.
+	// URL is where payloads are POSTed. Its host joins the gateway's allowlist. Empty for a telegram target.
 	URL string `yaml:"url"`
 	// Views lists the arr views (keys of views, or v/<version>) whose arr-shaped payloads it gets.
 	Views []string `yaml:"views"`
 	// Native sends Theatarr's own per-version events (JSON, eventType theatarr.*).
 	Native bool `yaml:"native"`
-	// Format is the message format: empty for the payloads above, discord for a Discord channel webhook, or ntfy.
-	// For ntfy the URL is the server address followed by the topic, and an access token goes in the Authorization
-	// header. Both formats get Theatarr's own messages (instant health and error alerts, the daily digest, request
-	// ready) and take no views.
+	// Format is the message format: empty for the payloads above, discord for a Discord channel webhook, ntfy, or
+	// telegram for a Telegram chat. For ntfy the URL is the server address followed by the topic, and an access token
+	// goes in the Authorization header. A Telegram target has no URL (it sends to api.telegram.org) and takes a chat
+	// id and a bot token instead. These formats get Theatarr's own messages (instant health and error alerts, the
+	// daily digest, request ready, a file replaced while playing) and take no views.
 	Format string `yaml:"format"`
 	// Events limits what this target is sent to the events chosen. Empty: all.
 	Events []string `yaml:"events"`
@@ -52,20 +53,44 @@ type NotifyTarget struct {
 	Versions []string `yaml:"versions"`
 	// AuthHeaderEnv names an environment variable holding the Authorization header value, when the target needs one.
 	AuthHeaderEnv string `yaml:"auth_header_env"`
+	// ChatID is the Telegram chat a telegram target posts to: the chat's number (a group's starts with -100) or a
+	// public channel's @name.
+	ChatID string `yaml:"chat_id,omitempty"`
+	// BotTokenEnv names an environment variable holding the Telegram bot token of a telegram target. It is only ever
+	// sent to api.telegram.org, never as an Authorization header.
+	BotTokenEnv string `yaml:"bot_token_env,omitempty"`
 	// Warnings also sends health warnings, such as a mount that stopped answering, to this message target (format
-	// discord or ntfy). Errors are always sent; notices never are. Default false.
+	// discord, ntfy or telegram). Errors are always sent; notices never are. Default false.
 	Warnings bool `yaml:"warnings,omitempty"`
 }
 
 // NotifyEvents are the event names a target may list. "error" is no longer sent (the error inbox went in 0.4.5); it
 // stays accepted so stored targets that list it still load.
-var NotifyEvents = []string{"grab", "download", "upgrade", "rename", "delete", "health", "health_restored", "series_add", "movie_added", "manual_interaction_required", "test", "error", "digest", "request_ready"}
+var NotifyEvents = []string{"grab", "download", "upgrade", "rename", "delete", "health", "health_restored", "series_add", "movie_added", "manual_interaction_required", "test", "error", "digest", "request_ready", "playing"}
 
 // NotifyFormatDiscord is the target format that sends Discord messages.
 const NotifyFormatDiscord = "discord"
 
 // NotifyFormatNtfy is the target format that publishes ntfy messages.
 const NotifyFormatNtfy = "ntfy"
+
+// NotifyFormatTelegram is the target format that sends Telegram messages through a bot.
+const NotifyFormatTelegram = "telegram"
+
+// TelegramAPI is where a Telegram target sends: the Bot API's fixed address (https://core.telegram.org/bots/api,
+// "Making requests"). It is the only host a Telegram target uses.
+const TelegramAPI = "https://api.telegram.org"
+
+// telegramChat is a Telegram chat id: a number (negative for groups and channels) or a public @username.
+var telegramChat = regexp.MustCompile(`^(-?[0-9]{1,20}|@[A-Za-z][A-Za-z0-9_]{3,})$`)
+
+// Endpoint is where target t sends: TelegramAPI for a Telegram target (its URL is never used), else its URL.
+func (t *NotifyTarget) Endpoint() string {
+	if t.Format == NotifyFormatTelegram {
+		return TelegramAPI
+	}
+	return t.URL
+}
 
 // ntfyTopic is what ntfy accepts as a topic name.
 var ntfyTopic = regexp.MustCompile(`^[-_A-Za-z0-9]{1,64}$`)
@@ -206,7 +231,11 @@ func (p *Policy) validateNotify(e *Errors) {
 		}
 		u, err := url.Parse(t.URL)
 		validURL := err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
-		if !validURL {
+		if t.Format == NotifyFormatTelegram {
+			if t.URL != "" {
+				e.add(path+".url", "a Telegram target sends to api.telegram.org: leave the URL empty")
+			}
+		} else if !validURL {
 			e.add(path+".url", "want an http(s) URL")
 		} else if u.User != nil {
 			e.add(path+".url", "no credentials in the URL; use auth_header_env")
@@ -232,7 +261,7 @@ func (p *Policy) validateNotify(e *Errors) {
 				e.add(path, "sends nothing: set views or native")
 			}
 			if t.Warnings {
-				e.add(path+".warnings", "only a message target (format discord or ntfy) takes warnings; a webhook target is filtered by events")
+				e.add(path+".warnings", "only a message target (format discord, ntfy or telegram) takes warnings; a webhook target is filtered by events")
 			}
 		case NotifyFormatDiscord:
 			if len(t.Views) > 0 {
@@ -247,8 +276,21 @@ func (p *Policy) validateNotify(e *Errors) {
 			} else if ok && validURL && !ntfyTopic.MatchString(topic) {
 				e.add(path+".url", "the ntfy topic at the end of the URL must be 1 to 64 letters, digits, - or _")
 			}
+		case NotifyFormatTelegram:
+			if len(t.Views) > 0 {
+				e.add(path+".views", "a Telegram target gets Theatarr's own messages, not arr payloads: remove views")
+			}
+			if t.ChatID == "" {
+				e.add(path+".chat_id", "required: the Telegram chat to post to")
+			} else if !telegramChat.MatchString(t.ChatID) {
+				e.add(path+".chat_id", "want a chat id: a number such as -1001234567890, or a public channel's @name")
+			}
+			checkEnv(e, path+".bot_token_env", t.BotTokenEnv, true)
 		default:
-			e.add(path+".format", "unknown format %q (want discord or ntfy, or leave it empty)", t.Format)
+			e.add(path+".format", "unknown format %q (want discord, ntfy or telegram, or leave it empty)", t.Format)
+		}
+		if t.Format != NotifyFormatTelegram {
+			checkEnv(e, path+".bot_token_env", t.BotTokenEnv, false)
 		}
 		checkEnv(e, path+".auth_header_env", t.AuthHeaderEnv, false)
 	}

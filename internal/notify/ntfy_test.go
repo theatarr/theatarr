@@ -328,7 +328,7 @@ func TestNtfyTargetValidation(t *testing.T) {
 		}
 	}
 	p.Notify.Targets = map[string]*policy.NotifyTarget{"odd": {URL: ntfyURL, Format: "gotify"}}
-	if got := fmt.Sprint(p.Validate()); !strings.Contains(got, `unknown format "gotify" (want discord or ntfy`) {
+	if got := fmt.Sprint(p.Validate()); !strings.Contains(got, `unknown format "gotify" (want discord, ntfy or telegram`) {
 		t.Errorf("unknown format: %s", got)
 	}
 }

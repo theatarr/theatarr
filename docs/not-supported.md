@@ -48,10 +48,11 @@ workaround, it is here too.
 ## Notifications
 
 Theatarr sends notifications as webhooks: a generic JSON webhook (arr-shaped payloads, or Theatarr's own
-`theatarr.*` events), a Discord format and an ntfy format (not yet tested against an ntfy server). There is no
-built-in email, Telegram, Gotify or Pushover target.
+`theatarr.*` events), a Discord format, an ntfy format (not yet tested against an ntfy server) and a Telegram
+format (built from Telegram's Bot API documentation, not yet tested against Telegram's servers). There is no
+built-in email, Gotify or Pushover target.
 
-A Discord or ntfy target gets a message when a health check starts failing and when it stops, for new errors,
+A Discord, ntfy or Telegram target gets a message when a health check starts failing and when it stops, for new errors,
 the daily digest and a request that is ready. Health warnings, such as a mount that stopped answering, are not
 sent at once unless you turn **Also send warnings** on for that target (**Settings › Notifications ›
 Destinations**; off by default): it then also gets a

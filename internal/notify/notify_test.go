@@ -37,6 +37,8 @@ type fakeDoer struct {
 	mu     sync.Mutex
 	reqs   []sentReq
 	status int
+	// answer is the response body ("{}" by default).
+	answer string
 }
 
 func (f *fakeDoer) Do(_ context.Context, t gateway.Target, req *http.Request) (*http.Response, error) {
@@ -51,7 +53,11 @@ func (f *fakeDoer) Do(_ context.Context, t gateway.Target, req *http.Request) (*
 	if code == 0 {
 		code = 200
 	}
-	return &http.Response{StatusCode: code, Body: io.NopCloser(strings.NewReader("{}"))}, nil
+	answer := f.answer
+	if answer == "" {
+		answer = "{}"
+	}
+	return &http.Response{StatusCode: code, Body: io.NopCloser(strings.NewReader(answer))}, nil
 }
 
 // fakePayloads gives one Radarr-shaped body per event for view "radarr".

@@ -1,6 +1,10 @@
 package notify
 
-import "time"
+import (
+	"time"
+
+	"github.com/theatarr/theatarr/internal/outcome"
+)
 
 // Kind is what happened.
 type Kind string
@@ -30,8 +34,14 @@ const (
 	RequestFailed             Kind = "request_failed"
 	// ProblemReported is a new problem report (Report a problem): message and native targets only, never arr webhooks.
 	ProblemReported Kind = "problem_reported"
-	// Digest is the daily summary (Discord and ntfy targets only).
+	// Digest is the daily summary (message targets only: Discord, ntfy, Telegram).
 	Digest Kind = "digest"
+	// PlayingReplaced, PlayingUnavailable and PlayingRestored tell what became of a file that broke while someone
+	// was playing it (Event.Playing): replaced or readable again, nothing available, the earlier copy put back.
+	// Message and native targets only, never arr webhooks; their policy event name is playing.
+	PlayingReplaced    Kind = "playing_replaced"
+	PlayingUnavailable Kind = "playing_unavailable"
+	PlayingRestored    Kind = "playing_restored"
 )
 
 // PolicyEvent is the policy's name for a kind (notify.targets[*].events): file deletes count as delete.
@@ -42,6 +52,8 @@ func (k Kind) PolicyEvent() string {
 	case RequestAvailable, RequestPartial, ProblemReported:
 		// A problem report goes to the targets that get request messages: no event name of its own to choose.
 		return "request_ready"
+	case PlayingReplaced, PlayingUnavailable, PlayingRestored:
+		return "playing"
 	}
 	return string(k)
 }
@@ -79,6 +91,8 @@ type Event struct {
 	Digest *DigestSummary
 	// Problem is a new problem report (ProblemReported).
 	Problem *Problem
+	// Playing is the outcome a playing message tells (PlayingReplaced, PlayingUnavailable, PlayingRestored).
+	Playing *outcome.Outcome
 	// Prepared is an arr payload built before the event was emitted (a view's delete, built while the view still
 	// held the title); the view's Payloads returns it instead of building one.
 	Prepared *Payload

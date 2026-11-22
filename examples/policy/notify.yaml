@@ -8,7 +8,7 @@ notify:
   # budget: webhooks
   # retries: 5
   # poll: 15s
-  # digest_at: "09:00"   # local time of the daily digest (Discord and ntfy targets)
+  # digest_at: "09:00"   # local time of the daily digest (Discord, ntfy and Telegram targets)
   # targets:
   #   automation:
   #     url: http://automation.example.com:8080/hooks/theatarr
@@ -20,8 +20,12 @@ notify:
   #     url: https://discord.com/api/webhooks/<id>/<token>
   #     format: discord           # health and error alerts, the daily digest, request ready, test
   #     events: [health, health_restored, error, digest, request_ready]   # empty means all of these
-  #     # warnings: true        # also send health warnings (Discord and ntfy targets only); notices are never sent
+  #     # warnings: true        # also send health warnings (Discord, ntfy and Telegram targets only); notices are never sent
   #   phone:                    # an ntfy topic: the server address followed by the topic
   #     url: https://ntfy.example.com/<topic>
   #     format: ntfy              # the same messages and events as a Discord target, as plain text
   #     auth_header_env: THEATARR_NTFY_AUTH   # optional access token (sent as "Bearer <token>")
+  #   telegram:                 # a Telegram chat through a bot; no url (it sends to api.telegram.org)
+  #     format: telegram          # the same messages and events as a Discord target, as plain text
+  #     chat_id: "-1001234567890" # the chat's number (a group's starts with -100) or a public channel's @name
+  #     bot_token_env: THEATARR_TELEGRAM_BOT_TOKEN

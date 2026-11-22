@@ -39,38 +39,14 @@ type ntfyMessage struct {
 	Tags     []string `json:"tags,omitempty"`
 }
 
-// ntfyPayload is the ntfy message for ev: the Discord message's text without markdown or mentions. A failing health
-// check and an error are high priority; the tag is a warning sign for a problem and a check mark for good news.
+// ntfyPayload is the ntfy message for ev: the shared plain text (plainText), without markdown or mentions. A failing
+// health check and an error are high priority; the tag is a warning sign for a problem and a check mark for good news.
 func (n *Notifier) ntfyPayload(ctx context.Context, ev Event) (ntfyMessage, error) {
-	switch ev.Kind {
-	case Health, HealthRestored, Digest:
-		title, lines, level := messageText(ev, false)
-		return fitNtfy(title, lines, level), nil
-	case RequestAvailable, RequestPartial:
-		name, ready, err := n.requestText(ctx, ev)
-		if err != nil {
-			return ntfyMessage{}, err
-		}
-		line := name + " " + ready
-		var who []string
-		for _, u := range ev.Request.Users {
-			who = append(who, requesterName(u))
-		}
-		if len(who) > 0 {
-			line += ", requested by " + joinAnd(who)
-		}
-		title := "Request ready"
-		if ev.Kind == RequestPartial {
-			title = "Request partly ready"
-		}
-		return fitNtfy(title, []string{line}, levelGood), nil
-	case ProblemReported:
-		title, lines := problemText(ev.Problem)
-		return fitNtfy(title, lines, levelWarn), nil
-	case Test:
-		return fitNtfy("Theatarr test message", []string{"This topic gets Theatarr's notifications."}, levelInfo), nil
+	title, lines, level, err := n.plainText(ctx, ev, "topic")
+	if err != nil {
+		return ntfyMessage{}, err
 	}
-	return ntfyMessage{}, fmt.Errorf("notify: no ntfy message for %s", ev.Kind)
+	return fitNtfy(title, lines, level), nil
 }
 
 // fitNtfy builds a message within the limits. The message is never empty (ntfy would replace an empty one with its
@@ -94,10 +70,16 @@ func fitNtfy(title string, lines []string, level messageLevel) ntfyMessage {
 
 // fitBytes is fitLines with the limit in bytes: ntfy counts bytes, and a title outside ASCII takes several each.
 func fitBytes(lines []string, limit int) string {
+	return fitMeasured(lines, limit, func(s string) int { return len(s) })
+}
+
+// fitMeasured is fitLines with the limit in the unit size measures (never fewer than characters): the character
+// budget shrinks until the text fits.
+func fitMeasured(lines []string, limit int, size func(string) int) string {
 	chars := limit
 	s := fitLines(lines, chars)
-	for len(s) > limit && chars > 1 {
-		chars = min(chars-1, chars*limit/len(s))
+	for size(s) > limit && chars > 1 {
+		chars = min(chars-1, chars*limit/size(s))
 		s = fitLines(lines, chars)
 	}
 	return s

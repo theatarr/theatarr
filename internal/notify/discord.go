@@ -9,7 +9,8 @@ import (
 )
 
 // Discord targets (notify.targets.*.format: discord) get Discord webhook messages instead of the theatarr.* JSON: instant
-// health alerts (a check failing, and leaving error) and error alerts, the daily digest, request ready and the test. Messages respect Discord's limits (content
+// health alerts (a check failing, and leaving error), the daily digest, request ready, problem reports, a file that
+// broke while playing and the test. Messages respect Discord's limits (content
 // 2000 characters, 10 embeds, 6000 characters of embed text, a description 4096): lines that do not fit become
 // "and N more". allowed_mentions names only the requesters a request-ready message mentions, so a message can never
 // ping anyone else (no @everyone, roles or other users).
@@ -65,8 +66,11 @@ var discordColor = map[messageLevel]int{levelInfo: discordBlue, levelGood: disco
 func (n *Notifier) discordPayload(ctx context.Context, ev Event) (discordMessage, error) {
 	at := ev.At.UTC().Format(time.RFC3339)
 	switch ev.Kind {
-	case Health, HealthRestored, Digest:
+	case Health, HealthRestored, Digest, PlayingReplaced, PlayingUnavailable, PlayingRestored:
 		title, lines, level := messageText(ev, true)
+		if title == "" {
+			break
+		}
 		return fitDiscord("", []embedLines{{title: title, lines: lines, color: discordColor[level]}}, nil, at), nil
 	case RequestAvailable, RequestPartial:
 		return n.discordRequest(ctx, ev)

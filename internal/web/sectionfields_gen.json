@@ -128,7 +128,7 @@
   "Notify": {
     "allow_hosts": "This lists the hosts (host or host:port) an installed notification may target. Each joins the gateway's allowlist. Empty: installed notifications are stored but never sent.",
     "budget": "This names the budget every webhook request takes a token from (optional).",
-    "digest_at": "This is the local time (HH:MM, the container's TZ) the daily digest goes to Discord and ntfy targets. Default 09:00.",
+    "digest_at": "This is the local time (HH:MM, the container's TZ) the daily digest goes to Discord, ntfy and Telegram targets. Default 09:00.",
     "enabled": "This sends notifications. Off (the default): events are recorded, nothing is sent.",
     "poll": "This is how often the notifier looks for new events and due deliveries. Default 15s, 1s to 10m.",
     "retries": "This is how many times a failed delivery is retried. Default 5, 0 to 20.",
@@ -136,13 +136,15 @@
   },
   "NotifyTarget": {
     "auth_header_env": "This names an environment variable holding the Authorization header value, when the target needs one.",
+    "bot_token_env": "This names an environment variable holding the Telegram bot token of a telegram target. It is only ever sent to api.telegram.org, never as an Authorization header.",
+    "chat_id": "This is the Telegram chat a telegram target posts to: the chat's number (a group's starts with -100) or a public channel's @name.",
     "events": "This limits what this target is sent to the events chosen. Empty: all.",
-    "format": "This is the message format: empty for the payloads above, discord for a Discord channel webhook, or ntfy. For ntfy the url is the server address followed by the topic, and an access token goes in the Authorization header.",
+    "format": "This is the message format: empty for the payloads above, discord for a Discord channel webhook, ntfy, or telegram for a Telegram chat.",
     "native": "This sends Theatarr's own per-version events (JSON, eventType theatarr.*).",
-    "url": "This is where payloads are POSTed. Its host joins the gateway's allowlist.",
+    "url": "This is where payloads are POSTed. Its host joins the gateway's allowlist. Empty for a telegram target.",
     "versions": "This limits native events to these versions. Empty: all.",
     "views": "This lists the arr views (keys of views, or v/\u003cversion\u003e) whose arr-shaped payloads it gets.",
-    "warnings": "This also sends health warnings, such as a mount that stopped answering, to this message target (format discord or ntfy). Errors are always sent; notices never are. Default false."
+    "warnings": "This also sends health warnings, such as a mount that stopped answering, to this message target (format discord, ntfy or telegram). Errors are always sent; notices never are. Default false."
   },
   "Playlists": {
     "enabled": "This allows playlist writes in plex, together with library.enabled. Default false.",

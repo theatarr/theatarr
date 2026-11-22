@@ -580,3 +580,42 @@ func TestSettingsLibraryDecypharrRoundTrip(t *testing.T) {
 		t.Fatalf("still applied: %v", err)
 	}
 }
+
+// A Telegram destination saved from the form: format, chat ID and the bot token as a write-only credential (one
+// save). The token is never in an answer, a log or the audit; the target takes it from bot_token_env, never from the
+// Authorization-header credential.
+func TestSettingsNotifyTelegramTarget(t *testing.T) {
+	t.Parallel()
+	se := seededSectionsEnvBase(t, func(p *policy.Policy) {
+		if p.Notify == nil {
+			p.Notify = &policy.Notify{}
+		}
+		p.Notify.Targets = map[string]*policy.NotifyTarget{"hook": {URL: "http://192.168.1.50:8080/hook", Native: true}}
+	})
+	config := findSection(t, se.want(se.call("GET", "/sections", nil), 200, "read"), "notify")["config"].(map[string]any)
+	targets := config["targets"].(map[string]any)
+	targets["tg"] = map[string]any{"format": "telegram", "chat_id": "-1001234567890"}
+	se.want(se.call("PUT", "/sections/notify", map[string]any{"generation": se.generation(), "config": config}), 422, "no bot token")
+	se.want(se.call("PUT", "/sections/notify", map[string]any{"generation": se.generation(), "config": config,
+		"secrets": map[string]string{"targets.tg.bot_token": testSecret}}), 200, "telegram target")
+	snap, err := se.coord.Snapshot(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tg := snap.Policy.Notify.Targets["tg"]
+	if tg == nil || tg.Format != policy.NotifyFormatTelegram || tg.ChatID != "-1001234567890" || tg.URL != "" ||
+		tg.AuthHeaderEnv != "" || snap.Policy.Getenv(tg.BotTokenEnv) != testSecret {
+		t.Fatalf("target %+v", tg)
+	}
+	notify := findSection(t, se.want(se.call("GET", "/sections", nil), 200, "reread"), "notify")
+	found := false
+	for _, s := range notify["secrets"].([]any) {
+		if m := s.(map[string]any); m["path"] == "targets.tg.bot_token" && m["set"] == true {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("bot token not listed as set: %v", notify["secrets"])
+	}
+	se.noSecretAnywhere()
+}
