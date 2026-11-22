@@ -32,9 +32,10 @@ function PlexButton({ titleId, v, named }: { titleId: number; v: Version; named:
   const message = look.data && !look.data.found ? look.data.message || "Not found in Plex yet" : look.error ? (look.error as Error).message : "";
   return (
     <div className="flex min-w-0 flex-col gap-1">
-      <Button size="sm" variant="outline" className="h-auto min-h-8 whitespace-normal text-left" disabled={look.isPending} onClick={() => look.mutate()}>
+      <Button size="sm" variant="outline" className="h-auto min-h-8 max-w-full whitespace-normal text-left" disabled={look.isPending} onClick={() => look.mutate()}>
         {look.isPending ? <Loader2 className="animate-spin" /> : <ExternalLink />}
-        {named ? `Watch in Plex · ${v.label || v.key}` : "Watch in Plex"}
+        {/* A long library name wraps inside the button rather than running past it. */}
+        <span className="min-w-0 [overflow-wrap:anywhere]">{named ? `Watch in Plex · ${v.label || v.key}` : "Watch in Plex"}</span>
       </Button>
       {message ? <p className="text-xs text-[var(--ink-3)] [overflow-wrap:anywhere]" role="status" data-testid="watch-in-plex-message">{message}</p> : null}
       {refused ? <a href={refused} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-primary hover:underline">Open in Plex</a> : null}

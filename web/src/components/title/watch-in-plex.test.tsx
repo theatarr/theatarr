@@ -54,3 +54,11 @@ it("shows Open in Plex in place when the browser refuses the new tab", async () 
   expect(link.getAttribute("target")).toBe("_blank");
 });
 
+it("wraps a long library name inside its button", async () => {
+  mockFetch([{ method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["browse"] } }]);
+  const long = [{ ...versions[0], label: "2160pRemuxDolbyVisionHDR10PlusHEVC" }, versions[1]];
+  renderPage(<WatchInPlex titleId={7} versions={long as never} />);
+  const label = await screen.findByText("Watch in Plex · 2160pRemuxDolbyVisionHDR10PlusHEVC");
+  expect(label.className.split(" ")).toEqual(expect.arrayContaining(["min-w-0", "[overflow-wrap:anywhere]"]));
+  expect(label.closest("button")!.className.split(" ")).toContain("max-w-full");
+});
