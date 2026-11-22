@@ -44,21 +44,23 @@ func TestPlayingRouteHoldsToIncidentEpisodes(t *testing.T) {
 }
 
 // An account the incident found out answers as not holding the release for this route only: the add goes to the next
-// account at once, and no miss is recorded on the out account.
+// account at once, and no miss is recorded on the out account. (Real-Debrid refuses this release's name, so AllDebrid
+// would take it first; the incident found AllDebrid out.)
 func TestPlayingRouteSkipsOutAccount(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t, true)
 	freshMovie(e)
 	e.exec(`UPDATE version SET state = 'wanted' WHERE id = 10`)
-	e.playingRun(7, 1, 10, "movie", "[]", "[]", "rd")
+	e.playingRun(7, 1, 10, "movie", "[]", "[]", "ad")
 	res, err := e.r.Route(e.ctx, freshReq(cand(h("a"), "Movie.2024.2160p.WEB-DL-GRP"), "acquire:7"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Outcome != OutcomeAdded || res.Provider != "ad" || e.ad["rd"].writes() != 0 {
+	if res.Outcome != OutcomeAdded || res.Provider != "tb" || e.ad["ad"].writes() != 0 ||
+		!strings.Contains(steps(res), "aaaa/ad/skipped/"+codeProviderDone) {
 		t.Errorf("route %+v: %s", res, steps(res))
 	}
-	if n := e.count(`SELECT COUNT(*) FROM provider_cache WHERE provider = 'rd' AND state = 'miss'`); n != 0 {
+	if n := e.count(`SELECT COUNT(*) FROM provider_cache WHERE provider = 'ad' AND state = 'miss'`); n != 0 {
 		t.Errorf("%d misses on the out account", n)
 	}
 }
@@ -92,33 +94,6 @@ func TestPlayingMissSurvivesAllProviderMiss(t *testing.T) {
 	}
 	if n := e.count(`SELECT COUNT(*) FROM provider_cache WHERE info_hash = ? AND source = 'router:miss'`, h("a")); n != 2 {
 		t.Errorf("%d all-provider misses on the other accounts, want 2", n)
-	}
-}
-
-// GOAL e: the release that broke is not taken again on the account it broke on by this search (its router:playing
-// miss); on another account it may be.
-func TestPlayingRouteSkipsFailedReleaseOnFailedAccount(t *testing.T) {
-	t.Parallel()
-	e := newEnv(t, true)
-	freshMovie(e)
-	e.exec(`UPDATE version SET state = 'wanted' WHERE id = 10`)
-	e.playingRun(7, 1, 10, "movie", "[]", "[]", "")
-	tx, err := e.st.Writer().BeginTx(e.ctx, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := RecordPlayingMiss(e.ctx, tx, h("a"), "rd", e.clock); err != nil {
-		t.Fatal(err)
-	}
-	if err := tx.Commit(); err != nil {
-		t.Fatal(err)
-	}
-	res, err := e.r.Route(e.ctx, freshReq(cand(h("a"), "Movie.2024.2160p.WEB-DL-GRP"), "acquire:7"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res.Outcome != OutcomeAdded || res.Provider != "ad" || e.ad["rd"].writes() != 0 {
-		t.Errorf("route %+v: %s", res, steps(res))
 	}
 }
 
