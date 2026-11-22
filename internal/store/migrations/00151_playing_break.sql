@@ -8,7 +8,7 @@
 -- settled: '' open (acted on), 'copy' (readable again after another account took the release), 'none' (nothing was
 -- done), 'revived' (the old copy read again and nothing else held its film or episodes), 'restored' (put back in
 -- place of its replacement), 'aside' (it reads again but stays aside). fixed_by: 'copy', 'replaced' (an import took
--- its place) or ''. reported: the outcome sent about the watched file, once ('' none yet). released: an old copy that
+-- its place) or ''. serving: the account verified to serve the file again (step 1's account once it reads). reported: the outcome sent about the watched file, once ('' none yet). released: an old copy that
 -- reads again in a renamed folder, handed to the sweep's repoint (settled once its link is active again).
 
 -- +goose Up
@@ -38,6 +38,7 @@ CREATE TABLE playing_break (
     episodes        TEXT    NOT NULL DEFAULT '[]',
     broken_at       INTEGER NOT NULL,
     out_account     TEXT    NOT NULL DEFAULT '',
+    serving         TEXT    NOT NULL DEFAULT '',
     searched        INTEGER NOT NULL DEFAULT 0 CHECK (searched IN (0, 1)),
     fixed_by        TEXT    NOT NULL DEFAULT '' CHECK (fixed_by IN ('', 'copy', 'replaced')),
     new_release     TEXT    NOT NULL DEFAULT '',

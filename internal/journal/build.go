@@ -1158,8 +1158,11 @@ func (b *builder) run(e *Entry, rest string) error {
 	e.Source = "theatarr"
 	e.Label = "Search"
 	why := ""
-	if failure {
+	switch {
+	case failure:
 		e.Label, why = "Search after a failure", research.String
+	case research.String == router.ReasonPlaying: // not a failure run, yet its own reason
+		e.Label, why = "Search for a file that stopped working", research.String
 	}
 	e.Summary = searchWords(source, target, state, why, message, b.full)
 	r, err := b.snapshotFor(routeSource, e.Title.ID, e.Version, created+24*3600*1000, snapshotPick{run: id, member: root.Valid})

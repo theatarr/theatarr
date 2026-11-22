@@ -425,7 +425,7 @@ func TestRescueSameReleaseFromOtherAccount(t *testing.T) {
 	e.mu.Lock()
 	o := e.outcomes[0]
 	e.mu.Unlock()
-	if o.Title != "Show (2020)" || fmt.Sprint(o.Episodes) != "[S01E02]" || o.Viewer != "ann" || o.Account != "" ||
+	if o.Title != "Show (2020)" || fmt.Sprint(o.Episodes) != "[S01E02]" || o.Viewer != "ann" || o.Account != "ad" ||
 		o.OldRelease != "Show.S01.1080p.WEB-DL-GRP" {
 		t.Errorf("outcome %+v", o)
 	}

@@ -55,7 +55,7 @@ type Rescuer interface {
 	PlayingHash(ctx context.Context, linkID int64) (string, error)
 	PlayingRoute(version string) (client string, providers []string)
 	OpenPlayingIncident(ctx context.Context, inc library.PlayingIncident, f library.PlayingFile) (int64, error)
-	SettlePlayingIncident(ctx context.Context, incident int64, settled string) error
+	SettlePlayingIncident(ctx context.Context, incident int64, settled, account string) error
 	PlayingMiss(ctx context.Context, incident int64, keys []string) error
 	MarkBrokenPlaying(ctx context.Context, incident int64, files []library.PlayingFile, search bool,
 		missKeys []string) (int, error)
@@ -550,13 +550,14 @@ func (t *Tracker) repair(ctx context.Context, lib Rescuer, j *sign, hash string,
 	}
 	told := false
 	if client == "" && len(hash) == 40 && t.o.Copy != nil {
-		switch t.sameRelease(ctx, lib, j, id, hash, off, others, &told) {
+		result, acct := t.sameRelease(ctx, lib, j, id, hash, off, others, &told)
+		switch result {
 		case copyStopped:
 			t.settleQuiet(ctx, id)
 			return
 		case copyReadable:
 			t.clearPending(src.LinkID)
-			if err := lib.SettlePlayingIncident(ctx, id, "copy"); err != nil {
+			if err := lib.SettlePlayingIncident(ctx, id, "copy", acct); err != nil {
 				log.Warn("nowplaying: incident not settled", "err", err)
 			}
 			if err := lib.ReportPlaying(ctx, id, outcome.SameRelease); err != nil {
@@ -579,7 +580,7 @@ func (t *Tracker) repair(ctx context.Context, lib Rescuer, j *sign, hash string,
 	n, err := lib.MarkBrokenPlaying(ctx, id, []library.PlayingFile{{LinkID: src.LinkID, Offset: off}}, true, failed)
 	if err != nil || n == 0 {
 		log.Info("nowplaying: the broken file was not marked", "err", err)
-		if err := lib.SettlePlayingIncident(ctx, id, "none"); err != nil {
+		if err := lib.SettlePlayingIncident(ctx, id, "none", ""); err != nil {
 			log.Warn("nowplaying: incident not settled", "err", err)
 		}
 		return
@@ -592,7 +593,7 @@ func (t *Tracker) repair(ctx context.Context, lib Rescuer, j *sign, hash string,
 func (t *Tracker) settleQuiet(ctx context.Context, id int64) {
 	t.o.Logger.Info("nowplaying: Pause is on or the library writes nothing now: the broken file is left", "incident", id)
 	if lib := t.rescuer(); lib != nil {
-		if err := lib.SettlePlayingIncident(ctx, id, "none"); err != nil {
+		if err := lib.SettlePlayingIncident(ctx, id, "none", ""); err != nil {
 			t.o.Logger.Warn("nowplaying: incident not settled", "incident", id, "err", err)
 		}
 	}
@@ -600,7 +601,7 @@ func (t *Tracker) settleQuiet(ctx context.Context, id int64) {
 
 // settleNone settles an incident where nothing was done, and tells its outcome.
 func (t *Tracker) settleNone(ctx context.Context, lib Rescuer, id int64) {
-	if err := lib.SettlePlayingIncident(ctx, id, "none"); err != nil {
+	if err := lib.SettlePlayingIncident(ctx, id, "none", ""); err != nil {
 		t.o.Logger.Warn("nowplaying: incident not settled", "incident", id, "err", err)
 	}
 	if err := lib.ReportPlaying(ctx, id, outcome.Unavailable); err != nil {
@@ -622,10 +623,10 @@ const (
 // then read every copyEvery for copyFor (the viewer is told after copyQuiet). Still failing: that account gets the
 // miss too (no other is tried), and step 2 follows.
 func (t *Tracker) sameRelease(ctx context.Context, lib Rescuer, j *sign, id int64, hash string, off int64,
-	accounts []string, told *bool) int {
+	accounts []string, told *bool) (int, string) {
 	for _, acct := range accounts {
 		if t.live(j.src.version) == nil {
-			return copyStopped
+			return copyStopped, ""
 		}
 		ok, err := t.o.Copy(ctx, hash, acct)
 		if err != nil || !ok {
@@ -639,10 +640,10 @@ func (t *Tracker) sameRelease(ctx context.Context, lib Rescuer, j *sign, id int6
 		start := t.o.Now()
 		for t.o.Now().Sub(start) < copyFor {
 			if t.sleep(ctx, copyEvery) != nil {
-				return copyFailed
+				return copyFailed, acct
 			}
 			if t.read(ctx, lib, j.src.Target, off) == readOK {
-				return copyReadable
+				return copyReadable, acct
 			}
 			if !*told && t.o.Now().Sub(start) >= copyQuiet {
 				*told = true
@@ -652,9 +653,9 @@ func (t *Tracker) sameRelease(ctx context.Context, lib Rescuer, j *sign, id int6
 		if err := lib.PlayingMiss(ctx, id, []string{acct}); err != nil {
 			t.o.Logger.Warn("nowplaying: miss not recorded", "err", err)
 		}
-		return copyFailed
+		return copyFailed, acct
 	}
-	return copyNone
+	return copyNone, ""
 }
 
 // siblings reads the release's other active files one at a time, a piece at mid-file each, once the watched file is

@@ -177,14 +177,14 @@ func (l *Library) PlayingHash(ctx context.Context, linkID int64) (string, error)
 }
 
 // SettlePlayingIncident settles every open row of an incident whose link never went dead: settled copy (step 1 made
-// it readable again; fixed_by copy) or none (nothing was done).
-func (l *Library) SettlePlayingIncident(ctx context.Context, incident int64, settled string) error {
+// it readable again; fixed_by copy, and account the one verified to serve it now) or none (nothing was done).
+func (l *Library) SettlePlayingIncident(ctx context.Context, incident int64, settled, account string) error {
 	fixed := ""
 	if settled == "copy" {
 		fixed = "copy"
 	}
-	_, err := l.st.Writer().ExecContext(ctx, `UPDATE playing_break SET settled = ?, fixed_by = ?, updated_at = ?
-		WHERE incident = ? AND settled = ''`, settled, fixed, store.Millis(l.now()), incident)
+	_, err := l.st.Writer().ExecContext(ctx, `UPDATE playing_break SET settled = ?, fixed_by = ?, serving = ?,
+		updated_at = ? WHERE incident = ? AND settled = ''`, settled, fixed, account, store.Millis(l.now()), incident)
 	return err
 }
 

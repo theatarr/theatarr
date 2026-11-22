@@ -55,8 +55,9 @@ func (l *Library) playingOutcome(ctx context.Context, incident int64, kind strin
 	var year sql.NullInt64
 	var old sql.NullString
 	err := db.QueryRowContext(ctx, `SELECT pb.title_id, pb.version_key, t.name, t.year, pb.release_title, pb.new_release,
-		pb.episodes, pb.viewer, pb.player FROM playing_break pb JOIN title t ON t.id = pb.title_id WHERE pb.id = ?`,
-		incident).Scan(&o.TitleID, &o.VersionKey, &name, &year, &old, &o.NewRelease, &eps, &o.Viewer, &o.Player)
+		pb.episodes, pb.viewer, pb.player, pb.serving FROM playing_break pb JOIN title t ON t.id = pb.title_id
+		WHERE pb.id = ?`, incident).Scan(&o.TitleID, &o.VersionKey, &name, &year, &old, &o.NewRelease, &eps, &o.Viewer,
+		&o.Player, &o.Account)
 	if err != nil {
 		return o, fmt.Errorf("library: playing incident %d: %w", incident, err)
 	}

@@ -1277,3 +1277,19 @@ func TestSearchWordsPlaying(t *testing.T) {
 		t.Errorf("words %q", got)
 	}
 }
+
+// The Decision Journal names the search for a file that stopped working while playing as such, not as a Wanted
+// search.
+func TestJournalPlayingSearchLabel(t *testing.T) {
+	e := newEnv(t)
+	e.seedRoute()
+	at := time.Date(2026, 11, 21, 20, 0, 0, 0, time.UTC)
+	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, state, research, message,
+		created_at, updated_at) VALUES (9, 'wanted', 1, 1, 'movie-remux', 'movie', 'nothing', 'playing',
+		'no accepted release among 2 results', ?, ?)`, msOf(at), msOf(at))
+	g := e.get("run:9")
+	if g.Label != "Search for a file that stopped working" ||
+		g.Summary != "Search again after a file that stopped working while playing: nothing grabbed · no accepted release among 2 results" {
+		t.Errorf("playing search: %q %q", g.Label, g.Summary)
+	}
+}
