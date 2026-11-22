@@ -320,7 +320,12 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
       // Keep in sync goes along only when it changed: a save of what was loaded sends the library alone.
       const sync = current.record.sync ?? [];
       const syncChanged = data !== undefined && sync.join(",") !== qualifyingPartners(current.saved, current.record.config, data.versions).join(",");
-      const body: VersionBody = { generation: current.generation, key: current.record.key, ...(deleting ? { delete: true } : { config: current.record.config, roots: current.record.roots ?? [], ...(syncChanged ? { sync_with: sync } : {}) }) };
+      // A library's providers always follow the fallback order: the selection goes in the order the server sent
+      // (data.providers), so a draft kept across a reorder saves; which providers are selected never changes.
+      const picked = current.record.config.providers;
+      const providers = picked && data ? [...data.providers.filter((p) => picked.includes(p)), ...picked.filter((p) => !data.providers.includes(p))] : picked;
+      const config = picked ? { ...current.record.config, providers } : current.record.config;
+      const body: VersionBody = { generation: current.generation, key: current.record.key, ...(deleting ? { delete: true } : { config, roots: current.record.roots ?? [], ...(syncChanged ? { sync_with: sync } : {}) }) };
       if (!deleting) {
         await apply(body, current.create, true);
         return;

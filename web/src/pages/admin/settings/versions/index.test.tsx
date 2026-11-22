@@ -716,6 +716,41 @@ describe("Versions page", () => {
     expect(within(alert).getByRole("link", { name: "Settings › Connected apps" }).getAttribute("href")).toBe("/admin/settings/apps");
   });
 
+  it("saves a kept draft in the current provider order after the order changed (F30 closing)", async () => {
+    const withOrder = (generation: number, order: string[]) => {
+      const v = versions(generation);
+      return { ...v, providers: order, versions: [{ ...v.versions[0], config: { ...v.versions[0].config, providers: order } }] };
+    };
+    let reads = 0;
+    let puts = 0;
+    const fetch = mockFetch([
+      { method: "GET", path: "/settings/versions", reply: () => json(++reads === 1 ? withOrder(4, ["rd", "ad"]) : withOrder(5, ["ad", "rd"])) },
+      { method: "GET", path: "/settings/view-bindings", reply: viewBindings() },
+      { method: "PUT", path: "/settings/versions/movie-web", reply: (req: { body?: { config?: { providers?: string[] } } }) => {
+        if (++puts === 1) return json({ error: "settings changed since this generation was read; reload and retry", generation: 5 }, 409);
+        return req.body?.config?.providers?.join(",") === "ad,rd" ? json({ generation: 6 })
+          : json({ error: "settings refused", fields: [{ path: "versions[movie-web].providers[1]", message: '"ad" listed out of fallback order (providers[ad].order is 1)' }] }, 422);
+      } },
+    ]);
+    const user = userEvent.setup();
+    renderPage(<VersionsPage />);
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const root = screen.getByRole("textbox", { name: "Root" });
+    await user.clear(root);
+    await user.type(root, "/library/local-edit");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByRole("alert");
+    await user.click(screen.getByRole("button", { name: "Reload, keep my changes" }));
+    await waitFor(() => expect(fetch.calls("GET", "/settings/versions")).toHaveLength(2));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(fetch.calls("PUT", "/settings/versions/movie-web")).toHaveLength(2));
+    const body = fetch.calls("PUT", "/settings/versions/movie-web")[1].body as { generation: number; config: { providers: string[]; library: string } };
+    expect(body.config.providers).toEqual(["ad", "rd"]);
+    expect(body.generation).toBe(5);
+    expect(JSON.stringify(body)).toContain("/library/local-edit");
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+  });
+
   it("lets a stale editor reload the new generation and keep its changes", async () => {
     let reads = 0;
     const fetch = mockFetch([

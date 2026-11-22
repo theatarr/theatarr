@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/activity"
@@ -385,6 +386,9 @@ func withdrawMadeUpAir(ctx context.Context, db *sql.DB, titleID int64, all []Epi
 	if err := db.QueryRowContext(ctx, `SELECT time_zone, air_time FROM series_meta WHERE title_id = ?`, titleID).
 		Scan(&zone, &airTime); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return err
+	}
+	if strings.TrimSpace(airTime) != "" {
+		return nil // a known air time makes every instant real (activity.MadeUpAir)
 	}
 	type day struct {
 		season int64
