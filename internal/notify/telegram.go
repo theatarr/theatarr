@@ -125,7 +125,7 @@ func (n *Notifier) telegramSlot(ctx context.Context, chat string, wait bool) err
 	}
 	if d := at.Sub(now); d > telegramPace {
 		n.tgMu.Unlock()
-		return fmt.Errorf("asked by Telegram to wait: try again in %d s", int((d+time.Second-1)/time.Second))
+		return fmt.Errorf("try again in %d s", int((d+time.Second-1)/time.Second))
 	}
 	if at.Before(now) {
 		at = now
@@ -165,15 +165,16 @@ func sleepCtx(ctx context.Context, d time.Duration) error {
 	}
 }
 
-// retryAfterSetter is the gateway's SetRetryAfter: a 429 whose body named its wait backs the target off that long.
+// retryAfterSetter is the gateway's SetRetryAfter: the one back-off of a Telegram 429.
 type retryAfterSetter interface {
-	SetRetryAfter(ctx context.Context, t gateway.Target, d time.Duration)
+	SetRetryAfter(ctx context.Context, t gateway.Target, until time.Time)
 }
 
 // sendTelegram posts a stored Telegram delivery to target key (token is the resolved bot token). A 429's
-// parameters.retry_after is read before the answer is dropped and becomes the one deadline of the gateway's
-// back-off, the chat's slot and the delivery (errStatus.after). A request the gateway refuses before sending with a
-// time to retry is errPaced (no attempt counted) outside Send test.
+// parameters.retry_after is read before the answer is dropped and becomes one deadline, taken then: the gateway's
+// back-off (the request asks it to leave that to the caller), the chat's slot and the delivery (errStatus.until). Other
+// answers are drained, not kept. A request the gateway refuses before sending with a time to retry is errPaced (no
+// attempt counted) outside Send test.
 func (n *Notifier) sendTelegram(ctx context.Context, key string, t *policy.NotifyTarget, token, event string, body []byte, wait bool) (int, error) {
 	req, err := telegramRequest(ctx, n.tgAPI, t, token, event, body)
 	if err != nil {
@@ -182,7 +183,7 @@ func (n *Notifier) sendTelegram(ctx context.Context, key string, t *policy.Notif
 	if err := n.telegramSlot(ctx, t.ChatID, wait); err != nil {
 		return 0, err
 	}
-	target := gateway.Target{Class: gateway.ClassWebhook, Key: key}
+	target := gateway.Target{Class: gateway.ClassWebhook, Key: key, RetryAfterByCaller: true}
 	resp, err := n.post(ctx, target, req)
 	if err != nil {
 		var ref *gateway.Refused
@@ -195,18 +196,25 @@ func (n *Notifier) sendTelegram(ctx context.Context, key string, t *policy.Notif
 		return 0, err
 	}
 	defer resp.Body.Close()
-	data, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
-	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
+	if resp.StatusCode != http.StatusTooManyRequests {
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<16))
+		if resp.StatusCode < 200 || resp.StatusCode > 299 {
+			return resp.StatusCode, errStatus{code: resp.StatusCode}
+		}
 		return resp.StatusCode, nil
 	}
+	data, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
 	st := errStatus{code: resp.StatusCode}
-	if resp.StatusCode == http.StatusTooManyRequests {
-		if d := retryAfterBody(data); d > 0 {
-			st.after = d
-			n.telegramWaitUntil(t.ChatID, n.now().Add(d))
-			if g, ok := n.doer.(retryAfterSetter); ok {
-				g.SetRetryAfter(ctx, target, d)
-			}
+	var until time.Time
+	// A Retry-After header is the gateway's (it backed off already); the body's wait is ours to set.
+	if d := retryAfterBody(data); d > 0 && resp.Header.Get("Retry-After") == "" {
+		until = n.now().Add(d)
+		st.until, st.after = until, d
+		n.telegramWaitUntil(t.ChatID, until)
+	}
+	if resp.Header.Get("Retry-After") == "" {
+		if g, ok := n.doer.(retryAfterSetter); ok {
+			g.SetRetryAfter(ctx, target, until)
 		}
 	}
 	return resp.StatusCode, st

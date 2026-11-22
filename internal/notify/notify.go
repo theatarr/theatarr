@@ -529,10 +529,11 @@ func (n *Notifier) SendTest(ctx context.Context, target string) error {
 	return nil
 }
 
-// errStatus is a non-2xx answer. after is the wait a Telegram 429 names in parameters.retry_after (telegram.go), 0
-// otherwise.
+// errStatus is a non-2xx answer. until is the retry deadline a Telegram 429 names in parameters.retry_after
+// (telegram.go), taken when the answer was read; zero otherwise.
 type errStatus struct {
 	code  int
+	until time.Time
 	after time.Duration
 }
 
@@ -745,9 +746,9 @@ func (n *Notifier) SendDue(ctx context.Context, limit int) (int, error) {
 			if errors.As(err, &ref) && ref.RetryAt.After(next) {
 				next = ref.RetryAt
 			}
-			if errors.As(err, &st) && st.after > 0 {
-				// The service named its wait (a Telegram 429): retry after exactly that.
-				next = now.Add(st.after)
+			if errors.As(err, &st) && !st.until.IsZero() {
+				// Telegram named its wait: retry at that deadline, the one the gateway and the chat's slot hold.
+				next = st.until
 			}
 			_, uerr := n.st.Writer().ExecContext(ctx, `UPDATE notify_delivery SET attempts = ?, next_at = ?,
 				last_status = ?, last_error = ? WHERE id = ?`, attempts, store.Millis(next), nullCode(code),

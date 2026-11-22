@@ -272,10 +272,13 @@ SignalR, Sonarr v5, `downloadclient`.
     target has no URL (validation refuses one): it sends to the fixed address `https://api.telegram.org`
     (`policy.TelegramAPI`), whose host joins the allowlist and the gateway's webhook class as `webhook:<key>`.
     Validation needs both the chat id and the bot token, and never quotes a value put in `bot_token_env` (a token
-    pasted there instead of a variable name). The bot token is trimmed of surrounding whitespace. The Destinations
-    form shows each destination the fields of its format (a Telegram one no URL, views, Theatarr events or
-    Authorization header; the others no Telegram fields) and drops a stored URL and views when a destination becomes
-    a Telegram one.
+    pasted there instead of a variable name); a section save checks it as submitted, before a stored bot token's
+    reference takes the field's place (`settings.SectionBotTokenEnvs`), so a pasted token is never stored or shown. The bot token is trimmed of surrounding whitespace. The Destinations
+    form offers each destination what its format takes: views and Theatarr events only on a JSON destination,
+    warnings only on a message one, the chat ID and bot token only on a Telegram one, which has no URL or
+    Authorization header. Switching formats keeps the other fields until Save, which leaves out what the final
+    format refuses (a Telegram destination's URL and views, a message destination's views, a JSON one's warnings); a
+    hidden credential's empty Set box is dropped.
   - Secret: the bot token is never sent as an Authorization header, and the Authorization-header credential is
     never sent to Telegram (also after a target changes format). The token and the chat id are added only when a
     delivery is sent, so the stored delivery (`notify_delivery.payload`, event `telegram.<kind>`) is `{"text"}`
@@ -295,16 +298,19 @@ SignalR, Sonarr v5, `downloadclient`.
     the sender goes on with the others. Send test waits for the slot (at most 3 s).
   - 429: Telegram names its wait in the body, `parameters.retry_after` (seconds; `ResponseParameters`,
     <https://core.telegram.org/bots/api#responseparameters>), without a Retry-After header. For a Telegram target
-    only, the answer is read before it is dropped and that wait (at most an hour) is the one deadline of the
-    gateway's back-off of the target (`Gateway.SetRetryAfter`, replacing its headerless 429 default), the chat's next
-    slot and the delivery's retry; the sender is not held meanwhile. A retry the gateway refuses before sending
+    only, a 429 answer is read before it is dropped (other answers are drained) and that wait (at most an hour) gives
+    one absolute deadline, taken when the answer is read, for the gateway's back-off of the target, the chat's next
+    slot and the delivery's retry. The request asks the gateway to leave a headerless 429 to the caller
+    (`Target.RetryAfterByCaller`), and `Gateway.SetRetryAfter` writes the one back-off (its headerless default when the
+    body names no wait). The sender is not held meanwhile. A retry the gateway refuses before sending
     (a back-off still running, as after a restart) waits for the refusal's retry time without counting an attempt. A
     Send test inside the wait answers "try again in N s". Other targets keep their 429 handling: the body is not
     read, the retry follows the back-off.
   - **Not tested against Telegram's servers.** Built from the Bot API documentation above, tested on fakes. Use
     **Send test** after saving to check a target.
   - Tests: `notify.TestTelegram*`, `notify.TestNonTelegram429Unchanged`, `policy.TestNotifyTelegramTarget`,
-    `policy.TestNotifyTelegramTokenNotEchoed`, `web.TestSettingsNotifyTelegramTarget`, the form in
+    `policy.TestNotifyTelegramTokenNotEchoed`, `web.TestSettingsNotifyTelegramTarget`,
+    `web.TestSettingsNotifyBotTokenEnvNotStored`, the form in
     `notify-test.test.tsx`.
 
 - **Playing messages** (`internal/notify/playing.go`). When a file broke while someone was playing it, its outcome

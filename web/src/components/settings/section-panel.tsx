@@ -7,7 +7,7 @@ import { useVersions } from "@/api/settings-versions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useShowAdvanced } from "@/lib/settings-map";
-import { SectionFields, objectValue, type Config } from "./field-input";
+import { SectionFields, notifySaveConfig, objectValue, type Config } from "./field-input";
 import { changedPaths, emptySecrets, sectionSecrets, sectionErrors, withSecretParents } from "./section-draft";
 import { UnsavedBar } from "./unsaved-bar";
 import { sectionProblems } from "@/lib/field-checks";
@@ -99,6 +99,7 @@ function PanelEditor({ id, title, help, section: key, keys, onSaved }: Props) {
     if (k in value && next !== undefined) latest[k] = next; else delete latest[k];
    }
    Object.assign(latest, withSecretParents(latest, key, scoped));
+   if (key === "notify") notifySaveConfig(latest);
   }, credentials.secrets, credentials.clear_secrets);
  };
  return <div ref={ref}><Card id={id} className={`mb-4 scroll-mt-6 ${highlight ? "ring-2 ring-primary" : ""}`}>

@@ -619,3 +619,44 @@ func TestSettingsNotifyTelegramTarget(t *testing.T) {
 	}
 	se.noSecretAnywhere()
 }
+
+// A literal token pasted into bot_token_env (Edit as YAML) while a bot token is stored is refused before the stored
+// credential's reference takes the field's place, and the token is in no answer, log or audit row.
+func TestSettingsNotifyBotTokenEnvNotStored(t *testing.T) {
+	t.Parallel()
+	const pasted = "123456789:AAFakeBotTokenInvented0123456789"
+	se := seededSectionsEnvBase(t, func(p *policy.Policy) {
+		if p.Notify == nil {
+			p.Notify = &policy.Notify{}
+		}
+		p.Notify.Targets = map[string]*policy.NotifyTarget{"hook": {URL: "http://192.168.1.50:8080/hook", Native: true}}
+	})
+	config := findSection(t, se.want(se.call("GET", "/sections", nil), 200, "read"), "notify")["config"].(map[string]any)
+	config["targets"].(map[string]any)["tg"] = map[string]any{"format": "telegram", "chat_id": "-1001234567890"}
+	se.want(se.call("PUT", "/sections/notify", map[string]any{"generation": se.generation(), "config": config,
+		"secrets": map[string]string{"targets.tg.bot_token": testSecret}}), 200, "telegram target")
+	yamlText := findSection(t, se.want(se.call("GET", "/sections", nil), 200, "reread"), "notify")["yaml"].(string)
+	var value map[string]any
+	if err := yaml.Unmarshal([]byte(yamlText), &value); err != nil {
+		t.Fatal(err)
+	}
+	value["targets"].(map[string]any)["tg"].(map[string]any)["bot_token_env"] = pasted
+	edited, _ := yaml.Marshal(value)
+	got := se.want(se.call("PUT", "/sections/notify", map[string]any{"generation": se.generation(), "yaml": string(edited)}), 422, "pasted token")
+	if b, _ := json.Marshal(got); !strings.Contains(string(b), "not the token itself") {
+		t.Errorf("refusal %s", b)
+	}
+	se.want(se.call("GET", "/sections", nil), 200, "read after")
+	for i, b := range se.bodies {
+		if strings.Contains(b, pasted) || strings.Contains(b, "AAFake") {
+			t.Errorf("response %d shows the pasted token: %s", i, b)
+		}
+	}
+	if strings.Contains(se.logs.String(), "AAFake") {
+		t.Errorf("log shows the pasted token")
+	}
+	var leaked int
+	if err := se.st.Reader().QueryRow(`SELECT COUNT(*) FROM settings_audit WHERE before LIKE '%AAFake%' OR after LIKE '%AAFake%'`).Scan(&leaked); err != nil || leaked != 0 {
+		t.Errorf("audit rows with the token: %d %v", leaked, err)
+	}
+}

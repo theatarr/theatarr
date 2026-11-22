@@ -3,6 +3,7 @@ package notify
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -264,24 +265,31 @@ func TestTelegramPace(t *testing.T) {
 	}
 }
 
-// A 429 names its wait in parameters.retry_after (no Retry-After header): through the real gateway, one deadline is
-// used end to end (the gateway's back-off, the chat's slot and the outbox row), so with retries 1 the delivery goes
-// out on the second HTTP request; a retry the gateway refuses before sending counts no attempt.
+// A 429 names its wait in parameters.retry_after (no Retry-After header): through the real gateway, one absolute
+// deadline, taken when the answer is read, is used end to end (the gateway's back-off, the chat's slot and the outbox
+// row), so with retries 1 the delivery goes out on the second HTTP request; a retry the gateway refuses before
+// sending counts no attempt; nothing sleeps meanwhile. The answer takes 4 s, so a deadline counted from the start of
+// the round would be early.
 func TestTelegramRetryAfter(t *testing.T) {
 	t.Parallel()
 	e := newTelegramEnv(t, func(p *policy.Policy) { one := 1; p.Notify.Retries = &one })
 	ctx := context.Background()
 	var mu sync.Mutex
+	clock := e.now
+	now := func() time.Time { mu.Lock(); defer mu.Unlock(); return clock }
+	advance := func(d time.Duration) { mu.Lock(); defer mu.Unlock(); clock = clock.Add(d) }
 	var hits int
+	answers := []int{429, 200, 429}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
+		code := answers[min(hits, len(answers)-1)]
 		hits++
-		n := hits
 		mu.Unlock()
 		if !strings.HasSuffix(r.URL.Path, "/sendMessage") {
 			t.Errorf("path %s", r.URL.Path)
 		}
-		if n == 1 {
+		if code == 429 {
+			advance(4 * time.Second)
 			w.WriteHeader(http.StatusTooManyRequests)
 			_, _ = w.Write([]byte(`{"ok":false,"error_code":429,"description":"Too Many Requests: retry after 5","parameters":{"retry_after":5}}`))
 			return
@@ -300,12 +308,14 @@ func TestTelegramRetryAfter(t *testing.T) {
 	lookup := func(context.Context, string) ([]netip.Addr, error) {
 		return []netip.Addr{netip.MustParseAddr("192.0.2.10")}, nil
 	}
-	gw, err := gateway.New(ctx, e.pol, gateway.Options{DialContext: dial, LookupIP: lookup, Now: func() time.Time { return e.now },
+	gw, err := gateway.New(ctx, e.pol, gateway.Options{DialContext: dial, LookupIP: lookup, Now: now,
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.n.doer, e.n.tgAPI = gw, "http://api.telegram.org"
+	var slept []time.Duration
+	e.n.doer, e.n.tgAPI, e.n.now = gw, "http://api.telegram.org", now
+	e.n.sleep = func(_ context.Context, d time.Duration) error { slept = append(slept, d); return nil }
 	if err := e.n.Test(ctx, "tg"); err != nil {
 		t.Fatal(err)
 	}
@@ -316,36 +326,46 @@ func TestTelegramRetryAfter(t *testing.T) {
 		var state string
 		var attempts int
 		var next int64
-		if err := e.st.Reader().QueryRow(`SELECT state, attempts, next_at FROM notify_delivery WHERE target = 'policy:tg'`).
-			Scan(&state, &attempts, &next); err != nil {
+		var status sql.NullInt64
+		if err := e.st.Reader().QueryRow(`SELECT state, attempts, next_at, last_status FROM notify_delivery WHERE target = 'policy:tg'`).
+			Scan(&state, &attempts, &next, &status); err != nil {
 			t.Fatal(err)
 		}
-		return fmt.Sprintf("%s %d %+ds", state, attempts, (next-e.now.UnixMilli())/1000)
+		return fmt.Sprintf("%s %d %+ds %d", state, attempts, (next-now().UnixMilli())/1000, status.Int64)
 	}
-	if got := row(); got != "pending 1 +5s" {
+	if got := row(); got != "pending 1 +5s 429" {
 		t.Errorf("after the 429: %s", got)
 	}
 	// Send test inside the wait says how long, sends nothing.
-	if err := e.n.SendTest(ctx, "tg"); err == nil || !strings.Contains(err.Error(), "try again in 5 s") || requests() != 1 {
+	if err := e.n.SendTest(ctx, "tg"); err == nil || !strings.Contains(err.Error(), "try again in 5 s") ||
+		strings.Contains(err.Error(), "asked by Telegram") || requests() != 1 {
 		t.Errorf("test inside the wait: %v, %d requests", err, requests())
 	}
 	// A due retry the gateway refuses before sending (the slot forgotten, as after a restart) counts no attempt and
 	// waits for the same deadline.
-	e.now = e.now.Add(2 * time.Second)
+	advance(2 * time.Second)
 	e.n.tgNext = nil
 	e.exec(`UPDATE notify_delivery SET next_at = 0`)
 	if sent, err := e.n.SendDue(ctx, 50); err != nil || sent != 0 || requests() != 1 {
 		t.Fatalf("refused retry: sent %d %v, %d requests", sent, err, requests())
 	}
-	if got := row(); got != "pending 1 +3s" {
+	if got := row(); got != "pending 1 +3s 429" {
 		t.Errorf("after the refusal: %s", got)
 	}
-	e.now = e.now.Add(3 * time.Second)
+	advance(3 * time.Second)
 	if sent, err := e.n.SendDue(ctx, 50); err != nil || sent != 1 || requests() != 2 {
 		t.Fatalf("retry: sent %d %v, %d requests", sent, err, requests())
 	}
 	if got := row(); !strings.HasPrefix(got, "sent 2") {
 		t.Errorf("after the retry: %s", got)
+	}
+	// A Send test answered with 429 says so and how long to wait.
+	advance(time.Minute)
+	if err := e.n.SendTest(ctx, "tg"); err == nil || !strings.Contains(err.Error(), "429") || !strings.Contains(err.Error(), "5 s") {
+		t.Errorf("test 429: %v", err)
+	}
+	if len(slept) != 0 {
+		t.Errorf("slept %v", slept)
 	}
 }
 

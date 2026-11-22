@@ -197,6 +197,10 @@ func (w *Web) apiSettingsSectionWrite(rw http.ResponseWriter, r *http.Request) {
 		w.settingsError(rw, r, err, scrub)
 		return
 	}
+	if err := settings.SectionBotTokenEnvs(key, section.Config); err != nil {
+		w.settingsError(rw, r, err, scrub)
+		return
+	}
 	writes := map[string]settings.Secret{}
 	for path, value := range body.Secrets {
 		if value == "" {

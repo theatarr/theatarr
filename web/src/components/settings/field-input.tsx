@@ -156,7 +156,7 @@ export function FieldInput(p: FieldInputProps) {
     case "keyed": {
       const records = objectValue(value);
       const managed = path === "library.versions";
-      control = <div className="grid gap-3">{Object.entries(records).map(([key, record]) => <KeyedRecord key={key} {...p} name={key} records={records} managed={managed}>{path === "notify.targets" ? children(objectValue(record), `${path}.${key}`, (v) => onChange({ ...records, [key]: notifyTargetChange(objectValue(record), v) }), objectValue(p.saved)[key], notifyTargetFields(f.fields ?? [], objectValue(record).format)) : children(objectValue(record), `${path}.${key}`, (v) => onChange({ ...records, [key]: v }), objectValue(p.saved)[key])}</KeyedRecord>)}{!managed ? <div className="flex gap-2"><Input aria-label={`New ${label} name`} placeholder="Name" value={newName} disabled={disabled} onChange={(e) => setNewName(e.target.value)} /><Button type="button" disabled={disabled || !newName.trim() || Object.hasOwn(records, newName.trim())} onClick={() => { onChange({ ...records, [newName.trim()]: {} }); setNewName(""); }}>{addLabel(f)}</Button>{newName && Object.hasOwn(records, newName.trim()) ? <p role="alert">That name already exists.</p> : null}</div> : null}</div>; break;
+      control = <div className="grid gap-3">{Object.entries(records).map(([key, record]) => <KeyedRecord key={key} {...p} name={key} records={records} managed={managed}>{path === "notify.targets" ? children(objectValue(record), `${path}.${key}`, (v) => { const format = objectValue(v).format; if (format !== objectValue(record).format) { const next = dropHiddenDrafts(p.secretDraft, `${path}.${key}.`, format); if (next) p.onSecrets?.(next); } onChange({ ...records, [key]: v }); }, objectValue(p.saved)[key], notifyTargetFields(f.fields ?? [], objectValue(record).format)) : children(objectValue(record), `${path}.${key}`, (v) => onChange({ ...records, [key]: v }), objectValue(p.saved)[key])}</KeyedRecord>)}{!managed ? <div className="flex gap-2"><Input aria-label={`New ${label} name`} placeholder="Name" value={newName} disabled={disabled} onChange={(e) => setNewName(e.target.value)} /><Button type="button" disabled={disabled || !newName.trim() || Object.hasOwn(records, newName.trim())} onClick={() => { onChange({ ...records, [newName.trim()]: {} }); setNewName(""); }}>{addLabel(f)}</Button>{newName && Object.hasOwn(records, newName.trim()) ? <p role="alert">That name already exists.</p> : null}</div> : null}</div>; break;
     }
     case "object_list": case "list": {
       const rows = Array.isArray(value) ? value : [];
@@ -252,21 +252,42 @@ function KeyedRecord(p: FieldInputProps & { name: string; records: Config; manag
   </> : null}{p.children}{path === "notify.targets" && !renaming ? <NotifyTestButton name={name} disabled={disabled} /> : null}{!p.managed ? <Button type="button" variant="outline" disabled={disabled} onClick={() => { moveDraft(); p.onChange(changeField(records, name, undefined)); }}>Remove {name}</Button> : null}</details>;
 }
 
-// A notification destination shows the fields of its format: a Telegram one its chat ID and bot token (no URL, views,
-// Theatarr events or Authorization header), the others no Telegram fields.
-const TELEGRAM_ONLY = ["chat_id", "bot_token", "bot_token_env"];
-const NOT_TELEGRAM = ["url", "views", "native", "auth_header", "auth_header_env"];
+// A notification destination offers only what its format takes (internal/policy validateNotify, notify deliveries):
+// views and Theatarr events only on a JSON destination; warnings only on a message one; a Telegram one its chat ID and
+// bot token, no URL and no Authorization header.
+const NOTIFY_HIDDEN: Record<string, string[]> = {
+  "": ["warnings", "chat_id", "bot_token", "bot_token_env"],
+  discord: ["views", "native", "chat_id", "bot_token", "bot_token_env"],
+  ntfy: ["views", "native", "chat_id", "bot_token", "bot_token_env"],
+  telegram: ["url", "views", "native", "auth_header", "auth_header_env"],
+};
+const notifyHidden = (format: unknown) => NOTIFY_HIDDEN[typeof format === "string" ? format : ""] ?? [];
 export function notifyTargetFields(fields: SchemaField[], format: unknown): SchemaField[] {
-  const hide = format === "telegram" ? NOT_TELEGRAM : TELEGRAM_ONLY;
+  const hide = notifyHidden(format);
   return fields.filter((f) => !hide.includes(f.name));
 }
-/** A destination turned into a Telegram one drops its URL and views (a Telegram destination takes neither). */
-export function notifyTargetChange(before: Config, next: Config): Config {
-  if (next.format !== "telegram" || before.format === "telegram") return next;
-  const rest = { ...next };
-  delete rest.url;
-  delete rest.views;
-  return rest;
+/** The notify section as saved: each destination drops the hidden fields the server refuses for its final format (a
+ * Telegram one's URL and views, a message destination's views, a JSON one's warnings). Switching formats in the
+ * form keeps them until Save, so switching back loses nothing. */
+export function notifySaveConfig(section: Config): void {
+  const targets = objectValue(section.targets);
+  for (const [name, raw] of Object.entries(targets)) {
+    const t = { ...objectValue(raw) };
+    const format = typeof t.format === "string" ? t.format : "";
+    for (const k of format === "telegram" ? ["url", "views"] : format ? ["views"] : ["warnings"]) delete t[k];
+    targets[name] = t;
+  }
+}
+/** A format switch that hides a credential whose Set box is open and empty drops that draft, so Save is not held by a
+ * field nobody can see. */
+function dropHiddenDrafts(draft: SecretDraft | undefined, prefix: string, format: unknown): SecretDraft | undefined {
+  if (!draft) return undefined;
+  const hidden = notifyHidden(format).map((k) => prefix + k);
+  const gone = hidden.filter((path) => draft.actions[path] === "replace" && !draft.values[path]);
+  if (!gone.length) return undefined;
+  const actions = { ...draft.actions };
+  for (const path of gone) delete actions[path];
+  return { ...draft, actions };
 }
 
 /** "Add folder", "Add destination": the add button names one of the things the list holds. */

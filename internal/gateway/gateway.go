@@ -89,6 +89,10 @@ type Target struct {
 	// (a FlareSolverr solve sends nothing until its browser is done, up to its maxTimeout). A request that runs out
 	// of it is not counted as the target's failure.
 	Wait time.Duration
+	// RetryAfterByCaller: a 429 without a Retry-After header names its wait in the body, which the caller reads
+	// (Telegram's parameters.retry_after). The gateway then sets no back-off of its own; the caller sets the one
+	// deadline with SetRetryAfter.
+	RetryAfterByCaller bool
 }
 
 func (t Target) String() string { return string(t.Class) + ":" + t.Key }
@@ -682,6 +686,8 @@ func (g *Gateway) send(ctx context.Context, ti *targetInfo, t Target, req *http.
 	g.metrics.requests.WithLabelValues(host, ti.name, status).Inc()
 	attrs = append(attrs, "code", resp.StatusCode)
 	switch {
+	case resp.StatusCode == http.StatusTooManyRequests && t.RetryAfterByCaller && resp.Header.Get("Retry-After") == "":
+		g.log.Warn("rate limited", attrs...) // the caller sets the back-off (SetRetryAfter)
 	case resp.StatusCode == http.StatusTooManyRequests ||
 		(resp.StatusCode == http.StatusServiceUnavailable && resp.Header.Get("Retry-After") != ""):
 		g.rateLimited(bg, ti, resp, now)
@@ -714,6 +720,27 @@ func (g *Gateway) send(ctx context.Context, ti *targetInfo, t Target, req *http.
 // rateLimited backs off the target's budget, or the target alone, after a 429 or a 503 with Retry-After (see
 // scopeRateLimits for which).
 func (g *Gateway) rateLimited(ctx context.Context, ti *targetInfo, resp *http.Response, now time.Time) {
+	d, ok := parseRetryAfter(resp.Header.Get("Retry-After"), now)
+	g.backOff429(ctx, ti, resp.StatusCode, d, ok, "Retry-After", now)
+}
+
+// SetRetryAfter sets the back-off of a 429 answered to a RetryAfterByCaller request: until the deadline the caller
+// read in the body, or the headerless default when until is zero (the body named none). It is the only back-off
+// written for that answer.
+func (g *Gateway) SetRetryAfter(ctx context.Context, t Target, until time.Time) {
+	g = g.forContext(ctx)
+	ti := g.targets[t.String()]
+	if ti == nil {
+		return
+	}
+	now := g.now()
+	g.backOff429(context.WithoutCancel(ctx), ti, http.StatusTooManyRequests, max(until.Sub(now), 0), !until.IsZero(),
+		"retry_after", now)
+}
+
+// backOff429 backs off the target's budget, or the target alone, for d (named by the answer: ok) or the headerless
+// default.
+func (g *Gateway) backOff429(ctx context.Context, ti *targetInfo, code int, d time.Duration, ok bool, named string, now time.Time) {
 	subject := ti.name
 	if ti.budget != "" && ti.limitBudget {
 		subject = "budget:" + ti.budget
@@ -721,36 +748,16 @@ func (g *Gateway) rateLimited(ctx context.Context, ti *targetInfo, resp *http.Re
 	} else {
 		g.metrics.targetBackoffs.WithLabelValues(ti.name).Inc()
 	}
-	d, ok := parseRetryAfter(resp.Header.Get("Retry-After"), now)
-	reason := fmt.Sprintf("HTTP %d", resp.StatusCode)
+	reason := fmt.Sprintf("HTTP %d", code)
 	if ok {
 		d = min(d, maxRetryAfter)
-		reason += ", Retry-After " + d.String()
+		reason += ", " + named + " " + d.String()
 	} else {
 		n := g.health.failures(subject)
 		d = min(first429Backoff<<min(n, 10), max429Backoff)
 	}
 	g.health.setBackoff(ctx, subject, now.Add(d), reason, true, now)
 	g.log.Warn("back-off", "subject", subject, "for", d.String(), "reason", reason)
-}
-
-// SetRetryAfter makes the back-off a 429 just put on t (or its budget, as rateLimited chose) end after d: the wait the
-// answer named in its body instead of a Retry-After header (Telegram's parameters.retry_after), which the gateway does
-// not read. d replaces the headerless default, shorter or longer, at most maxRetryAfter.
-func (g *Gateway) SetRetryAfter(ctx context.Context, t Target, d time.Duration) {
-	g = g.forContext(ctx)
-	ti := g.targets[t.String()]
-	if ti == nil || d <= 0 {
-		return
-	}
-	subject := ti.name
-	if ti.budget != "" && ti.limitBudget {
-		subject = "budget:" + ti.budget
-	}
-	d = min(d, maxRetryAfter)
-	now := g.now()
-	g.health.resetBackoff(context.WithoutCancel(ctx), subject, now.Add(d), "HTTP 429, retry_after "+d.String(), now)
-	g.log.Warn("back-off", "subject", subject, "for", d.String(), "reason", "HTTP 429, retry_after in the body")
 }
 
 // targetFailure counts a failure and backs the target off after failuresBeforeBackoff in a row.

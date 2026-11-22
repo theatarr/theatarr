@@ -52,7 +52,7 @@ Theatarr sends notifications as webhooks: a generic JSON webhook (arr-shaped pay
 format (built from Telegram's Bot API documentation, not yet tested against Telegram's servers). There is no
 built-in email, Gotify or Pushover target.
 
-A Discord, ntfy or Telegram target gets a message when a health check starts failing and when it stops, for new errors,
+A Discord, ntfy or Telegram target gets a message when a health check starts failing and when it stops, for
 the daily digest, a request that is ready, and a file that broke while someone was playing it (replaced, no other
 copy, or the earlier copy put back). Health warnings, such as a mount that stopped answering, are not
 sent at once unless you turn **Also send warnings** on for that target (**Settings › Notifications ›

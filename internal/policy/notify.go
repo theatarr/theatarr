@@ -84,6 +84,13 @@ const TelegramAPI = "https://api.telegram.org"
 // telegramChat is a Telegram chat id: a number (negative for groups and channels) or a public @username.
 var telegramChat = regexp.MustCompile(`^(-?[0-9]{1,20}|@[A-Za-z][A-Za-z0-9_]{3,})$`)
 
+// BotTokenEnvRefused is the refusal of a bot_token_env that is not an environment variable name: it never quotes the
+// value, which is most likely the bot token itself.
+const BotTokenEnvRefused = "want the name of an environment variable (A-Z, 0-9, _), not the token itself"
+
+// IsEnvName reports whether v is an environment variable name (A-Z, 0-9, _), as the *_env fields take.
+func IsEnvName(v string) bool { return envRE.MatchString(v) }
+
 // Endpoint is where target t sends: TelegramAPI for a Telegram target (its URL is never used), else its URL.
 func (t *NotifyTarget) Endpoint() string {
 	if t.Format == NotifyFormatTelegram {
@@ -293,7 +300,7 @@ func (p *Policy) validateNotify(e *Errors) {
 		}
 		// Never echoed: a bot token pasted here instead of a variable name must not reach a log or an answer.
 		if t.BotTokenEnv != "" && !envRE.MatchString(t.BotTokenEnv) {
-			e.add(path+".bot_token_env", "want the name of an environment variable (A-Z, 0-9, _), not the token itself")
+			e.add(path+".bot_token_env", BotTokenEnvRefused)
 		}
 		checkEnv(e, path+".auth_header_env", t.AuthHeaderEnv, false)
 	}

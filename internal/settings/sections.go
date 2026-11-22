@@ -279,6 +279,31 @@ func stripOwned(key string, m map[string]any) {
 	}
 }
 
+// SectionBotTokenEnvs refuses a notify target's bot_token_env that is not an environment variable name, as submitted:
+// before a stored credential's reference replaces the field (applySection), so a token pasted there is never saved or
+// shown, and the refusal does not quote it.
+func SectionBotTokenEnvs(key string, config json.RawMessage) error {
+	if key != "notify" {
+		return nil
+	}
+	var m struct {
+		Targets map[string]map[string]any `json:"targets"`
+	}
+	if json.Unmarshal(config, &m) != nil {
+		return nil
+	}
+	var list []policy.FieldError
+	for _, name := range sortedPolicyKeys(m.Targets) {
+		if s, ok := m.Targets[name]["bot_token_env"].(string); ok && s != "" && !policy.IsEnvName(s) {
+			list = append(list, policy.FieldError{Path: "notify.targets[" + name + "].bot_token_env", Msg: policy.BotTokenEnvRefused})
+		}
+	}
+	if len(list) > 0 {
+		return &policy.Errors{List: list}
+	}
+	return nil
+}
+
 // SectionOwnedElsewhere refuses fields of a submitted section that other editors own.
 func SectionOwnedElsewhere(key string, config json.RawMessage) error {
 	var m map[string]any
