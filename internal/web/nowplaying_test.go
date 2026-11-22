@@ -110,6 +110,9 @@ func TestPlayingHistoryRows(t *testing.T) {
 			release_title, quality, episodes, broken_at, updated_at)
 			VALUES (?, ?, 1, ?, 9, 'movie-web', '/media/Alpha.mkv', '/mnt/old/Alpha.mkv', 'Alpha.2020.1080p-OLD',
 			'WEBDL-1080p', '[]', 1, 1)`, id, id, 10+id)
+		// A file of the release found broken with it: the row is about the watched file, with no count.
+		e.exec(`INSERT INTO playing_break (id, incident, watched, link_id, title_id, version_key, path, old_target, episodes,
+			broken_at, updated_at) VALUES (?, ?, 0, ?, 9, 'movie-web', '/media/x', '/mnt/x', '[]', 1, 1)`, 100+id, id, 20+id)
 		store.HistoryPlaying(ctx, e.st.Writer(), int64(id), kind, int64(1000*(id+1)))
 	}
 	key := e.apiKey()
@@ -120,7 +123,7 @@ func TestPlayingHistoryRows(t *testing.T) {
 	words := map[string]string{}
 	for _, h := range hist.History {
 		if h.Event != journal.EvPlaying || h.Release != "Alpha.2020.1080p-OLD" || h.Quality != "WEBDL-1080p" ||
-			h.Reason == "" || h.Entry != "" {
+			h.Reason == "" || h.Entry != "" || h.Files != 0 {
 			t.Errorf("row %+v", h)
 		}
 		words[h.Words] = h.Tone
