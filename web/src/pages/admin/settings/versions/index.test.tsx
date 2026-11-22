@@ -693,6 +693,29 @@ describe("Versions page", () => {
     expect(within(dialog).queryAllByTestId("confirm-group")).toHaveLength(0);
   });
 
+  it("says in plain words which connected app mappings stop a library from being stopped, and links Connected apps (F31)", async () => {
+    const fields = [
+      { path: "views[radarr].profiles[Rules default]", message: 'library "movie-web" is not served by this view' },
+      { path: "views[radarr].profiles[WEB only]", message: 'library "movie-web" is not served by this view' },
+      { path: "views[radarr].versions[1]", message: 'unknown library "movie-web"' },
+    ];
+    mockFetch([
+      ...getRoutes(),
+      { method: "POST", path: "/settings/versions/confirm", reply: json({ error: `settings refused: ${fields[0].path}: ${fields[0].message}`, detail: fields.map((f) => `${f.path}: ${f.message}`), fields }, 422) },
+    ]);
+    const user = userEvent.setup();
+    renderPage(<VersionsPage />);
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    await user.click(screen.getByRole("button", { name: "Stop managing library" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Connected apps still use this library");
+    expect(alert.textContent).toContain('radarr: profile mapping "Rules default"');
+    expect(alert.textContent).toContain('radarr: profile mapping "WEB only"');
+    expect(alert.textContent).toContain("radarr: its library list");
+    expect(alert.textContent).not.toMatch(/views\[|not served by this view/);
+    expect(within(alert).getByRole("link", { name: "Settings › Connected apps" }).getAttribute("href")).toBe("/admin/settings/apps");
+  });
+
   it("lets a stale editor reload the new generation and keep its changes", async () => {
     let reads = 0;
     const fetch = mockFetch([

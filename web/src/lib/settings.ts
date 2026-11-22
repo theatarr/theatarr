@@ -85,6 +85,8 @@ export type Explained = {
   retryAfter?: number;
   /** Offer to reload the settings. */
   reload?: boolean;
+  /** A settings page that fixes it. */
+  link?: { to: string; label: string };
 };
 
 const count = (s: string, re: RegExp) => {
@@ -158,6 +160,15 @@ export function fieldWords(path: string): string {
   const keyed = /^(indexers|providers|profiles|clients)\[([^\]]+)\]\.(.+)$/.exec(path);
   if (keyed) return `${KEYED_WORDS[keyed[1]]} ${keyed[2]}, ${pathRest(keyed[3].split("."))}`;
   return path;
+}
+
+/** A validation error about a connected app (views[...]) naming a library it no longer has, in words:
+ *  "radarr: profile mapping "WEB only"", "radarr: its library list"; undefined for any other error. */
+function appUse(path: string, message: string): string | undefined {
+  if (!/is not served by this view|unknown library/.test(message)) return undefined;
+  const m = /^views\[([^\]]+)\]\.(profiles|versions)(?:\[([^\]]*)\])?/.exec(path);
+  if (!m) return undefined;
+  return m[2] === "profiles" ? `${m[1]}: profile mapping "${m[3] ?? ""}"` : `${m[1]}: its library list`;
 }
 
 export function explainError(e: unknown, now = Date.now()): Explained {
@@ -259,6 +270,17 @@ export function explainError(e: unknown, now = Date.now()): Explained {
         };
       }
       const fields = Array.isArray(body.fields) ? (body.fields as { path?: unknown; message?: unknown }[]) : [];
+      // A library that a connected app still maps or lists (stopping it, for one): name each app's mapping in words.
+      const apps = fields.map((f) => appUse(String(f.path ?? ""), String(f.message ?? "")));
+      if (apps.length && apps.every((a) => a !== undefined)) {
+        return {
+          kind: "validation",
+          title: "Connected apps still use this library",
+          message: "Nothing was saved. Take the library out of these app settings first, then try again:",
+          detail: [...new Set(apps as string[])],
+          link: { to: "/admin/settings/apps", label: "Settings › Connected apps" },
+        };
+      }
       if (fields.length) {
         const lines = fields.map((f) => `${fieldWords(String(f.path ?? ""))}: ${String(f.message ?? "")}`);
         return {

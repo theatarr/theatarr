@@ -173,7 +173,9 @@ cannot undo provider adds or filesystem changes.
 ### Stopping or removing a library
 
 With DB settings, edit root and view bindings in **Admin › Settings › Libraries**. Pause stops new work;
-**Stop managing library** removes the library after a confirmation that names what it leaves behind.
+**Stop managing library** removes the library after a confirmation that names what it leaves behind. While a
+connected app still maps a profile to it or lists it, nothing is saved: the error names each of those app settings
+and links Settings › Connected apps, where you take the library out first.
 
 A paused library keeps its links, and Plex keeps showing them. A removed library's entries on every title go
 (versions, monitoring, wanted state, downloads, the link rows it alone holds, its own view rows), while its symlinks

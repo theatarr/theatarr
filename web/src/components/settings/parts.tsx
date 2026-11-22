@@ -3,6 +3,7 @@
 // a plain view over its props, so the tests render them directly.
 import { AlertTriangle, Database, FileText, KeyRound, Loader2, RotateCcw } from "lucide-react";
 import { cloneElement, Fragment, isValidElement, useCallback, useId, useState, type ReactNode } from "react";
+import { Link } from "react-router";
 import type { SettingsOverview, SettingsTestResult } from "@/api/settings";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -95,9 +96,10 @@ export function ExplainBox({
         <div className="font-medium">{error.title}</div>
         <p>{error.message}</p>
         {error.server ? <p className="text-xs opacity-80">Server: {error.server}</p> : null}
-        {error.detail && error.detail.length > 1 ? (
+        {error.detail && (error.detail.length > 1 || error.link) ? (
           <ul className="list-disc pl-5 text-xs opacity-90">{error.detail.map((d, i) => <li key={i}>{d}</li>)}</ul>
         ) : null}
+        {error.link ? <p><Link className="underline" to={error.link.to}>{error.link.label}</Link></p> : null}
         {error.reload && onReload && onReloadKeep ? (
           <div className="flex flex-wrap gap-2 pt-1">
             <Button type="button" size="xs" variant="outline" onClick={onReload} data-testid="settings-reload">
