@@ -3,6 +3,7 @@ package nowplaying
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path"
 	"path/filepath"
 	"slices"
@@ -100,7 +101,7 @@ func (t *Tracker) noteSign(se *session, live bool, why string, now time.Time) {
 		return
 	}
 	id := se.src.LinkID
-	if at, ok := t.quiet[id]; ok && now.Before(at) {
+	if at, ok := t.quiet[copyKey(id, se.src.Target)]; ok && now.Before(at) {
 		return
 	}
 	for i, q := range t.signs {
@@ -285,10 +286,25 @@ func pieceOffset(viewMs, durationMs, size int64) int64 {
 }
 
 // quietFor keeps a file from being checked again until d from now.
-func (t *Tracker) quietFor(id int64, d time.Duration) {
+// copyKey names one copy of a file: its link and the target it points at. A replacement at the same path is another
+// copy, checked on its own (the day's bound decides what is done for it).
+func copyKey(id int64, target string) string { return fmt.Sprintf("%d\x00%s", id, target) }
+
+// clearPending drops the messages still owed to playbacks of a link: its file reads again.
+func (t *Tracker) clearPending(id int64) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.quiet[id] = t.o.Now().Add(d)
+	for k, p := range t.pending {
+		if p.j.src.LinkID == id {
+			delete(t.pending, k)
+		}
+	}
+}
+
+func (t *Tracker) quietFor(id int64, target string, d time.Duration) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.quiet[copyKey(id, target)] = t.o.Now().Add(d)
 	for k, at := range t.quiet {
 		if t.o.Now().After(at) {
 			delete(t.quiet, k)
@@ -300,7 +316,14 @@ func (t *Tracker) quietFor(id int64, d time.Duration) {
 func (t *Tracker) check(ctx context.Context, lib Rescuer, j *sign) {
 	src := &j.src
 	log := t.o.Logger.With("title", src.Title, "version", src.version, "link_id", src.LinkID, "sign", j.why)
-	fine := func() { t.quietFor(src.LinkID, readFineFor) }
+	fine := func() { t.quietFor(src.LinkID, src.Target, readFineFor) }
+	// passed: a read that passed ends the check, and any message still owed to a playback of the file.
+	passed := func(r readResult) {
+		if r == readOK {
+			t.clearPending(src.LinkID)
+		}
+		fine()
+	}
 	var state string
 	if err := t.o.Store.Reader().QueryRowContext(ctx, `SELECT state FROM link WHERE id = ?`, src.LinkID).
 		Scan(&state); err != nil || state != "active" || !lib.PlayingWritable(src.version) {
@@ -320,13 +343,17 @@ func (t *Tracker) check(ctx context.Context, lib Rescuer, j *sign) {
 		return
 	}
 	off := pieceOffset(j.s.ViewOffset, j.s.Duration, size)
-	if t.read(ctx, lib, src.Target, off) != readFailed {
-		fine()
+	if r := t.read(ctx, lib, src.Target, off); r != readFailed {
+		passed(r)
 		return
 	}
 	log.Info("nowplaying: a playing file did not read; reading it again", "offset", off)
-	if t.sleep(ctx, retryGap) != nil || t.read(ctx, lib, src.Target, off) != readFailed {
+	if t.sleep(ctx, retryGap) != nil {
 		fine()
+		return
+	}
+	if r := t.read(ctx, lib, src.Target, off); r != readFailed {
+		passed(r)
 		return
 	}
 	if err := lib.MountListed(ctx); err != nil {
@@ -346,8 +373,8 @@ func (t *Tracker) check(ctx context.Context, lib Rescuer, j *sign) {
 		fine()
 		return
 	}
-	if t.read(ctx, lib, src.Target, off) != readFailed {
-		fine()
+	if r := t.read(ctx, lib, src.Target, off); r != readFailed {
+		passed(r)
 		return
 	}
 	if lib = t.live(src.version); lib == nil {
@@ -357,7 +384,7 @@ func (t *Tracker) check(ctx context.Context, lib Rescuer, j *sign) {
 	}
 	log.Info("nowplaying: a playing file stopped working", "where", verdict.where, "serving", verdict.serving,
 		"hash", hash)
-	t.quietFor(src.LinkID, 24*time.Hour)
+	t.quietFor(src.LinkID, src.Target, 24*time.Hour)
 	t.repair(ctx, lib, j, hash, off, verdict)
 }
 
@@ -521,6 +548,7 @@ func (t *Tracker) repair(ctx context.Context, lib Rescuer, j *sign, hash string,
 			t.settleQuiet(ctx, id)
 			return
 		case copyReadable:
+			t.clearPending(src.LinkID)
 			if err := lib.SettlePlayingIncident(ctx, id, "copy"); err != nil {
 				log.Warn("nowplaying: incident not settled", "err", err)
 			}
@@ -669,7 +697,7 @@ func (t *Tracker) siblings(ctx context.Context, lib Rescuer, j *sign, id int64) 
 			t.o.Logger.Info("nowplaying: a broken file of the release was not marked", "link_id", f.id, "err", err)
 			continue
 		}
-		t.quietFor(f.id, 24*time.Hour)
+		t.quietFor(f.id, f.target, 24*time.Hour)
 		t.o.Logger.Info("nowplaying: another file of the release stopped working", "link_id", f.id,
 			"file", filepath.Base(f.target), "incident", id)
 	}
@@ -729,6 +757,9 @@ func (t *Tracker) tell(ctx context.Context, j *sign, msg string, incident int64)
 		t.mu.Unlock()
 		return
 	}
+	if incident != 0 && t.incidentRecovered(ctx, incident) {
+		return // the file reads again (another account took it, or the old copy came back)
+	}
 	note := "the player was stopped with the message: " + msg
 	if err := stopper.Terminate(ctx, j.s.ID, msg); err != nil {
 		note = "Plex refused to stop the player: " + err.Error()
@@ -750,6 +781,13 @@ func (t *Tracker) tell(ctx context.Context, j *sign, msg string, incident int64)
 			t.o.Logger.Debug("nowplaying: incident message not kept", "err", err)
 		}
 	}
+}
+
+// incidentRecovered reports whether an incident's watched file reads again: settled copy, revived or restored.
+func (t *Tracker) incidentRecovered(ctx context.Context, incident int64) bool {
+	var settled string
+	_ = t.o.Store.Reader().QueryRowContext(ctx, `SELECT settled FROM playing_break WHERE id = ?`, incident).Scan(&settled)
+	return settled == "copy" || settled == "revived" || settled == "restored"
 }
 
 // realSleep waits d or until ctx ends.

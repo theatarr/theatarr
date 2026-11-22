@@ -117,11 +117,11 @@ type Tracker struct {
 	warming   bool
 	cached    map[string]bool // session key + link id: its caching read started
 	caching   *cacheJob       // the one caching read running, server-wide
-	// The check of a file that seems broken (rescue.go): the signs waiting, whether the worker runs, the files not to
-	// check again before a time, and when the incidents were last settled.
+	// The check of a file that seems broken (rescue.go): the signs waiting, whether the worker runs, the copies (link
+	// and target, copyKey) not to check again before a time, and when the incidents were last settled.
 	signs     []sign
 	rescuing  bool
-	quiet     map[int64]time.Time
+	quiet     map[string]time.Time
 	settledAt time.Time
 	// comeBackAt is the sweep after which the old copies were last read (the worker's own).
 	comeBackAt time.Time
@@ -262,7 +262,7 @@ func New(o Options) *Tracker {
 		o.PrewarmMaxSize = policy.DefaultPrewarmMaxSize
 	}
 	return &Tracker{o: o, wake: make(chan struct{}, 1), sess: map[string]*session{}, warmed: map[string]bool{},
-		cached: map[string]bool{}, quiet: map[int64]time.Time{}, pending: map[string]*pendingTell{}, sleep: realSleep}
+		cached: map[string]bool{}, quiet: map[string]time.Time{}, pending: map[string]*pendingTell{}, sleep: realSleep}
 }
 
 // Run polls until ctx ends, and follows the notification websocket meanwhile.

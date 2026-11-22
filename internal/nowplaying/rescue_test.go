@@ -236,9 +236,9 @@ func newRescueEnv(t *testing.T, client, zurg bool) *rescueEnv {
 	e.plex = &fakePlex{}
 	e.stop = &stoppingPlex{fakePlex: e.plex}
 	o := Options{Plex: e.stop, Store: st, Mount: func() Mount { return e.lib }, LinkPath: e.mount, MountPath: e.mount,
-		Now: e.now, Readlink: func(p string) (string, error) { // Theatarr's links point into Rel
+		Now: e.now, Readlink: func(p string) (string, error) { // the symlinks on disk, under the library root only
 			if strings.HasPrefix(p, shows+"/") {
-				return filepath.Join(e.mount, "__all__", "Rel", filepath.Base(p)), nil
+				return os.Readlink(p)
 			}
 			return "", errors.New("not a link")
 		},
@@ -604,7 +604,7 @@ func TestRescueBound(t *testing.T) {
 	e.exec(`DELETE FROM playing_break WHERE link_id = 12`) // E03 was found with E02: start from a fresh one
 	e.exec(`UPDATE link SET state = 'active' WHERE id = 12`)
 	e.tr.mu.Lock()
-	delete(e.tr.quiet, 12)
+	delete(e.tr.quiet, copyKey(12, filepath.Join(e.mount, "__all__", "Rel", "S01E03.mkv")))
 	e.tr.mu.Unlock()
 	e.play(3, "buffering")
 	e.poll()
@@ -814,7 +814,7 @@ func TestRescueMessageLaterAndRefusal(t *testing.T) {
 	e.exec(`DELETE FROM playing_break WHERE link_id = 12`)
 	e.exec(`UPDATE link SET state = 'active' WHERE id = 12`)
 	e.tr.mu.Lock()
-	delete(e.tr.quiet, 12)
+	delete(e.tr.quiet, copyKey(12, filepath.Join(e.mount, "__all__", "Rel", "S01E03.mkv")))
 	e.tr.mu.Unlock()
 	e.lib.setBroken("S01E03.mkv", -1)
 	e.advance(time.Hour)
@@ -894,5 +894,74 @@ func TestRescuePauseDuringConfirmation(t *testing.T) {
 	}
 	if got := e.stop.stopped(); len(got) != 0 {
 		t.Errorf("stops %q", got)
+	}
+}
+
+// A message still owed to an advancing playback is dropped when the file reads again (the same release from another
+// account): a later buffering sign stops nothing.
+func TestRescuePendingMessageDroppedWhenReadable(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.lib.setBroken("S01E02.mkv", 6) // reads 1-3, then the re-reads at 10, 20 and 30 s; the one at 40 s passes
+	e.copyOK["ad"] = true
+	e.play(2, "playing")
+	e.plex.mu.Lock()
+	e.plex.ss[0].State = "buffering"
+	e.plex.mu.Unlock()
+	e.tr.sleep = func(ctx context.Context, d time.Duration) error {
+		e.advance(d)
+		e.plex.mu.Lock()
+		e.plex.ss[0].State = "playing"
+		e.plex.ss[0].ViewOffset += d.Milliseconds()
+		e.plex.mu.Unlock()
+		return ctx.Err()
+	}
+	e.poll()
+	if got := e.one(`SELECT settled FROM playing_break WHERE link_id = 11`); got != "copy" {
+		t.Fatalf("incident %q", got)
+	}
+	e.plex.mu.Lock()
+	e.plex.ss[0].State = "buffering"
+	e.plex.mu.Unlock()
+	e.poll()
+	e.poll()
+	if got := e.stop.stopped(); len(got) != 0 {
+		t.Errorf("a readable file's stream was stopped: %q", got)
+	}
+}
+
+// A replacement at the same path that breaks the same day is a new copy: checked again, and with the day's bound
+// reached the viewer is told to try later, nothing else.
+func TestRescueReplacementBreaksSameDay(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.play(2, "buffering")
+	e.poll()
+	e.stopPlaying()
+	e.poll()
+	// The replacement: the same path, now a file of another release, active.
+	repl := filepath.Join(e.mount, "__all__", "OtherAD", "S01E02.mkv")
+	if err := os.WriteFile(repl, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Truncate(repl, fileSize); err != nil {
+		t.Fatal(err)
+	}
+	link := e.linkPath(2)
+	if err := os.Remove(link); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(repl, link); err != nil {
+		t.Fatal(err)
+	}
+	e.exec(`UPDATE link SET target = ?, state = 'active' WHERE id = 11`, repl)
+	e.advance(time.Hour)
+	e.play(2, "buffering")
+	e.poll()
+	got := e.stop.stopped()
+	if len(got) != 2 || got[1] != "pid1: "+msgLater {
+		t.Errorf("stops %q", got)
+	}
+	if got := e.one(`SELECT state FROM link WHERE id = 11`) + " " + e.one(`SELECT COUNT(DISTINCT incident) FROM playing_break`); got != "active 1" {
+		t.Errorf("second break: %s", got)
 	}
 }
