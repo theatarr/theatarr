@@ -19,7 +19,8 @@ type PlexItems interface {
 	SectionFiles(ctx context.Context, section, typ int) (map[string]plex.FileItem, error)
 }
 
-// PlexItemsSource gives the Plex client of the settings in force, with the policy it was built from.
+// PlexItemsSource gives the Plex client of the settings in force, with the policy it was built from; without Plex or
+// its token no client, but still the policy (its libraries' Plex sections).
 type PlexItemsSource func(ctx context.Context) (PlexItems, *policy.Policy, error)
 
 // PlexLink is GET /titles/{id}/plex: where the title of one library is in Plex.
@@ -62,6 +63,13 @@ func (w *Web) apiPlexLink(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	pc, pol, err := w.plexItems(r.Context())
+	// The library's own section first: with none, no Plex set-up would find it.
+	if err == nil && pol != nil && pol.Library != nil {
+		if lv := pol.Library.Versions[key]; lv != nil && lv.PlexSection <= 0 {
+			writeJSON(rw, http.StatusOK, PlexLink{Message: plexNoSection})
+			return
+		}
+	}
 	if err != nil || pc == nil || pol == nil || pol.Library == nil || pol.Library.Plex == nil {
 		notFoundYet()
 		return
@@ -69,10 +77,6 @@ func (w *Web) apiPlexLink(rw http.ResponseWriter, r *http.Request) {
 	lv := pol.Library.Versions[key]
 	if lv == nil {
 		notFoundYet()
-		return
-	}
-	if lv.PlexSection <= 0 {
-		writeJSON(rw, http.StatusOK, PlexLink{Message: plexNoSection})
 		return
 	}
 	rows, err := w.st.Reader().QueryContext(r.Context(), `SELECT l.path FROM link l

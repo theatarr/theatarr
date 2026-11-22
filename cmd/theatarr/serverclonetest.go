@@ -41,17 +41,20 @@ func (p pinnedGateway) Do(ctx context.Context, t gateway.Target, req *http.Reque
 }
 
 // plexItems builds the Plex client of the settings generation in force for "Watch in Plex", through that generation's
-// gateway; nil, nil without Plex or its token.
+// gateway; without Plex or its token no client, with the policy (so a library without a Plex section says so).
 func plexItems(manager *settings.RuntimeCoordinator) web.PlexItemsSource {
 	return func(ctx context.Context) (web.PlexItems, *policy.Policy, error) {
 		rt, err := runtimeForSearch(ctx, manager)
-		if err != nil || rt.Gateway == nil || rt.Policy == nil || rt.Policy.Library == nil || rt.Policy.Library.Plex == nil {
+		if err != nil || rt.Policy == nil {
 			return nil, nil, err
+		}
+		if rt.Gateway == nil || rt.Policy.Library == nil || rt.Policy.Library.Plex == nil {
+			return nil, rt.Policy, nil
 		}
 		p := rt.Policy.Library.Plex
 		tok := rt.Policy.Getenv(p.TokenEnv)
 		if tok == "" {
-			return nil, nil, nil
+			return nil, rt.Policy, nil
 		}
 		c, err := plex.New(rt.Gateway, p.URL, tok)
 		if err != nil {

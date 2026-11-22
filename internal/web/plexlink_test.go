@@ -129,3 +129,26 @@ func TestPlexLink(t *testing.T) {
 		t.Errorf("member down %+v", got)
 	}
 }
+
+// With Plex not set up at all, a library with no Plex section still says so; one with a section is not found.
+func TestPlexLinkNoSectionWithoutPlex(t *testing.T) {
+	t.Parallel()
+	pol := &policy.Policy{Library: &policy.Library{
+		Versions: map[string]*policy.LibraryVersion{"movie-pl": {PlexSection: 7}, "none-pl": {}}}}
+	e := newEnvWith(t, func(cfg *Config) {
+		cfg.PlexItems = func(context.Context) (PlexItems, *policy.Policy, error) { return nil, pol, nil }
+	})
+	now := time.Now().UnixMilli()
+	e.exec(`INSERT INTO title (id, kind, name, created_at, updated_at) VALUES (801, 'movie', 'Film', ?, ?)`, now, now)
+	key := e.apiKey()
+	for path, want := range map[string]string{"/titles/801/plex?version=none-pl": "This library has no Plex section.",
+		"/titles/801/plex?version=movie-pl": "Not found in Plex yet"} {
+		r := httptest.NewRequest("GET", APIBase+path, nil)
+		r.Header.Set(auth.APIKeyHeader, key)
+		rec := e.do(r)
+		var out PlexLink
+		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil || rec.Code != 200 || out.Found || out.Message != want {
+			t.Errorf("%s: %d %+v, want %q", path, rec.Code, out, want)
+		}
+	}
+}
