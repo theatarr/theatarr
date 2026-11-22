@@ -320,7 +320,7 @@ export function RecordFormView(p: RecordFormProps) {
             ) : null}
             {entity === "providers" ? (
               <p className="self-end text-[12.5px] text-muted-foreground sm:col-span-2">
-                Fallback order {record?.order ?? "last"}: change it with the arrows in the list; it must agree with every library’s provider list.
+                Fallback order {record?.order ?? "last"}: change it with the arrows in the list, which put each library’s providers in the same order.
               </p>
             ) : null}
             <ConfigFields fields={tuning} values={st.config} saved={saved?.config} errors={shownErrors} onChange={configChange} disabled={disabled} />

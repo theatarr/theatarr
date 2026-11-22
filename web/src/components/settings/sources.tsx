@@ -38,7 +38,6 @@ import {
   movedOrder,
   movedPriorities,
   openEditor,
-  orderConflicts,
   testAnnouncement,
   testErrorAction,
   testReducer,
@@ -172,7 +171,6 @@ export type SourcesViewProps = {
   moveError?: Explained;
   onReload?: () => void;
   /** Versions whose provider lists contradict a proposed order, checked before sending. */
-  orderNote?: string;
   now?: number;
   /** The latest finished test or test-all, for the live region. */
   announcement?: Announcement;
@@ -321,13 +319,12 @@ export function SourcesView(p: SourcesViewProps) {
       <Announcer announcement={p.announcement} testid="test-announce" />
       <TestAllBar {...p} />
       {p.moveError ? <ExplainBox error={p.moveError} onReload={p.onReload} className="mb-3" /> : null}
-      {p.orderNote ? <p className="mb-3 text-[13px] text-[var(--warn-ink)]" data-testid="order-note">{p.orderNote}</p> : null}
       <p className="mb-2 min-h-[1lh] text-[13px] text-[var(--ok-ink)]" role="status" data-testid="move-saved">{p.moveNote ?? ""}</p>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="min-w-0 flex-1 basis-64 text-[13px] text-muted-foreground">
           {entity === "indexers"
             ? "Searched in this order, first to last; an arrow swaps neighbours and saves at once. Requests use the gateway with the configured VPN requirements. Privacy is a label: the libraries that list an indexer decide where its releases go."
-            : "Tried in this fallback order; an arrow moves one place earlier or later and saves at once. Libraries list their providers in Settings, and the order here must agree."}
+            : "Tried in this fallback order; an arrow moves one place earlier or later and saves at once, and each library's providers are put in the same order (which providers a library uses stays as it is)."}
         </p>
         <div className="flex flex-wrap items-center gap-2">
           {entity === "indexers" ? (
@@ -489,13 +486,11 @@ export function SourcesPanel({
   entity,
   overview,
   ent,
-  versions,
   readOnly,
 }: {
   entity: SourceEntity;
   overview: SettingsOverview;
   ent: SchemaEntity;
-  versions: { key: string; providers: string[] }[];
   readOnly?: string;
 }) {
   const records = overview[entity];
@@ -515,7 +510,6 @@ export function SourcesPanel({
   const [includeDisabled, setIncludeDisabled] = useState(false);
   const ed = useEditor(entity, records, overview.generation);
   const [moveError, setMoveError] = useState<Explained>();
-  const [orderNote, setOrderNote] = useState<string>();
   const [moveNote, setMoveNote] = useState<string>();
   const write = useSettingsWrite();
   const confirm = useWriteConfirmation();
@@ -544,7 +538,6 @@ export function SourcesPanel({
   };
   const onMove = (r: SettingsRecord, dir: -1 | 1) => {
     setMoveError(undefined);
-    setOrderNote(undefined);
     setMoveNote(undefined);
     const saved = () => setMoveNote(`Saved: ${r.key} moved ${entity === "indexers" ? (dir < 0 ? "up" : "down") : dir < 0 ? "earlier" : "later"}.`);
     if (entity === "indexers") {
@@ -556,15 +549,6 @@ export function SourcesPanel({
     }
     const order = movedOrder(records, r.id!, dir);
     if (!order) return;
-    const keys = order.map((id) => records.find((x) => x.id === id)!.key);
-    const conflicts = orderConflicts(keys, versions);
-    if (conflicts.length > 0) {
-      setOrderNote(
-        `Not sent: ${conflicts.map((c) => `${c.version} lists ${c.providers.join(" › ")}`).join("; ")} in the policy files. ` +
-          "The fallback order must agree with every library's provider list; change the libraries in the YAML first (library settings are YAML-owned).",
-      );
-      return;
-    }
     const send = (token?: string) => write.mutate({ method: "PUT", path: "/providers/order", body: { generation: overview.generation, order }, token }, { onSuccess: saved, onError: (e) => { if (!confirm.ask(e, send)) setMoveError(explainError(e)); } });
     send();
   };
@@ -625,7 +609,6 @@ export function SourcesPanel({
           setMoveError(undefined);
           void reload();
         }}
-        orderNote={orderNote}
         announcement={announcement}
         rssProblems={rssProblemsOf(catalog.data?.definitions)}
         keyless={new Set((catalog.data?.definitions ?? []).filter((d) => !d.settings.some(inCredential)).map((d) => d.id))}

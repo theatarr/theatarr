@@ -3,7 +3,6 @@ import { authority } from "@/lib/settings";
 import { Link, useLocation } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { qk } from "@/api/query-keys";
-import { usePolicy } from "@/api/hooks";
 import { useSettings, useSettingsSchema } from "@/api/settings";
 import { PageHeader, RouteTabs, Loading, ErrorState } from "@/components/page";
 import { SETTINGS_PAGES, ADVANCED_SETTINGS_PAGES, SETTINGS_PANELS, ShowAdvancedToggle } from "@/lib/settings-map";
@@ -34,7 +33,7 @@ export function SettingsPage() {
  const { pathname } = useLocation();
  // System › Backup reads the torrent-list schedule: a saved change shows there at once.
  const qc = useQueryClient();
- const overview = useSettings(); const schema = useSettingsSchema(); const policy = usePolicy();
+ const overview = useSettings(); const schema = useSettingsSchema();
  const page = [...SETTINGS_PAGES, ...ADVANCED_SETTINGS_PAGES].find(p => pathname === p.route || pathname.startsWith(p.route + "/"));
  if (!page) return null;
  const tab = page.tabs.find(t => t.route === pathname)?.id ?? page.tabs[0]?.id;
@@ -58,8 +57,8 @@ export function SettingsPage() {
    {page.id === "formats" ? <FormatsPage compact /> : null}
    {page.id === "quality-sync" ? <QualityPanel compact entity="sync_sources" /> : null}
    {page.id === "apps" ? <ViewsCard readOnly={!o.writable} /> : null}
-   {page.id === "indexers" && tab === "indexers" ? <><SourcesPanel entity="indexers" overview={o} ent={s.indexers} readOnly={authority(o).readOnly} versions={policy.data?.versions ?? []} /><IndexerStatus /></> : null}
-   {page.id === "downloads" && tab === "providers" ? <><SourcesPanel entity="providers" overview={o} ent={s.providers} readOnly={authority(o).readOnly} versions={policy.data?.versions ?? []} /></> : null}
+   {page.id === "indexers" && tab === "indexers" ? <><SourcesPanel entity="indexers" overview={o} ent={s.indexers} readOnly={authority(o).readOnly} /><IndexerStatus /></> : null}
+   {page.id === "downloads" && tab === "providers" ? <><SourcesPanel entity="providers" overview={o} ent={s.providers} readOnly={authority(o).readOnly} /></> : null}
    {page.id === "indexers" && tab === "vpn" ? <VpnStatus /> : null}
    {SETTINGS_PANELS.filter(p => p.page === page.id && p.tab === tab).map(p => <SectionPanel key={p.id} {...p} onSaved={p.id === "torrent-backups" ? () => { void qc.invalidateQueries({ queryKey: qk.torrents.backups }); } : undefined} />)}
    {/* Provider status loads after the panels above, so a link to #provider-sync is not pushed away. */}

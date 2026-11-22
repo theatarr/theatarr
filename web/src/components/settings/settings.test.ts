@@ -84,7 +84,7 @@ function formProps(p: Partial<RecordFormProps> & Pick<RecordFormProps, "entity" 
 describe("an unavailable settings service is read-only", () => {
   it("says the service is unavailable and greys out every write on the source tabs", () => {
     for (const tab of ["indexers", "providers", "budgets"] as const) {
-      const html = render(h(SettingsTabView, { tab, overview: unavailableOverview, schema, versions: [] }));
+      const html = render(h(SettingsTabView, { tab, overview: unavailableOverview, schema }));
       expect(tag(html, "settings-authority")).toContain('data-mode="unavailable"');
       expect(html).toContain("Settings service unavailable");
       expect(html).toContain("Unavailable · read-only");
@@ -99,11 +99,11 @@ describe("an unavailable settings service is read-only", () => {
     }
   });
   it("disables import, export and the audit", () => {
-    const imp = render(h(SettingsTabView, { tab: "import", overview: unavailableOverview, schema, versions: [] }));
+    const imp = render(h(SettingsTabView, { tab: "import", overview: unavailableOverview, schema }));
     expect(isDisabled(tag(imp, "import-preview"))).toBe(true);
     expect(imp).toContain('data-testid="import-readonly"');
     expect(imp).not.toContain('data-testid="export-link"');
-    const audit = render(h(SettingsTabView, { tab: "audit", overview: unavailableOverview, schema, versions: [] }));
+    const audit = render(h(SettingsTabView, { tab: "audit", overview: unavailableOverview, schema }));
     expect(audit).toContain('data-testid="audit-readonly"');
   });
   it("renders the form with every control disabled and the reason", () => {
@@ -116,7 +116,7 @@ describe("an unavailable settings service is read-only", () => {
     for (const t of controls) expect(isDisabled(t), t).toBe(true);
   });
   it("shows the database as live in db mode, with writes enabled", () => {
-    const html = render(h(SettingsTabView, { tab: "indexers", overview: overview({ indexers: [dmm] }), schema, versions: [] }));
+    const html = render(h(SettingsTabView, { tab: "indexers", overview: overview({ indexers: [dmm] }), schema }));
     expect(tag(html, "settings-authority")).toContain('data-mode="db"');
     expect(html).toContain("Settings come from the database");
     expect(isDisabled(tag(html, "add"))).toBe(false);
@@ -215,7 +215,7 @@ describe("the editor across tabs", () => {
 
   it("starts a new sources panel on a tab change, so no open editor carries over", () => {
     const o = overview({ indexers: [prowlarr], providers: [rd] });
-    const panels = (["indexers", "providers"] as const).map((tab) => find(SettingsTabView({ tab, overview: o, schema, versions: [] }), SourcesPanel));
+    const panels = (["indexers", "providers"] as const).map((tab) => find(SettingsTabView({ tab, overview: o, schema }), SourcesPanel));
     expect(panels[0]?.type).toBe(panels[1]?.type);
     // Same component in the same place: only a different key makes React drop the indexer panel's editor state.
     expect(panels[0]?.key).toBeTruthy();
@@ -495,7 +495,7 @@ describe("the editor moves focus", () => {
   it("puts the record key on each row, so the Edit button can be found again", () => {
     const html = render(h(SourcesView, sourcesProps()));
     expect(html).toMatch(/data-record="dmm"[^]*data-testid="edit"/);
-    const panelHtml = render(h(SourcesPanel, { entity: "indexers", overview: overview({ indexers: [dmm] }), ent: indexerSchema, versions: [] }));
+    const panelHtml = render(h(SourcesPanel, { entity: "indexers", overview: overview({ indexers: [dmm] }), ent: indexerSchema }));
     expect(panelHtml).toMatch(/^<div tabindex="-1"/);
   });
 });

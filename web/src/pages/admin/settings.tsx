@@ -4,7 +4,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "@/api/client";
-import { usePolicy } from "@/api/hooks";
 import { qk } from "@/api/query-keys";
 import { confirmationHeaders, useSettings, useSettingsSchema, type SettingsOverview, type SettingsSchema } from "@/api/settings";
 import { ErrorState, Loading } from "@/components/page";
@@ -23,7 +22,6 @@ export function SettingsTabView({
   tab,
   overview,
   schema,
-  versions,
   onReload,
   reloading,
   reloadError,
@@ -31,7 +29,6 @@ export function SettingsTabView({
   tab: SettingsTabId;
   overview: SettingsOverview;
   schema: SettingsSchema;
-  versions: { key: string; providers: string[] }[];
   onReload?: () => void;
   reloading?: boolean;
   reloadError?: Explained;
@@ -45,7 +42,7 @@ export function SettingsTabView({
       <ManagedInSettings />
       {tab === "indexers" || tab === "providers" ? (
         // Keyed by entity: a tab change starts a new panel, so no editor, test or confirmation crosses tabs.
-        <SourcesPanel key={tab} entity={tab} overview={overview} ent={schema[tab]} versions={versions} readOnly={readOnly} />
+        <SourcesPanel key={tab} entity={tab} overview={overview} ent={schema[tab]} readOnly={readOnly} />
       ) : tab === "budgets" ? (
         <BudgetsPanel overview={overview} ent={schema.budgets} readOnly={readOnly} />
       ) : tab === "import" ? (
@@ -60,7 +57,6 @@ export function SettingsTabView({
 export function SettingsTab({ tab }: { tab: SettingsTabId }) {
   const o = useSettings();
   const schema = useSettingsSchema();
-  const pol = usePolicy();
   const qc = useQueryClient();
   const [reloading, setReloading] = useState(false);
   const [reloadError, setReloadError] = useState<Explained>();
@@ -89,7 +85,6 @@ export function SettingsTab({ tab }: { tab: SettingsTabId }) {
       tab={tab}
       overview={o.data}
       schema={schema.data}
-      versions={(pol.data?.versions ?? []).map((v) => ({ key: v.key, providers: v.providers }))}
       onReload={() => void reload()}
       reloading={reloading}
       reloadError={reloadError}

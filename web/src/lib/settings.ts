@@ -553,25 +553,6 @@ export function movedOrder(list: SettingsRecord[], id: number, dir: -1 | 1): num
   return ids;
 }
 
-/** Versions whose YAML provider list a new fallback order (keys, first first) contradicts. */
-export function orderConflicts(order: string[], versions: { key: string; providers: string[] }[]): { version: string; providers: string[] }[] {
-  const rank = new Map(order.map((k, i) => [k, i]));
-  const out: { version: string; providers: string[] }[] = [];
-  for (const v of versions) {
-    let last = -1;
-    for (const p of v.providers) {
-      const r = rank.get(p);
-      if (r === undefined) continue;
-      if (r < last) {
-        out.push({ version: v.key, providers: v.providers });
-        break;
-      }
-      last = r;
-    }
-  }
-  return out;
-}
-
 // ---- test results ----
 
 export type Tone = "positive" | "negative" | "warning" | "neutral" | "info";

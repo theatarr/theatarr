@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -763,7 +765,8 @@ func TestSettingsAPICRUDAndSchema(t *testing.T) {
 	}
 	se.want(se.call("DELETE", fmt.Sprintf("/indexers/%d?generation=%d", se.id(entityIndexers, "feed2"), gen), nil), http.StatusOK, "delete indexer")
 	gen++
-	// Provider deletes state the orphan flag; an order that contradicts the versions is refused by validation.
+	// Provider deletes state the orphan flag; a new order reorders each version's providers the same way, in the same
+	// save (F30), and keeps which providers each one uses.
 	se.want(se.call("DELETE", fmt.Sprintf("/providers/%d?generation=%d", se.id(entityProviders, "tb"), gen), nil), http.StatusBadRequest, "no flag")
 	snap, _ := se.coord.Snapshot(context.Background())
 	var order []int64
@@ -771,7 +774,50 @@ func TestSettingsAPICRUDAndSchema(t *testing.T) {
 		order = append(order, snap.Records.Providers[i].ID)
 	}
 	se.want(se.call("PUT", "/providers/order", map[string]any{"generation": gen, "order": order[:1]}), http.StatusBadRequest, "partial order")
-	se.want(se.call("PUT", "/providers/order", map[string]any{"generation": gen, "order": order}), http.StatusUnprocessableEntity, "order vs versions")
+	versionProviders := func() map[string]string {
+		snap, _ := se.coord.Snapshot(context.Background())
+		out := map[string]string{}
+		for _, v := range snap.Records.Versions {
+			out[v.Key] = strings.Join(v.Config.Providers, ",")
+		}
+		return out
+	}
+	before := versionProviders()
+	if !strings.Contains(fmt.Sprint(before), ",") {
+		t.Fatalf("no version lists two providers: %v", before)
+	}
+	// Each version's providers, in the order the ids give.
+	inOrder := func(m map[string]string, ids []int64) map[string]string {
+		out := map[string]string{}
+		for k, v := range m {
+			var l []string
+			for _, id := range ids {
+				for _, p := range snap.Records.Providers {
+					if p.ID == id && slices.Contains(strings.Split(v, ","), p.Key) {
+						l = append(l, p.Key)
+					}
+				}
+			}
+			out[k] = strings.Join(l, ",")
+		}
+		return out
+	}
+	se.want(se.call("PUT", "/providers/order", map[string]any{"generation": gen, "order": order}), http.StatusOK, "order reorders the versions")
+	gen++
+	if got, want := versionProviders(), inOrder(before, order); !maps.Equal(got, want) || maps.Equal(got, before) {
+		t.Fatalf("versions after the reversed order: %v, want %v", got, want)
+	}
+	back := slices.Clone(snap.Records.Providers)
+	slices.SortFunc(back, func(a, b settings.Provider) int { return a.Config.Order - b.Config.Order })
+	var backIDs []int64
+	for _, p := range back {
+		backIDs = append(backIDs, p.ID)
+	}
+	se.want(se.call("PUT", "/providers/order", map[string]any{"generation": gen, "order": backIDs}), http.StatusOK, "order back")
+	gen++
+	if got := versionProviders(); !maps.Equal(got, before) {
+		t.Fatalf("versions after the order back: %v, want %v", got, before)
+	}
 	audit := se.want(se.call("GET", "/audit?limit=3", nil), http.StatusOK, "audit page")
 	if len(audit["records"].([]any)) != 3 || audit["next"] == float64(0) {
 		t.Fatalf("audit page: %v", audit)

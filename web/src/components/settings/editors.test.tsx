@@ -3,7 +3,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { SettingsTabView } from "@/pages/admin/settings";
-import { budget, budgetSchema, indexerSchema, overview, schema } from "./fixtures";
+import { budget, budgetSchema, indexerSchema, overview, rd, schema } from "./fixtures";
 import { RecordEditor } from "./record-form";
 import { expectNamedControls, json, mockFetch, renderPage } from "@/test/page";
 
@@ -46,7 +46,7 @@ describe("source editors", () => {
       { method: "POST", path: "/settings/providers", reply: json({ generation: 5 }) },
     ]);
     const user = userEvent.setup();
-    renderPage(<SettingsTabView tab="providers" overview={overview()} schema={schema} versions={[]} />, "/admin/settings/downloads");
+    renderPage(<SettingsTabView tab="providers" overview={overview()} schema={schema} />, "/admin/settings/downloads");
     await user.click(screen.getByRole("button", { name: "Add provider" }));
     expectNamedControls();
     await user.click(screen.getByText("Advanced options"));
@@ -69,7 +69,7 @@ describe("source editors", () => {
         : json({ generation: 5 }) },
     ]);
     const user = userEvent.setup();
-    renderPage(<SettingsTabView tab="providers" overview={overview()} schema={schema} versions={[]} />, "/admin/settings/downloads");
+    renderPage(<SettingsTabView tab="providers" overview={overview()} schema={schema} />, "/admin/settings/downloads");
     await user.click(screen.getByRole("button", { name: "Add provider" }));
     await user.click(screen.getByText("Advanced options"));
     await user.clear(screen.getByRole("textbox", { name: /^Name/ }));
@@ -116,5 +116,19 @@ describe("record conflict reload", () => {
     await waitFor(() => expect(onDone).toHaveBeenCalledOnce());
     expect(fetch.calls("PUT", "/settings/budgets/1")).toHaveLength(2);
     expect(fetch.calls("PUT", "/settings/budgets/1")[1].body).toMatchObject({ generation: 5, config: { requests: keep ? 30 : 20 } });
+  });
+
+  it("moves a provider earlier although libraries list both: the save reorders their lists, and the help says so (F30)", async () => {
+    const ad = { ...rd, id: 8, key: "ad", kind: "alldebrid", order: 2, config: { ...rd.config, kind: "alldebrid", order: 2 } };
+    const fetch = mockFetch([
+      { method: "PUT", path: "/settings/providers/order", reply: json({ generation: 5, revision: "r5", records: [] }) },
+    ]);
+    const user = userEvent.setup();
+    renderPage(<SettingsTabView tab="providers" overview={overview({ providers: [rd, ad] })} schema={schema} />, "/admin/settings/downloads");
+    expect(screen.getByTestId("providers-list").textContent).toContain("each library's providers are put in the same order");
+    await user.click(screen.getByRole("button", { name: /^Move ad earlier/ }));
+    await waitFor(() => expect(fetch.calls("PUT", "/settings/providers/order")).toHaveLength(1));
+    expect(fetch.calls("PUT", "/settings/providers/order")[0].body).toEqual({ generation: 4, order: [8, 7] });
+    expect(screen.queryByTestId("order-note")).toBeNull();
   });
 });

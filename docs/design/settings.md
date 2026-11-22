@@ -554,7 +554,7 @@ own).
 | `GET`, `POST /settings/{indexers,providers,budgets}` | List; create (new sources default to disabled) |
 | `GET`, `PUT`, `DELETE /settings/{indexers,providers,budgets}/{id}` | One record; update (omitted config fields keep their values; a sent one replaces the stored field whole, nested objects included, and `null` resets it to its default); delete (`?generation=`) |
 | `PUT /settings/indexers/priority` | Indexer priorities, `[{id, priority}]` |
-| `PUT /settings/providers/order` | Provider fallback order, every id once |
+| `PUT /settings/providers/order` | Provider fallback order, every id once; the same save puts each library's provider list in that order (which providers it uses stays as it is) |
 | `POST /settings/{indexers,providers}/{id}/test` | Test a saved source (enabled or not; a test never enables it) |
 | `POST /settings/{indexers,providers}/test` | Test an unsaved candidate (new key and config, or changes to an `id`); validated through `Candidate`, nothing stored. Changes to an `id` at a new scheme, host or port need `secret` again (422 otherwise) |
 | `POST /settings/{indexers,providers}/testall` | Test every enabled source (`include_disabled` adds the rest) |

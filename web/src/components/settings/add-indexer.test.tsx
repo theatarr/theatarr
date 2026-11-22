@@ -32,7 +32,7 @@ const catalog: CardigannList = {
     def({ id: "broken", name: "Broken Site", status: "unsupported", supported: false }),
   ],
 };
-const indexers = (extra = {}) => <SettingsTabView tab="indexers" overview={overview({ indexers: [dmm], ...extra })} schema={schema} versions={[]} />;
+const indexers = (extra = {}) => <SettingsTabView tab="indexers" overview={overview({ indexers: [dmm], ...extra })} schema={schema} />;
 const writes = (requests: RequestRecord[]) => requests.filter((r) => r.method !== "GET");
 const lib = (key: string, kind: string, anime: boolean | null) => ({ id: 1, key, created_at: "", updated_at: "", roots: [], config: { kind, anime } }) as unknown as VersionRecord;
 // A movie library, a series library marked non-anime, and an anime series library.

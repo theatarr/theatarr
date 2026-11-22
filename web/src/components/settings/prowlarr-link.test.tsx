@@ -41,7 +41,7 @@ describe("Link Prowlarr", () => {
         : json({ generation: ++generation }) },
     ]);
     const user = userEvent.setup();
-    renderPage(<SettingsTabView tab="indexers" overview={overview({ indexers: [dmm] })} schema={schema} versions={[]} />, "/admin/settings/indexers");
+    renderPage(<SettingsTabView tab="indexers" overview={overview({ indexers: [dmm] })} schema={schema} />, "/admin/settings/indexers");
     await user.click(screen.getByRole("button", { name: "Add indexer" }));
     await user.click(screen.getByRole("tab", { name: "Link Prowlarr" }));
     const tab = await screen.findByTestId("link-tab");
@@ -82,7 +82,7 @@ it("asks for the key again when the address changes, and sends nothing", async (
     { method: "GET", path: "/settings/prowlarr/feeds", reply: json({ configured: true, url: "http://10.0.0.5:9696", feeds: [] }) },
   ]);
   const user = userEvent.setup();
-  renderPage(<SettingsTabView tab="indexers" overview={overview({ indexers: [dmm] })} schema={schema} versions={[]} />, "/admin/settings/indexers");
+  renderPage(<SettingsTabView tab="indexers" overview={overview({ indexers: [dmm] })} schema={schema} />, "/admin/settings/indexers");
   await user.click(screen.getByRole("button", { name: "Add indexer" }));
   await user.click(screen.getByRole("tab", { name: "Link Prowlarr" }));
   await user.click(await screen.findByRole("button", { name: "Change" }));
@@ -107,7 +107,7 @@ it("reports a saved connection that cannot reach Prowlarr apart from the save, a
     { method: "PUT", path: "/settings/sections/cardigann", reply: () => { connected = true; return json({ generation: 5 }); } },
   ]);
   const user = userEvent.setup();
-  renderPage(<SettingsTabView tab="indexers" overview={overview({ indexers: [dmm] })} schema={schema} versions={[]} />, "/admin/settings/indexers");
+  renderPage(<SettingsTabView tab="indexers" overview={overview({ indexers: [dmm] })} schema={schema} />, "/admin/settings/indexers");
   await user.click(screen.getByRole("button", { name: "Add indexer" }));
   await user.click(screen.getByRole("tab", { name: "Link Prowlarr" }));
   const tab = await screen.findByTestId("link-tab");
@@ -134,7 +134,7 @@ it("asks before a tab change or Close drops a typed Prowlarr address", async () 
     { method: "GET", path: "/settings/sections", reply: json({ source: "db", generation: 4, sections: [] }) },
   ]);
   const user = userEvent.setup();
-  renderPage(<SettingsTabView tab="indexers" overview={overview({ indexers: [dmm] })} schema={schema} versions={[]} />, "/admin/settings/indexers");
+  renderPage(<SettingsTabView tab="indexers" overview={overview({ indexers: [dmm] })} schema={schema} />, "/admin/settings/indexers");
   await user.click(screen.getByRole("button", { name: "Add indexer" }));
   await user.click(screen.getByRole("tab", { name: "Link Prowlarr" }));
   await user.type(await within(await screen.findByTestId("link-tab")).findByRole("textbox", { name: "Prowlarr address" }), "http://10.0.0.5:9696");
@@ -158,7 +158,7 @@ it("treats a saved connection as saved at once, and asks before a tab change dro
     { method: "PUT", path: "/settings/sections/cardigann", reply: () => { connected = true; return json({ generation: 5 }); } },
   ]);
   const user = userEvent.setup();
-  renderPage(<SettingsTabView tab="indexers" overview={overview({ indexers: [dmm] })} schema={schema} versions={[]} />, "/admin/settings/indexers");
+  renderPage(<SettingsTabView tab="indexers" overview={overview({ indexers: [dmm] })} schema={schema} />, "/admin/settings/indexers");
   await user.click(screen.getByRole("button", { name: "Add indexer" }));
   await user.click(screen.getByRole("tab", { name: "Link Prowlarr" }));
   const tab = await screen.findByTestId("link-tab");
@@ -186,7 +186,7 @@ it("keeps the unsaved question open when Enter on a tab asked it", async () => {
     { method: "GET", path: "/settings/sections", reply: json({ source: "db", generation: 4, sections: [] }) },
   ]);
   const user = userEvent.setup();
-  renderPage(<SettingsTabView tab="indexers" overview={overview({ indexers: [dmm] })} schema={schema} versions={[]} />, "/admin/settings/indexers");
+  renderPage(<SettingsTabView tab="indexers" overview={overview({ indexers: [dmm] })} schema={schema} />, "/admin/settings/indexers");
   await user.click(screen.getByRole("button", { name: "Add indexer" }));
   await user.click(screen.getByRole("tab", { name: "Link Prowlarr" }));
   await user.type(await within(await screen.findByTestId("link-tab")).findByRole("textbox", { name: "Prowlarr address" }), "http://10.0.0.5:9696");

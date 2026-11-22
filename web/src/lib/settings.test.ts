@@ -27,7 +27,6 @@ import {
   movedPriorities,
   needsCredentialAgain,
   openEditor,
-  orderConflicts,
   rebaseEditor,
   secretPatch,
   sessionDelete,
@@ -346,13 +345,10 @@ describe("priority and order", () => {
     expect(movedPriorities([ix(1, "a", 0), ix(2, "b", 0), ix(3, "c", 0)], 3, -1)).toEqual([{ id: 1, priority: 0 }, { id: 3, priority: 10 }, { id: 2, priority: 20 }]);
     expect(movedPriorities([ix(1, "a", 0)], 1, -1)).toBeNull();
   });
-  it("moves providers and finds versions it would contradict", () => {
+  it("moves providers", () => {
     const ps = [{ ...rd }, { ...rd, id: 8, key: "ad", order: 2 }, { ...rd, id: 9, key: "tb", order: 3 }];
     expect(movedOrder(ps, 8, -1)).toEqual([8, 7, 9]);
     expect(movedOrder(ps, 9, 1)).toBeNull();
-    const versions = [{ key: "movie-web", providers: ["rd", "ad", "tb"] }, { key: "anime", providers: ["tb"] }];
-    expect(orderConflicts(["ad", "rd", "tb"], versions)).toEqual([{ version: "movie-web", providers: ["rd", "ad", "tb"] }]);
-    expect(orderConflicts(["rd", "ad", "tb"], versions)).toEqual([]);
   });
 });
 

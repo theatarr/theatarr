@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -240,8 +241,8 @@ func (w *Web) apiSettingsPriority(rw http.ResponseWriter, r *http.Request) {
 }
 
 // apiSettingsOrder sets the provider fallback order: {"generation": n, "order": [id, ...]} lists every provider once,
-// first fallback first. Versions list their providers in fallback order in the YAML, so an order they contradict
-// is refused by validation.
+// first fallback first. Versions list their providers in fallback order, so the same save puts each version's list in
+// the new order; which providers a version uses stays as it is.
 func (w *Web) apiSettingsOrder(rw http.ResponseWriter, r *http.Request) {
 	if w.refuseUnavailable(rw) {
 		return
@@ -280,6 +281,16 @@ func (w *Web) apiSettingsOrder(rw http.ResponseWriter, r *http.Request) {
 			badRequest(rw, fmt.Sprintf("no provider with id %d", id))
 			return
 		}
+	}
+	rank := map[string]int{}
+	for _, p := range records.Providers {
+		rank[p.Key] = p.Config.Order
+	}
+	for i := range records.Versions {
+		// A copy: the records were cloned shallowly and the snapshot's lists are shared.
+		ps := slices.Clone(records.Versions[i].Config.Providers)
+		slices.SortStableFunc(ps, func(a, b string) int { return rank[a] - rank[b] })
+		records.Versions[i].Config.Providers = ps
 	}
 	w.saveSettings(rw, r, settings.SaveRequest{ExpectedGeneration: snap.Generation, Records: records, ConfirmationToken: body.ConfirmationToken}, nil, entityProviders, "")
 }

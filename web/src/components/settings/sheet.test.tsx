@@ -8,7 +8,7 @@ import { SettingsTabView } from "@/pages/admin/settings";
 import { dmm, overview, rd, schema, zilean } from "./fixtures";
 import { json, mockFetch, renderPage } from "@/test/page";
 
-const indexers = () => <SettingsTabView tab="indexers" overview={overview({ indexers: [dmm, zilean] })} schema={schema} versions={[]} />;
+const indexers = () => <SettingsTabView tab="indexers" overview={overview({ indexers: [dmm, zilean] })} schema={schema} />;
 const row = (key: string) => document.querySelector(`[data-record="${key}"]`);
 
 describe("settings side sheet", () => {
@@ -67,7 +67,7 @@ describe("settings side sheet", () => {
   it("asks a provider delete's orphan choice in the dialog, off unless ticked", async () => {
     const fetch = mockFetch([{ method: "DELETE", path: "/settings/providers/7", reply: json({ generation: 5 }) }]);
     const user = userEvent.setup();
-    renderPage(<SettingsTabView tab="providers" overview={overview({ providers: [rd] })} schema={schema} versions={[]} />, "/admin/settings/downloads");
+    renderPage(<SettingsTabView tab="providers" overview={overview({ providers: [rd] })} schema={schema} />, "/admin/settings/downloads");
     await user.click(screen.getByRole("button", { name: "Edit rd" }));
     await user.click(screen.getByTestId("record-delete"));
     const confirm = await screen.findByTestId("delete-confirm");
