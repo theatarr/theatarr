@@ -203,6 +203,16 @@ func (t *Tracker) nextRescue(now time.Time) *rescueStart {
 	return nil
 }
 
+// live is the library in force now when it may act on a broken file of version (Pause off, the version's library
+// writing), else nil. The check asks again before each change and each message: a settings save during its minute
+// of reads builds a new library generation, and Pause saved then must stop it.
+func (t *Tracker) live(version string) Rescuer {
+	if r := t.rescuer(); r != nil && r.PlayingWritable(version) {
+		return r
+	}
+	return nil
+}
+
 // rescuer is the library as the check uses it; nil without one.
 func (t *Tracker) rescuer() Rescuer {
 	if t.o.Mount == nil {
@@ -340,6 +350,11 @@ func (t *Tracker) check(ctx context.Context, lib Rescuer, j *sign) {
 		fine()
 		return
 	}
+	if lib = t.live(src.version); lib == nil {
+		log.Info("nowplaying: a playing file stopped working, but Pause is on or its library writes nothing now")
+		fine()
+		return
+	}
 	log.Info("nowplaying: a playing file stopped working", "where", verdict.where, "serving", verdict.serving,
 		"hash", hash)
 	t.quietFor(src.LinkID, 24*time.Hour)
@@ -473,9 +488,6 @@ func (t *Tracker) repair(ctx context.Context, lib Rescuer, j *sign, hash string,
 		t.tell(ctx, j, msgLater, 0)
 		return
 	}
-	if !lib.PlayingWritable(src.version) {
-		return
-	}
 	inc := library.PlayingIncident{TitleID: src.TitleID, Version: src.version, Viewer: j.s.UserName, Player: j.s.Player}
 	client, providers := lib.PlayingRoute(src.version)
 	failed := v.holders
@@ -505,6 +517,9 @@ func (t *Tracker) repair(ctx context.Context, lib Rescuer, j *sign, hash string,
 	told := false
 	if client == "" && len(hash) == 40 && t.o.Copy != nil {
 		switch t.sameRelease(ctx, lib, j, id, hash, off, others, &told) {
+		case copyStopped:
+			t.settleQuiet(ctx, id)
+			return
 		case copyReadable:
 			if err := lib.SettlePlayingIncident(ctx, id, "copy"); err != nil {
 				log.Warn("nowplaying: incident not settled", "err", err)
@@ -519,6 +534,10 @@ func (t *Tracker) repair(ctx context.Context, lib Rescuer, j *sign, hash string,
 			return
 		}
 	}
+	if lib = t.live(src.version); lib == nil {
+		t.settleQuiet(ctx, id)
+		return
+	}
 	if !told {
 		t.tell(ctx, j, msgLooking, id)
 	}
@@ -532,6 +551,16 @@ func (t *Tracker) repair(ctx context.Context, lib Rescuer, j *sign, hash string,
 	}
 	log.Info("nowplaying: the broken file is marked dead and searched for at once")
 	t.siblings(ctx, lib, j, id)
+}
+
+// settleQuiet settles an incident Pause (or a library that stopped writing) cut short: nothing done, nothing said.
+func (t *Tracker) settleQuiet(ctx context.Context, id int64) {
+	t.o.Logger.Info("nowplaying: Pause is on or the library writes nothing now: the broken file is left", "incident", id)
+	if lib := t.rescuer(); lib != nil {
+		if err := lib.SettlePlayingIncident(ctx, id, "none"); err != nil {
+			t.o.Logger.Warn("nowplaying: incident not settled", "incident", id, "err", err)
+		}
+	}
 }
 
 // settleNone settles an incident where nothing was done, and tells its outcome.
@@ -549,6 +578,7 @@ const (
 	copyNone     = iota // no other account has the release cached
 	copyReadable        // the file reads again
 	copyFailed          // an account took it, yet the file still does not read
+	copyStopped         // Pause came on (or the library stopped writing) meanwhile
 )
 
 // sameRelease is step 1: the same release added on another account with it cached, one account at a time in the
@@ -559,6 +589,9 @@ const (
 func (t *Tracker) sameRelease(ctx context.Context, lib Rescuer, j *sign, id int64, hash string, off int64,
 	accounts []string, told *bool) int {
 	for _, acct := range accounts {
+		if t.live(j.src.version) == nil {
+			return copyStopped
+		}
 		ok, err := t.o.Copy(ctx, hash, acct)
 		if err != nil || !ok {
 			continue
@@ -628,6 +661,9 @@ func (t *Tracker) siblings(ctx context.Context, lib Rescuer, j *sign, id int64) 
 		if t.read(ctx, lib, f.target, off) != readFailed { // the immediate retry
 			continue
 		}
+		if lib = t.live(j.src.version); lib == nil {
+			return
+		}
 		if n, err := lib.MarkBrokenPlaying(ctx, id, []library.PlayingFile{{LinkID: f.id, Offset: off}}, false,
 			nil); err != nil || n == 0 {
 			t.o.Logger.Info("nowplaying: a broken file of the release was not marked", "link_id", f.id, "err", err)
@@ -664,7 +700,7 @@ type pendingTell struct {
 // session left: nothing is sent; Now playing and History show the incident. A refusal by Plex is logged once and kept
 // on the incident.
 func (t *Tracker) tell(ctx context.Context, j *sign, msg string, incident int64) {
-	if t.o.StopWithMessage != nil && !t.o.StopWithMessage() {
+	if t.o.StopWithMessage != nil && !t.o.StopWithMessage() || t.live(j.src.version) == nil {
 		return
 	}
 	stopper, ok := t.o.Plex.(PlexStopper)

@@ -866,3 +866,33 @@ func TestIncidents(t *testing.T) {
 		}
 	}
 }
+
+// pauseDuring makes the settings in force Pause on while the check waits between its reads: a save builds a new
+// library generation, which the tracker's Mount then returns.
+func (e *rescueEnv) pauseDuring() {
+	paused := *e.pol
+	paused.Router = &policy.Router{Enabled: false}
+	lib := library.New(library.Options{Store: e.st, Policy: &paused, Queue: jobs.NewQueue(e.st), Now: e.now,
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	next := &testLib{Library: lib, broken: e.lib.broken}
+	e.tr.sleep = func(ctx context.Context, d time.Duration) error {
+		e.advance(d)
+		e.tr.o.Mount = func() Mount { return next }
+		return ctx.Err()
+	}
+}
+
+// Pause saved during the confirmation: the check ends with nothing recorded, marked or said.
+func TestRescuePauseDuringConfirmation(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.pauseDuring()
+	e.play(2, "buffering")
+	e.poll()
+	if got := e.one(`SELECT state FROM link WHERE id = 11`) + " " + e.one(`SELECT COUNT(*) FROM playing_break`); got != "active 0" {
+		t.Errorf("paused meanwhile: %s", got)
+	}
+	if got := e.stop.stopped(); len(got) != 0 {
+		t.Errorf("stops %q", got)
+	}
+}
