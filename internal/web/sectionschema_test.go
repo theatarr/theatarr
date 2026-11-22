@@ -134,3 +134,14 @@ func TestSectionSchemaLeavesOutDecypharr(t *testing.T) {
 		t.Fatal("the settings schema names library.mount.decypharr")
 	}
 }
+
+// The help of "Stop a broken stream with a message" names both messages a viewer can see (internal/nowplaying's
+// msgLooking and msgLater).
+func TestStopWithMessageHelpNamesBothMessages(t *testing.T) {
+	help := sectionHelp["library.plex.stop_with_message"]
+	for _, want := range []string{"Looking for another copy", `"This file stopped working. Try again later."`} {
+		if !strings.Contains(help, want) {
+			t.Errorf("help %q lacks %q", help, want)
+		}
+	}
+}
