@@ -33,6 +33,7 @@ func init() {
 	for _, tb := range strings.Fields(`notify_event router_blocklist journal_action torrent_journal history`) {
 		keptByDesign[tb] = "kept by design (package comment, journal): a memory or record that must not be forgotten"
 	}
+	keptByDesign["playing_break"] = "repair history of files that broke while playing, and the come-back state of their old copies"
 	for _, tb := range strings.Fields(`provider_torrent provider_torrent_read`) {
 		keptByDesign[tb] = "a record replaced at each provider read, not history that grows without bound"
 	}
