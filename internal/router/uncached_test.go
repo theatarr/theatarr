@@ -1184,7 +1184,9 @@ func TestAllDebridTooBigFromPollerKeptReasons(t *testing.T) {
 		deleteFails   bool
 		want, notWant string
 	}{
-		{name: "refused", deleteFails: true, want: "(the delete failed)"},
+		{name: "refused", deleteFails: true, want: "the magnet stays on the account (the delete failed)"},
+		{name: "reused", reused: true, want: "the magnet stays on the account (the torrent was reused from the account)", notWant: "our add"},
+		{name: "off", off: true, want: "the magnet stays on the account (router.alldebrid_delete_uncached is off)", notWant: "provably"},
 	} {
 		e, f, _ := newDebridEnv(t, true, true)
 		withQueue(e)

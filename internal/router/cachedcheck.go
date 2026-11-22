@@ -239,7 +239,9 @@ func (r *Router) pollNameRefused(ctx context.Context, x pollRow, t *provider.Tor
 func (r *Router) pollTooLarge(ctx context.Context, x pollRow, t *provider.Torrent, now time.Time, sum *PollSummary) error {
 	rctx := context.WithoutCancel(ctx)
 	kept := "the add was not provably ours"
-	if pv := r.pol.Providers[x.pk]; pv != nil && (pv.Kind != provider.KindAllDebrid || r.set.AllDebridDeleteUncached) {
+	if pv := r.pol.Providers[x.pk]; pv != nil && pv.Kind == provider.KindAllDebrid && !r.set.AllDebridDeleteUncached {
+		kept = "router.alldebrid_delete_uncached is off"
+	} else if pv != nil {
 		why, err := r.ownPolledAdd(ctx, x, t)
 		if err != nil {
 			r.log.Warn("checking the torrent id failed; tried again at the next poll", "download", x.id,
@@ -269,15 +271,16 @@ func (r *Router) pollTooLarge(ctx context.Context, x pollRow, t *provider.Torren
 		return err
 	}
 	why := "too big for " + x.pk + " (File too big.)"
-	done := "deleted"
+	done := "our add was deleted"
 	if kept != "" {
 		// The magnet stays on the account, and its registry row with it: Torrents lists it until the owner clears it.
-		done = "kept (" + kept + ")"
+		// It may be no add of ours (reused), so the words name the magnet.
+		done = "the magnet stays on the account (" + kept + ")"
 	}
 	r.log.Warn(why+"; a miss on "+x.pk+", the release is routed again", "download", x.id, "provider", x.pk,
-		"torrent", x.tid, "our_add", done)
-	queued, err := r.requeue(rctx, x, why+"; our add was "+done+"; the release is routed again",
-		why+"; our add was "+done+"; not blocklisted (no route queue)", kept == "")
+		"torrent", x.tid, "magnet", done)
+	queued, err := r.requeue(rctx, x, why+"; "+done+"; the release is routed again",
+		why+"; "+done+"; not blocklisted (no route queue)", kept == "")
 	if err == nil && !queued {
 		sum.Failed++
 	}
