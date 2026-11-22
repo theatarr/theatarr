@@ -1051,9 +1051,9 @@ func TestSeasonRequestAvailableDespiteOtherSeasonGap(t *testing.T) {
 	}
 }
 
-// TestSeasonRequestWithFutureSeason: a request naming a season none of whose episodes has aired is not available
-// while an aired season it names is complete (each requested season needs an aired, held episode), and its detail
-// says when that season starts, also for a request of the future season alone.
+// TestSeasonRequestWithFutureSeason: a season none of whose episodes has aired does not hold back a request for the
+// show (seasons 1 to 3, the third in the future, 1 and 2 held: available), but a request of that future season alone
+// is not available and its detail says when the season starts; a season partly aired and not all held is not.
 func TestSeasonRequestWithFutureSeason(t *testing.T) {
 	t.Parallel()
 	e := newAddEnv(t, nil)
@@ -1062,41 +1062,45 @@ func TestSeasonRequestWithFutureSeason(t *testing.T) {
 	_, mgr := e.user("mgr", auth.RoleManager)
 	now := store.Millis(addNow)
 	e.exec(`INSERT INTO request (id, user_id, kind, title_id, name, versions, seasons, status, created_at, updated_at)
-		VALUES (503, ?, 'series', 10, 'The Show', '["tv-2160p"]', '[1,3]', 'approved', ?, ?),
-		(504, ?, 'series', 10, 'The Show', '["tv-2160p"]', '[3]', 'approved', ?, ?)`, annID, now, now, annID, now, now)
+		VALUES (503, ?, 'series', 10, 'The Show', '["tv-2160p"]', '[1,2,3]', 'approved', ?, ?),
+		(504, ?, 'series', 10, 'The Show', '["tv-2160p"]', '[3]', 'approved', ?, ?),
+		(505, ?, 'series', 10, 'The Show', '["tv-2160p"]', '[4]', 'approved', ?, ?)`,
+		annID, now, now, annID, now, now, annID, now, now)
+	// Seasons 1 (101, 102) and 2 (103) aired and held; 3 entirely in the future; 4 one aired episode missing, one to come.
 	e.exec(`UPDATE episode SET air_date = '2020-01-01' WHERE id IN (101, 102, 103)`)
-	e.exec(`UPDATE episode_version_state SET state = 'filled' WHERE episode_id IN (101, 102)`)
+	e.exec(`UPDATE episode_version_state SET state = 'filled' WHERE episode_id IN (101, 102, 103)`)
 	e.exec(`INSERT INTO link (id, path, target, title_id, state, created_at, updated_at) VALUES
-		(80, '/tv/S/S01E01.mkv', '/t1', 10, 'active', ?, ?), (81, '/tv/S/S01E02.mkv', '/t2', 10, 'active', ?, ?)`,
+		(80, '/tv/S/S01E01.mkv', '/t1', 10, 'active', ?, ?), (81, '/tv/S/S01E02.mkv', '/t2', 10, 'active', ?, ?),
+		(82, '/tv/S/S02E01.mkv', '/t3', 10, 'active', ?, ?)`, now, now, now, now, now, now)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (80, 10), (81, 10), (82, 10)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (80, 101), (81, 102), (82, 103)`)
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, monitored, air_date, created_at, updated_at) VALUES
+		(107, 10, 3, 1, 'Return', 1, '2099-03-21', ?, ?), (108, 10, 3, 2, 'After', 1, '2099-03-28', ?, ?),
+		(109, 10, 4, 1, 'Aired', 1, '2020-02-01', ?, ?), (110, 10, 4, 2, 'Later', 1, '2099-04-01', ?, ?)`,
+		now, now, now, now, now, now, now, now)
+	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, updated_at) VALUES
+		(10, 107, 1, 'wanted', ?), (10, 108, 1, 'wanted', ?), (10, 109, 1, 'wanted', ?), (10, 110, 1, 'wanted', ?)`,
 		now, now, now, now)
-	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (80, 10), (81, 10)`)
-	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (80, 101), (81, 102)`)
-	e.exec(`INSERT INTO episode (id, title_id, season, number, name, monitored, air_date, created_at, updated_at)
-		VALUES (107, 10, 3, 1, 'Return', 1, '2099-03-21', ?, ?), (108, 10, 3, 2, 'After', 1, '2099-03-28', ?, ?)`,
-		now, now, now, now)
-	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, updated_at)
-		VALUES (10, 107, 1, 'wanted', ?), (10, 108, 1, 'wanted', ?)`, now, now)
 	for range 2 {
 		if err := e.web.syncRequests(ctx); err != nil {
 			t.Fatal(err)
 		}
 	}
-	for _, id := range []int64{503, 504} {
-		if s := e.requestStatus(id); s == ReqAvailable {
-			t.Errorf("request %d with a future season: %s", id, s)
+	var page RequestPage
+	e.callAs(mgr, "GET", APIBase+"/requests?status=all", nil, 200, &page)
+	badge := map[int64]bool{}
+	for _, r := range page.Items {
+		badge[r.ID] = r.Versions[0].Available
+	}
+	for id, want := range map[int64]bool{503: true, 504: false, 505: false} {
+		if s := e.requestStatus(id); (s == ReqAvailable) != want || badge[id] != want {
+			t.Errorf("request %d: %s, badge %v; want available %v", id, s, badge[id], want)
 		}
-		var page RequestPage
-		e.callAs(mgr, "GET", APIBase+"/requests?status=all", nil, 200, &page)
-		for _, r := range page.Items {
-			if r.ID == id && r.Versions[0].Available {
-				t.Errorf("request %d: list badge available", id)
-			}
-		}
-		var d RequestDetail
-		e.callAs(mgr, "GET", fmt.Sprintf("%s/requests/%d", APIBase, id), nil, 200, &d)
-		if len(d.Progress) != 1 || d.Progress[0].Words != "Season 3 starts 21 March 2099" {
-			t.Errorf("request %d: progress %+v", id, d.Progress)
-		}
+	}
+	var d RequestDetail
+	e.callAs(mgr, "GET", fmt.Sprintf("%s/requests/%d", APIBase, 504), nil, 200, &d)
+	if len(d.Progress) != 1 || d.Progress[0].Words != "Season 3 starts 21 March 2099" {
+		t.Errorf("request 504: progress %+v", d.Progress)
 	}
 }
 
