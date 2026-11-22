@@ -719,9 +719,9 @@ func (a *Acquirer) wantedRuns(ctx context.Context, items []WantedRow) error {
  ROW_NUMBER() OVER (PARTITION BY p.idx ORDER BY r.created_at DESC, r.id DESC) AS rank
  FROM page p JOIN version v ON v.title_id = p.title AND v.policy_key = p.key
  JOIN acquire_run r ON r.version_id = v.id AND COALESCE(r.season, -1) = p.season)
- SELECT idx,id,created_at,state,results,accepted,message,downloaded,
- COALESCE((SELECT state FROM download WHERE download.id = downloaded), ''),
- COALESCE((SELECT `+activity.MissedSQL("download")+` FROM download WHERE download.id = downloaded), 0) FROM ranked WHERE rank = 1`, args...)
+ SELECT ranked.idx,ranked.id,ranked.created_at,ranked.state,ranked.results,ranked.accepted,ranked.message,ranked.downloaded,
+ COALESCE(d.state, ''),
+ COALESCE(`+activity.MissedSQL("d")+`, 0) FROM ranked LEFT JOIN download d ON d.id = ranked.downloaded WHERE rank = 1`, args...)
 	if err != nil {
 		return err
 	}

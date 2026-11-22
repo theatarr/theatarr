@@ -1636,28 +1636,26 @@ func (w *Web) requestFailures(ctx context.Context, r *Request, vids []int64) (ma
 	return out, err
 }
 
-// seasonsFilled reports whether a version holds every aired episode (airClock) of these seasons: at least one of them
-// has an aired episode, and each that has holds all of its aired ones. A season with nothing aired yet is skipped, so
-// a future season never holds back a request for the whole show; a request of future seasons only is not ready.
+// seasonsFilled reports whether a version holds every aired episode (airClock) of these seasons, and there is at
+// least one: a season with nothing aired yet counts nothing, so a future season never holds back a request for the
+// whole show, and a request of future seasons only is not ready.
 func (w *Web) seasonsFilled(ctx context.Context, versionID int64, seasons []int) (bool, error) {
 	aired, airedArgs := newAirClock(w.now()).airedSQL("e")
 	args := append([]any{versionID, versionID}, airedArgs...)
 	for _, n := range seasons {
 		args = append(args, n)
 	}
-	var withAired, complete int
-	err := w.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(done), 0) FROM (SELECT
-		COUNT(*) = SUM(s.state IN ('filled', 'cutoff_met')) AS done
+	var n, held int
+	err := w.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(s.state IN ('filled', 'cutoff_met')), 0)
 		FROM episode e LEFT JOIN episode_version_state s ON s.episode_id = e.id AND s.version_id = ?
 		WHERE e.title_id = (SELECT title_id FROM version WHERE id = ?) AND e.removed_at IS NULL
-		AND `+aired+` AND e.season IN (`+store.Placeholders(len(seasons))+`) GROUP BY e.season)`, args...).
-		Scan(&withAired, &complete)
-	return withAired > 0 && complete == withAired, err
+		AND `+aired+` AND e.season IN (`+store.Placeholders(len(seasons))+`)`, args...).Scan(&n, &held)
+	return n > 0 && held == n, err
 }
 
 // requestSeasonsFilled is seasonsFilled for every decided series request naming seasons, in one query: per
-// request, per library, whether the library holds every aired episode (airClock) of the request's seasons, by the
-// same rule: at least one season with an aired episode, each such season complete.
+// request, per library, whether the library holds every aired episode (airClock) of the request's seasons (and at
+// least one).
 func (w *Web) requestSeasonsFilled(ctx context.Context, items []Request) (map[int64]map[string]bool, error) {
 	type ask struct {
 		ID      int64 `json:"id"`
@@ -1676,39 +1674,26 @@ func (w *Web) requestSeasonsFilled(ctx context.Context, items []Request) (map[in
 	if len(asks) == 0 {
 		return out, nil
 	}
-	// airedSeasons counts each request's and library's seasons with an aired episode, complete those it holds whole.
-	airedSeasons, complete := map[int64]map[string]int{}, map[int64]map[string]int{}
 	b, _ := json.Marshal(asks)
 	aired, airedArgs := newAirClock(w.now()).airedSQL("e")
 	err := scanAll(ctx, w.st.Reader(), `WITH q AS (SELECT json_extract(a.value, '$.id') AS rid,
 			json_extract(a.value, '$.t') AS tid, s.value AS season
 			FROM json_each(?) a, json_each(json_extract(a.value, '$.s')) s)
-		SELECT q.rid, v.policy_key, q.season, COUNT(*), COALESCE(SUM(st.state IN ('filled', 'cutoff_met')), 0)
+		SELECT q.rid, v.policy_key, COUNT(*), COALESCE(SUM(st.state IN ('filled', 'cutoff_met')), 0)
 		FROM q JOIN episode e ON e.title_id = q.tid AND e.season = q.season
 		JOIN version v ON v.title_id = q.tid
 		LEFT JOIN episode_version_state st ON st.episode_id = e.id AND st.version_id = v.id
 		WHERE e.removed_at IS NULL AND `+aired+`
-		GROUP BY q.rid, v.policy_key, q.season`, append([]any{string(b)}, airedArgs...), func(rows *sql.Rows) error {
+		GROUP BY q.rid, v.policy_key`, append([]any{string(b)}, airedArgs...), func(rows *sql.Rows) error {
 		var id int64
 		var key string
-		var season, aired, held int
-		if err := rows.Scan(&id, &key, &season, &aired, &held); err != nil {
+		var aired, held int
+		if err := rows.Scan(&id, &key, &aired, &held); err != nil {
 			return err
 		}
-		if complete[id] == nil {
-			complete[id], airedSeasons[id] = map[string]int{}, map[string]int{}
-		}
-		airedSeasons[id][key]++
-		if held == aired {
-			complete[id][key]++
-		}
+		out[id][key] = aired > 0 && held == aired
 		return nil
 	})
-	for id, byKey := range airedSeasons {
-		for key, n := range byKey {
-			out[id][key] = n > 0 && complete[id][key] == n
-		}
-	}
 	return out, err
 }
 
