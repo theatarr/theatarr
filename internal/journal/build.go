@@ -464,7 +464,11 @@ func (b *builder) decisionFor(e *Entry, d *dlRow) error {
 		if d.added.Valid {
 			ranked := slices.SortedStableFunc(slices.Values(append([]snapshot.Candidate{*r.Chosen}, r.RunnersUp...)),
 				func(a, b snapshot.Candidate) int { return a.Rank - b.Rank })
-			r.ChosenOver = snapshot.ChosenLine(ranked, d.hash, e.Release.Episodes)
+			// A series grab whose episode labels did not resolve (the title cache predates its episodes) is no film:
+			// no line rather than one about any episodes.
+			if ti, _ := b.title(d.titleID); ti == nil || ti.ref.Kind == "movie" || len(e.Release.Episodes) > 0 {
+				r.ChosenOver = snapshot.ChosenLine(ranked, d.hash, e.Release.Episodes)
+			}
 		}
 		if r.Chosen.Existing != nil {
 			s := r.Chosen.Existing.Score

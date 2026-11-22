@@ -1375,3 +1375,30 @@ func TestChosenOverOnlyForTheShownDownload(t *testing.T) {
 		t.Errorf("failed grab inherits the line: %+v", g.Reasoning)
 	}
 }
+
+// A series grab whose episode labels the Journal cannot resolve (its title cache predates the episodes) is not treated
+// like a film: no "Chosen over" line.
+func TestChosenOverNoneForUnresolvedSeriesGrab(t *testing.T) {
+	e := newEnv(t)
+	e.exec(`UPDATE title SET kind = 'series' WHERE id = 1`)
+	at := testNow.Add(-3 * time.Hour)
+	a, b := dec("R0", true, "WEBDL-2160p", 100), dec("R1", true, "WEBDL-2160p", 90)
+	if err := snapshot.Record(context.Background(), e.st.Writer(), snapshot.Search{Source: "rss", TitleID: 1,
+		Version: "movie-remux", Ranked: []*decide.Decision{a, b}, CreatedAt: at}); err != nil {
+		t.Fatal(err)
+	}
+	var cands string
+	e.st.Reader().QueryRow(`SELECT candidates FROM journal_decision WHERE source = 'rss'`).Scan(&cands)
+	var cs []map[string]any
+	json.Unmarshal([]byte(cands), &cs)
+	cs[0]["info_hash"], cs[1]["info_hash"] = hashA, strings.Repeat("b", 40)
+	cs[0]["over"] = map[string]any{"release": "R1", "reason": "higher score (100 over 90)", "episodes": []string{"S01E02"}}
+	out, _ := json.Marshal(cs)
+	e.exec(`UPDATE journal_decision SET candidates = ? WHERE source = 'rss'`, string(out))
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, source,
+		episodes, created_at, updated_at, added_at) VALUES (2, 1, 1, 'movie-remux', ?, 'R0', 'dmm', 'imported', 'rss',
+		'[999]', ?, ?, ?)`, hashA, msOf(at.Add(2*time.Hour)), msOf(at.Add(2*time.Hour)), msOf(at.Add(2*time.Hour)))
+	if g := e.get("dl:2"); g.Reasoning == nil || g.Reasoning.ChosenOver != "" {
+		t.Errorf("series grab without labels: %+v", g.Reasoning)
+	}
+}
