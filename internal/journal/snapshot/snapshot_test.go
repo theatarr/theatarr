@@ -150,4 +150,11 @@ func TestChosenLine(t *testing.T) {
 			t.Errorf("runner-up of a taken episode (%v): %q", eps, got)
 		}
 	}
+	// The three steps that say nothing about the release give no line.
+	for _, why := range []string{"its age", "its size", "the episode count"} {
+		c := []Candidate{{Accepted: true, InfoHash: "h1", Over: &Over{Release: "B", Reason: why}}}
+		if got := ChosenLine(c, "h1", nil); got != "" {
+			t.Errorf("%s: %q", why, got)
+		}
+	}
 }

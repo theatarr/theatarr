@@ -300,10 +300,11 @@ func Record(ctx context.Context, db Execer, s Search) error {
 // ChosenLine is the one explanation of a stored search's choice, for the release its route took (Last search, the
 // journal's grab entry; the caller checks it was taken): "Chosen over <next>: <reason>", the reason recorded when
 // the search was ranked. It says nothing about releases ranked above it. "" when nothing was ranked after it, or when
-// that release covers none of episodes, the episodes the download was taken for (DownloadEpisodes; nil: any).
+// that release covers none of episodes, the episodes the download was taken for (DownloadEpisodes; nil: any), or
+// when the deciding step says nothing a person can act on (silentReasons).
 func ChosenLine(cands []Candidate, taken string, episodes []string) string {
 	i := slices.IndexFunc(cands, func(c Candidate) bool { return c.Accepted && taken != "" && strings.EqualFold(c.InfoHash, taken) })
-	if i < 0 || cands[i].Over == nil || cands[i].Over.Reason == "" {
+	if i < 0 || cands[i].Over == nil || cands[i].Over.Reason == "" || slices.Contains(silentReasons, cands[i].Over.Reason) {
 		return ""
 	}
 	over := cands[i].Over
@@ -316,6 +317,10 @@ func ChosenLine(cands []Candidate, taken string, episodes []string) string {
 	}
 	return "Chosen over " + over.Release + ": " + over.Reason
 }
+
+// silentReasons are the comparer's words (decide/profile Explain) for the steps that name nothing about the release:
+// its age, its size, the episode count. ChosenLine gives no line for them.
+var silentReasons = []string{"its age", "its size", "the episode count"}
 
 // Querier is a *sql.DB or *sql.Tx.
 type Querier interface {
