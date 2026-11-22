@@ -400,15 +400,27 @@ func (w *Web) seriesSeasons(ctx context.Context, tmdbID, tvdbID int64) []int {
 }
 
 // librarySeasons are a series' seasons from its episode rows, with whether each is monitored for some version.
-// current counts only the copies not removed (the title's own state while it has one); a title every copy of which
-// was removed reads what its copies had.
+// current counts only the copies not removed (the title's own state while it has one), and of them the monitored
+// ones when any is; a title every copy of which was removed reads what its copies had.
 func (w *Web) librarySeasons(ctx context.Context, titleID int64, current bool) ([]SeasonOption, error) {
 	out := []SeasonOption{}
+	// The copies read: the current ones (a removed copy is not read), and of them the monitored ones when the title
+	// monitors any (a held copy it does not monitor is not read either).
+	monitoredOnly := false
+	if current {
+		var n int
+		if err := w.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM version v WHERE v.title_id = ? AND v.monitored = 1
+			AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = v.id)`, titleID).Scan(&n); err != nil {
+			return nil, err
+		}
+		monitoredOnly = n > 0
+	}
 	err := scanAll(ctx, w.st.Reader(), `SELECT e.season, COUNT(*), COALESCE(MIN((SELECT MAX(s.monitored) FROM
-		episode_version_state s WHERE s.episode_id = e.id AND (? = 0 OR NOT EXISTS (SELECT 1 FROM arrview_removed_version r
-		WHERE r.version_id = s.version_id)))), 1) FROM episode e WHERE e.title_id = ? AND e.removed_at IS NULL
+		episode_version_state s JOIN version v ON v.id = s.version_id WHERE s.episode_id = e.id AND (? = 0 OR NOT EXISTS
+		(SELECT 1 FROM arrview_removed_version r WHERE r.version_id = s.version_id)) AND (? = 0 OR v.monitored = 1))), 1)
+		FROM episode e WHERE e.title_id = ? AND e.removed_at IS NULL
 		GROUP BY e.season
-		ORDER BY e.season`, []any{current, titleID}, func(r *sql.Rows) error {
+		ORDER BY e.season`, []any{current, monitoredOnly, titleID}, func(r *sql.Rows) error {
 		var s SeasonOption
 		var mon bool
 		if err := r.Scan(&s.Number, &s.Episodes, &mon); err != nil {

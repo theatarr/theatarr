@@ -2509,6 +2509,15 @@ func TestAddOptionsSeasonsSkipRemovedCopy(t *testing.T) {
 	if len(o.Seasons) != 3 || o.Seasons[2].Number != 2 || *o.Seasons[2].Monitored {
 		t.Errorf("season 2 reads the removed copy: %+v", o.Seasons)
 	}
+	// A held copy the title does not monitor is not read either while one is monitored.
+	e.exec(`DELETE FROM arrview_removed_version WHERE version_id = 11`)
+	e.exec(`UPDATE version SET monitored = 0 WHERE id = 11`)
+	o = AddOptions{}
+	e.call("GET", APIBase+"/add/options?title_id=10", nil, 200, &o)
+	if len(o.Seasons) != 3 || *o.Seasons[2].Monitored {
+		t.Errorf("season 2 reads the unmonitored copy: %+v", o.Seasons)
+	}
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (11, 'ui', 0)`)
 	// Every copy removed: the add restores the title, and the sheet shows what its copies had.
 	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (10, 'ui', 0)`)
 	o = AddOptions{}

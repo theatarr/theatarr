@@ -159,7 +159,7 @@ it, and the title's About then names it: "Not searched in Anime movies: that lib
 not anime."), or for a new series that monitors no episode (Monitor **None**, or its seasons with every box
 cleared; the switch for seasons that appear later does not change that), and only **Save seasons** when only a
 series' seasons changed. A series in the library ticks each season by its current copies (a removed copy is not
-read), and the copies it has take only the seasons changed in the sheet (`changed_seasons`), so their others keep their episode choices; a copy added there takes every shown season. Nothing is remembered between adds. An add from the Search overlay that succeeds closes
+read, nor a held copy it does not monitor while it monitors one), and the copies it has take only the seasons changed in the sheet (`changed_seasons`), so their others keep their episode choices; a copy added there takes every shown season. Nothing is remembered between adds. An add from the Search overlay that succeeds closes
 the overlay too, so the title's page it goes to is not covered; Cancel or a failed add returns to the same search,
 its text and results kept. The request sheet closes the overlay only when the member follows one of its links.
 
