@@ -86,8 +86,8 @@ type Episode struct {
 	Title         string
 	AirDate       string // YYYY-MM-DD, "" unknown
 	AirDateUTC    *time.Time
-	// AirTimeUnknown: the series' listing gives air days without a time (series_meta.air_time empty), so AirDateUTC
-	// is a made-up midnight.
+	// AirTimeUnknown: AirDateUTC is made up (the refresh's midnight of the air day for a listing without an airs
+	// time), as Calendar reads it; AirDate alone is the day.
 	AirTimeUnknown bool
 	Runtime        int
 	Monitored      bool

@@ -112,24 +112,32 @@ const notAiredLead = 36 * time.Hour
 // whose episode airs more than notAiredLead from now is a fake and is passed over for now (a temporary rejection: a
 // later sighting is decided again). Only a television source the name states counts (not the parser's HDTV fallback
 // for a name without a source). Packs keep fullSeason; WEB, disc and unknown sources are never delayed, nor an
-// episode without an air date, a special, an upgrade of an episode with a file, or a file already on disk. The
-// deciding episode is the earliest of a release of one or two episodes and the latest of a longer range, so a fake
-// "E01-E10" does not ride on E01.
+// episode without an air date, a special, an upgrade (every mapped episode has a file), or a file already on disk.
+// The deciding episode is the earliest of a release of one or two episodes and the latest with an air date of a
+// longer range, so a fake "E01-E10" does not ride on E01.
 func notAired(e *Engine, s *Subject) Decision {
 	src := sonarr.QualitySource(s.Release.Quality.Quality.Source)
 	if s.OnDisk || s.Release.pack() || len(s.Episodes) == 0 || !s.Release.SourceNamed ||
 		src != sonarr.SourceTelevision && src != sonarr.SourceTelevisionRaw {
 		return Accept()
 	}
-	ep := s.Episodes[0]
-	for _, x := range s.Episodes[1:] {
-		later := x.SeasonNumber > ep.SeasonNumber || x.SeasonNumber == ep.SeasonNumber && x.EpisodeNumber > ep.EpisodeNumber
-		if later == (len(s.Episodes) > 2) {
+	// The deciding episode: the earliest of one or two, the latest with an air date of more.
+	rng := len(s.Episodes) > 2
+	var ep *Episode
+	held := true // every mapped episode has a file: an upgrade
+	for _, x := range s.Episodes {
+		held = held && x.File != nil
+		if rng && x.AirDateUtc == nil {
+			continue
+		}
+		later := ep != nil && (x.SeasonNumber > ep.SeasonNumber ||
+			x.SeasonNumber == ep.SeasonNumber && x.EpisodeNumber > ep.EpisodeNumber)
+		if ep == nil || later == rng {
 			ep = x
 		}
 	}
 	now := e.now()
-	if ep.SeasonNumber == 0 || ep.AirDateUtc == nil || ep.File != nil || !ep.AirDateUtc.After(now.Add(notAiredLead)) {
+	if held || ep == nil || ep.SeasonNumber == 0 || ep.AirDateUtc == nil || !ep.AirDateUtc.After(now.Add(notAiredLead)) {
 		return Accept()
 	}
 	return Reject(ReasonNotAiredYet, fmt.Sprintf("Not aired yet: S%02dE%02d airs %s; a TV recording cannot exist before then.",

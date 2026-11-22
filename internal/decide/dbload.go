@@ -314,26 +314,7 @@ func loadEpisodes(ctx context.Context, db *sql.DB, tvs []titleVersion, history b
 		return nil, err
 	}
 	tl, _ := json.Marshal(titles)
-	// A series whose listing gives days without a time (series_meta.air_time empty): its air instants are made up.
-	mrows, err := db.QueryContext(ctx, `SELECT title_id FROM series_meta WHERE air_time = ''
-		AND title_id IN (SELECT value FROM json_each(?))`, string(tl))
-	if err != nil {
-		return nil, err
-	}
-	for mrows.Next() {
-		var title int64
-		if err := mrows.Scan(&title); err != nil {
-			mrows.Close()
-			return nil, err
-		}
-		for _, ti := range byTitle[title] {
-			for i := range out[ti] {
-				out[ti][i].AirTimeUnknown = true
-			}
-		}
-	}
-	mrows.Close()
-	if err := mrows.Err(); err != nil {
+	if err := markMadeUpAirTimes(ctx, db, out, byTitle, tl); err != nil {
 		return nil, err
 	}
 	nrows, err := db.QueryContext(ctx, `SELECT n.title_id, n.episode_id, n.scheme, n.season, n.number FROM episode_number n
@@ -728,3 +709,55 @@ func NewLibrary(titles map[int64]Title) Library {
 
 func (l *titleLibrary) ByIMDb(id string) *Title { return l.byIMDb[id] }
 func (l *titleLibrary) ByTMDb(id int) *Title    { return l.byTMDb[id] }
+
+// markMadeUpAirTimes sets AirTimeUnknown as Calendar decides it (activity.Calendar): an episode's instant is made up
+// when the first instant of its season's episodes that air the same day is midnight of that day in the series' zone
+// (series_meta.time_zone; UTC without one), what the refresh writes without an airs time (tvrefresh.MidnightAir).
+func markMadeUpAirTimes(ctx context.Context, db *sql.DB, out [][]Episode, byTitle map[int64][]int, titles []byte) error {
+	zones := map[int64]string{}
+	rows, err := db.QueryContext(ctx, `SELECT title_id, time_zone FROM series_meta
+		WHERE title_id IN (SELECT value FROM json_each(?))`, string(titles))
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var title int64
+		var zone string
+		if err := rows.Scan(&title, &zone); err != nil {
+			rows.Close()
+			return err
+		}
+		zones[title] = zone
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	type day struct {
+		season int
+		date   string
+	}
+	for title, tis := range byTitle {
+		loc, err := time.LoadLocation(zones[title])
+		if err != nil {
+			loc = time.UTC
+		}
+		for _, ti := range tis {
+			eps := out[ti]
+			first := map[day]time.Time{}
+			for _, e := range eps {
+				k := day{e.Season, e.AirDate}
+				if f, ok := first[k]; e.AirDateUTC != nil && (!ok || e.AirDateUTC.Before(f)) {
+					first[k] = *e.AirDateUTC
+				}
+			}
+			for i := range eps {
+				e := &eps[i]
+				d, err := time.ParseInLocation(time.DateOnly, e.AirDate, loc)
+				f, ok := first[day{e.Season, e.AirDate}]
+				e.AirTimeUnknown = err == nil && e.AirDateUTC != nil && ok && f.Equal(d)
+			}
+		}
+	}
+	return nil
+}

@@ -544,7 +544,9 @@ func TestHandGrabOfUnairedTVCapturePassesRoute(t *testing.T) {
 	t.Run("rss_prefer_seadex", func(t *testing.T) {
 		t.Parallel()
 		e := setup(t, true)
-		e.exec(`INSERT INTO series_meta (title_id, air_time) VALUES (2, '')`) // a listing without air times
+		e.exec(`INSERT INTO series_meta (title_id, air_time, time_zone) VALUES (2, '', 'America/New_York')`)
+		e.exec(`UPDATE episode SET air_date_utc_at = ? WHERE id = 101`, // the refresh's midnight of the day in the zone
+			time.Date(2026, 10, 31, 0, 0, 0, 0, time.UTC).Add(4*time.Hour).UnixMilli())
 		res, err := e.r.Route(e.ctx, Request{TitleID: 2, VersionID: 20, Version: "series", Source: "rss",
 			Candidates: []Candidate{hdtv("b")}})
 		if err != nil || res.Outcome != OutcomeCancelled || !strings.Contains(steps(res), "rejected_now") {
@@ -590,6 +592,49 @@ func TestHandGrabOfUnairedTVCapturePassesRoute(t *testing.T) {
 		}
 		if held(decide.WithOnDisk(e.ctx), "Show.S01E01.720p.HDTV.x264-GRP") {
 			t.Error("a file on disk held")
+		}
+	})
+
+	// "Date only" as Calendar reads it: a midnight of the air day in the series' zone (UTC without a series_meta row)
+	// prints the day; a real time prints with its zone even where series_meta.air_time is blank.
+	t.Run("date_only_as_calendar", func(t *testing.T) {
+		t.Parallel()
+		words := func(t *testing.T, meta bool, at time.Time) string {
+			e := setup(t, false)
+			if meta {
+				e.exec(`INSERT INTO series_meta (title_id, air_time, time_zone) VALUES (2, '', 'UTC')`)
+			}
+			e.exec(`UPDATE episode SET air_date = '2026-11-26', air_date_utc_at = ? WHERE id = 101`, at.UnixMilli())
+			v, _ := engines.Load(e)
+			title, err := decide.LoadTitle(e.ctx, e.st.Reader(), 2)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ver, err := decide.LoadVersion(e.ctx, e.st.Reader(), e.pol, 2, "series")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := decide.LoadSeriesVersion(e.ctx, e.st.Reader(), &title, ver.ID); err != nil {
+				t.Fatal(err)
+			}
+			d, err := v.(*decide.Engine).Decide(e.ctx, decide.Release{Release: indexer.Release{Indexer: "pub",
+				Title: "Show.S01E01.720p.HDTV.x264-GRP", InfoHash: h("g"), Size: 1 << 30, Seeders: 10, Peers: 5}}, title, ver, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, r := range d.Rejections {
+				if r.Reason == "NotAiredYet" {
+					return r.Message
+				}
+			}
+			t.Fatalf("not held: %+v", d.Rejections)
+			return ""
+		}
+		if m := words(t, false, time.Date(2026, 11, 26, 0, 0, 0, 0, time.UTC)); !strings.Contains(m, "airs Thu 26 Nov; ") {
+			t.Errorf("UTC midnight without series_meta: %q", m)
+		}
+		if m := words(t, true, time.Date(2026, 11, 26, 21, 0, 0, 0, time.UTC)); !strings.Contains(m, "airs Thu 26 Nov, 9 pm UTC; ") {
+			t.Errorf("real time with a blank air_time: %q", m)
 		}
 	})
 

@@ -569,6 +569,37 @@ func TestNotAiredSpecification(t *testing.T) {
 	if got := run(t, "NotAired", s); !got.Accepted {
 		t.Errorf("upgrade of a held episode: %+v", got)
 	}
+	// A two-episode release is an upgrade only when both episodes have a file.
+	e1, e2 := ep(2, 1, hours(40)), ep(2, 2, hours(41))
+	e1.File = &File{}
+	s.Episodes = []*Episode{e1, e2}
+	if got := run(t, "NotAired", s); got.Accepted {
+		t.Errorf("E01 held, E02 empty and unaired: %+v", got)
+	}
+	e2.File = &File{}
+	if got := run(t, "NotAired", s); !got.Accepted {
+		t.Errorf("both episodes held: %+v", got)
+	}
+	// A range is decided by its latest episode with an air date: E10 undated, E04 five days out.
+	var rng []*Episode
+	for n := 1; n <= 10; n++ {
+		var at *time.Time
+		switch {
+		case n < 4:
+			at = hours(-48)
+		case n == 4:
+			at = hours(120)
+		}
+		rng = append(rng, ep(2, n, at))
+	}
+	s.Episodes = rng
+	if got := run(t, "NotAired", s); got.Accepted || !strings.Contains(got.Message, "S02E04") {
+		t.Errorf("range with an undated last episode: %+v", got)
+	}
+	s.Episodes = []*Episode{ep(2, 1, nil), ep(2, 2, nil), ep(2, 3, nil)}
+	if got := run(t, "NotAired", s); !got.Accepted {
+		t.Errorf("range without air dates: %+v", got)
+	}
 
 	// The words: the air time in the clock's zone, or the day alone for a listing without a time.
 	ny, err := time.LoadLocation("America/New_York")
