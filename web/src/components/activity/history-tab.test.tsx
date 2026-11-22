@@ -2,7 +2,7 @@
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import { focusManager } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
-import { expect, it } from "vitest";
+import { expect, it, onTestFinished } from "vitest";
 import { json, mockFetch, renderPage } from "@/test/page";
 import { fmtTime } from "@/lib/format";
 import { EpisodeHistoryRows, HistoryTab } from "./history-tab";
@@ -356,4 +356,19 @@ it("keeps Undo's dialog open while its request runs, so it cannot be sent twice 
   answer({ status: 409, body: { error: "Not undone: the library changed since." } });
   expect((await screen.findByTestId("confirm-error")).textContent).toBe("Not undone: the library changed since.");
   expect(fetch.calls("POST", "/activity/replaced/31/undo")).toHaveLength(1);
+});
+
+it("says who undid an upgrade on the phone card too", async () => {
+  const mm = window.matchMedia;
+  window.matchMedia = ((q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} })) as never;
+  onTestFinished(() => { window.matchMedia = mm; });
+  const undone = { ...link, id: "h:undo2", event: "undone", kind: "link", words: "Upgrade undone", tone: "info", by: "ann" };
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: me },
+    { method: "GET", path: "/titles/facets", reply: {} },
+    { method: "GET", path: "/activity", reply: { state: "history", admin: true, history: [undone] } },
+  ]);
+  renderPage(<HistoryTab admin />, "/activity/history");
+  expect((await screen.findByTestId("history-by")).textContent).toBe("By ann");
+  expect(screen.queryByRole("table")).toBeNull();
 });

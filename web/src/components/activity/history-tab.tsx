@@ -207,15 +207,23 @@ function Reason({ e, className }: { e: ActivityEvent; className?: string }) {
   return <p className={cn("text-xs text-muted-foreground", className)} title={tip} data-testid="history-reason">{e.reason}</p>;
 }
 
+/** The lines under an event's words on the row and the phone card alike: who undid an upgrade, and what a playing
+ *  row means (its tooltip alone does not reach a phone). */
+function EventLines({ e }: { e: ActivityEvent }) {
+  return (
+    <>
+      {e.event === "undone" && e.by ? <p className="mt-0.5 text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="history-by">By {e.by}</p> : null}
+      {e.event === "playing" ? <p className="mt-0.5 text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="history-meaning">{eventMeaning(e.words)}</p> : null}
+    </>
+  );
+}
+
 /** The Event cell: the words, the episodes when no Title column shows them, the reason and an upgrade's files toggle. */
 function EventCell({ e, episodes, except }: { e: ActivityEvent; episodes: boolean; except?: string }) {
   return (
     <div className="min-w-0">
       <EventWords e={e} />
-      {/* An undone upgrade says who undid it, as the row's own line. */}
-      {e.event === "undone" && e.by ? <p className="mt-0.5 text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="history-by">By {e.by}</p> : null}
-      {/* A playing row's meaning is said on it: its tooltip alone does not reach a phone. */}
-      {e.event === "playing" ? <p className="mt-0.5 text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="history-meaning">{eventMeaning(e.words)}</p> : null}
+      <EventLines e={e} />
       <GrabbedLine e={e} />
       {episodes ? <Episodes e={e} except={except} /> : null}
       {/* A playing row's detail is what came of it: whole, as on the phone card. */}
@@ -353,6 +361,7 @@ function HistoryTable({ items, columns, withTitle, except }: { items: ActivityEv
               <EventWords e={e} />
               <span className="text-xs tabular-nums text-muted-foreground">{fmtTime(e.at)}</span>
             </div>
+            <EventLines e={e} />
             <GrabbedLine e={e} />
             {withTitle ? <TitleCell e={e} /> : <Episodes e={e} except={except} />}
             <Reason e={e} />
