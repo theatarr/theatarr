@@ -798,3 +798,19 @@ func TestAudioRuleDecisionOverStoredShapes(t *testing.T) {
 		})
 	}
 }
+
+// The refusal names the languages the held file's probe names (as File details show them); the arr's media info
+// only when the probe names none.
+func TestAudioRuleRefusalNamesProbeFirst(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.pol.Profiles["movie-state"].Language = "English"
+	e.heldFilm("", "eng")
+	e.exec(`UPDATE content_file SET probe = '{"container":"matroska","audio":[{"codec":"ac3","language":"fre"}]}' WHERE id = 1`)
+	e.exec(`UPDATE link SET adopted_media = '{"audioLanguages":"spa"}' WHERE id = 1`)
+	e.filmImport(1, hashA, movieRelease, tracks("ger"))
+	want := "Import refused: German audio only; the file in the library has French. Use Manual import to take it anyway."
+	if got := e.one(`SELECT COALESCE(reason, '') FROM router_blocklist WHERE info_hash = ?`, hashA); got != want {
+		t.Errorf("reason %q, want %q", got, want)
+	}
+}

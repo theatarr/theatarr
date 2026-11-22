@@ -267,22 +267,19 @@ func storedAudio(pr, media sql.NullString, adopted bool) []string {
 	return probeAudio(p)
 }
 
-// heldAudio is storedAudio for the words and the put-back: a probe none of whose tracks carries the tag fact (stored
-// before it was kept), or no probe, gives way to an adopted file's arr media info when that names a language.
+// heldAudio is storedAudio for the words and the put-back: the languages the stored probe names, read as the
+// import rule reads them; an adopted file's arr media info only when the probe names none (an old probe of an
+// untagged Matroska eng, or no probe).
 func heldAudio(pr, media sql.NullString, adopted bool) []string {
-	p, err := parseProbe(pr)
-	if err != nil {
-		p = nil
-	}
-	if !tagFact(p) && adopted {
-		if out := mediaAudio(media); len(out) > 0 {
+	if p, err := parseProbe(pr); err == nil && p != nil {
+		if out := probeAudio(p); len(out) > 0 {
 			return out
 		}
 	}
-	if p == nil {
-		return nil
+	if adopted {
+		return mediaAudio(media)
 	}
-	return probeAudio(p)
+	return nil
 }
 
 // probeAudio is a stored probe's known languages: an untagged Matroska eng is Matroska's default, not a tag (or a

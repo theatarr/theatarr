@@ -365,9 +365,9 @@ mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
      series: the files at the link's own path or sharing an episode with it, active or dead). The new file is
      refused unless it shares an audio language with every one of them (their stored probe, else an adopted file's
      arr media info, read with the version's files when the plan is made); unknown audio shares none. The
-     refusal's words (and the put-back) read further: a stored probe none of whose tracks has `tagged` (a probe
-     stored before the fact was kept) gives way to an adopted file's arr media info when it names a language and
-     the new file shares none of it; the decision itself never reads that. A stored
+     refusal's words (and the put-back) read further: the languages the stored probe names first, as the decision
+     reads them; an adopted file's arr media info only when the probe names none (an old probe of an untagged
+     Matroska eng, or no probe) and the new file shares none of it; the decision itself never reads that. A stored
      Matroska `eng` track without `tagged` (untagged, or a probe stored before the fact was kept) is unknown;
      other languages in an old probe stay known. A French-only
      E01-E02 file does not replace an English E01 beside a French E02.
