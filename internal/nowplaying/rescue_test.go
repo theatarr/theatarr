@@ -1119,3 +1119,31 @@ func TestRescueNoFalseOutage(t *testing.T) {
 		}
 	}
 }
+
+// A same-path import lands between the confirming reads: the check read the old copy, so it ends with nothing done,
+// no incident against the new file, and no copy of the new release.
+func TestRescueImportBetweenReads(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.copyOK["ad"] = true
+	repl := filepath.Join(e.mount, "__all__", "OtherAD", "S01E02.new.mkv")
+	if err := os.WriteFile(repl, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Truncate(repl, fileSize); err != nil {
+		t.Fatal(err)
+	}
+	e.tr.sleep = func(ctx context.Context, d time.Duration) error {
+		e.advance(d)
+		e.exec(`UPDATE link SET target = ? WHERE id = 11`, repl) // during the 20 s between reads 1 and 2
+		return ctx.Err()
+	}
+	e.play(2, "buffering")
+	e.poll()
+	if got := e.one(`SELECT COUNT(*) FROM playing_break`) + " " + e.one(`SELECT state FROM link WHERE id = 11`); got != "0 active" {
+		t.Errorf("after an import between the reads: %s", got)
+	}
+	if len(e.copies) != 0 || len(e.stop.stopped()) != 0 {
+		t.Errorf("copies %v, stops %q", e.copies, e.stop.stopped())
+	}
+}

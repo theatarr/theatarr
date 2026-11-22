@@ -366,6 +366,12 @@ func (t *Tracker) check(ctx context.Context, lib Rescuer, j *sign) {
 		fine()
 		return
 	}
+	// The hash, the incident and the copy step are about the copy that was read: a same-path import meanwhile ends
+	// the check with nothing done.
+	if !t.sameCopy(ctx, src) {
+		fine()
+		return
+	}
 	hash, err := lib.PlayingHash(ctx, src.LinkID)
 	if err != nil {
 		fine()
@@ -382,8 +388,8 @@ func (t *Tracker) check(ctx context.Context, lib Rescuer, j *sign) {
 		passed(r)
 		return
 	}
-	if lib = t.live(src.version); lib == nil {
-		log.Info("nowplaying: a playing file stopped working, but Pause is on or its library writes nothing now")
+	if lib = t.live(src.version); lib == nil || !t.sameCopy(ctx, src) {
+		log.Info("nowplaying: a playing file stopped working, but Pause is on, its library writes nothing now, or its link changed")
 		fine()
 		return
 	}
@@ -554,7 +560,7 @@ func (t *Tracker) repair(ctx context.Context, lib Rescuer, j *sign, hash string,
 	if client != "" {
 		failed = []string{client}
 	}
-	id, err := lib.OpenPlayingIncident(ctx, inc, library.PlayingFile{LinkID: src.LinkID, Offset: off})
+	id, err := lib.OpenPlayingIncident(ctx, inc, library.PlayingFile{LinkID: src.LinkID, Target: src.Target, Offset: off})
 	if err != nil {
 		log.Warn("nowplaying: incident not recorded", "err", err)
 		return
@@ -662,7 +668,7 @@ const (
 func (t *Tracker) sameRelease(ctx context.Context, lib Rescuer, j *sign, id int64, hash string, off int64,
 	accounts []string, told *bool) (int, string) {
 	for _, acct := range accounts {
-		if t.live(j.src.version) == nil {
+		if !t.sameCopy(ctx, &j.src) { // Pause, a library that stopped writing, or the link changed
 			return copyStopped, ""
 		}
 		ok, err := t.o.Copy(ctx, hash, acct)

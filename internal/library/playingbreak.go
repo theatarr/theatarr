@@ -67,7 +67,7 @@ func (l *Library) PlayingBoundReached(ctx context.Context, titleID int64, versio
 }
 
 // OpenPlayingIncident records the watched file's row (the incident's id is its id): from here History and Now
-// playing have it. The row stays open (not settled) until the repair says otherwise.
+// playing have it. With f.Target set, only while the link still points at that copy (ErrLinkChanged otherwise). The row stays open (not settled) until the repair says otherwise.
 func (l *Library) OpenPlayingIncident(ctx context.Context, inc PlayingIncident, f PlayingFile) (int64, error) {
 	var id int64
 	err := l.st.WriteTx(ctx, func(tx *sql.Tx) error {
@@ -85,6 +85,10 @@ func (l *Library) insertBreak(ctx context.Context, tx *sql.Tx, incident int64, i
 	err := tx.QueryRowContext(ctx, `SELECT path, target FROM link WHERE id = ?`, f.LinkID).Scan(&path, &target)
 	if err != nil {
 		return 0, fmt.Errorf("library: playing break: link %d: %w", f.LinkID, err)
+	}
+	if f.Target != "" && target != f.Target {
+		return 0, fmt.Errorf("library: playing break: link %d: %w", f.LinkID,
+			linkChanged(f.LinkID, path, f.Target, "it points at "+target+" now"))
 	}
 	hash, err := l.playingHash(ctx, tx, f.LinkID, target)
 	if err != nil {
