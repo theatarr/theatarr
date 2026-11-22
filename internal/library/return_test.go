@@ -366,9 +366,9 @@ func TestReplacementOfGoneFileIsNoUpgrade(t *testing.T) {
 	})
 }
 
-// A pack's pending import retry (E02's link failed) does not undo the Undo of its E01 upgrade: the Undo ends that
-// download's import in this library.
-func TestUndoEndsPendingRetry(t *testing.T) {
+// While the replacing download is still being imported in this library (a pack whose E02 link failed waits for its
+// retry), Undo is not offered and refused; once the import has finished it is offered and works.
+func TestUndoWaitsForPendingImport(t *testing.T) {
 	t.Parallel()
 	e := importUpEnv(t, "")
 	old := e.heldLink(1, "WEBDL-1080p", "Show.S01E01.1080p.WEB-DL.DDP5.1.H.264-OLD", 201)
@@ -388,16 +388,29 @@ func TestUndoEndsPendingRetry(t *testing.T) {
 	if _, err := e.lib.Import(e.ctx, 1, false); err == nil {
 		t.Fatal("a partial import reported no error")
 	}
-	if got := e.one(`SELECT state FROM library_import WHERE download_id = 1`); got != "partial" {
-		t.Fatalf("library_import %s", got)
-	}
 	var action int64
 	if err := e.st.Reader().QueryRow(`SELECT id FROM library_action WHERE kind = 'replace' AND download_id = 1`).Scan(&action); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.lib.UndoUpgrade(e.ctx, action, "ann"); err != nil {
-		t.Fatal(err)
+	state := func() string {
+		return e.one(`SELECT (SELECT state FROM download WHERE id = 1) || '/' ||
+			(SELECT state FROM library_import WHERE download_id = 1) || '/' || (SELECT COUNT(*) FROM router_blocklist)`)
 	}
+	if offers, _ := e.lib.UndoOffers(e.ctx, []int64{action}); len(offers) != 0 {
+		t.Errorf("offered while importing: %v", offers)
+	}
+	var rr *ReturnRefused
+	if _, err := e.lib.UndoUpgrade(e.ctx, action, "ann"); !errors.As(err, &rr) ||
+		rr.Sentence != "That download is still being imported; try again when it has finished" {
+		t.Fatalf("undo while importing: %v", err)
+	}
+	if got := state(); got != "importing/partial/0" {
+		t.Errorf("state %s", got)
+	}
+	if _, err := os.Lstat(old); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("old path: %v", err)
+	}
+	// The import finishes: Undo is offered and works.
 	if err := os.Remove(blocker); err != nil {
 		t.Fatal(err)
 	}
@@ -405,11 +418,17 @@ func TestUndoEndsPendingRetry(t *testing.T) {
 	if _, err := e.lib.Run(e.ctx); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := os.Readlink(old); got != target {
-		t.Errorf("E01 points at %q after the retry", got)
+	if got := state(); got != "imported/linked/0" {
+		t.Fatalf("after the retry %s", got)
 	}
-	if got := e.one(`SELECT state FROM download WHERE id = 1`); got != "imported" {
-		t.Errorf("download %s", got)
+	if offers, _ := e.lib.UndoOffers(e.ctx, []int64{action}); offers[action] == "" {
+		t.Errorf("not offered after the import")
+	}
+	if _, err := e.lib.UndoUpgrade(e.ctx, action, "ann"); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.Readlink(old); got != target {
+		t.Errorf("E01 points at %q", got)
 	}
 }
 

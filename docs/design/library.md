@@ -858,9 +858,10 @@ before 00152 has no snapshot and gets no Undo; nor does one whose trash copy was
   or a cancelled request, takes back every symlink change and the trash copies it made, and leaves no row
   (`TestUndoFailedWriteRollsBack`, `TestUndoFailureLeavesNothing`).
 - After it, the undone release is blocked in that library (`router_blocklist`, source `undo:<who>`: Activity ›
-  Blocklist says "Upgrade undone by <who>") and marked researched, so no search starts; a pending import of its
-  download in that library (a partial one waiting for its retry) ends as imported, so no retry links it again (what it
-  did not link is wanted and searched the ordinary way). Torrents and Sources are worked out again at once. Its actions' details start "upgrade undone by <who>": History shows one "Upgrade undone" row
+  Blocklist says "Upgrade undone by <who>") and marked researched, so no search starts. Torrents and Sources are
+  worked out again at once. While the replacing download is still being imported in that library (a partial import
+  waiting for its retry) Undo is not offered and refused ("That download is still being imported; try again when it
+  has finished"); a put-back waits for a later sweep. Its actions' details start "upgrade undone by <who>": History shows one "Upgrade undone" row
   (event `undone`) with the undone release, never "Removed"; the journal labels both actions "Upgrade undone".
 - A replacement of a gone (dead) file by a lower quality is no upgrade: its replace action's detail ends "its file
   was gone, and a lower quality took its place", History says "Replaced" and the journal "Replaced", and the journal

@@ -195,18 +195,26 @@ const othersHoldSQL = `EXISTS (SELECT 1 FROM link o JOIN link_version ov ON ov.l
 	AND (t.kind <> 'series' OR EXISTS (SELECT 1 FROM link_episode oe WHERE oe.link_id = o.id
 		AND oe.episode_id IN (SELECT value FROM json_each(r.snapshot, '$.episodes')))))`
 
+// importingSQL says whether the successor's download is still being imported in the return r's library (a partial
+// import waiting for its retry): Undo waits for it.
+const importingSQL = `EXISTS (SELECT 1 FROM download WHERE id = json_extract(r.snapshot, '$.successor.download_id')
+	AND state IN ('ready', 'importing'))`
+
+// returnImporting is the refusal while the successor's download is still being imported.
+const returnImporting = "That download is still being imported; try again when it has finished"
+
 // returnOthers is the refusal when more than one file took the earlier file's place.
 const returnOthers = "More than one file took the earlier file's place; nothing was undone"
 
-// slot is slotHeldSQL and othersHoldSQL for this entry.
-func (e *undoEntry) slot(ctx context.Context, q rowQuerier) (held, others bool, err error) {
+// slot is slotHeldSQL, othersHoldSQL and importingSQL for this entry.
+func (e *undoEntry) slot(ctx context.Context, q rowQuerier) (held, others, importing bool, err error) {
 	snap, err := json.Marshal(&e.snap)
 	if err != nil {
-		return false, false, err
+		return false, false, false, err
 	}
 	err = q.QueryRowContext(ctx, `WITH r (version_key, path, snapshot) AS (SELECT ?, ?, ?) SELECT `+slotHeldSQL+`, `+
-		othersHoldSQL+` FROM r`, e.version, e.path, string(snap)).Scan(&held, &others)
-	return held, others, err
+		othersHoldSQL+`, `+importingSQL+` FROM r`, e.version, e.path, string(snap)).Scan(&held, &others, &importing)
+	return held, others, importing, err
 }
 
 // UndoWords is the sentence the Undo button shows before it acts.
@@ -237,7 +245,7 @@ func (l *Library) UndoOffers(ctx context.Context, ids []int64) (map[int64]string
 		WHERE la.id IN (SELECT value FROM json_each(?2)) AND la.kind = 'replace' AND la.mode = 'applied'
 		AND la.download_id IS NOT NULL AND la.detail LIKE 'moved aside to %' AND r.purged_at IS NULL
 		AND r.snapshot IS NOT NULL AND json_extract(r.snapshot, '$.successor.link_id') > 0
-		AND `+slotHeldSQL+` AND NOT `+othersHoldSQL, []any{store.HistoryDeadLower, string(idj)},
+		AND `+slotHeldSQL+` AND NOT `+othersHoldSQL+` AND NOT `+importingSQL, []any{store.HistoryDeadLower, string(idj)},
 		func(rs *sql.Rows) error {
 			var o offer
 			err := rs.Scan(&o.id, &o.version, &o.target, &o.release)
@@ -302,14 +310,8 @@ func (l *Library) undoUpgrade(ctx context.Context, actionID int64, by string) (*
 			"the upgrade was undone by "+orSomeone(by), UndoBlockSource(by), now); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `UPDATE router_blocklist SET researched_at = ? WHERE version_key = ?
-			AND info_hash = ?`, now, v.Key, router.BlocklistKey(hash, release)); err != nil {
-			return err
-		}
-		// Its import, still pending in this library (a partial one waits for its retry), ends here: a retry would
-		// link the blocked release again. What it did not link is wanted and searched the ordinary way.
-		_, err := tx.ExecContext(ctx, `UPDATE download SET state = 'imported', imported_at = COALESCE(imported_at, ?),
-			error = NULL, updated_at = ? WHERE id = ? AND state = 'importing'`, now, now, e.snap.Successor.DownloadID)
+		_, err := tx.ExecContext(ctx, `UPDATE router_blocklist SET researched_at = ? WHERE version_key = ?
+			AND info_hash = ?`, now, v.Key, router.BlocklistKey(hash, release))
 		return err
 	}
 	v, err := l.returnOne(ctx, r)
@@ -475,12 +477,14 @@ func cmpOr(s, or string) string {
 func (l *Library) returnChecks(ctx context.Context, e *undoEntry, v *importVersion) error {
 	db := l.st.Reader()
 	s := e.snap.Successor
-	if held, others, err := e.slot(ctx, db); err != nil {
+	if held, others, importing, err := e.slot(ctx, db); err != nil {
 		return err
 	} else if !held {
 		return &ReturnRefused{Sentence: returnChanged}
 	} else if others {
 		return &ReturnRefused{Sentence: returnOthers}
+	} else if importing {
+		return &ReturnRefused{Sentence: returnImporting}
 	}
 	if cur, err := os.Readlink(s.Path); err != nil || cur != s.Target {
 		return &ReturnRefused{Sentence: returnChanged}
