@@ -671,8 +671,7 @@ func (t *Tracker) servedSince(src *Source, since time.Time) string {
 	account := ""
 	for _, e := range t.events {
 		// The logged path relative to the mount's release root, compared whole.
-		rel := strings.TrimPrefix(strings.TrimPrefix(e.Path, "/"), t.o.AllDir+"/")
-		if e.Kind == kindTransfer && !e.At.Before(since) && rel == src.rel {
+		if e.Kind == kindTransfer && !e.At.Before(since) && t.zurgRel(e.Path) == src.rel {
 			account = e.Account
 		}
 	}

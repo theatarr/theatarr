@@ -383,11 +383,22 @@ func (t *Tracker) ZurgLine(line string) {
 	t.events = append(pruneEvents(t.events, now), ev)
 	if ev.Kind == kindTransfer {
 		for _, se := range t.sess {
-			if path.Base(se.s.File) == ev.File || (se.src != nil && path.Base(se.src.Target) == ev.File) {
+			// A file of ours is matched by its whole path under the release root (another release's file of the same
+			// name is not it); one without a known place on the mount by its name alone.
+			if se.src != nil && se.src.rel != "" {
+				if t.zurgRel(ev.Path) == se.src.rel {
+					se.servedBy = ev.Account
+				}
+			} else if path.Base(se.s.File) == ev.File || (se.src != nil && path.Base(se.src.Target) == ev.File) {
 				se.servedBy = ev.Account
 			}
 		}
 	}
+}
+
+// zurgRel is a path zurg's log names relative to the mount's release root.
+func (t *Tracker) zurgRel(p string) string {
+	return strings.TrimPrefix(strings.TrimPrefix(p, "/"), t.o.AllDir+"/")
 }
 
 func pruneEvents(evs []zurgEvent, now time.Time) []zurgEvent {

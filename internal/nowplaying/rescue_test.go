@@ -1676,3 +1676,22 @@ func TestRescueAmbiguousSessionNotChecked(t *testing.T) {
 		t.Errorf("now playing lists %d sessions", len(got.Sessions))
 	}
 }
+
+// The serving account is matched by the file's whole path under the release root: a transfer of another release's
+// file of the same name, from another account, does not make that account the serving one (E9).
+func TestRescueServedByWholePath(t *testing.T) {
+	e := newRescueEnv(t, false, true)
+	e.play(2, "playing")
+	e.poll()
+	e.tr.ZurgLine("INFO Large transfer: 512 MiB of __all__/Rel/S01E02.mkv from rd for 30s")
+	e.tr.ZurgLine("INFO Large transfer: 512 MiB of __all__/Another.Show/S01E02.mkv from ad for 30s")
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.play(2, "buffering")
+	e.poll()
+	if e.lib.readsOf("film.mkv") != 1 || e.lib.readsOf("film2.mkv") != 0 {
+		t.Errorf("control reads: rd's %d, ad's %d", e.lib.readsOf("film.mkv"), e.lib.readsOf("film2.mkv"))
+	}
+	if got := e.one(`SELECT group_concat(provider) FROM provider_cache WHERE source = 'router:playing'`); got != "rd" {
+		t.Errorf("misses on %q", got)
+	}
+}
