@@ -167,7 +167,7 @@ func (l *Library) putBackCopy(ctx context.Context, r returned, target, newFolder
 	}
 	if want != nil {
 		langs, ok := savedAudio(oldProbe, nullString(s.AdoptedMedia), s.DownloadID == nil)
-		if !ok || !sharesLanguage(langs, want) && !sharesLanguage(langs, storedAudio(cur.probe, cur.media, cur.adopted)) {
+		if !ok || !sharesLanguage(langs, want) && !sharesLanguage(langs, heldAudio(cur.probe, cur.media, cur.adopted)) {
 			return true, nil
 		}
 	}

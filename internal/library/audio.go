@@ -157,6 +157,11 @@ func (l *Library) audioGuard(ctx context.Context, d *importDownload, plan *Plan,
 		for _, old := range displaced(plan.held, lk, d.Version.Title.Kind) {
 			replacing = true
 			if oldLangs := storedAudio(old.probe, old.media, old.adopted); !sharesLanguage(langs, oldLangs) {
+				// The words name what the file has, the arr's media info beside an old probe included; never a
+				// language the new file shares.
+				if words := heldAudio(old.probe, old.media, old.adopted); len(words) > 0 && !sharesLanguage(langs, words) {
+					oldLangs = words
+				}
 				has = "no known audio language"
 				if len(oldLangs) > 0 {
 					has = languageWords(oldLangs, "and")
@@ -249,43 +254,71 @@ func plannedFile(plan *Plan, rel string) *PlannedFile {
 	return nil
 }
 
-// storedAudio is a library file's known audio languages: from its stored probe when a track of it carries the tag
-// fact; else (a probe stored before the fact was kept, or no probe) the arr's media info of an adopted file
-// ("eng/fre"); else the old probe's languages other than Matroska's default.
+// storedAudio is a library file's known audio languages as the import decision reads them: from its stored probe,
+// else (an adopted file) the arr's media info ("eng/fre").
 func storedAudio(pr, media sql.NullString, adopted bool) []string {
+	p, err := parseProbe(pr)
+	if err != nil || p == nil {
+		if adopted {
+			return mediaAudio(media)
+		}
+		return nil
+	}
+	return probeAudio(p)
+}
+
+// heldAudio is storedAudio for the words and the put-back: a probe none of whose tracks carries the tag fact (stored
+// before it was kept), or no probe, gives way to an adopted file's arr media info when that names a language.
+func heldAudio(pr, media sql.NullString, adopted bool) []string {
 	p, err := parseProbe(pr)
 	if err != nil {
 		p = nil
 	}
-	if !tagFact(p) && adopted && media.String != "" {
-		var m struct {
-			AudioLanguages string `json:"audioLanguages"`
-		}
-		if json.Unmarshal([]byte(media.String), &m) == nil && m.AudioLanguages != "" {
-			if out := knownLanguages(strings.Split(m.AudioLanguages, "/")); len(out) > 0 {
-				return out
-			}
+	if !tagFact(p) && adopted {
+		if out := mediaAudio(media); len(out) > 0 {
+			return out
 		}
 	}
+	if p == nil {
+		return nil
+	}
+	return probeAudio(p)
+}
+
+// probeAudio is a stored probe's known languages: an untagged Matroska eng is Matroska's default, not a tag (or a
+// probe stored before the fact was kept).
+func probeAudio(p *probe.Result) []string {
 	var tags []string
-	if p != nil {
-		for _, a := range p.Audio {
-			if !a.Tagged && p.Container == "matroska" && strings.EqualFold(a.Language, "eng") {
-				continue // Matroska's default, not a tag (or a probe stored before the fact was kept)
-			}
-			tags = append(tags, a.Language)
+	for _, a := range p.Audio {
+		if !a.Tagged && p.Container == "matroska" && strings.EqualFold(a.Language, "eng") {
+			continue
 		}
+		tags = append(tags, a.Language)
 	}
 	return knownLanguages(tags)
 }
 
+// mediaAudio is the languages of an adopted file's arr media info.
+func mediaAudio(media sql.NullString) []string {
+	if media.String == "" {
+		return nil
+	}
+	var m struct {
+		AudioLanguages string `json:"audioLanguages"`
+	}
+	if json.Unmarshal([]byte(media.String), &m) != nil || m.AudioLanguages == "" {
+		return nil
+	}
+	return knownLanguages(strings.Split(m.AudioLanguages, "/"))
+}
+
 // savedAudio is a stored copy's audio as the rule judges it (a returning copy): a probe with the tag fact read as a
-// fresh one (fileAudio), else the languages storedAudio knows; ok is false for no verdict.
+// fresh one (fileAudio), else the languages heldAudio knows; ok is false for no verdict.
 func savedAudio(pr, media sql.NullString, adopted bool) (langs []string, ok bool) {
 	if p, err := parseProbe(pr); err == nil && tagFact(p) {
 		return fileAudio(p)
 	}
-	langs = storedAudio(pr, media, adopted)
+	langs = heldAudio(pr, media, adopted)
 	return langs, len(langs) > 0
 }
 

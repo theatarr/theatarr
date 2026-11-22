@@ -755,3 +755,46 @@ func TestAudioRuleRefusalNamesStoredAudio(t *testing.T) {
 		})
 	}
 }
+
+// The import decision reads a held file's audio as it always has (its stored probe, else an adopted file's arr media
+// info): the arr's media info beside an old probe only names the language in the refusal, it decides nothing.
+func TestAudioRuleDecisionOverStoredShapes(t *testing.T) {
+	t.Parallel()
+	const (
+		tagged = `{"container":"matroska","audio":[{"codec":"ac3","language":"fre","tagged":true}]}`
+		legacy = `{"container":"matroska","audio":[{"codec":"ac3","language":"fre"}]}`
+		engOld = `{"container":"matroska","audio":[{"codec":"ac3","language":"eng"}]}`
+		spa    = `{"audioLanguages":"spa"}`
+	)
+	for _, tc := range []struct {
+		name, profile string
+		probe, media  any
+		file          string
+		imported      bool
+	}{
+		{"tagged probe, French in", "English", tagged, spa, "fre", true},
+		{"tagged probe, Spanish in", "English", tagged, spa, "spa", false},
+		{"old probe and media, French in", "English", legacy, spa, "fre", true},
+		{"old probe and media, Spanish in", "English", legacy, spa, "spa", false},
+		{"old probe only, French in", "English", legacy, nil, "fre", true},
+		{"old probe only, Spanish in", "English", legacy, nil, "spa", false},
+		{"media only, French in", "English", nil, spa, "fre", false},
+		{"media only, Spanish in", "English", nil, spa, "spa", true},
+		{"neither, French in", "English", nil, nil, "fre", false},
+		{"old English probe and English media, English in, Japanese library", "Japanese", engOld,
+			`{"audioLanguages":"eng"}`, "eng", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			e := newEnv(t, true)
+			e.pol.Profiles["movie-state"].Language = tc.profile
+			e.heldFilm("", "eng")
+			e.exec(`UPDATE content_file SET probe = ? WHERE id = 1`, tc.probe)
+			e.exec(`UPDATE link SET adopted_media = ? WHERE id = 1`, tc.media)
+			e.filmImport(1, hashA, movieRelease, tracks(tc.file))
+			if got := e.state(1) == "imported"; got != tc.imported {
+				t.Errorf("imported %v, want %v (%s)", got, tc.imported, e.one(`SELECT COALESCE(error, '') FROM download WHERE id = 1`))
+			}
+		})
+	}
+}
