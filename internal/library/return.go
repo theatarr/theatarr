@@ -285,11 +285,15 @@ func (l *Library) UndoOffers(ctx context.Context, ids []int64) (map[int64]string
 }
 
 // settleUndoneIncidents settles, quietly, the open playing-break rows whose copy (its target) the Undo puts back in
-// this library after their incident replaced it: restored, as a put-back settles its own (the release's miss lifted),
+// this library after their incident replaced it with the release undone (new_release): restored, as a put-back settles its own (the release's miss lifted),
 // with no outcome sent and no History row of its own, so no sweep keeps aside a copy that is in place.
-func settleUndoneIncidents(ctx context.Context, tx *sql.Tx, v *importVersion, target string, now int64) error {
+func settleUndoneIncidents(ctx context.Context, tx *sql.Tx, v *importVersion, target, release string, now int64) error {
+	if release == "" {
+		return nil
+	}
 	rows, err := tx.QueryContext(ctx, `SELECT id, info_hash FROM playing_break WHERE title_id = ? AND version_key = ?
-		AND old_target = ? AND fixed_by = 'replaced' AND settled = ''`, v.Title.ID, v.Key, target)
+		AND old_target = ? AND fixed_by = 'replaced' AND new_release = ? AND settled = ''`, v.Title.ID, v.Key, target,
+		release)
 	if err != nil {
 		return err
 	}
@@ -367,7 +371,7 @@ func (l *Library) undoUpgrade(ctx context.Context, actionID int64, by string) (*
 			"the upgrade was undone by "+orSomeone(by), UndoBlockSource(by), now); err != nil {
 			return err
 		}
-		return settleUndoneIncidents(ctx, tx, v, e.target, now)
+		return settleUndoneIncidents(ctx, tx, v, e.target, release, now)
 	}
 	v, err := l.returnOne(ctx, r)
 	if err != nil {

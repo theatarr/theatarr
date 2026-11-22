@@ -737,6 +737,10 @@ func TestUndoSettlesThePlayingIncident(t *testing.T) {
 	e.exec(`INSERT INTO playing_break (id, incident, watched, link_id, title_id, version_key, path, old_target, broken_at,
 		searched, fixed_by, new_release, reported, updated_at) VALUES (50, 50, 1, 1, 1, 'movie-remux', ?, ?, ?, 1, 'replaced',
 		?, 'replaced', ?)`, old, target, at, movieRelease, at)
+	// Another incident on the same copy that another release replaced is not the one undone: it stays open.
+	e.exec(`INSERT INTO playing_break (id, incident, watched, link_id, title_id, version_key, path, old_target, broken_at,
+		searched, fixed_by, new_release, reported, updated_at) VALUES (51, 51, 1, 1, 1, 'movie-remux', ?, ?, ?, 1, 'replaced',
+		'Amelie.2001.1080p.WEB-OTHER', 'replaced', ?)`, old, target, at+1, at)
 	const others = `SELECT COUNT(*) FROM history WHERE event NOT IN ('undone', 'blocked')`
 	history := e.one(others)
 	if _, err := e.lib.UndoUpgrade(e.ctx, action, "ann"); err != nil {
@@ -744,6 +748,9 @@ func TestUndoSettlesThePlayingIncident(t *testing.T) {
 	}
 	if got := e.one(`SELECT settled || '|' || reported FROM playing_break WHERE id = 50`); got != "restored|replaced" {
 		t.Errorf("incident %s", got)
+	}
+	if got := e.one(`SELECT settled FROM playing_break WHERE id = 51`); got != "" {
+		t.Errorf("the other replacement's incident %q", got)
 	}
 	if got := e.one(others); got != history {
 		t.Errorf("history rows %s, before %s", got, history)
