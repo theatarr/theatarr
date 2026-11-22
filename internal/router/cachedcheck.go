@@ -233,8 +233,8 @@ func (r *Router) pollNameRefused(ctx context.Context, x pollRow, t *provider.Tor
 // pollTooLarge is download x on a provider that refuses its torrent as too big for it after the add (AllDebrid
 // statusCode 8, provider.Torrent.TooLarge): as Real-Debrid's 29 and TorBox's DOWNLOAD_TOO_LARGE at the add, a miss
 // there for the content's miss TTL and the release routed again (requeue) to the next provider; nothing blocklisted.
-// Our own new add (ownPolledAdd: own_add, not reused) is deleted (deleteOwnPolled; one that waits for the gate or
-// failed is tried again at the next poll) when router.alldebrid_delete_uncached is on; any other magnet stays,
+// Our own new add (ownPolledAdd: own_add, not reused) is deleted (deleteOwnPolled, one attempt) when
+// router.alldebrid_delete_uncached is on; any other magnet, or ours when the delete was refused or failed, stays,
 // listed on Torrents as failed.
 func (r *Router) pollTooLarge(ctx context.Context, x pollRow, t *provider.Torrent, now time.Time, sum *PollSummary) error {
 	rctx := context.WithoutCancel(ctx)
@@ -248,8 +248,13 @@ func (r *Router) pollTooLarge(ctx context.Context, x pollRow, t *provider.Torren
 		}
 		if why == "" {
 			done, no, err := r.deleteOwnPolled(ctx, x, true)
-			if err != nil || (!done && no == "") {
+			if err != nil {
 				return err
+			}
+			if !done && no == "" {
+				// Refused, failed or held at the gate: one attempt, then the magnet is kept as any other, so the
+				// release still goes to the next provider.
+				no = "the delete failed"
 			}
 			why = no
 		}

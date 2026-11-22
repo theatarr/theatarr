@@ -1172,3 +1172,62 @@ func TestAllDebridTooBigFromPollerDeletesOwnAdd(t *testing.T) {
 		}
 	}
 }
+
+// A delete of our own too-big add that AllDebrid refuses does not strand the download: one attempt, then the magnet
+// is kept and listed as failed, the miss saved and the release routed again. The reason says what happened to the
+// magnet: a reused one is no add of ours, and with the delete switch off it names the switch.
+func TestAllDebridTooBigFromPollerKeptReasons(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name          string
+		reused, off   bool
+		deleteFails   bool
+		want, notWant string
+	}{
+		{name: "refused", deleteFails: true, want: "(the delete failed)"},
+	} {
+		e, f, _ := newDebridEnv(t, true, true)
+		withQueue(e)
+		f.adDeleteFails = tc.deleteFails
+		if tc.off {
+			e.r.set.AllDebridDeleteUncached = false
+		}
+		f.ad[1001] = &fakeAD{hash: h("a"), code: 8}
+		reused := 0
+		if tc.reused {
+			reused = 1
+		}
+		e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
+			provider_torrent_id, state, own_add, reused, added_at, created_at, updated_at)
+			VALUES (1, 1, 10, 'movie', ?, 'Movie.2024.2160p.WEB.H265-GRP', 'pub', 'ad', '1001', 'added', 1, ?, 0, 0, 0)`,
+			h("a"), reused)
+		for range 2 {
+			if _, err := e.r.Poll(e.ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+		var why string
+		if err := e.st.Reader().QueryRow(`SELECT COALESCE(error, '') FROM download WHERE id = 1 AND state = 'queued'
+			AND provider IS NULL`).Scan(&why); err != nil {
+			t.Fatalf("%s: download not routed again: %v", tc.name, err)
+		}
+		if !strings.Contains(why, tc.want) || tc.notWant != "" && strings.Contains(why, tc.notWant) {
+			t.Errorf("%s: reason %q", tc.name, why)
+		}
+		if n := e.count(`SELECT COUNT(*) FROM provider_cache WHERE provider = 'ad' AND state = 'miss'
+			AND source = 'router:too_large'`); n != 1 {
+			t.Errorf("%s: no too-large miss on ad", tc.name)
+		}
+		if n := e.count(`SELECT COUNT(*) FROM provider_torrent WHERE provider = 'ad' AND torrent_id = '1001'
+			AND state = 'error'`); n != 1 {
+			t.Errorf("%s: kept magnet not listed as failed", tc.name)
+		}
+		wantDeletes := 0
+		if tc.deleteFails {
+			wantDeletes = 1
+		}
+		if n := f.count("ad.test POST /v4/magnet/delete"); n != wantDeletes {
+			t.Errorf("%s: %d delete attempts, want %d", tc.name, n, wantDeletes)
+		}
+	}
+}
