@@ -30,7 +30,7 @@ import { LibraryRows } from "@/components/title/library-rows";
 import { KeptFiles } from "@/components/title/copy-actions";
 import { TitleToolbar, inEveryLibrary, monitorOnly } from "@/components/title/title-toolbar";
 import { RequestMoreSeasons, TitleRequest, TitleRequestButton } from "@/components/title/title-request";
-import { SeriesTypeControl } from "@/components/title/title-choices";
+import { AnimeSkipNote, SeriesTypeControl } from "@/components/title/title-choices";
 import { EditTitleTags } from "@/components/title/tags-editor";
 import { ReportProblemButton } from "@/components/report/report-sheet";
 import { HistoryTab } from "@/components/activity/history-tab";
@@ -146,6 +146,9 @@ function About({ d }: { d: TitleDetail }) {
           <div className="overflow-hidden rounded-[8px] border border-[var(--line)] bg-card text-sm" data-testid="title-facts">
             {m?.status ? <Fact label="Status"><span title={m.status}>{titleStatusWords(m.status)}</span></Fact> : null}
             {series && perms.seeFiles && d.id && d.series_type ? <Fact label="Series type"><SeriesTypeControl titleId={d.id} value={d.series_type} anime={d.anime} versions={currentLibraries((d.versions ?? []) as Version[])} /></Fact> : null}
+            {!series && perms.seeFiles && ((d.versions ?? []) as Version[]).some((v) => v.anime_skip) ? (
+              <div className="border-b border-[var(--line)] px-3 py-2 last:border-b-0"><AnimeSkipNote anime={!!d.anime} versions={currentLibraries((d.versions ?? []) as Version[])} /></div>
+            ) : null}
             {releasedDay ? <Fact label={releasedLabel(series, releasedDay)}>{releasedText(d)}</Fact> : null}
             {!series && digital ? <Fact label="Digital">{fmtDay(digital)}</Fact> : null}
             {air ? <Fact label={air.label}>{fmtDay(air.day)}</Fact> : null}

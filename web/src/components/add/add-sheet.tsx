@@ -200,7 +200,11 @@ export function AddSheet({ target, onClose, onLeave }: { target: AddTarget; onCl
   // applies to.
   const counted = chosen.length > 0 ? selected.filter((v) => !v.on) : selected;
   const globalOff = globalDownloadsOff(versions.map((v) => v.grab_state));
-  const canSearch = selected.some((v) => v.searchable);
+  // A library whose anime rule the title does not fit is not searched for it (acquisition leaves it out), so it
+  // offers no search either.
+  const searches = (v: VersionOption) => v.searchable && (v.fits || v.on);
+  const canSearch = selected.some(searches);
+  const misfitOnly = !canSearch && selected.some((v) => v.searchable);
   const seasonOn = (n: number, def: boolean) => seasons[n] ?? def;
   // A season's tick before any click: its state in the library, else on, specials aside.
   const seasonDefault = (s: { season: number; monitored?: boolean }) => s.monitored ?? s.season > 0;
@@ -414,7 +418,9 @@ export function AddSheet({ target, onClose, onLeave }: { target: AddTarget; onCl
                     <section>
                       <p className="flex items-start gap-2 text-xs leading-5 text-[var(--ink-3)]" data-testid="add-no-search">
                         <Search className="mt-0.5 size-3.5 shrink-0" />
-                        No ticked library downloads now (see each library's state), so adding searches nothing; the wanted search picks them up once they download.
+                        {misfitOnly
+                          ? "Adding searches nothing: the ticked library does not search this title (see the note under it)."
+                          : "No ticked library downloads now (see each library's state), so adding searches nothing; the wanted search picks them up once they download."}
                       </p>
                     </section>
                   )}
@@ -449,7 +455,7 @@ export function AddSheet({ target, onClose, onLeave }: { target: AddTarget; onCl
                 // A title already in a library: the search covers every ticked library that downloads, the ones it is
                 // already in too, so the button's scope is named.
                 <p className="w-full text-xs text-[var(--ink-3)] [overflow-wrap:anywhere] sm:text-right" data-testid="add-searches">
-                  Searches: {selected.filter((v) => v.searchable).map((v) => v.label || nameOf(v.key)).join(", ")}
+                  Searches: {selected.filter(searches).map((v) => v.label || nameOf(v.key)).join(", ")}
                 </p>
               ) : null}
             </div>

@@ -39,6 +39,21 @@ export function MinimumAvailabilityControl({ v, label }: { v: Version; label: st
   );
 }
 
+/** A film's copies in a library whose anime rule it does not fit (anime_skip): acquisition does not search them. */
+export function AnimeSkipNote({ anime, versions }: { anime: boolean; versions: Version[] }) {
+  const skipped = versions.filter((v) => v.anime_skip).map((v) => v.label || v.key);
+  if (skipped.length === 0) return null;
+  const one = skipped.length === 1;
+  return (
+    <p className="text-xs text-[var(--ink-3)]" role="note" data-testid="movie-anime-skipped">
+      Not searched in {skipped.join(", ")}:{" "}
+      {anime
+        ? `the film is anime, and ${one ? "that library does" : "those libraries do"} not take anime.`
+        : `${one ? "that library takes" : "those libraries take"} anime only, and the film is not anime.`}
+    </p>
+  );
+}
+
 /** A series' type: the one value of the series, for every library. Acquisition reads a series as anime by its
  *  Anime mark or this type and leaves out a library whose anime rule does not fit; the copies the title page marks
  *  (anime_skip) are named under the control, so a change that stops a library's searches shows once it is saved. */

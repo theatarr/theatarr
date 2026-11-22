@@ -430,9 +430,9 @@ type Version struct {
 	// LibraryMinimumAvailability is the library's own default, which "Library default" would put in force (see files
 	// only, as MinimumAvailabilityDefault).
 	LibraryMinimumAvailability string `json:"library_minimum_availability,omitempty"`
-	// AnimeSkip (title page, series): a monitored copy in a library searches run for (catalog.Searchable) that
-	// acquisition does not search, because the library's anime rule does not fit the series (its anime flag, or its
-	// type anime; acquire's targets).
+	// AnimeSkip (title page): a monitored copy in a library searches run for (catalog.Searchable) that
+	// acquisition does not search, because the library's anime rule does not fit the title (its anime flag, or a
+	// series' type anime; acquire's targets).
 	AnimeSkip bool `json:"anime_skip,omitempty"`
 	// LastSearch and Searching (title page, see files): the library's last targeted search (absent: never) and a
 	// search under way, "queued" or "searching" (searchFacts).
@@ -587,6 +587,12 @@ func (w *Web) getTitle(ctx context.Context, id int64) (*TitleDetail, error) {
 			return nil, err
 		}
 		for i := range d.Versions {
+			v := &d.Versions[i]
+			// A film in a library whose anime rule it does not fit is not searched there either.
+			if vp := w.pol.Versions[v.Key]; vp != nil && v.Monitored && !v.Removed {
+				active, _ := catalog.Searchable(w.pol, []string{v.Key})
+				v.AnimeSkip = len(active) > 0 && !catalog.Fits(vp, policy.KindMovie, d.Anime)
+			}
 			r := rules[d.Versions[i].ID]
 			d.Versions[i].MinimumAvailability = r.Minimum
 			d.Versions[i].MinimumAvailabilityDefault = r.Source == availability.SourceDefault

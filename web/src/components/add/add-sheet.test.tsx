@@ -124,6 +124,19 @@ it("offers one Add and the explanation when no ticked library can search, ", asy
   expect(((await bodyOf(fetch)) as { search: boolean }).search).toBe(false);
 });
 
+it("offers only Add for a film ticked in a library whose anime rule it does not fit, and says why", async () => {
+  const animeLib = { key: "anime-movie", label: "Anime movies", kind: "movie", enable: "", fits: false, default: false, on: false, anime: true, searchable: true, grab_state: { ...gates, will_grab: true } };
+  const fetch = mockFetch(routes({ ...options, versions: [{ ...versions[0], default: false }, animeLib] }));
+  const user = userEvent.setup();
+  renderPage(<AddSheet target={{ kind: "movie", name: "Alpha", tmdb_id: 7 }} onClose={() => {}} />);
+  await user.click(await screen.findByRole("button", { name: /Show other libraries/ }));
+  await user.click(within(screen.getByTestId("add-version-anime-movie")).getByRole("checkbox"));
+  expect(screen.queryByTestId("add-submit-search")).toBeNull();
+  expect(screen.getByTestId("add-no-search").textContent).toBe("Adding searches nothing: the ticked library does not search this title (see the note under it).");
+  await user.click(screen.getByTestId("add-submit"));
+  expect(((await bodyOf(fetch)) as { search: boolean }).search).toBe(false);
+});
+
 it("adds a new movie unmonitored with the Monitored switch off: only Add, and the switch's line says why", async () => {
   const fetch = mockFetch(routes(options));
   const user = userEvent.setup();

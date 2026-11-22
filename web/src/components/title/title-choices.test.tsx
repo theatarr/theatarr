@@ -3,7 +3,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it } from "vitest";
 import { mockFetch, renderPage } from "@/test/page";
-import { SeriesTypeControl } from "./title-choices";
+import { AnimeSkipNote, SeriesTypeControl } from "./title-choices";
 
 it("lets a manager change a series' type", async () => {
   const fetch = mockFetch([
@@ -45,4 +45,13 @@ it("says nothing when every library is searched", async () => {
   renderPage(<SeriesTypeControl titleId={10} value="standard" versions={[{ id: 1, key: "tv-2160p" }]} />);
   await screen.findByRole("combobox", { name: "Series type" });
   expect(screen.queryByTestId("series-type-skipped")).toBeNull();
+});
+
+it("names the libraries a film is not searched in", async () => {
+  mockFetch([{ method: "GET", path: "/auth/me", reply: { permissions: ["browse", "see_files"] } }]);
+  const page = renderPage(<AnimeSkipNote anime={false} versions={[{ id: 1, key: "anime-movie", label: "Anime movies", anime_skip: true }, { id: 2, key: "movie-web", label: "WEB" }]} />);
+  expect((await screen.findByTestId("movie-anime-skipped")).textContent).toBe("Not searched in Anime movies: that library takes anime only, and the film is not anime.");
+  page.unmount();
+  renderPage(<AnimeSkipNote anime versions={[{ id: 2, key: "movie-web", label: "WEB", anime_skip: true }]} />);
+  expect((await screen.findByTestId("movie-anime-skipped")).textContent).toBe("Not searched in WEB: the film is anime, and that library does not take anime.");
 });

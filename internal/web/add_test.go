@@ -2517,3 +2517,24 @@ func TestAddOptionsSeasonsSkipRemovedCopy(t *testing.T) {
 		t.Errorf("removed title's seasons: %+v", o.Seasons)
 	}
 }
+
+// TestMovieAnimeSkip: a film in a library whose anime rule it does not fit is not searched there (acquire's
+// targets), and the title page marks that copy (anime_skip), as it does a series'.
+func TestMovieAnimeSkip(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, func(p *policy.Policy) {
+		p.Router = &policy.Router{Enabled: true}
+	})
+	now := store.Millis(addNow)
+	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, state, created_at, updated_at) VALUES
+		(2, 1, 'anime-movie', 1, 'wanted', ?, ?)`, now, now)
+	var d TitleDetail
+	e.call("GET", APIBase+"/titles/1", nil, 200, &d)
+	skipped := map[string]bool{}
+	for _, v := range d.Versions {
+		skipped[v.Key] = v.AnimeSkip
+	}
+	if !skipped["anime-movie"] || skipped["movie-remux"] {
+		t.Errorf("anime_skip: %v", skipped)
+	}
+}
