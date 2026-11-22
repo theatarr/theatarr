@@ -1,7 +1,6 @@
 import { PlexPlaylists } from "./plex-playlists";
 import { authority } from "@/lib/settings";
-import { Link, useLocation, useNavigationType } from "react-router";
-import { useLayoutEffect, useRef } from "react";
+import { Link, useLocation } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { qk } from "@/api/query-keys";
 import { useSettings, useSettingsSchema } from "@/api/settings";
@@ -32,15 +31,6 @@ const HELP: Record<string, string> = {
 };
 export function SettingsPage() {
  const { pathname } = useLocation();
- // Another settings page opens at its top (the window scrolls); Back and Forward leave the scroll to the browser, and
- // a change on the same page (an editor's ?edit=) keeps it.
- const navigation = useNavigationType();
- const shown = useRef<string>(undefined);
- useLayoutEffect(() => {
-  if (shown.current === pathname) return;
-  shown.current = pathname;
-  if (navigation !== "POP") window.scrollTo(0, 0);
- }, [pathname, navigation]);
  // System › Backup reads the torrent-list schedule: a saved change shows there at once.
  const qc = useQueryClient();
  const overview = useSettings(); const schema = useSettingsSchema();

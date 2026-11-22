@@ -6,6 +6,7 @@ import { mockFetch, renderPage } from "@/test/page";
 import { overview } from "@/components/settings/fixtures";
 import schema from "@/components/settings/testdata/schema.json";
 import { AdvancedSettingsPage, SettingsPage, SettingsPicker } from "./pages";
+import { SettingsScrollReset } from "@/components/settings/scroll-reset";
 import { SettingsAuthority } from "@/components/settings/authority";
 import { legacyTarget } from "@/lib/legacy-routes";
 it("composes the library file panels and shared advanced toggle", async () => {
@@ -189,7 +190,7 @@ it("keeps the scroll when an editor opens on the same page (?edit=) (F22 review)
  const scroll = vi.fn();
  vi.stubGlobal("scrollTo", scroll);
  function Edit() { const navigate = useNavigate(); return <button type="button" onClick={() => navigate("?edit=x")}>Open editor</button>; }
- renderPage(<><SettingsPage /><Edit /></>, "/admin/settings/libraries/files");
+ renderPage(<><SettingsScrollReset /><SettingsPage /><Edit /></>, "/admin/settings/libraries/files");
  await screen.findByRole("heading", { name: "Mount and folders" });
  fireEvent.click(screen.getByRole("button", { name: "Open editor" }));
  await screen.findByRole("heading", { name: "Mount and folders" });
@@ -204,7 +205,7 @@ it("opens another settings page at its top, and Back leaves the scroll to the br
  const scroll = vi.fn();
  vi.stubGlobal("scrollTo", scroll);
  function Back() { const navigate = useNavigate(); return <button type="button" onClick={() => navigate(-1)}>Go back</button>; }
- renderPage(<><SettingsPage /><Back /></>, "/admin/settings/libraries/files");
+ renderPage(<><SettingsScrollReset /><SettingsPage /><Back /></>, "/admin/settings/libraries/files");
  await screen.findByRole("heading", { name: "Mount and folders" });
  expect(scroll).not.toHaveBeenCalled();
  fireEvent.click(screen.getByRole("tab", { name: "Naming" }));

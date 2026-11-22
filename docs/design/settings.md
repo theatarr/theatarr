@@ -69,9 +69,10 @@ tokens. MCP writes are audited as "via MCP"; a change that needs confirmation is
 
 Settings follows the arr layout: Libraries, Profiles, Custom formats, Quality sync, Indexers, Download clients,
 Notifications, Plex & playback, Metadata & artwork and Connected apps (`/admin/settings/general` redirects to the
-pages below, anchor by anchor). Another settings page, and the next step of a sheet's wizard (New profile from a
-TRaSH preset › Continue to editor), opens at its top; Back and Forward leave the scroll to the browser, and an editor opened on the same page (`?edit=`)
-keeps it. The navigation
+pages below, anchor by anchor). Every Settings and Advanced page (Settings home, Import lists and Anime mappings
+included), and the next step of a sheet's wizard (New profile from a TRaSH preset › Continue to editor), opens at its
+top: one reset in the shell (`components/settings/scroll-reset.tsx`) that runs when the pathname changes; Back and
+Forward, an address with a `#hash` and an editor opened on the same page (`?edit=`) keep the scroll. The navigation
 and routes are listed in
 [UI §2](ui.md#2-information-architecture). YAML settings, settings history, request limits and
 Sonarr/Radarr instances are under Advanced. Older URLs redirect, keeping their query strings and anchors.

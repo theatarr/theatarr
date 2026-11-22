@@ -21,6 +21,7 @@ import type { Perms } from "@/api/library";
 import { useRequestSummary } from "@/api/requests";
 import { StatusDot } from "./status-dot";
 import { PauseSwitch } from "@/components/settings/global-switches";
+import { SettingsScrollReset } from "@/components/settings/scroll-reset";
 import { useSearchUI } from "@/components/search/search-context";
 import { Modal } from "@/components/ui/modal";
 import { topModal } from "@/lib/modal-stack";
@@ -366,6 +367,7 @@ export function AppShell({ children, perms }: { children: ReactNode; perms: Perm
             </div>
           </div>
         </header>
+        <SettingsScrollReset />
         <main id="main" tabIndex={-1} data-slot="root-main-scroll" className="min-w-0 flex-1 scroll-mt-[var(--top)] outline-none px-4 pb-28 pt-6 sm:px-6 md:pb-12 lg:px-8">
           {children}
         </main>
