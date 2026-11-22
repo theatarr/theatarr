@@ -57,6 +57,7 @@ func (l *Library) LastSweep() time.Time {
 // path or another one).
 type returned struct {
 	id, linkID, titleID int64
+	incident            int64
 	version, path, old  string
 	hash, inner         string
 	offset              int64
@@ -81,8 +82,8 @@ func (l *Library) ComeBack(ctx context.Context) error {
 	if err := l.asideOldReplaced(ctx); err != nil {
 		return err
 	}
-	rows, err := l.st.Reader().QueryContext(ctx, `SELECT pb.id, pb.link_id, pb.title_id, pb.version_key, pb.path,
-		pb.old_target, pb.info_hash, pb.inner_file, pb.read_offset, pb.back_since,
+	rows, err := l.st.Reader().QueryContext(ctx, `SELECT pb.id, pb.incident, pb.link_id, pb.title_id, pb.version_key,
+		pb.path, pb.old_target, pb.info_hash, pb.inner_file, pb.read_offset, pb.back_since,
 		EXISTS (SELECT 1 FROM link l WHERE l.id = pb.link_id AND l.path = pb.path AND l.target = pb.old_target
 			AND l.state = 'dead') FROM playing_break pb
 		WHERE pb.settled = '' AND NOT EXISTS (SELECT 1 FROM link l WHERE l.path = pb.path AND l.target = pb.old_target
@@ -102,8 +103,8 @@ func (l *Library) ComeBack(ctx context.Context) error {
 	var todo []returned
 	for rows.Next() {
 		var r returned
-		if err := rows.Scan(&r.id, &r.linkID, &r.titleID, &r.version, &r.path, &r.old, &r.hash, &r.inner, &r.offset,
-			&r.backSince, &r.dead); err != nil {
+		if err := rows.Scan(&r.id, &r.incident, &r.linkID, &r.titleID, &r.version, &r.path, &r.old, &r.hash, &r.inner,
+			&r.offset, &r.backSince, &r.dead); err != nil {
 			rows.Close()
 			return err
 		}

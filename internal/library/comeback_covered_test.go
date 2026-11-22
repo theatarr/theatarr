@@ -312,3 +312,28 @@ func TestComeBackOldReplacedRowWaitsForPause(t *testing.T) {
 		t.Errorf("after Pause: %q", c.settled())
 	}
 }
+
+// While the incident's search is still open (not yet reported by the settle pass, or a sibling's search not yet
+// queued), a covered copy that reads again is not settled aside: that would end the route and strand the search and
+// its outcome. Once the settle pass is through, it is.
+func TestComeBackAsideWaitsForOpenSearch(t *testing.T) {
+	e, id := packEnv(t)
+	e.exec(`UPDATE playing_break SET searched = 1, reported = '' WHERE id = ?`, id)
+	for range 2 {
+		if err := e.lib.ComeBack(e.ctx); err != nil {
+			t.Fatal(err)
+		}
+		e.now = e.now.Add(deadConfirm + time.Minute)
+	}
+	if got := e.one(`SELECT settled FROM playing_break WHERE id = ?`, id) + " " + e.one(`SELECT state FROM link WHERE id = 9`); got !=
+		" dead" {
+		t.Fatalf("while the search is open: %q", got)
+	}
+	e.exec(`UPDATE playing_break SET reported = 'unavailable' WHERE id = ?`, id)
+	if err := e.lib.ComeBack(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.one(`SELECT settled FROM playing_break WHERE id = ?`, id); got != "aside" {
+		t.Errorf("after the settle pass: %q", got)
+	}
+}

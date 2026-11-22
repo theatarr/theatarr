@@ -856,14 +856,16 @@ state and Cutoff unmet are its own. The journal records an `edit_file` action (m
     (`TestComeBackRevivesUncoveredCopy`, `TestComeBackRenamedFolder`). While paused, or for a version no longer
     monitored, it stays as it is (`TestComeBackLeavesStoppedCopy`).
   - **Kept aside.** A copy that works again while other files hold its film or some of its episodes, or that an import
-    replaced (also when that replacement was removed later), is kept aside once Pause is off and its library writes:
-    nothing in the library is swapped or compared and nothing is asked of Plex, the release's miss on the failed account
-    is lifted so later searches and upgrades may use it again, and a dead symlink of it still in the library goes to the
-    trash as the sweep moves any covered dead link aside, so no later sweep brings it back beside the files that hold
-    its place. One library action records it, "the earlier copy works again; kept aside"; it is no removal by a person,
-    so History shows no row for it. A replaced row older than 30 days is kept aside without a read, in the words "not
-    checked again after 30 days; kept aside", and lifts no miss (its own aged out long ago). Putting a better old copy
-    back in place automatically is not built yet. Nothing is deleted on any account.
+    replaced (also when that replacement was removed later), is kept aside once Pause is off, its library writes, and
+    the incident's search has ended (the settle pass reported it and queued any sibling search; until then the row stays
+    open so that search and its outcome are not cut short): nothing in the library is swapped or compared and nothing is
+    asked of Plex, the release's miss on the failed account is lifted so later searches and upgrades may use it again,
+    and a dead symlink of it still in the library goes to the trash as the sweep moves any covered dead link aside, so
+    no later sweep brings it back beside the files that hold its place. One library action records it, "the earlier copy
+    works again; kept aside"; it is no removal by a person, so History shows no row for it. A replaced row older than 30
+    days is kept aside without a read, in the words "not checked again after 30 days; kept aside", and lifts no miss
+    (its own aged out long ago). Putting a better old copy back in place automatically is not built yet. Nothing is
+    deleted on any account.
 - **An implausible listing is a mount that is down** (`Mount.checkListing`). `Healthy` only stats
   `__all__`, and a zurg that restarted can serve it present but empty or half-loaded. So relink, the dangling report,
   and `Verify` refuse with `ErrMountDown` (nothing marked dead or missing, no title flipped to

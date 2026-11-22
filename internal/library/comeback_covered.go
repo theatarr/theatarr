@@ -25,8 +25,8 @@ const (
 
 // asideOldReplaced settles aside, unread, the open rows an import replaced more than 30 days ago.
 func (l *Library) asideOldReplaced(ctx context.Context) error {
-	rows, err := l.st.Reader().QueryContext(ctx, `SELECT id, link_id, version_key, path, old_target, info_hash
-		FROM playing_break WHERE settled = '' AND fixed_by = 'replaced' AND broken_at < ? ORDER BY id`,
+	rows, err := l.st.Reader().QueryContext(ctx, `SELECT id, incident, link_id, title_id, version_key, path, old_target,
+		info_hash FROM playing_break WHERE settled = '' AND fixed_by = 'replaced' AND broken_at < ? ORDER BY id`,
 		store.Millis(l.now().Add(-replacedAside)))
 	if err != nil {
 		return err
@@ -34,7 +34,7 @@ func (l *Library) asideOldReplaced(ctx context.Context) error {
 	var old []returned
 	for rows.Next() {
 		var r returned
-		if err := rows.Scan(&r.id, &r.linkID, &r.version, &r.path, &r.old, &r.hash); err != nil {
+		if err := rows.Scan(&r.id, &r.incident, &r.linkID, &r.titleID, &r.version, &r.path, &r.old, &r.hash); err != nil {
 			rows.Close()
 			return err
 		}
@@ -56,11 +56,20 @@ func (l *Library) asideOldReplaced(ctx context.Context) error {
 // settleAside settles a row aside with one action, a relink in the words given, and lifts the release's miss (none
 // for a row without a hash, as an expired row is given). A dead
 // symlink of the old copy still in the library goes to the trash in the same step, as the sweep moves a covered dead
-// link aside (moveDeadAside, under the path's link lease). With Pause on or the version's library not writing nothing
-// is settled: a later sweep.
+// link aside (moveDeadAside, under the path's link lease). With Pause on, the version's library not writing, or the
+// incident's search still open (as SettlePlayingRuns sees it) nothing is settled: a later sweep.
 func (l *Library) settleAside(ctx context.Context, r returned, words string) error {
 	if !l.PlayingWritable(r.version) { // Pause on or the library not writing: a later sweep
 		return nil
+	}
+	// The incident's search still open (the settle pass has not reported it, or a sibling's search is not queued
+	// yet): settling now would end its route and strand that search and its outcome. A later sweep.
+	var open bool
+	if err := l.st.Reader().QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM playing_break w WHERE w.id = ?
+		AND w.watched = 1 AND w.settled = '' AND w.searched = 1 AND (w.reported = '' OR EXISTS (
+			SELECT 1 FROM playing_break s WHERE s.incident = w.id AND s.settled = '' AND s.searched = 0)))`,
+		r.incident).Scan(&open); err != nil || open {
+		return err
 	}
 	now := store.Millis(l.now())
 	relink := action{Kind: "relink", Version: r.version, LinkID: r.linkID, Path: r.path, Target: r.old, Detail: words}
