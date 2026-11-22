@@ -32,6 +32,9 @@ func (e *Engine) cacheStanding(v *policy.VersionPolicy, rel *indexer.Release) pr
 		if out.Count == 0 && v.ProviderPreferenceRule() == policy.ProviderPreferenceOrdered {
 			out.First = slices.Index(v.Providers, pk) + 1
 		}
+		if out.Count == 0 {
+			out.FirstKind = pv.Kind
+		}
 		out.Count++
 	}
 	return out

@@ -455,29 +455,32 @@ func TestRank(t *testing.T) {
 	}
 }
 
-// TestFirstDifference: the comparer's own first step between two ranked releases (D4): FraMeSToR over GRP by score,
-// GRP's remux over FLUX's WEB by quality; none for a pair in the other order or a tie.
-func TestFirstDifference(t *testing.T) {
+// TestRankRecordsWhy: Rank records why each accepted release beat the next, in the comparer's own words with its
+// operands (D4): FraMeSToR over GRP by score, GRP's remux over FLUX's WEB by quality; none for the last one.
+func TestRankRecordsWhy(t *testing.T) {
 	t.Parallel()
 	e := testEngine(t)
 	ctx := context.Background()
-	decide := func(name string) *Decision {
+	var ds []*Decision
+	for _, name := range []string{"Dune.Part.Two.2024.2160p.MA.WEB-DL.DDP5.1-FLUX",
+		"Dune.Part.Two.2024.2160p.UHD.BluRay.REMUX.HDR.HEVC-GRP",
+		"Dune.Part.Two.2024.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-FraMeSToR"} {
 		d, err := e.Decide(ctx, rel(name, "public", 60*gb), dune, Version{Key: "movie-remux"}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		return d
+		ds = append(ds, d)
 	}
-	fra := decide("Dune.Part.Two.2024.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-FraMeSToR")
-	grp := decide("Dune.Part.Two.2024.2160p.UHD.BluRay.REMUX.HDR.HEVC-GRP")
-	flux := decide("Dune.Part.Two.2024.2160p.MA.WEB-DL.DDP5.1-FLUX")
-	for _, c := range []struct {
-		a, b *Decision
-		want string
-	}{{fra, grp, "score"}, {grp, flux, "quality"}, {flux, grp, ""}, {grp, grp, ""}} {
-		if got := FirstDifference(c.a, c.b); got != c.want {
-			t.Errorf("%s over %s: %q, want %q", c.a.Release, c.b.Release, got, c.want)
+	ranked := Rank(ds)
+	got := map[string]string{}
+	for _, d := range ranked {
+		if o := d.ChosenOver(); o != nil {
+			got[d.Release[strings.LastIndex(d.Release, "-")+1:]] = o.Release[strings.LastIndex(o.Release, "-")+1:] + ": " + o.Reason
 		}
+	}
+	if !strings.HasPrefix(got["FraMeSToR"], "GRP: higher score (+") || got["GRP"] != "FLUX: higher quality (Remux-2160p over WEBDL-2160p)" ||
+		got["FLUX"] != "" {
+		t.Errorf("why %v", got)
 	}
 }
 

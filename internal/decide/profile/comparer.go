@@ -24,7 +24,7 @@ func (e *Engine) Compare(x, y *Subject) int {
 	return c
 }
 
-// The comparer's steps, as FirstDifference names them.
+// The comparer's steps (compareStep; Explain words each).
 const (
 	StepSeaDex          = "seadex"
 	StepQuality         = "quality" // the quality, or with an equal quality its revision (a proper or repack)
@@ -39,13 +39,6 @@ const (
 	StepAge             = "age"
 	StepSize            = "size"
 )
-
-// FirstDifference is the comparer's own first step that tells x and y apart (Compare's order; Step*), and which one
-// it prefers (> 0: x); "" and 0 when they tie.
-func (e *Engine) FirstDifference(x, y *Subject) (step string, order int) {
-	order, step = e.compareStep(x, y)
-	return step, order
-}
 
 type compareFunc struct {
 	step string

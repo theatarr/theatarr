@@ -259,6 +259,8 @@ type Decision struct {
 
 	subject *profile.Subject
 	engine  *profile.Engine
+	// over is why Rank put it before the next accepted release (ChosenOver).
+	over *Over
 }
 
 // DownloadEpisodes returns the episode ids a download of this decision is for: EpisodeIDs without the episodes of

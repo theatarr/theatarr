@@ -126,7 +126,7 @@ type Reasoning struct {
 	Results  int                 `json:"results,omitempty"`
 	Accepted int                 `json:"accepted,omitempty"`
 	Chosen   *snapshot.Candidate `json:"chosen,omitempty"`
-	// ChosenOver says why the search ranked Chosen before the next accepted release (snapshot.ChosenOver).
+	// ChosenOver, on a download's entry, is its search's explanation of the choice (snapshot.ChosenLine).
 	ChosenOver string               `json:"chosen_over,omitempty"`
 	RunnersUp  []snapshot.Candidate `json:"runners_up,omitempty"`
 	Rejections map[string]int       `json:"rejection_counts,omitempty"`

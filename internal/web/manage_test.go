@@ -635,19 +635,29 @@ func TestUpgradeWhyPairsTheEpisode(t *testing.T) {
 	}
 }
 
-// TestUpgradeWhyChosenOver: Why?'s release found says why its search ranked it before the next accepted one.
+// TestUpgradeWhyChosenOver: Why? gives its search's explanation only for a release the route took (tried and
+// failed since), not for one only seen.
 func TestUpgradeWhyChosenOver(t *testing.T) {
 	t.Parallel()
 	e := newManageEnv(t, nil)
-	e.exec(`UPDATE journal_decision SET candidates = '[{"release":"Alpha.2020.2160p.BluRay.REMUX-BEST","accepted":true,
-		"upgrade":true,"quality":"Remux-2160p","score":3500,"upgrade_reason":"better quality: Remux-2160p over WEBDL-2160p",
-		"over":{"release":"Alpha.2020.2160p.WEB-DL-NEXT","step":"quality","quality":"WEBDL-2160p","score":3400}}]'
+	const h = "abababababababababababababababababababab"
+	e.exec(`UPDATE journal_decision SET candidates = '[{"release":"Alpha.2020.2160p.BluRay.REMUX-BEST","info_hash":"` + h + `",
+		"accepted":true,"upgrade":true,"quality":"Remux-2160p","score":3500,"upgrade_reason":"better quality: Remux-2160p over WEBDL-2160p",
+		"over":{"release":"Alpha.2020.2160p.WEB-DL-NEXT","reason":"higher quality (Remux-2160p over WEBDL-2160p)"}}]'
 		WHERE title_id = 1`)
-	var d TitleDetail
-	e.call("GET", APIBase+"/titles/1", nil, 200, &d)
-	if n := d.Versions[0].Upgrade.Next; n == nil ||
-		n.ChosenOver != "Chosen over Alpha.2020.2160p.WEB-DL-NEXT: higher quality (Remux-2160p over WEBDL-2160p)" {
-		t.Fatalf("next %+v", n)
+	next := func() *UpgradeNext {
+		var d TitleDetail
+		e.call("GET", APIBase+"/titles/1", nil, 200, &d)
+		return d.Versions[0].Upgrade.Next
+	}
+	if n := next(); n == nil || n.ChosenOver != "" {
+		t.Fatalf("seen only: %+v", n)
+	}
+	e.exec(`INSERT INTO download (title_id, version_id, version_key, info_hash, release_title, indexer, provider, state,
+		error, source, created_at, updated_at, added_at) VALUES (1, 1, 'movie-remux', ?, 'Alpha.2020.2160p.BluRay.REMUX-BEST',
+		'x', 'rd', 'failed', 'stalled', 'acquire:9', 3000, 3000, 3000)`, h)
+	if n := next(); n == nil || n.ChosenOver != "Chosen over Alpha.2020.2160p.WEB-DL-NEXT: higher quality (Remux-2160p over WEBDL-2160p)" {
+		t.Fatalf("taken: %+v", n)
 	}
 }
 

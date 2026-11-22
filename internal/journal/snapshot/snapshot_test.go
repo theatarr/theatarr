@@ -114,39 +114,30 @@ func TestDropPublicVolumeFlags(t *testing.T) {
 	}
 }
 
-// TestCandidatesOver: each kept accepted release records why it ranks before the next accepted torrent (the
-// comparer's step and that release's facts), skipping another indexer's copy of itself; none for the last one or a
-// rejected one.
-func TestCandidatesOver(t *testing.T) {
-	steps := map[[2]string]string{}
-	saved := firstDifference
-	firstDifference = func(a, b *decide.Decision) string { return steps[[2]string{a.Release, b.Release}] }
-	t.Cleanup(func() { firstDifference = saved })
-	remux := &decide.Decision{Release: "A.2160p.REMUX-X", Accepted: true, Quality: "Remux-2160p", Score: 900}
-	copyOf := &decide.Decision{Release: "A.2160p.REMUX-X", Accepted: true, Quality: "Remux-2160p", Score: 900}
-	web := &decide.Decision{Release: "A.2160p.WEB-Y", Accepted: true, Quality: "WEBDL-2160p", Score: 450,
-		Formats: []decide.FormatScore{{Name: "DV", Score: 100}}}
-	bad := &decide.Decision{Release: "A.CAM-Z", Accepted: false}
-	steps[[2]string{remux.Release, web.Release}] = "quality"
-	rels := map[*decide.Decision]indexer.Release{remux: {InfoHash: "AA"}, copyOf: {InfoHash: "aa", Indexer: "other"},
-		web: {InfoHash: "bb", Seeders: 30, Size: 9, CachedOn: []string{"rd"}}, bad: {InfoHash: "cc"}}
-	got, _ := Candidates([]*decide.Decision{remux, copyOf, web, bad}, rels)
-	o := got[0].Over
-	if o == nil || o.Release != web.Release || o.Step != "quality" || o.Quality != "WEBDL-2160p" || o.Score != 450 ||
-		!slices.Equal(o.Formats, []string{"DV"}) || o.Seeders != 30 || !slices.Equal(o.CachedOn, []string{"rd"}) {
-		t.Fatalf("over %+v", o)
+// TestChosenLine: the one explanation of a search's choice: only for a release the route took; better ones counted
+// by what the route recorded (not cached, failed; none without a record), of the same episodes; then the recorded
+// reason against the next one.
+func TestChosenLine(t *testing.T) {
+	over := &Over{Release: "A.WEB-THREE", Reason: "higher quality (Remux-2160p over WEBDL-2160p)"}
+	cands := []Candidate{
+		{Accepted: true, InfoHash: "h1"}, {Accepted: true, InfoHash: "h2"}, {Accepted: true, InfoHash: "h0"},
+		{Accepted: true, InfoHash: "h3", Over: over}, {Accepted: true, InfoHash: "h4"},
 	}
-	if got[2].Over != nil || got[3].Over != nil {
-		t.Errorf("the last accepted one and a rejected one: %+v %+v", got[2].Over, got[3].Over)
+	out := map[string]string{"h1": OutcomeMissed, "h2": OutcomeFailed, "h3": OutcomeTaken}
+	if got := ChosenLine(cands, "H3", out); got != "1 better release was not cached; 1 better release failed. Chosen over A.WEB-THREE: higher quality (Remux-2160p over WEBDL-2160p)" {
+		t.Errorf("line %q", got)
 	}
-	// A season's search: another episode's release is no alternative.
-	e1 := &decide.Decision{Release: "S.S01E01.WEB-X", Accepted: true, Episodes: []string{"S01E01"}}
-	e2 := &decide.Decision{Release: "S.S01E02.WEB-X", Accepted: true, Episodes: []string{"S01E02"}}
-	e1b := &decide.Decision{Release: "S.S01E01.HDTV-Y", Accepted: true, Episodes: []string{"S01E01"}}
-	steps[[2]string{e1.Release, e2.Release}] = "episode_number"
-	steps[[2]string{e1.Release, e1b.Release}] = "quality"
-	got, _ = Candidates([]*decide.Decision{e1, e2, e1b}, map[*decide.Decision]indexer.Release{e1: {InfoHash: "e1"}, e2: {InfoHash: "e2"}, e1b: {InfoHash: "e3"}})
-	if o := got[0].Over; o == nil || o.Release != e1b.Release || o.Step != "quality" {
-		t.Errorf("season search over %+v", o)
+	// Not taken (only seen, or nothing taken): nothing.
+	if got := ChosenLine(cands, "h4", out); got != "" {
+		t.Errorf("not taken: %q", got)
+	}
+	// The first taken: just the reason.
+	if got := ChosenLine([]Candidate{{Accepted: true, InfoHash: "h3", Over: over}}, "h3", out); got != "Chosen over A.WEB-THREE: higher quality (Remux-2160p over WEBDL-2160p)" {
+		t.Errorf("first: %q", got)
+	}
+	// Another episode's better release is not counted.
+	eps := []Candidate{{Accepted: true, InfoHash: "h1", Episodes: []string{"S01E02"}}, {Accepted: true, InfoHash: "h3", Episodes: []string{"S01E01"}, Over: over}}
+	if got := ChosenLine(eps, "h3", out); got != "Chosen over A.WEB-THREE: higher quality (Remux-2160p over WEBDL-2160p)" {
+		t.Errorf("episodes: %q", got)
 	}
 }

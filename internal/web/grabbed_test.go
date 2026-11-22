@@ -8,7 +8,6 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/journal/snapshot"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
@@ -1186,53 +1185,36 @@ func TestStoredPlayingSearchWordsInAnotherEpisode(t *testing.T) {
 	}
 }
 
-// TestChosenLine: Last search says why the release taken beat the next accepted one (the run's recorded comparer
-// step), after how many better ones were not taken; nothing for a run with one candidate.
+// TestChosenLine: Last search says why the release taken beat the next accepted one (the reason recorded with the
+// search), after the better ones its route recorded as not cached; a better one with no record is not counted.
 func TestChosenLine(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
 	key := e.apiKey()
 	now := store.Millis(testNow)
-	const h1, h2, h3 = "1111111111111111111111111111111111111111", "2222222222222222222222222222222222222222",
-		"3333333333333333333333333333333333333333"
-	cands := `[{"rank":1,"release":"Alpha.2020.2160p.REMUX-ONE","info_hash":"` + h1 + `","accepted":true,"quality":"Remux-2160p","score":900,
-		  "over":{"release":"Alpha.2020.2160p.REMUX-TWO","step":"score","quality":"Remux-2160p","score":450}},
-		{"rank":2,"release":"Alpha.2020.2160p.REMUX-TWO","info_hash":"` + h2 + `","accepted":true,"quality":"Remux-2160p","score":900,
-		  "formats":[{"name":"DV","score":300},{"name":"TrueHD Atmos","score":150},{"name":"HDR","score":0}],
-		  "over":{"release":"Alpha.2020.2160p.WEB-THREE","step":"quality","quality":"WEBDL-2160p","score":450,"formats":["HDR"]}},
-		{"rank":3,"release":"Alpha.2020.2160p.WEB-THREE","info_hash":"` + h3 + `","accepted":true,"quality":"WEBDL-2160p","score":450}]`
+	const h0, h1, h2, h3 = "0000000000000000000000000000000000000000", "1111111111111111111111111111111111111111",
+		"2222222222222222222222222222222222222222", "3333333333333333333333333333333333333333"
+	cands := `[{"rank":1,"release":"Alpha.2020.2160p.REMUX-ZERO","info_hash":"` + h0 + `","accepted":true},
+		{"rank":2,"release":"Alpha.2020.2160p.REMUX-ONE","info_hash":"` + h1 + `","accepted":true},
+		{"rank":3,"release":"Alpha.2020.2160p.REMUX-TWO","info_hash":"` + h2 + `","accepted":true,
+		  "over":{"release":"Alpha.2020.2160p.WEB-THREE","reason":"higher quality (Remux-2160p over WEBDL-2160p)"}},
+		{"rank":4,"release":"Alpha.2020.2160p.WEB-THREE","info_hash":"` + h3 + `","accepted":true}]`
 	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, state, results, accepted,
-		message, created_at, updated_at) VALUES (41, 'wanted', 1, 2, 'movie-web', 'movie', 'routed', 3, 3, '', ?, ?)`,
+		message, created_at, updated_at) VALUES (41, 'wanted', 1, 2, 'movie-web', 'movie', 'routed', 4, 4, '', ?, ?)`,
 		now-6000, now-6000)
 	e.exec(`INSERT INTO journal_decision (id, source, run_id, title_id, version_key, target, results, accepted,
-		candidates, created_at) VALUES (91, 'acquire:41', 41, 1, 'movie-web', 'movie', 3, 3, ?, ?)`, cands, now-6000)
+		candidates, created_at) VALUES (91, 'acquire:41', 41, 1, 'movie-web', 'movie', 4, 4, ?, ?)`, cands, now-6000)
+	// #1 has no download record (not counted); #2 missed every provider before an add; #3 was taken.
 	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
-		state, source, created_at, updated_at) VALUES
-		(2, 1, 2, 'movie-web', ?, 'Alpha.2020.2160p.REMUX-TWO', 'idx', 'ad', 'downloading', 'acquire:41', ?, ?)`,
-		h2, now-5700, now-5000)
+		state, error, source, created_at, updated_at, added_at) VALUES
+		(1, 1, 2, 'movie-web', ?, 'Alpha.2020.2160p.REMUX-ONE', 'idx', NULL, 'failed', 'miss on every provider: not cached', 'acquire:41', ?, ?, NULL),
+		(2, 1, 2, 'movie-web', ?, 'Alpha.2020.2160p.REMUX-TWO', 'idx', 'ad', 'downloading', NULL, 'acquire:41', ?, ?, ?)`,
+		h1, now-5800, now-5800, h2, now-5700, now-5000, now-5600)
 	var r Releases
 	if code := e.getKey(APIBase+"/titles/1/releases?version=movie-web", key, &r); code != 200 {
 		t.Fatalf("releases %d", code)
 	}
 	if want := "1 better release was not cached. Chosen over Alpha.2020.2160p.WEB-THREE: higher quality (Remux-2160p over WEBDL-2160p)"; r.Chosen != want {
 		t.Errorf("chosen %q, want %q", r.Chosen, want)
-	}
-	// The top one taken: its own line, by score with the formats the next one lacks.
-	one := []snapshot.Candidate{{Accepted: true, InfoHash: h1, Score: 900, Formats: []decide.FormatScore{{Name: "DV", Score: 300},
-		{Name: "TrueHD Atmos", Score: 150}}, Over: &snapshot.Over{Release: "B", Step: "score", Score: 450}}}
-	if got := chosenLine(one, h1, nil); got != "Chosen over B: higher score (+450: DV, TrueHD Atmos)" {
-		t.Errorf("score line %q", got)
-	}
-	cached := snapshot.Candidate{Accepted: true, InfoHash: h1, CachedOn: []string{"rd"}, Over: &snapshot.Over{Release: "B", Step: "cached"}}
-	if got := chosenLine([]snapshot.Candidate{cached}, h1, nil); got != "Chosen over B: cached on Real-Debrid" {
-		t.Errorf("cached line %q", got)
-	}
-	peers := snapshot.Candidate{Accepted: true, InfoHash: h1, Seeders: 120, Over: &snapshot.Over{Release: "B", Step: "peers", Seeders: 30}}
-	if got := chosenLine([]snapshot.Candidate{peers}, h1, nil); got != "Chosen over B: more seeders (120 over 30)" {
-		t.Errorf("peers line %q", got)
-	}
-	// One candidate: nothing.
-	if got := chosenLine([]snapshot.Candidate{{Accepted: true, InfoHash: h1}}, h1, nil); got != "" {
-		t.Errorf("one candidate %q", got)
 	}
 }

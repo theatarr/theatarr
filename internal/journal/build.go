@@ -442,7 +442,7 @@ func (r *Reasoning) pickChosen(hash, release string) {
 		return
 	}
 	c := r.RunnersUp[idx]
-	r.Chosen, r.ChosenOver = &c, snapshot.ChosenOver(c)
+	r.Chosen = &c
 	r.RunnersUp = slices.Delete(slices.Clone(r.RunnersUp), idx, idx+1)
 	r.Existing = c.Existing
 }
@@ -459,6 +459,14 @@ func (b *builder) decisionFor(e *Entry, d *dlRow) error {
 	}
 	r.pickChosen(d.hash, clean(d.release))
 	if r.Chosen != nil {
+		// The search's explanation of its choice, as Last search and Why? say it: from what its route recorded.
+		outcomes, err := snapshot.RunOutcomes(b.ctx, b.db, d.source, d.created)
+		if err != nil {
+			return err
+		}
+		ranked := slices.SortedStableFunc(slices.Values(append([]snapshot.Candidate{*r.Chosen}, r.RunnersUp...)),
+			func(a, b snapshot.Candidate) int { return a.Rank - b.Rank })
+		r.ChosenOver = snapshot.ChosenLine(ranked, d.hash, outcomes)
 		if r.Chosen.Existing != nil {
 			s := r.Chosen.Existing.Score
 			e.f.prevScore, e.f.prevQuality = &s, r.Chosen.Existing.Quality

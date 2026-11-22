@@ -300,6 +300,9 @@ type CacheStanding struct {
 	First int
 	// Count is how many such providers hold the release cached; 0 is no evidence.
 	Count int
+	// FirstKind is the kind (realdebrid, alldebrid, torbox) of the earliest such provider in the version's list
+	// holding it cached, for the words of why it ranked (Explain); "" when none does.
+	FirstKind string
 }
 
 // Score sets Release.FormatScore from the profile, as the arr does when it maps a release.

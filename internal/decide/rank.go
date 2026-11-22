@@ -1,6 +1,11 @@
 package decide
 
-import "github.com/theatarr/theatarr/internal/decide/profile"
+import (
+	"slices"
+	"strings"
+
+	"github.com/theatarr/theatarr/internal/decide/profile"
+)
 
 // Rank orders decisions per version: within each version the accepted decisions come first, best first by the arr's
 // comparer (profile.Engine.Prioritize: quality, format score, cache standing, protocol, indexer priority, flags, peers,
@@ -55,7 +60,14 @@ func rank(decisions []*Decision, merged bool) []*Decision {
 				scoped := func(s *profile.Subject) int { return len(bySubject[s].DownloadEpisodes()) }
 				prioritize = func(ss []*profile.Subject) []*profile.Subject { return eng.PrioritizeMerged(ss, scoped) }
 			}
-			for _, s := range append(prioritize(accepted), prioritize(rejected)...) {
+			ordered := prioritize(accepted)
+			explain := eng.Explain
+			if merged {
+				scoped := func(s *profile.Subject) int { return len(bySubject[s].DownloadEpisodes()) }
+				explain = func(x, y *profile.Subject) string { return eng.ExplainMerged(x, y, scoped) }
+			}
+			recordOver(ordered, bySubject, explain)
+			for _, s := range append(ordered, prioritize(rejected)...) {
 				out = append(out, bySubject[s])
 			}
 		}
@@ -72,15 +84,37 @@ func (d *Decision) SeaDexPreference() int {
 	return d.subject.Release.Quality.SeaDexPreference
 }
 
-// FirstDifference is the first step of the comparer that ranks a over b (profile.Engine.FirstDifference: Step*),
-// "" when they tie or either was not parsed. Rank's order for one search: a ranked before b says why.
-func FirstDifference(a, b *Decision) string {
-	if a == nil || b == nil || a.subject == nil || b.subject == nil || a.engine == nil {
-		return ""
+// Over says why a ranked accepted release beat the next accepted torrent after it for the same episodes (D4): that
+// release's name and the comparer's own words for the step that decided ("higher quality (Remux-2160p over
+// WEBDL-2160p)"). Set by Rank; nil for the last one, or when the comparer ties them.
+type Over struct {
+	Release string
+	Reason  string
+}
+
+// ChosenOver is Over, recorded when the decisions were ranked; nil when none.
+func (d *Decision) ChosenOver() *Over { return d.over }
+
+// recordOver sets each accepted decision's Over against the next one in order that is another torrent and shares an
+// episode with it (a season's search ranks every episode's releases together: another episode's is no alternative).
+func recordOver(ordered []*profile.Subject, bySubject map[*profile.Subject]*Decision, explain func(x, y *profile.Subject) string) {
+	for i, s := range ordered {
+		d := bySubject[s]
+		d.over = nil
+		for _, n := range ordered[i+1:] {
+			nd := bySubject[n]
+			if h := s.Release.InfoHash; h != "" && strings.EqualFold(h, n.Release.InfoHash) {
+				continue
+			}
+			if len(d.Episodes) > 0 && len(nd.Episodes) > 0 && !slices.ContainsFunc(nd.Episodes, func(e string) bool {
+				return slices.Contains(d.Episodes, e)
+			}) {
+				continue
+			}
+			if why := explain(s, n); why != "" {
+				d.over = &Over{Release: nd.Release, Reason: why}
+			}
+			break
+		}
 	}
-	step, order := a.engine.FirstDifference(a.subject, b.subject)
-	if order <= 0 {
-		return ""
-	}
-	return step
 }

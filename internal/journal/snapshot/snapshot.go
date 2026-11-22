@@ -11,7 +11,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"slices"
 	"sort"
 	"strconv"
@@ -19,7 +18,6 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/decide"
-	"github.com/theatarr/theatarr/internal/decide/profile"
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
@@ -94,58 +92,11 @@ type Candidate struct {
 	Over *Over `json:"over,omitempty"`
 }
 
-// Over is the comparer's own first difference between an accepted release and the next accepted torrent after it
-// (decide.FirstDifference), with what the words need of that next one.
+// Over is why the search ranked an accepted release before the next accepted torrent of its episodes: that
+// release's name and the comparer's own words (decide.Decision.ChosenOver), recorded when the search decided.
 type Over struct {
 	Release string `json:"release"`
-	// Step is the comparer's step (profile.Step*: quality, score, cached, peers, ...).
-	Step     string   `json:"step"`
-	Quality  string   `json:"quality,omitempty"`
-	Revision int      `json:"revision,omitempty"`
-	Score    int      `json:"score"`
-	Formats  []string `json:"formats,omitempty"`
-	CachedOn []string `json:"cached_on,omitempty"`
-	Seeders  int      `json:"seeders,omitempty"`
-	Size     int64    `json:"size,omitempty"`
-	Episodes int      `json:"episodes,omitempty"`
-}
-
-// firstDifference is decide.FirstDifference (a test replaces it: its decisions have no engine).
-var firstDifference = decide.FirstDifference
-
-// over is why d ranks before the next accepted torrent after it in ranked (from index i), nil when none is after it
-// or the comparer ties them.
-func over(ranked []*decide.Decision, i int, rels map[*decide.Decision]indexer.Release) *Over {
-	d := ranked[i]
-	hash := strings.ToLower(rels[d].InfoHash)
-	for _, n := range ranked[i+1:] {
-		if n == nil || !n.Accepted || n.Version != d.Version {
-			continue
-		}
-		r := rels[n]
-		if hash != "" && strings.EqualFold(r.InfoHash, hash) {
-			continue // the same torrent from another indexer
-		}
-		if len(d.Episodes) > 0 && len(n.Episodes) > 0 && !slices.ContainsFunc(n.Episodes, func(e string) bool {
-			return slices.Contains(d.Episodes, e)
-		}) {
-			continue // another episode's release in a season's search: not an alternative to this one
-		}
-		step := firstDifference(d, n)
-		if step == "" {
-			return nil
-		}
-		o := &Over{Release: n.Release, Step: step, Quality: n.Quality, Revision: n.Revision.Version, Score: n.Score,
-			CachedOn: r.CachedList(), Seeders: r.Seeders, Size: r.Size, Episodes: len(n.Episodes)}
-		if o.Release == "" {
-			o.Release = r.Title
-		}
-		for _, f := range n.Formats {
-			o.Formats = append(o.Formats, f.Name)
-		}
-		return o
-	}
-	return nil
+	Reason  string `json:"reason"`
 }
 
 // Search is one decided search.
@@ -190,7 +141,9 @@ func Candidates(ranked []*decide.Decision, rels map[*decide.Decision]indexer.Rel
 		c := summarize(i+1, d, rels[d])
 		if d.Accepted {
 			if len(out) < KeepAccepted {
-				c.Over = over(ranked, i, rels)
+				if o := d.ChosenOver(); o != nil {
+					c.Over = &Over{Release: o.Release, Reason: o.Reason}
+				}
 				out = append(out, c)
 			}
 			continue
@@ -341,88 +294,111 @@ func Record(ctx context.Context, db Execer, s Search) error {
 	return err
 }
 
-// ChosenOver says why c ranks before the next accepted torrent: "Chosen over <release>: higher quality (Remux-2160p
-// over WEBDL-2160p)", "…: higher score (+450: DV, TrueHD Atmos)", "…: cached on Real-Debrid", "…: more seeders (120
-// over 30)"; "" when nothing was ranked after it (a run with one candidate, or one stored before it was recorded).
-func ChosenOver(c Candidate) string {
-	o := c.Over
-	if o == nil {
+// Route outcomes of a run's releases (RunOutcomes), by lower-case info hash.
+const (
+	OutcomeTaken  = "taken"  // a provider took it (added), whatever came of it after
+	OutcomeMissed = "missed" // every provider missed it before any took it: not cached
+	OutcomeFailed = "failed" // the route failed before a provider took it, for another reason
+)
+
+// Querier is a *sql.DB or *sql.Tx.
+type Querier interface {
+	QueryContext(ctx context.Context, q string, args ...any) (*sql.Rows, error)
+}
+
+// RunOutcomes is what the route of a stored search recorded for its releases: the downloads its source opened (an
+// acquire run's, or an RSS read's since at), by hash. A release with no download has no outcome.
+func RunOutcomes(ctx context.Context, db Querier, source string, at int64) (map[string]string, error) {
+	q := `SELECT lower(info_hash), added_at IS NOT NULL, state = 'failed' AND added_at IS NULL AND (` + missedSQL +
+		` OR COALESCE(provider, '') = '') FROM download WHERE source = ?`
+	args := []any{source}
+	if source == "rss" {
+		q, args = q+` AND created_at >= ?`, append(args, at)
+	}
+	rows, err := db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var h string
+		var taken, missed bool
+		if err := rows.Scan(&h, &taken, &missed); err != nil {
+			return nil, err
+		}
+		switch {
+		case taken:
+			out[h] = OutcomeTaken
+		case out[h] == OutcomeTaken:
+		case missed:
+			if out[h] == "" {
+				out[h] = OutcomeMissed
+			}
+		default:
+			out[h] = OutcomeFailed
+		}
+	}
+	return out, rows.Err()
+}
+
+// missedSQL is activity.MissedSQL on the download table (this package is a leaf): failed, never added, missed on
+// every provider.
+const missedSQL = `COALESCE(error, '') GLOB 'miss on every provider*'`
+
+// ChosenLine is the one explanation of a stored search's choice (Last search, Why?, the journal): for the release the
+// route took (taken, by hash: outcomes says it was taken), how many better-ranked accepted releases of its episodes
+// the route recorded as not cached or failed, then why it ranked before the next one ("2 better releases were not
+// cached. Chosen over <release>: higher quality (Remux-2160p over WEBDL-2160p)"). A better release with no recorded
+// outcome is not counted. "" for a release that was not taken, or with nothing to say.
+func ChosenLine(cands []Candidate, taken string, outcomes map[string]string) string {
+	taken = strings.ToLower(taken)
+	if taken == "" || outcomes[taken] != OutcomeTaken {
 		return ""
 	}
-	return "Chosen over " + o.Release + ": " + overWords(c, o)
+	i := slices.IndexFunc(cands, func(c Candidate) bool { return c.Accepted && strings.EqualFold(c.InfoHash, taken) })
+	if i < 0 {
+		return ""
+	}
+	eps := cands[i].Episodes
+	missed, failed := 0, 0
+	seen := map[string]bool{taken: true}
+	for _, c := range cands[:i] {
+		h := strings.ToLower(c.InfoHash)
+		if !c.Accepted || h == "" || seen[h] {
+			continue
+		}
+		seen[h] = true
+		if len(eps) > 0 && len(c.Episodes) > 0 && !slices.ContainsFunc(c.Episodes, func(e string) bool { return slices.Contains(eps, e) }) {
+			continue
+		}
+		switch outcomes[h] {
+		case OutcomeMissed:
+			missed++
+		case OutcomeFailed:
+			failed++
+		}
+	}
+	var parts []string
+	if missed > 0 {
+		parts = append(parts, countWords(missed, "better release was", "better releases were")+" not cached")
+	}
+	if failed > 0 {
+		parts = append(parts, countWords(failed, "better release", "better releases")+" failed")
+	}
+	line := strings.Join(parts, "; ")
+	if line != "" {
+		line += "."
+	}
+	if o := cands[i].Over; o != nil && o.Reason != "" {
+		line = strings.TrimSpace(line + " Chosen over " + o.Release + ": " + o.Reason)
+	}
+	return line
 }
 
-func overWords(c Candidate, o *Over) string {
-	switch o.Step {
-	case profile.StepSeaDex:
-		return "SeaDex ranks it higher"
-	case profile.StepQuality:
-		if c.Quality == o.Quality && c.Revision != o.Revision {
-			return fmt.Sprintf("a newer revision (v%d over v%d)", c.Revision, o.Revision)
-		}
-		return "higher quality (" + c.Quality + " over " + o.Quality + ")"
-	case profile.StepScore:
-		var more []string
-		for _, f := range c.Formats {
-			if f.Score > 0 && !slices.Contains(o.Formats, f.Name) {
-				more = append(more, f.Name)
-			}
-		}
-		s := fmt.Sprintf("higher score (+%d", c.Score-o.Score)
-		if len(more) > 0 {
-			s += ": " + strings.Join(more, ", ")
-		}
-		return s + ")"
-	case profile.StepCached:
-		if len(c.CachedOn) == 0 {
-			return "cached"
-		}
-		names := make([]string, len(c.CachedOn))
-		for i, code := range c.CachedOn {
-			names[i] = providerName(code)
-		}
-		if len(o.CachedOn) > 0 && len(c.CachedOn) > len(o.CachedOn) {
-			return "cached on more providers (" + strings.Join(names, ", ") + ")"
-		}
-		return "cached on " + names[0]
-	case profile.StepProtocol:
-		return "the preferred protocol"
-	case profile.StepEpisodeCount:
-		if n := len(c.Episodes); n != o.Episodes {
-			if n > o.Episodes {
-				return fmt.Sprintf("more episodes (%d over %d)", n, o.Episodes)
-			}
-			return fmt.Sprintf("fewer episodes (%d over %d)", n, o.Episodes)
-		}
-		return "a season pack"
-	case profile.StepEpisodeNumber:
-		return "an earlier first episode"
-	case profile.StepIndexerPriority:
-		return "a higher indexer priority"
-	case profile.StepIndexerFlags:
-		return "better indexer flags"
-	case profile.StepPeers:
-		if c.Seeders != o.Seeders {
-			return fmt.Sprintf("more seeders (%d over %d)", c.Seeders, o.Seeders)
-		}
-		return "more peers"
-	case profile.StepAge:
-		return "published more recently"
-	case profile.StepSize:
-		return "a size closer to the profile's"
+func countWords(n int, one, many string) string {
+	if n == 1 {
+		return "1 " + one
 	}
-	return "ranked higher"
-}
-
-// providerName names a cache code (rd, ad, tb) for people.
-func providerName(code string) string {
-	switch strings.ToLower(code) {
-	case "rd":
-		return "Real-Debrid"
-	case "ad":
-		return "AllDebrid"
-	case "tb":
-		return "TorBox"
-	}
-	return strings.ToUpper(code)
+	return strconv.Itoa(n) + " " + many
 }

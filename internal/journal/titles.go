@@ -184,4 +184,9 @@ func cleanCandidate(c *snapshot.Candidate) {
 	if c.UpgradeWhy != "" {
 		c.UpgradeWhy = clean(c.UpgradeWhy)
 	}
+	if c.Over != nil {
+		o := *c.Over
+		o.Release = clean(o.Release)
+		c.Over = &o
+	}
 }
