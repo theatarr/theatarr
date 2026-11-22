@@ -227,8 +227,11 @@ func (r *Router) pollNameRefused(ctx context.Context, x pollRow, t *provider.Tor
 // pollTooLarge is download x on a provider that refuses its torrent as too big for it after the add (AllDebrid
 // statusCode 8, provider.Torrent.TooLarge): as Real-Debrid's 29 and TorBox's DOWNLOAD_TOO_LARGE at the add, a miss
 // there for the content's miss TTL and the release routed again (requeue) to the next provider; nothing blocklisted.
-func (r *Router) pollTooLarge(ctx context.Context, x pollRow, now time.Time, sum *PollSummary) error {
+func (r *Router) pollTooLarge(ctx context.Context, x pollRow, t *provider.Torrent, now time.Time, sum *PollSummary) error {
 	rctx := context.WithoutCancel(ctx)
+	if err := r.recordFailed(rctx, x.pk, x.tid, t); err != nil {
+		return err
+	}
 	if err := r.setCache(rctx, x.hash, x.pk, "miss", "too_large", now.Add(r.downloadMissTTL(rctx, x, now)), now); err != nil {
 		return err
 	}

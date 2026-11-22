@@ -307,7 +307,7 @@ func (r *Router) settle(ctx context.Context, s *routeState, pv *policy.Provider,
 		return r.settleNameRefused(ctx, s, pv, pk, hash, ad, a, g, t, why)
 	}
 	if t != nil && t.TooLarge {
-		return r.settleTooLarge(ctx, s, pk, hash, a)
+		return r.settleTooLarge(ctx, s, pk, hash, a, t)
 	}
 	apply := func() error {
 		if t == nil {
@@ -496,15 +496,30 @@ func (r *Router) settleNameRefused(ctx context.Context, s *routeState, pv *polic
 		Message: why + "; our add " + a.ID + " was " + done}, nil
 }
 
+// recordFailed writes the too-big torrent's registry row from the provider's answer (provider.RecordFailed): the
+// errored magnet stays listed on Torrents, under Failed, where the owner clears it.
+func (r *Router) recordFailed(ctx context.Context, pk, id string, t *provider.Torrent) error {
+	row := *t
+	row.ID = id
+	if err := r.st.WriteTx(ctx, func(tx *sql.Tx) error { return provider.RecordFailed(ctx, tx, pk, row) }); err != nil {
+		return fmt.Errorf("router: registry row of %s torrent %s: %w", pk, id, err)
+	}
+	r.usageStale()
+	return nil
+}
+
 // codeTooLarge: the provider refuses the release as too big for it after the add (provider.Torrent.TooLarge).
 const codeTooLarge = "too_large"
 
 // settleTooLarge ends our add that the first read already shows too big for pk (AllDebrid statusCode 8), as the
 // poller does (pollTooLarge): a miss on pk for the content's miss TTL and the next provider; nothing blocklisted or
 // deleted (the errored magnet stays listed on Torrents).
-func (r *Router) settleTooLarge(ctx context.Context, s *routeState, pk, hash string, a *adder.Added) (verdict, time.Time,
-	Step, error) {
+func (r *Router) settleTooLarge(ctx context.Context, s *routeState, pk, hash string, a *adder.Added,
+	t *provider.Torrent) (verdict, time.Time, Step, error) {
 	rctx := context.WithoutCancel(ctx)
+	if err := r.recordFailed(rctx, pk, a.ID, t); err != nil {
+		return 0, time.Time{}, Step{}, err
+	}
 	now := r.now()
 	why := "too big for " + pk + " (File too big.)"
 	r.log.Warn(why+"; a miss on "+pk+", trying the next provider", "provider", pk, "hash", hash, "torrent", a.ID,

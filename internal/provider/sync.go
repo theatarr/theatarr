@@ -438,6 +438,16 @@ func RecordAccepted(ctx context.Context, tx *sql.Tx, key, id, hash, name string,
 	return err
 }
 
+// RecordFailed puts torrent t of provider key in its record as the provider answered it, failed (its error state and
+// status words), so Torrents lists it under Failed before the next listing; a row already there is updated.
+func RecordFailed(ctx context.Context, tx *sql.Tx, key string, t Torrent) error {
+	_, err := tx.ExecContext(ctx, `INSERT INTO provider_torrent (provider, torrent_id, info_hash, name, size_bytes,
+		status, state, progress) VALUES (?, ?, lower(?), ?, ?, ?, ?, ?)
+		ON CONFLICT (provider, torrent_id) DO UPDATE SET status = excluded.status, state = excluded.state,
+			progress = excluded.progress`, key, t.ID, t.Hash, t.Name, t.Bytes, t.Status, string(StateError), t.Progress)
+	return err
+}
+
 // DropRecordTorrent removes torrent id from provider key's record (a delete, or a torrent found gone); the caller asks
 // for the usage to be worked out again.
 func DropRecordTorrent(ctx context.Context, tx *sql.Tx, key, id string) error {
