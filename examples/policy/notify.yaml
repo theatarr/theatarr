@@ -18,8 +18,8 @@ notify:
   #     auth_header_env: THEATARR_AUTOMATION_HOOK_AUTH
   #   discord:                  # a Discord channel webhook; the URL is a write-only credential
   #     url: https://discord.com/api/webhooks/<id>/<token>
-  #     format: discord           # health and error alerts, the daily digest, request ready, test
-  #     events: [health, health_restored, error, digest, request_ready]   # empty means all of these
+  #     format: discord           # health alerts, the daily digest, request ready, playing messages, test
+  #     events: [health, health_restored, digest, request_ready, playing]   # empty means all of these
   #     # warnings: true        # also send health warnings (Discord, ntfy and Telegram targets only); notices are never sent
   #   phone:                    # an ntfy topic: the server address followed by the topic
   #     url: https://ntfy.example.com/<topic>

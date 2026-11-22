@@ -136,7 +136,7 @@ export function FieldInput(p: FieldInputProps) {
   const describe = { "aria-describedby": [error ? `${id}-error` : "", f.help ? `${id}-help` : ""].filter(Boolean).join(" ") || undefined, "aria-invalid": error ? true : undefined };
   const checked = value ?? (f.default === "true");
   const input = (type = "text") => <Input aria-label={label} {...describe} data-field={path} type={type} value={typeof value === "string" || typeof value === "number" ? value : ""} min={f.min} max={f.max} step={f.type === "integer" ? 1 : "any"} placeholder={f.default} disabled={disabled} onChange={(e) => onChange(e.target.value === "" ? (f.nullable ? null : undefined) : type === "number" ? Number(e.target.value) : e.target.value)} />;
-  const children = (config: Config, prefix: string, change: (v: Config) => void, saved: unknown) => <SectionFields {...p} fields={f.fields ?? []} config={config} path={prefix} onChange={change} saved={p.tracked ? objectValue(saved) : undefined} />;
+  const children = (config: Config, prefix: string, change: (v: Config) => void, saved: unknown, fields = f.fields ?? []) => <SectionFields {...p} fields={fields} config={config} path={prefix} onChange={change} saved={p.tracked ? objectValue(saved) : undefined} />;
   let control;
   switch (f.type) {
     case "secret": {
@@ -156,7 +156,7 @@ export function FieldInput(p: FieldInputProps) {
     case "keyed": {
       const records = objectValue(value);
       const managed = path === "library.versions";
-      control = <div className="grid gap-3">{Object.entries(records).map(([key, record]) => <KeyedRecord key={key} {...p} name={key} records={records} managed={managed}>{children(objectValue(record), `${path}.${key}`, (v) => onChange({ ...records, [key]: v }), objectValue(p.saved)[key])}</KeyedRecord>)}{!managed ? <div className="flex gap-2"><Input aria-label={`New ${label} name`} placeholder="Name" value={newName} disabled={disabled} onChange={(e) => setNewName(e.target.value)} /><Button type="button" disabled={disabled || !newName.trim() || Object.hasOwn(records, newName.trim())} onClick={() => { onChange({ ...records, [newName.trim()]: {} }); setNewName(""); }}>{addLabel(f)}</Button>{newName && Object.hasOwn(records, newName.trim()) ? <p role="alert">That name already exists.</p> : null}</div> : null}</div>; break;
+      control = <div className="grid gap-3">{Object.entries(records).map(([key, record]) => <KeyedRecord key={key} {...p} name={key} records={records} managed={managed}>{path === "notify.targets" ? children(objectValue(record), `${path}.${key}`, (v) => onChange({ ...records, [key]: notifyTargetChange(objectValue(record), v) }), objectValue(p.saved)[key], notifyTargetFields(f.fields ?? [], objectValue(record).format)) : children(objectValue(record), `${path}.${key}`, (v) => onChange({ ...records, [key]: v }), objectValue(p.saved)[key])}</KeyedRecord>)}{!managed ? <div className="flex gap-2"><Input aria-label={`New ${label} name`} placeholder="Name" value={newName} disabled={disabled} onChange={(e) => setNewName(e.target.value)} /><Button type="button" disabled={disabled || !newName.trim() || Object.hasOwn(records, newName.trim())} onClick={() => { onChange({ ...records, [newName.trim()]: {} }); setNewName(""); }}>{addLabel(f)}</Button>{newName && Object.hasOwn(records, newName.trim()) ? <p role="alert">That name already exists.</p> : null}</div> : null}</div>; break;
     }
     case "object_list": case "list": {
       const rows = Array.isArray(value) ? value : [];
@@ -250,6 +250,23 @@ function KeyedRecord(p: FieldInputProps & { name: string; records: Config; manag
     {invalid ? <p role="alert">{invalid}</p> : null}
     <Button type="button" variant="outline" disabled={disabled || !renaming || !!invalid || !ready} onClick={() => { moveDraft(`${path}.${nextName}.`); p.onChange({ ...changeField(records, name, undefined), [nextName]: maskedURL ? { ...record, url } : record }); }}>Rename {name}</Button>
   </> : null}{p.children}{path === "notify.targets" && !renaming ? <NotifyTestButton name={name} disabled={disabled} /> : null}{!p.managed ? <Button type="button" variant="outline" disabled={disabled} onClick={() => { moveDraft(); p.onChange(changeField(records, name, undefined)); }}>Remove {name}</Button> : null}</details>;
+}
+
+// A notification destination shows the fields of its format: a Telegram one its chat ID and bot token (no URL, views,
+// Theatarr events or Authorization header), the others no Telegram fields.
+const TELEGRAM_ONLY = ["chat_id", "bot_token", "bot_token_env"];
+const NOT_TELEGRAM = ["url", "views", "native", "auth_header", "auth_header_env"];
+export function notifyTargetFields(fields: SchemaField[], format: unknown): SchemaField[] {
+  const hide = format === "telegram" ? NOT_TELEGRAM : TELEGRAM_ONLY;
+  return fields.filter((f) => !hide.includes(f.name));
+}
+/** A destination turned into a Telegram one drops its URL and views (a Telegram destination takes neither). */
+export function notifyTargetChange(before: Config, next: Config): Config {
+  if (next.format !== "telegram" || before.format === "telegram") return next;
+  const rest = { ...next };
+  delete rest.url;
+  delete rest.views;
+  return rest;
 }
 
 /** "Add folder", "Add destination": the add button names one of the things the list holds. */

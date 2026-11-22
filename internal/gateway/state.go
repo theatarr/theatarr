@@ -188,6 +188,21 @@ func (s *state) backOff(ctx context.Context, subject string, until time.Time, re
 	return n
 }
 
+// resetBackoff sets subject's back-off to end at until, earlier or later than the one it has (SetRetryAfter).
+func (s *state) resetBackoff(ctx context.Context, subject string, until time.Time, reason string, now time.Time) {
+	s.mu.Lock()
+	b := s.backoffs[subject]
+	if b == nil {
+		b = &backoff{}
+		s.backoffs[subject] = b
+	}
+	b.until, b.reason, b.streak, b.updated = until, reason, false, now
+	s.seq++
+	b.seq = s.seq
+	s.mu.Unlock()
+	s.persist(ctx, subject)
+}
+
 // holdsKeyRefused reports whether a back-off reason is a refused key's (KeyRefusedReason).
 func holdsKeyRefused(why string) bool { return strings.Contains(why, KeyRefusedReason) }
 

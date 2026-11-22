@@ -734,6 +734,25 @@ func (g *Gateway) rateLimited(ctx context.Context, ti *targetInfo, resp *http.Re
 	g.log.Warn("back-off", "subject", subject, "for", d.String(), "reason", reason)
 }
 
+// SetRetryAfter makes the back-off a 429 just put on t (or its budget, as rateLimited chose) end after d: the wait the
+// answer named in its body instead of a Retry-After header (Telegram's parameters.retry_after), which the gateway does
+// not read. d replaces the headerless default, shorter or longer, at most maxRetryAfter.
+func (g *Gateway) SetRetryAfter(ctx context.Context, t Target, d time.Duration) {
+	g = g.forContext(ctx)
+	ti := g.targets[t.String()]
+	if ti == nil || d <= 0 {
+		return
+	}
+	subject := ti.name
+	if ti.budget != "" && ti.limitBudget {
+		subject = "budget:" + ti.budget
+	}
+	d = min(d, maxRetryAfter)
+	now := g.now()
+	g.health.resetBackoff(context.WithoutCancel(ctx), subject, now.Add(d), "HTTP 429, retry_after "+d.String(), now)
+	g.log.Warn("back-off", "subject", subject, "for", d.String(), "reason", "HTTP 429, retry_after in the body")
+}
+
 // targetFailure counts a failure and backs the target off after failuresBeforeBackoff in a row.
 func (g *Gateway) targetFailure(ctx context.Context, ti *targetInfo, reason string, now time.Time) {
 	n := g.health.failure(ctx, ti.name, reason, now)

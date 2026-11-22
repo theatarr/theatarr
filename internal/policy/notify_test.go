@@ -1,6 +1,7 @@
 package policy
 
 import (
+	"fmt"
 	"net/url"
 	"slices"
 	"strings"
@@ -193,5 +194,22 @@ func TestNotifyTelegramTarget(t *testing.T) {
 	b, err := yaml.Marshal(&NotifyTarget{URL: "http://192.168.1.50:8080/hook", Native: true})
 	if err != nil || strings.Contains(string(b), "chat_id") || strings.Contains(string(b), "bot_token") {
 		t.Errorf("unset Telegram fields written: %s %v", b, err)
+	}
+}
+
+// A bot token pasted into bot_token_env is refused without being echoed.
+func TestNotifyTelegramTokenNotEchoed(t *testing.T) {
+	t.Parallel()
+	const token = "123456789:AAFakeBotTokenInvented0123456789"
+	for _, format := range []string{NotifyFormatTelegram, NotifyFormatDiscord} {
+		p := &Policy{Notify: &Notify{Targets: map[string]*NotifyTarget{
+			"tg": {URL: "https://discord.com/api/webhooks/1/x", Format: format, ChatID: "-1001234567890", BotTokenEnv: token}}}}
+		if format == NotifyFormatTelegram {
+			p.Notify.Targets["tg"].URL = ""
+		}
+		got := fmt.Sprint(p.Validate())
+		if strings.Contains(got, token) || strings.Contains(got, "AAFake") || !strings.Contains(got, "targets[tg].bot_token_env: want the name of an environment variable") {
+			t.Errorf("%s: %s", format, got)
+		}
 	}
 }

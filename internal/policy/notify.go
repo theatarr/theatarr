@@ -285,12 +285,15 @@ func (p *Policy) validateNotify(e *Errors) {
 			} else if !telegramChat.MatchString(t.ChatID) {
 				e.add(path+".chat_id", "want a chat id: a number such as -1001234567890, or a public channel's @name")
 			}
-			checkEnv(e, path+".bot_token_env", t.BotTokenEnv, true)
+			if t.BotTokenEnv == "" {
+				e.add(path+".bot_token_env", "required: the name of the environment variable that holds the bot token")
+			}
 		default:
 			e.add(path+".format", "unknown format %q (want discord, ntfy or telegram, or leave it empty)", t.Format)
 		}
-		if t.Format != NotifyFormatTelegram {
-			checkEnv(e, path+".bot_token_env", t.BotTokenEnv, false)
+		// Never echoed: a bot token pasted here instead of a variable name must not reach a log or an answer.
+		if t.BotTokenEnv != "" && !envRE.MatchString(t.BotTokenEnv) {
+			e.add(path+".bot_token_env", "want the name of an environment variable (A-Z, 0-9, _), not the token itself")
 		}
 		checkEnv(e, path+".auth_header_env", t.AuthHeaderEnv, false)
 	}

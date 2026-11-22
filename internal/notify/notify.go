@@ -89,7 +89,9 @@ type Notifier struct {
 	// tgNext is each Telegram chat's next free message slot (telegram.go); sleep waits for one (Send test).
 	tgMu   sync.Mutex
 	tgNext map[string]time.Time
-	sleep  func(context.Context, time.Duration) error
+	// tgAPI is the Bot API address (policy.TelegramAPI; a test points it at plain http).
+	tgAPI string
+	sleep func(context.Context, time.Duration) error
 }
 
 // New builds the notifier.
@@ -105,7 +107,7 @@ func New(cfg Config) (*Notifier, error) {
 	}
 	return &Notifier{st: cfg.Store, pol: cfg.Policy, set: cfg.Policy.NotifySettings(), doer: cfg.Doer,
 		pay: cfg.Payloads, health: cfg.Health, log: cfg.Logger.With("component", "notify"), now: cfg.Now,
-		getenv: cfg.Getenv, polFor: cfg.PolicyFor, tasks: cfg.Tasks, sleep: sleepCtx}, nil
+		getenv: cfg.Getenv, polFor: cfg.PolicyFor, tasks: cfg.Tasks, sleep: sleepCtx, tgAPI: policy.TelegramAPI}, nil
 }
 
 func (n *Notifier) enabled(ctx context.Context) bool {
@@ -527,8 +529,8 @@ func (n *Notifier) SendTest(ctx context.Context, target string) error {
 	return nil
 }
 
-// errStatus is a non-2xx answer. after is the wait a 429 names in parameters.retry_after (Telegram's Bot API), 0 when
-// it names none.
+// errStatus is a non-2xx answer. after is the wait a Telegram 429 names in parameters.retry_after (telegram.go), 0
+// otherwise.
 type errStatus struct {
 	code  int
 	after time.Duration
@@ -587,21 +589,9 @@ func (n *Notifier) sendPolicy(ctx context.Context, key, event string, body []byt
 	if t.Format == policy.NotifyFormatTelegram {
 		token := ""
 		if t.BotTokenEnv != "" {
-			token = getenv(t.BotTokenEnv)
+			token = strings.TrimSpace(getenv(t.BotTokenEnv))
 		}
-		req, err := telegramRequest(ctx, t, token, event, body)
-		if err != nil {
-			return 0, err
-		}
-		if err := n.telegramSlot(ctx, t.ChatID, wait); err != nil {
-			return 0, err
-		}
-		code, err := n.do(ctx, gateway.Target{Class: gateway.ClassWebhook, Key: key}, req)
-		var st errStatus
-		if errors.As(err, &st) && st.after > 0 {
-			n.telegramWait(t.ChatID, st.after)
-		}
-		return code, err
+		return n.sendTelegram(ctx, key, t, token, event, body, wait)
 	}
 	if strings.HasPrefix(event, telegramEventPrefix) {
 		return 0, fmt.Errorf("queued while the target was a Telegram target: %w", errGone)
@@ -634,33 +624,26 @@ func (n *Notifier) sendPolicy(ctx context.Context, key, event string, body []byt
 var errGone = errors.New("target gone")
 
 func (n *Notifier) do(ctx context.Context, t gateway.Target, req *http.Request) (int, error) {
-	if n.doer == nil {
-		return 0, errors.New("no gateway")
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-	resp, err := n.doer.Do(ctx, t, req)
+	resp, err := n.post(ctx, t, req)
 	if err != nil {
 		return 0, err
 	}
 	defer resp.Body.Close()
-	// The answer is read (at most 64 KiB) before it is dropped: a 429 may name its wait in parameters.retry_after.
-	data, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<16))
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		st := errStatus{code: resp.StatusCode}
-		if resp.StatusCode == http.StatusTooManyRequests {
-			var a struct {
-				Parameters struct {
-					RetryAfter int `json:"retry_after"`
-				} `json:"parameters"`
-			}
-			if json.Unmarshal(data, &a) == nil && a.Parameters.RetryAfter > 0 {
-				st.after = time.Duration(a.Parameters.RetryAfter) * time.Second
-			}
-		}
-		return resp.StatusCode, st
+		return resp.StatusCode, errStatus{code: resp.StatusCode}
 	}
 	return resp.StatusCode, nil
+}
+
+// post sends a JSON request through the gateway; the caller closes the body.
+func (n *Notifier) post(ctx context.Context, t gateway.Target, req *http.Request) (*http.Response, error) {
+	if n.doer == nil {
+		return nil, errors.New("no gateway")
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	return n.doer.Do(ctx, t, req)
 }
 
 // backoff is the wait before retry number attempt (1-based): 30 s doubling, at most 1 h.

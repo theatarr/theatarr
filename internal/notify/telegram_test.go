@@ -6,10 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"net/netip"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 	"unicode/utf16"
@@ -260,42 +264,132 @@ func TestTelegramPace(t *testing.T) {
 	}
 }
 
-// A 429 names its wait in parameters.retry_after: the delivery is retried after it, the chat waits as long, and the
-// sender goes on with other targets meanwhile.
+// A 429 names its wait in parameters.retry_after (no Retry-After header): through the real gateway, one deadline is
+// used end to end (the gateway's back-off, the chat's slot and the outbox row), so with retries 1 the delivery goes
+// out on the second HTTP request; a retry the gateway refuses before sending counts no attempt.
 func TestTelegramRetryAfter(t *testing.T) {
 	t.Parallel()
-	e := newTelegramEnv(t, nil)
+	e := newTelegramEnv(t, func(p *policy.Policy) { one := 1; p.Notify.Retries = &one })
 	ctx := context.Background()
-	e.doer.status = 429
-	e.doer.answer = `{"ok":false,"error_code":429,"description":"Too Many Requests: retry after 17","parameters":{"retry_after":17}}`
+	var mu sync.Mutex
+	var hits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		hits++
+		n := hits
+		mu.Unlock()
+		if !strings.HasSuffix(r.URL.Path, "/sendMessage") {
+			t.Errorf("path %s", r.URL.Path)
+		}
+		if n == 1 {
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = w.Write([]byte(`{"ok":false,"error_code":429,"description":"Too Many Requests: retry after 5","parameters":{"retry_after":5}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	t.Cleanup(srv.Close)
+	requests := func() int {
+		mu.Lock()
+		defer mu.Unlock()
+		return hits
+	}
+	dial := func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, srv.Listener.Addr().String())
+	}
+	lookup := func(context.Context, string) ([]netip.Addr, error) {
+		return []netip.Addr{netip.MustParseAddr("192.0.2.10")}, nil
+	}
+	gw, err := gateway.New(ctx, e.pol, gateway.Options{DialContext: dial, LookupIP: lookup, Now: func() time.Time { return e.now },
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.n.doer, e.n.tgAPI = gw, "http://api.telegram.org"
 	if err := e.n.Test(ctx, "tg"); err != nil {
 		t.Fatal(err)
 	}
 	if sent, err := e.n.SendDue(ctx, 50); err != nil || sent != 0 {
 		t.Fatalf("sent %d %v", sent, err)
 	}
-	if n := e.one(`SELECT COUNT(*) FROM notify_delivery WHERE state = 'pending' AND attempts = 1 AND last_status = 429
-		AND next_at = ?`, e.now.Add(17*time.Second).UnixMilli()); n != 1 {
-		t.Errorf("not retried after 17 s: %d", n)
+	row := func() string {
+		var state string
+		var attempts int
+		var next int64
+		if err := e.st.Reader().QueryRow(`SELECT state, attempts, next_at FROM notify_delivery WHERE target = 'policy:tg'`).
+			Scan(&state, &attempts, &next); err != nil {
+			t.Fatal(err)
+		}
+		return fmt.Sprintf("%s %d %+ds", state, attempts, (next-e.now.UnixMilli())/1000)
 	}
-	// The chat's slot moved too: Send test says how long to wait instead of holding the page.
-	var slept []time.Duration
-	e.n.sleep = func(_ context.Context, d time.Duration) error { slept = append(slept, d); return nil }
-	e.doer.status, e.doer.answer = 0, ""
-	before := len(e.doer.reqs)
-	if err := e.n.SendTest(ctx, "tg"); err == nil || !strings.Contains(err.Error(), "try again in 17 s") || len(slept) != 0 || len(e.doer.reqs) != before {
-		t.Errorf("test after 429: %v %v", err, slept)
+	if got := row(); got != "pending 1 +5s" {
+		t.Errorf("after the 429: %s", got)
 	}
-	e.now = e.now.Add(17 * time.Second)
-	if sent, err := e.n.SendDue(ctx, 50); err != nil || sent != 1 {
-		t.Errorf("retry after the wait: %d %v", sent, err)
+	// Send test inside the wait says how long, sends nothing.
+	if err := e.n.SendTest(ctx, "tg"); err == nil || !strings.Contains(err.Error(), "try again in 5 s") || requests() != 1 {
+		t.Errorf("test inside the wait: %v, %d requests", err, requests())
 	}
-	e.now = e.now.Add(telegramPace)
-	// A Send test answered with 429 says how long to wait.
+	// A due retry the gateway refuses before sending (the slot forgotten, as after a restart) counts no attempt and
+	// waits for the same deadline.
+	e.now = e.now.Add(2 * time.Second)
+	e.n.tgNext = nil
+	e.exec(`UPDATE notify_delivery SET next_at = 0`)
+	if sent, err := e.n.SendDue(ctx, 50); err != nil || sent != 0 || requests() != 1 {
+		t.Fatalf("refused retry: sent %d %v, %d requests", sent, err, requests())
+	}
+	if got := row(); got != "pending 1 +3s" {
+		t.Errorf("after the refusal: %s", got)
+	}
+	e.now = e.now.Add(3 * time.Second)
+	if sent, err := e.n.SendDue(ctx, 50); err != nil || sent != 1 || requests() != 2 {
+		t.Fatalf("retry: sent %d %v, %d requests", sent, err, requests())
+	}
+	if got := row(); !strings.HasPrefix(got, "sent 2") {
+		t.Errorf("after the retry: %s", got)
+	}
+}
+
+// Other targets keep main's 429 handling: a body is not read for a wait, the retry follows the back-off.
+func TestNonTelegram429Unchanged(t *testing.T) {
+	t.Parallel()
+	e := newDiscordEnv(t, true, nil)
+	ctx := context.Background()
 	e.doer.status = 429
-	e.doer.answer = `{"ok":false,"error_code":429,"parameters":{"retry_after":5}}`
-	if err := e.n.SendTest(ctx, "tg"); err == nil || !strings.Contains(err.Error(), "429") || !strings.Contains(err.Error(), "5 s") {
-		t.Errorf("test 429: %v", err)
+	e.doer.answer = `{"retry_after":2,"parameters":{"retry_after":5}}`
+	if err := e.n.Test(ctx, "chan"); err != nil {
+		t.Fatal(err)
+	}
+	if sent, _ := e.n.SendDue(ctx, 50); sent != 0 {
+		t.Fatalf("sent %d", sent)
+	}
+	if n := e.one(`SELECT COUNT(*) FROM notify_delivery WHERE target = 'policy:chan' AND attempts = 1 AND last_error = 'status 429'
+		AND next_at = ?`, e.now.Add(30*time.Second).UnixMilli()); n != 1 {
+		t.Errorf("not main's retry: %d", n)
+	}
+	if err := e.n.SendTest(ctx, "chan"); err == nil || err.Error() != "status 429" {
+		t.Errorf("test: %v", err)
+	}
+}
+
+// The parsed wait is capped at an hour; a bot token with a trailing newline is trimmed.
+func TestTelegramRetryAfterCapAndTrim(t *testing.T) {
+	t.Parallel()
+	e := newTelegramEnv(t, nil)
+	ctx := context.Background()
+	e.env["THEATARR_TG_TOKEN"] = tgToken + "\n"
+	e.doer.status = 429
+	e.doer.answer = `{"ok":false,"parameters":{"retry_after":9223372036854775807}}`
+	if err := e.n.Test(ctx, "tg"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.n.SendDue(ctx, 50); err != nil {
+		t.Fatal(err)
+	}
+	if n := e.one(`SELECT COUNT(*) FROM notify_delivery WHERE attempts = 1 AND next_at = ?`, e.now.Add(time.Hour).UnixMilli()); n != 1 {
+		t.Errorf("wait not capped at an hour")
+	}
+	if r := e.doer.reqs[0]; r.url != "https://api.telegram.org/bot"+tgToken+"/sendMessage" {
+		t.Errorf("url %q", r.url)
 	}
 }
 
@@ -426,9 +520,14 @@ func TestPlayingText(t *testing.T) {
 	o := playingOutcome(outcome.Replaced)
 	o.Title, o.Episodes, o.Viewer, o.Player = "Show (2020)", []string{"S02E07", "S02E08"}, "", ""
 	o.NewRelease = "Show_S02_*x*"
+	title, _, _ := messageText(Event{Kind: PlayingReplaced, Playing: &o}, false)
+	if title != "Replaced while playing: Show (2020) S02E07, S02E08" {
+		t.Errorf("plain title %q", title)
+	}
+	o.Title = "Show_*2020*"
 	title, lines, _ := messageText(Event{Kind: PlayingReplaced, Playing: &o}, true)
 	text := strings.Join(lines, "\n")
-	if title != "Replaced while playing: Show (2020) S02E07, S02E08" || !strings.Contains(text, "while someone was watching.") ||
+	if title != `Replaced while playing: Show\_\*2020\* S02E07, S02E08` || !strings.Contains(text, "while someone was watching.") ||
 		!strings.Contains(text, `Show\_S02\_\*x\*`) {
 		t.Errorf("%q %q", title, text)
 	}

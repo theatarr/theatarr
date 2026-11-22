@@ -38,3 +38,25 @@ it("has no Send test outside notification targets or while renaming", async () =
  await user.type(screen.getByLabelText("Rename chan"), "2");
  expect(screen.queryByRole("button", { name: "Send test" })).toBeNull();
 });
+it("shows each destination the fields of its format and drops the URL when it becomes a Telegram one", async () => {
+ mockFetch([]);
+ const user = userEvent.setup();
+ const tgFields: SchemaField[] = [{ name: "targets", label: "Notification destinations", type: "keyed", help: "", fields: [
+  { name: "url", label: "Destination URL", type: "string", help: "" },
+  { name: "format", label: "Message format", type: "enum", enum: ["discord", "ntfy", "telegram"], help: "" },
+  { name: "chat_id", label: "Telegram chat ID", type: "string", help: "" },
+ ] }];
+ let last: Record<string, unknown> = {};
+ function TgForm() {
+  const [c, setC] = useState<Record<string, unknown>>({ targets: { chan: { url: "https://discord.com/[redacted]", format: "discord" } } });
+  return <SectionFields fields={tgFields} config={objectValue(c)} onChange={(v) => { last = v; setC(v); }} path="notify" advanced={false} errors={{}} />;
+ }
+ render(<TgForm />);
+ await user.click(screen.getByText("chan", { selector: "summary" }));
+ expect(screen.getByRole("textbox", { name: /Destination URL/ })).toBeTruthy();
+ expect(screen.queryByRole("textbox", { name: /Telegram chat ID/ })).toBeNull();
+ await user.selectOptions(screen.getByRole("combobox", { name: /Message format/ }), "telegram");
+ expect(screen.queryByRole("textbox", { name: /Destination URL/ })).toBeNull();
+ expect(screen.getByRole("textbox", { name: /Telegram chat ID/ })).toBeTruthy();
+ expect(last).toEqual({ targets: { chan: { format: "telegram" } } });
+});

@@ -238,7 +238,8 @@ error while `notify.enabled` is off). Unsaved edits are not used, so save first.
 (`format`) is empty for Theatarr's JSON, `discord` for Discord messages, `ntfy` for ntfy messages (the URL is the
 ntfy server address followed by the topic; an access token goes in **Authorization header**) or `telegram` for a
 Telegram chat (the URL stays empty; **Telegram chat ID** is `chat_id` and **Telegram bot token** is the
-destination's own write-only credential `bot_token`, never sent as the Authorization header), and **Daily digest
+destination's own write-only credential `bot_token`, never sent as the Authorization header; the form shows each
+destination only the fields of its format and drops a stored URL when it becomes a Telegram one), and **Daily digest
 time** (`digest_at`, local `HH:MM`, default 09:00) sets when the Discord, ntfy and Telegram digest goes out
 (docs/design/devices.md).
 

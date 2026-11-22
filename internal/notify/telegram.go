@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 	"unicode/utf16"
 
+	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
@@ -29,13 +32,18 @@ import (
 //     chat (https://core.telegram.org/bots/faq#my-bot-is-hitting-limits-how-do-i-avoid-this): one message every 3 s
 //     per chat, Send test included.
 //   - A refusal for flood control carries parameters.retry_after, the seconds to wait
-//     (https://core.telegram.org/bots/api#responseparameters): the delivery and the chat wait that long.
+//     (https://core.telegram.org/bots/api#responseparameters), in the body and without a Retry-After header: the
+//     gateway's back-off of the target, the chat's next slot and the delivery all take that one deadline (at most an
+//     hour), and a retry the gateway refuses before sending waits for its deadline without counting an attempt.
 
 // telegramTextMax is sendMessage's text limit.
 const telegramTextMax = 4096
 
 // telegramPace is the time between two messages to one chat.
 const telegramPace = 3 * time.Second
+
+// telegramMaxRetryAfter caps a 429's retry_after, as the gateway caps a Retry-After header.
+const telegramMaxRetryAfter = time.Hour
 
 // telegramEventPrefix starts the event name of every Telegram delivery ("telegram.health").
 const telegramEventPrefix = "telegram."
@@ -67,7 +75,7 @@ func fitTelegram(title string, lines []string) telegramMessage {
 // telegramRequest turns a stored Telegram delivery into the sendMessage request for target t: the URL with the bot
 // token and the body with the chat id. A delivery queued while the target had another format is dropped. The errors
 // name neither token nor chat.
-func telegramRequest(ctx context.Context, t *policy.NotifyTarget, token, event string, stored []byte) (*http.Request, error) {
+func telegramRequest(ctx context.Context, api string, t *policy.NotifyTarget, token, event string, stored []byte) (*http.Request, error) {
 	if !strings.HasPrefix(event, telegramEventPrefix) {
 		return nil, fmt.Errorf("queued before the target became a Telegram target: %w", errGone)
 	}
@@ -87,7 +95,7 @@ func telegramRequest(ctx context.Context, t *policy.NotifyTarget, token, event s
 	if err != nil {
 		return nil, err
 	}
-	u, err := url.Parse(policy.TelegramAPI)
+	u, err := url.Parse(api)
 	if err != nil {
 		return nil, err
 	}
@@ -133,14 +141,14 @@ func (n *Notifier) telegramSlot(ctx context.Context, chat string, wait bool) err
 	return nil
 }
 
-// telegramWait moves chat's next slot to after a 429's retry_after.
-func (n *Notifier) telegramWait(chat string, d time.Duration) {
+// telegramWaitUntil moves chat's next slot to at (a 429's retry_after, a gateway back-off).
+func (n *Notifier) telegramWaitUntil(chat string, at time.Time) {
 	n.tgMu.Lock()
 	defer n.tgMu.Unlock()
 	if n.tgNext == nil {
 		n.tgNext = map[string]time.Time{}
 	}
-	if at := n.now().Add(d); at.After(n.tgNext[chat]) {
+	if at.After(n.tgNext[chat]) {
 		n.tgNext[chat] = at
 	}
 }
@@ -155,4 +163,68 @@ func sleepCtx(ctx context.Context, d time.Duration) error {
 	case <-t.C:
 		return nil
 	}
+}
+
+// retryAfterSetter is the gateway's SetRetryAfter: a 429 whose body named its wait backs the target off that long.
+type retryAfterSetter interface {
+	SetRetryAfter(ctx context.Context, t gateway.Target, d time.Duration)
+}
+
+// sendTelegram posts a stored Telegram delivery to target key (token is the resolved bot token). A 429's
+// parameters.retry_after is read before the answer is dropped and becomes the one deadline of the gateway's
+// back-off, the chat's slot and the delivery (errStatus.after). A request the gateway refuses before sending with a
+// time to retry is errPaced (no attempt counted) outside Send test.
+func (n *Notifier) sendTelegram(ctx context.Context, key string, t *policy.NotifyTarget, token, event string, body []byte, wait bool) (int, error) {
+	req, err := telegramRequest(ctx, n.tgAPI, t, token, event, body)
+	if err != nil {
+		return 0, err
+	}
+	if err := n.telegramSlot(ctx, t.ChatID, wait); err != nil {
+		return 0, err
+	}
+	target := gateway.Target{Class: gateway.ClassWebhook, Key: key}
+	resp, err := n.post(ctx, target, req)
+	if err != nil {
+		var ref *gateway.Refused
+		if errors.As(err, &ref) && !ref.Sent && !ref.RetryAt.IsZero() {
+			n.telegramWaitUntil(t.ChatID, ref.RetryAt)
+			if !wait {
+				return 0, errPaced{until: ref.RetryAt}
+			}
+		}
+		return 0, err
+	}
+	defer resp.Body.Close()
+	data, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
+	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
+		return resp.StatusCode, nil
+	}
+	st := errStatus{code: resp.StatusCode}
+	if resp.StatusCode == http.StatusTooManyRequests {
+		if d := retryAfterBody(data); d > 0 {
+			st.after = d
+			n.telegramWaitUntil(t.ChatID, n.now().Add(d))
+			if g, ok := n.doer.(retryAfterSetter); ok {
+				g.SetRetryAfter(ctx, target, d)
+			}
+		}
+	}
+	return resp.StatusCode, st
+}
+
+// retryAfterBody is the wait a Bot API answer names in parameters.retry_after, at most telegramMaxRetryAfter; 0 when
+// it names none.
+func retryAfterBody(data []byte) time.Duration {
+	var a struct {
+		Parameters struct {
+			RetryAfter float64 `json:"retry_after"`
+		} `json:"parameters"`
+	}
+	if json.Unmarshal(data, &a) != nil || !(a.Parameters.RetryAfter > 0) {
+		return 0
+	}
+	if a.Parameters.RetryAfter >= telegramMaxRetryAfter.Seconds() {
+		return telegramMaxRetryAfter
+	}
+	return time.Duration(math.Ceil(a.Parameters.RetryAfter)) * time.Second
 }

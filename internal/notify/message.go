@@ -130,9 +130,9 @@ func playingText(o *outcome.Outcome, markdown bool) (string, []string, messageLe
 		}
 		return s
 	}
-	subject := o.Title
+	subject := esc(o.Title)
 	if len(o.Episodes) > 0 {
-		subject += " " + strings.Join(o.Episodes, ", ")
+		subject += " " + esc(strings.Join(o.Episodes, ", "))
 	}
 	who := "while someone was watching"
 	if o.Viewer != "" {
