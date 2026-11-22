@@ -402,11 +402,11 @@ it("shows no Missing rows under Cutoff unmet while its rows load", async () => {
   expect(screen.queryByRole("checkbox", { name: "Select Alpha, Movie, 4K WEB" })).toBeNull();
 });
 
-it("marks a film's estimated home release in Released as the title pages do", async () => {
+it("marks a film's estimated home release in Released as the title pages do, named a home release", async () => {
   mockFetch([admin, status, { method: "GET", path: "/wanted", reply: { ...page, items: [{ ...row, date: "1987-03-25", date_estimate: true }], total: 1 } }]);
   renderPage(<WantedPage />);
   const rows = await screen.findAllByTestId("wanted-row");
-  expect(rows[0].querySelector('[data-column="date"]')?.textContent).toBe("~Mar 25, 1987 (estimate)");
+  expect(rows[0].querySelector('[data-column="date"]')?.textContent).toBe("Home release ~Mar 25, 1987 (estimate)");
 });
 
 it("sorts on the server from the headers and the sort picker, and filters to one title with a removable chip", async () => {
@@ -419,7 +419,9 @@ it("sorts on the server from the headers and the sort picker, and filters to one
   const rows = await screen.findAllByTestId("wanted-row");
   const last = () => new URLSearchParams(fetch.calls("GET", "/wanted").at(-1)?.search);
   expect(last().get("title")).toBe("2");
-  expect(rows[0].querySelector('[data-column="date"]')?.textContent).toBe("Mar 18");
+  // A film's date is its home release, said so (its About's Released is the first cinema release).
+  expect(rows[0].querySelector('[data-column="date"]')?.textContent).toBe("Home release Mar 18");
+  expect(rows[1].querySelector('[data-column="date"]')?.textContent).not.toContain("Home release");
   expect(within(rows[0]).getByRole("link", { name: "See in Activity" }).getAttribute("href")).toBe("/activity?open=40");
   expect(rows[1].querySelector('[data-column="what"]')?.textContent).toBe("S20, 139 episodes");
   // The title filter shows as a chip, carries over to the other tab and into Search all.

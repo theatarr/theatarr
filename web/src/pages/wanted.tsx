@@ -270,7 +270,12 @@ export function WantedPage() {
     library: { id: "library", label: "Library", cell: row => <VersionTag k={row.version} label={d?.libraries[row.version]} /> },
     // On a phone under the actions: an opened season's episode list would push the dates and buttons far down.
     what: { id: "what", label: "What", cellClassName: "max-w-[22rem]", card: "foot", cell: row => <WhatCell row={row} /> },
-    date: { id: "date", label: "Released", sortable: true, cell: row => !row.date ? "—" : row.date_estimate ? `~${fmtDay(row.date)} (estimate)` : fmtDay(row.date) },
+    // A film's date is its home release, named so: its About's Released is the first cinema release.
+    date: { id: "date", label: "Released", sortable: true, cell: row => {
+      if (!row.date) return "—";
+      const day = row.date_estimate ? `~${fmtDay(row.date)} (estimate)` : fmtDay(row.date);
+      return row.targets.includes("movie") ? `Home release ${day}` : day;
+    } },
     next: { id: "next", label: "Next search", cell: row => <NextSearch row={row} state={states.get(row.version)} off={off} admin={perms.admin} /> },
     // The decision behind the last search sits with it, so the row's actions keep their place.
     last: { id: "last", label: "Last search", sortable: true, cell: row => {
