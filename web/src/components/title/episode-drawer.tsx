@@ -43,6 +43,7 @@ import { Modal } from "@/components/ui/modal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fmtAgo, fmtBytes, fmtNumber } from "@/lib/format";
 import { fmtDay, fmtRuntime } from "@/lib/library";
+import { entryDay } from "@/lib/calendar";
 import { MediaGroup } from "@/components/title/media-group";
 import { cellStatus, episodeNumber, mergedStatus, offCopies, plainAvailable, statusWords } from "@/lib/seasons";
 import { activityHref, stageTone, stageWords } from "@/lib/copies";
@@ -371,7 +372,7 @@ export function EpisodeOverview({
         {e && d && perms.seeFiles && d.versions.length > 0 ? <EpisodeStatusLine e={e} versions={d.versions} /> : null}
         {e ? (
           <p className="mt-1 text-xs text-muted-foreground" data-testid="episode-meta">
-            {[e.air_date ? `${aired ? "Aired" : "Airs"} ${fmtDay(e.air_date)}` : "No air date", runtime, anime && e.absolute ? episodeNumber(e, true) : ""].filter(Boolean).join(" · ")}
+            {[e.air_date ? `${aired ? "Aired" : "Airs"} ${fmtDay(entryDay({ date: e.air_date, at: e.air_at }))}` : "No air date", runtime, anime && e.absolute ? episodeNumber(e, true) : ""].filter(Boolean).join(" · ")}
           </p>
         ) : null}
         {d?.overview ? (

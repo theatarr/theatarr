@@ -10,6 +10,7 @@ import { Empty, ErrorState, Loading, PageHeader } from "@/components/page";
 import { Card } from "@/components/ui/card";
 import { fmtNumber } from "@/lib/format";
 import { fmtDay, isFamily, relDay } from "@/lib/library";
+import { entryDay } from "@/lib/calendar";
 
 const DISCOVER_ROWS: Record<string, { title: string; description: string; empty: string; caption: (t: DiscoverItem) => string | undefined }> = {
   recent: {
@@ -22,7 +23,7 @@ const DISCOVER_ROWS: Record<string, { title: string; description: string; empty:
     title: "Upcoming",
     description: "Release and air dates in the next 30 days, movies and series.",
     empty: "Nothing comes out in the next 30 days.",
-    caption: (t) => [fmtDay(t.date), t.note].filter(Boolean).join(" · ") || undefined,
+    caption: (t) => [t.date ? fmtDay(entryDay({ date: t.date, at: t.at })) : "", t.note].filter(Boolean).join(" · ") || undefined,
   },
   missing: {
     title: "Missing",

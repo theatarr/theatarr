@@ -23,6 +23,7 @@ import { NowPlayingCard } from "@/components/now-playing-card";
 import { fmtNumber, plural } from "@/lib/format";
 import { fmtDay, isFamily, kindOf, posterStatus, relDay } from "@/lib/library";
 import { requestLink } from "@/lib/request-state";
+import { entryDay } from "@/lib/calendar";
 
 function Row({
   id,
@@ -192,7 +193,7 @@ export function Home() {
               <span className="flex items-start gap-1">
                 <CalendarClock className="mt-px size-3.5 shrink-0" />
                 <span>
-                  <span className="font-medium text-foreground">{fmtDay(t.date)}</span> · {t.note}
+                  <span className="font-medium text-foreground">{fmtDay(t.date ? entryDay({ date: t.date, at: t.at }) : t.date)}</span> · {t.note}
                 </span>
               </span>
             )}

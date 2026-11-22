@@ -617,6 +617,19 @@ func TestAiredByInstant(t *testing.T) {
 	if got := note(dv.Upcoming); got != "S01E03 · Three|2026-10-26" {
 		t.Errorf("Home upcoming: %q", got)
 	}
+	// The air instant goes with the date, so the drawer and Home show the day it falls on in the browser's zone, as
+	// the calendar does (S01E03: Oct 26 at the network, 01:00 UTC on Oct 27).
+	airAt := time.Date(2026, 10, 27, 1, 0, 0, 0, time.UTC)
+	for _, it := range dv.Upcoming.Items {
+		if it.ID == 4 && (it.At == nil || !it.At.Equal(airAt)) {
+			t.Errorf("Home upcoming instant: %v", it.At)
+		}
+	}
+	for _, ep := range l.Episodes {
+		if ep.ID == 43 && (ep.AirAt == nil || !ep.AirAt.Equal(airAt)) {
+			t.Errorf("episode air instant: %v", ep.AirAt)
+		}
+	}
 }
 
 // An episode with an air date and no instant (an import can leave it so, and no refresh has filled it) is aired from
@@ -757,9 +770,14 @@ func TestDiscover(t *testing.T) {
 		if row(full) != row(r) || full.Total != r.Total {
 			t.Errorf("discover/%s: %q, want %q", name, row(full), row(r))
 		}
-		// Recently added carries the moment on Home and on its "See all" page; the browser picks the day.
+		// Recently added carries the moment on Home and on its "See all" page, and Upcoming an episode's air instant;
+		// the browser picks the day.
 		for i, it := range full.Items {
-			if name != "recent" {
+			if name == "upcoming" {
+				if (it.At == nil) != (r.Items[i].At == nil) || it.At != nil && !it.At.Equal(*r.Items[i].At) {
+					t.Errorf("discover/upcoming: %s at %v, Home %v", it.Name, it.At, r.Items[i].At)
+				}
+			} else if name != "recent" {
 				if it.At != nil || r.Items[i].At != nil {
 					t.Errorf("discover/%s: %s has a moment", name, it.Name)
 				}
@@ -1131,7 +1149,8 @@ func TestNoFilesWithoutSeeFiles(t *testing.T) {
 	}
 	// "Recently available" (an account without see_files) carries the moment too, on Home and on "See all".
 	for _, p := range []string{"/discover", "/discover/recent"} {
-		if _, body := get(APIBase + p); strings.Count(body, `"at":"2026-10-`) != 3 {
+		// The recent row only (Upcoming carries an episode's air instant too).
+		if _, body := get(APIBase + p); strings.Count(strings.Split(body, `"upcoming":{"items"`)[0], `"at":"2026-10-`) != 3 {
 			t.Errorf("%s: want the moment of each of the 3 recent titles: %s", p, body)
 		}
 	}

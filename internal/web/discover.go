@@ -59,7 +59,8 @@ type DiscoverItem struct {
 	Note string `json:"note,omitempty"`
 	// Date is the day the note is about (YYYY-MM-DD), if any.
 	Date string `json:"date,omitempty"`
-	// At is the moment behind Date when the row has one (Recently added): clients show the day in their own zone.
+	// At is the moment behind Date when the row has one (Recently added; an upcoming episode's air instant): clients show
+	// the day in their own zone.
 	At *time.Time `json:"at,omitempty"`
 }
 
@@ -246,8 +247,8 @@ func (w *Web) upcomingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 		return nil, err
 	}
 	coming, comingArgs := newAirClock(now).comingSQL("e")
-	err = scanAll(ctx, db, `SELECT title_id, season, number, name, air_date FROM (
-		SELECT e.title_id, e.season, e.number, e.name, e.air_date, ROW_NUMBER() OVER (PARTITION BY e.title_id
+	err = scanAll(ctx, db, `SELECT title_id, season, number, name, air_date, air_date_utc_at FROM (
+		SELECT e.title_id, e.season, e.number, e.name, e.air_date, e.air_date_utc_at, ROW_NUMBER() OVER (PARTITION BY e.title_id
 			ORDER BY e.air_date, e.season, e.number) AS rn
 		FROM episode e JOIN title t ON t.id = e.title_id WHERE e.season > 0 AND e.removed_at IS NULL AND `+coming+`
 			AND e.air_date <= ?
@@ -256,8 +257,13 @@ func (w *Web) upcomingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 			var p pick
 			var season, number int64
 			var name string
-			if err := r.Scan(&p.id, &season, &number, &name, &p.date); err != nil {
+			var airAt sql.NullInt64
+			if err := r.Scan(&p.id, &season, &number, &name, &p.date, &airAt); err != nil {
 				return err
+			}
+			if airAt.Valid {
+				t := store.FromMillis(airAt.Int64)
+				p.at = &t
 			}
 			p.note = episodeCode(season, number)
 			if l := strings.ToLower(name); l != "" && l != "tba" && l != "tbd" && !strings.HasPrefix(l, "episode ") {

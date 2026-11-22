@@ -5,6 +5,8 @@ import { describe, expect, it, vi } from "vitest";
 import { Seasons } from "./seasons";
 import { Toaster } from "@/components/toaster";
 import { expectNamedControls, mockFetch, renderPage } from "@/test/page";
+import { ymd } from "@/lib/calendar";
+import { fmtDay } from "@/lib/format";
 
 const readOnly = { can_edit: false, edit_reason: "Your account may not change this", can_search: false, live_releases: false };
 const managed = { can_edit: true, can_search: true, live_releases: true };
@@ -923,5 +925,17 @@ describe("Jump to season (H6)", () => {
     renderPage(<Seasons id="1" anime={false} />, "/title/1");
     await screen.findAllByTestId("season-header");
     expect(screen.queryByRole("combobox", { name: "Jump to season" })).toBeNull();
+  });
+});
+
+describe("Episode window air day (F02)", () => {
+  it("shows the day the air instant falls on here, as the calendar does, not the network's date", async () => {
+    // The network's date is days off any zone's day of the instant, so the check holds in every test time zone.
+    const at = "2026-11-26T12:00:00Z";
+    const ep = { ...episodes.episodes[1], air_date: "2026-11-20", air_at: at, aired: false };
+    mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: { ...episodes, episodes: [episodes.episodes[0], ep, episodes.episodes[2]] } }, { method: "GET", path: "/titles/1/episodes/102", reply: { ...detail, episode: ep } }]);
+    renderPage(<Seasons id="1" anime />, "/title/1?episode=102");
+    const meta = await screen.findByTestId("episode-meta");
+    expect(meta.textContent).toContain(`Airs ${fmtDay(ymd(new Date(at)))}`);
   });
 });

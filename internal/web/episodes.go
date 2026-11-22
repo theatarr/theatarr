@@ -10,6 +10,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/decide"
+	"github.com/theatarr/theatarr/internal/store"
 )
 
 // GET titles/{id}/episodes?season=: a series' seasons with counts per version, and its episodes (all, or one
@@ -102,6 +103,8 @@ type Episode struct {
 	Absolute *int64 `json:"absolute,omitempty"`
 	Name     string `json:"name"`
 	AirDate  string `json:"air_date,omitempty"`
+	// AirAt is the air instant when the source gives one: clients show its day in their own zone, as the calendar does.
+	AirAt *time.Time `json:"air_at,omitempty"`
 	// Aired: the air instant has passed; for an episode without an instant, its air date is today (UTC) or earlier
 	// (airClock).
 	Aired          bool                   `json:"aired"`
@@ -209,6 +212,10 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 			return err
 		}
 		e.Aired = clock.aired(airAt, e.AirDate)
+		if airAt.Valid {
+			t := store.FromMillis(airAt.Int64)
+			e.AirAt = &t
+		}
 		e.RuntimeMinutes, e.Absolute = nullInt(rt), nullInt(abs)
 		e.Versions = map[string]EpisodeCell{}
 		idx[e.ID] = len(all)
