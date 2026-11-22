@@ -23,6 +23,13 @@ function TitleReads() {
   return null;
 }
 
+/** Reads what Activity's Retry and Last search's Add by magnet read Pause from. */
+function ActivityAndReleases() {
+  useQuery({ queryKey: [...qk.activity.all, "history", {}, {}], queryFn: () => api("/activity") });
+  useQuery({ queryKey: qk.releases(7, "movie-web"), queryFn: () => api("/titles/7/releases") });
+  return null;
+}
+
 const overview = (paused: boolean, extra: Record<string, unknown> = {}, pause_forced = false) => ({
   source: "db", writable: true, generation: 7, active_generation: 7, provider_epoch: 0, policy_dir: "/policy", yaml_owned: [], indexers: [], providers: [], budgets: [],
   switches: { paused, pause_forced, versions: [] }, ...extra,
@@ -61,6 +68,22 @@ describe("Pause in the admin header", () => {
     await userEvent.setup().click(pause);
     await waitFor(() => expect(fetch.calls("GET", "/wanted")).toHaveLength(2));
     expect(fetch.calls("GET", "/status")).toHaveLength(2);
+  });
+
+  it("turning Pause off reads Activity and Last search again, so Retry and Add by magnet come back", async () => {
+    const fetch = mockFetch([
+      { method: "GET", path: "/settings", reply: overview(true) },
+      { method: "GET", path: "/activity", reply: { state: "history", admin: true, total: 0 } },
+      { method: "GET", path: "/titles/7/releases", reply: {} },
+      { method: "PUT", path: "/settings/switches", reply: { generation: 8 } },
+    ]);
+    renderPage(<><PauseSwitch /><ActivityAndReleases /></>);
+    const pause = await screen.findByRole("switch", { name: "Pause" });
+    await waitFor(() => expect(fetch.calls("GET", "/activity")).toHaveLength(1));
+    expect(fetch.calls("GET", "/titles/7/releases")).toHaveLength(1);
+    await userEvent.setup().click(pause);
+    await waitFor(() => expect(fetch.calls("GET", "/activity")).toHaveLength(2));
+    expect(fetch.calls("GET", "/titles/7/releases")).toHaveLength(2);
   });
 
   it("turning Pause off reads an open title page's add options and title again, so its Search now follows", async () => {

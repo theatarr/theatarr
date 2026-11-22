@@ -141,12 +141,12 @@ export function AddByHash({ titleId, version, label, paused = false }: { titleId
         <div className="space-y-1.5 text-xs" role="alert" data-testid="add-by-hash-rejected">
           <p className="text-[var(--bad-ink)]">Theatarr rejects this release for {label || nameOf(version)}:</p>
           <ul className="list-disc pl-5 text-[var(--bad-ink)]">{rejected.map((r, i) => <li key={i}>{r}</li>)}</ul>
-          <Button type="button" size="sm" variant="danger" disabled={add.isPending} onClick={() => send(true)} data-testid="add-by-hash-anyway">Add anyway</Button>
+          <Button type="button" size="sm" variant="danger" disabled={paused || add.isPending} onClick={() => send(true)} data-testid="add-by-hash-anyway">Add anyway</Button>
         </div>
       ) : blocked ? (
         <div className="space-y-1.5 text-xs" role="alert" data-testid="add-by-hash-blocked">
           <p className="text-[var(--bad-ink)]">{unblockGrabScope(blocked, "Add").does[0]}</p>
-          <Button type="button" size="sm" variant="danger" disabled={add.isPending} onClick={() => send(!!add.variables?.override, true)} data-testid="add-by-hash-unblock">Add anyway</Button>
+          <Button type="button" size="sm" variant="danger" disabled={paused || add.isPending} onClick={() => send(!!add.variables?.override, true)} data-testid="add-by-hash-unblock">Add anyway</Button>
         </div>
       ) : add.error ? (
         <p className="text-xs text-[var(--bad-ink)]" role="alert" data-testid="add-by-hash-error">{errText(add.error)}</p>

@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { useState } from "react";
+import { AddByHash } from "./release-grab";
 import { expect, it, vi } from "vitest";
 import { mockFetch, renderPage } from "@/test/page";
 import { ReleaseGrid } from "./release-grid";
@@ -467,4 +469,24 @@ it("counts a season search's stored candidates for the episode in an episode's w
   // The season's own panel keeps the search's count.
   renderPage(<Summary r={{ ...base, source: "journal", target: "S02", results: 508, accepted: 0 }} />);
   expect(screen.getByTestId("releases-facts").textContent).toBe("508 releases returned by the indexers, 0 accepted");
+});
+
+it("Add anyway follows Pause as Add does", async () => {
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: ADMIN_PERMS },
+    { method: "POST", path: "/titles/7/releases/add", reply: { status: 409, body: { error: "rejected for movie-web: WEBDL-1080p is not wanted", detail: ["WEBDL-1080p is not wanted"] } } },
+  ]);
+  function Toggle() {
+    const [paused, setPaused] = useState(false);
+    return <><button type="button" onClick={() => setPaused(true)}>pause</button><AddByHash titleId={7} version="movie-web" paused={paused} /></>;
+  }
+  renderPage(<Toggle />);
+  const form = await screen.findByTestId("add-by-hash");
+  fireEvent.change(within(form).getByTestId("add-by-hash-link"), { target: { value: "A".repeat(40) } });
+  fireEvent.change(within(form).getByTestId("add-by-hash-name"), { target: { value: "Alpha.2020.1080p.WEB-DL-GRP" } });
+  fireEvent.click(within(form).getByTestId("add-by-hash-add"));
+  const anyway = await screen.findByTestId("add-by-hash-anyway");
+  expect((anyway as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.click(screen.getByText("pause"));
+  expect((screen.getByTestId("add-by-hash-anyway") as HTMLButtonElement).disabled).toBe(true);
 });

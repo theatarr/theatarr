@@ -33,6 +33,9 @@ function useSwitchSave() {
       void qc.invalidateQueries({ queryKey: ["title"] });
       // The lists' row actions read Pause from each row's libraries.
       void qc.invalidateQueries({ queryKey: qk.titles.all });
+      // Activity's Retry and Last search's Add by magnet read Pause from their own answers.
+      void qc.invalidateQueries({ queryKey: qk.activity.all });
+      void qc.invalidateQueries({ queryKey: ["releases"] });
       // Pause acts at once, without a confirm: say what it did.
       toast(paused
         ? { tone: "warn", title: "Paused", body: `${PAUSE_STOPS[0].toUpperCase()}${PAUSE_STOPS.slice(1)}. Downloads already started finish at the provider.` }
