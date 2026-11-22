@@ -1063,3 +1063,16 @@ func TestRescueCopyReplacedDuringStepOne(t *testing.T) {
 		t.Errorf("searches %+v", e.playingJobs())
 	}
 }
+
+// Other releases without a stored hash (taken-over files) still serve the control read: their hash is the one the
+// registry records for their folder.
+func TestRescueControlReadByRegisteredFolder(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.exec(`UPDATE link SET content_file_id = NULL WHERE id IN (20, 21)`)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.play(2, "buffering")
+	e.poll()
+	if got := e.one(`SELECT state FROM link WHERE id = 11`); got != "dead" || e.lib.readsOf("film.mkv") != 1 {
+		t.Errorf("link %s, control reads %d", got, e.lib.readsOf("film.mkv"))
+	}
+}

@@ -492,11 +492,19 @@ func releaseFolder(target, allDir string) string {
 // another release folder than the checked file's): with account set, one whose release only that account holds
 // (only true) or only another single account holds (only false); with account "", any.
 func (t *Tracker) otherRelease(ctx context.Context, linkID int64, hash, folder, account string, only bool) (string, bool) {
-	q := `SELECT target FROM (SELECT l.target, ` + router.LinkStoredHashSQL + ` AS h FROM link l
-		WHERE l.state = 'active' AND l.kind = 'symlink' AND l.id <> ? AND instr(l.target, ?) = 0) WHERE COALESCE(h, '') <> ?`
-	args := []any{linkID, "/" + t.o.AllDir + "/" + folder + "/", hash}
+	// A link's hash: the one it has stored, else the one release the registry records for its folder (as now playing
+	// and relink find a taken-over file's).
+	root := filepath.Join(t.o.LinkPath, t.o.AllDir) + "/"
+	q := `SELECT target FROM (SELECT target, COALESCE(sh, (SELECT CASE WHEN COUNT(DISTINCT lower(c.info_hash)) = 1
+			THEN MIN(lower(c.info_hash)) END FROM content c WHERE c.mount_folder = fold)) AS h
+		FROM (SELECT l.target, ` + router.LinkStoredHashSQL + ` AS sh,
+			CASE WHEN substr(l.target, 1, length(?)) = ? THEN substr(substr(l.target, length(?) + 1), 1,
+				instr(substr(l.target, length(?) + 1), '/') - 1) END AS fold
+			FROM link l WHERE l.state = 'active' AND l.kind = 'symlink' AND l.id <> ? AND instr(l.target, ?) = 0))
+		WHERE COALESCE(h, '') <> ?`
+	args := []any{root, root, root, root, linkID, "/" + t.o.AllDir + "/" + folder + "/", hash}
 	if folder == "" {
-		args[1] = "\x00" // no folder to leave out
+		args[5] = "\x00" // no folder to leave out
 	}
 	if account != "" {
 		cmp := "="
