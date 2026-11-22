@@ -298,7 +298,7 @@ it("shows a playing row's outcome whole in the desktop table, the RSS sentence i
 });
 
 it("offers Undo on an upgrade the server allows it for: asks first with the server's sentence, shows a refusal as it is", async () => {
-  const sentence = "Undo upgrade: puts the earlier file back and blocks Alpha.2026.2160p.WEB-DL in this library";
+  const sentence = "Puts the earlier file back and blocks only Alpha.2026.2160p.WEB-DL in this library: another better release can still take the file's place";
   const upgraded = { ...link, replaced: [{ id: 31, undo: sentence, path: "/movies/Alpha/old.mkv", release: "Alpha.2026.1080p.WEB" }] };
   const plain = { ...link, id: "lib:8", replaced: [{ id: 32, path: "/movies/Alpha/older.mkv" }] };
   const fetch = mockFetch([
@@ -314,6 +314,10 @@ it("offers Undo on an upgrade the server allows it for: asks first with the serv
   await user.click(within(rows[0]).getByRole("button", { name: "Undo" }));
   const dialog = await screen.findByTestId("undo-upgrade-dialog");
   expect(dialog.textContent).toContain(sentence);
+  // Titled "Undo" (the row may read "Replaced"), the sentence once, nothing cut on a phone.
+  expect(within(dialog).getByRole("heading", { level: 2 }).textContent).toBe("Undo");
+  expect(dialog.textContent!.split("Puts the earlier file back").length).toBe(2);
+  expect([...dialog.querySelectorAll("*")].some((el) => /line-clamp-\d|truncate/.test(String(el.className)))).toBe(false);
   await user.click(within(dialog).getByTestId("confirm-ok"));
   await waitFor(() => expect(fetch.calls("POST", "/activity/replaced/31/undo")).toHaveLength(1));
   expect((await within(dialog).findByTestId("confirm-error")).textContent).toBe("Not undone: the earlier file is no longer available.");
@@ -334,7 +338,7 @@ it("words an undone upgrade with who undid it, and lists it under Imported and u
 });
 
 it("keeps Undo's dialog open while its request runs, so it cannot be sent twice and its answer is not lost", async () => {
-  const sentence = "Undo upgrade: puts the earlier file back and blocks Alpha.2026.2160p.WEB-DL in this library";
+  const sentence = "Puts the earlier file back and blocks only Alpha.2026.2160p.WEB-DL in this library: another better release can still take the file's place";
   const upgraded = { ...link, replaced: [{ id: 31, undo: sentence, path: "/movies/Alpha/old.mkv" }] };
   let answer: (v: unknown) => void = () => {};
   const fetch = mockFetch([
@@ -374,7 +378,7 @@ it("says who undid an upgrade on the phone card too", async () => {
 });
 
 it("puts Undo beside the file when a row replaced several, even when only one of them can be put back", async () => {
-  const s = (n: number) => `Undo upgrade: puts the earlier file back and blocks R${n} in this library`;
+  const s = (n: number) => `Puts the earlier file back and blocks only R${n} in this library: another better release can still take the file's place`;
   const row = { ...link, replaced: [{ id: 41, undo: s(1), path: "/tv/a.mkv" }, { id: 43, path: "/tv/c.mkv" }] };
   mockFetch([
     { method: "GET", path: "/auth/me", reply: me },

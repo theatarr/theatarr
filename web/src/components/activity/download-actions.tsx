@@ -194,7 +194,7 @@ export function UndoReplaced({ file, titleId }: { file: { id?: number; undo?: st
       </Button>
       {open ? (
         <ConfirmDialog
-          scope={{ title: "Undo upgrade", does: [file.undo], keeps: [], confirm: "Undo" }}
+          scope={{ title: "Undo", does: [file.undo], keeps: [], confirm: "Undo" }}
           subject={<span className="font-mono">{file.path.split("/").pop()}</span>}
           busy={undo.isPending}
           error={undo.error}

@@ -224,9 +224,10 @@ func (e *undoEntry) slot(ctx context.Context, q rowQuerier) (held, others, impor
 	return held, others, importing, err
 }
 
-// UndoWords is the sentence the Undo button shows before it acts.
+// UndoWords is the sentence the Undo button shows before it acts: what happens, and that only this release is blocked.
 func UndoWords(release string) string {
-	return "Undo upgrade: puts the earlier file back and blocks " + release + " in this library"
+	return "Puts the earlier file back and blocks only " + release + " in this library: another better release can " +
+		"still take the file's place"
 }
 
 // UndoOffers says, for History's replaced files (their library_action ids), which offer Undo, with the button's

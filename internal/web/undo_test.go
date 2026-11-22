@@ -51,7 +51,8 @@ func TestHistoryUndo(t *testing.T) {
 		byRef[x.ID] = x
 	}
 	if x := byRef["lib:5"]; x.Words != "Upgraded" || len(x.Replaced) != 1 ||
-		x.Replaced[0].Undo != "Undo upgrade: puts the earlier file back and blocks Alpha.2020.2160p.WEB-GRP in this library" {
+		x.Replaced[0].Undo != "Puts the earlier file back and blocks only Alpha.2020.2160p.WEB-GRP in this library: "+
+			"another better release can still take the file's place" {
 		t.Errorf("upgrade row %+v", x)
 	}
 	if x := byRef["lib:6"]; x.Words != "Replaced" || len(x.Replaced) != 1 || x.Replaced[0].Undo != "" {

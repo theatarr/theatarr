@@ -77,7 +77,8 @@ func TestUndoAdoptedFilm(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := offers[action]; got != "Undo upgrade: puts the earlier file back and blocks "+movieRelease+" in this library" {
+	if got := offers[action]; got != "Puts the earlier file back and blocks only "+movieRelease+" in this library: "+
+		"another better release can still take the file's place" {
 		t.Fatalf("offer %q", got)
 	}
 	signals := 0
