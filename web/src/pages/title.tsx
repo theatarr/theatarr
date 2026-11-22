@@ -31,6 +31,7 @@ import { KeptFiles } from "@/components/title/copy-actions";
 import { TitleToolbar, inEveryLibrary, monitorOnly } from "@/components/title/title-toolbar";
 import { RequestMoreSeasons, TitleRequest, TitleRequestButton } from "@/components/title/title-request";
 import { AnimeSkipNote, SeriesTypeControl } from "@/components/title/title-choices";
+import { WatchInPlex } from "@/components/title/watch-in-plex";
 import { EditTitleTags } from "@/components/title/tags-editor";
 import { ReportProblemButton } from "@/components/report/report-sheet";
 import { HistoryTab } from "@/components/activity/history-tab";
@@ -309,6 +310,7 @@ export function TitlePage() {
             {perms.seeFiles && !gone && !d.monitored && d.availability !== "unmonitored" ? <Chip tone="ghost">Not monitored</Chip> : null}
             {!series && !gone && anyHeld ? <ReportProblemButton target={{ titleId: Number(id), subject: titleWithYear(d.name, d.year) }} className="h-7" /> : null}
           </div>
+          {!gone && d.id ? <WatchInPlex titleId={d.id} versions={versions as Version[]} /> : null}
           {events.length > 0 ? (
             <ul className="space-y-0.5 text-[12.5px] text-[var(--ink-2)]" data-testid="title-events">
               {events.map((e) => (
