@@ -95,6 +95,8 @@ func TestIndexerStats(t *testing.T) {
 			VALUES (?, ?, ?, ?, ?, ?, ?)`, r.indexer, r.purpose, store.Millis(r.day), r.n, r.measured, r.f, r.took)
 	}
 	at := store.Millis(today.Add(time.Hour))
+	se.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, error,
+		created_at, updated_at) VALUES (5, 1, 1, 'movie', 'h5', 'x', 'dmm', 'failed', 'miss on every provider', ?, ?)`, at, at)
 	for i, h := range []struct {
 		event, indexer string
 		dl             int64
@@ -103,6 +105,7 @@ func TestIndexerStats(t *testing.T) {
 		{"grabbed", "dmm", 1, at}, {"grabbed", "dmm", 2, at}, {"imported", "dmm", 1, at},
 		{"failed", "dmm", 2, at}, {"failed", "dmm", 2, at + 1}, // one download, two failed rows
 		{"grabbed", "manual add", 3, at}, {"grabbed", "dmm", 4, store.Millis(today.AddDate(0, 0, -8))},
+		{"failed", "dmm", 5, at}, // a candidate every provider missed: not a failed download
 	} {
 		se.exec(`INSERT INTO history (ref, at, event, kind, download_id, indexer) VALUES (?, ?, ?, '', ?, ?)`,
 			fmt.Sprint("t", i), h.at, h.event, h.dl, h.indexer)

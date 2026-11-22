@@ -81,15 +81,24 @@ func TestHistorySQLFilters(t *testing.T) {
  (6,10,10,'tv-2160p',?,'The.Show.Second','dmm','WEBDL-1080p','failed','[102]',?,?,?)`,
 		strings.Repeat("e", 40), ms(testNow), ms(testNow),
 		strings.Repeat("f", 40), ms(testNow.Add(-20*time.Second)), ms(testNow.Add(-10*time.Second)), ms(testNow.Add(-20*time.Second)))
+	// Candidates every provider missed: one the router chose and passed over is not a failed download and has no
+	// record; one a client pushed itself keeps its downloadFailed (the client waits for that release's outcome).
+	e.exec(`INSERT INTO download(id,title_id,version_id,version_key,info_hash,release_title,indexer,quality,state,error,source,episodes,created_at,updated_at) VALUES
+ (7,2,3,'movie-web',?,'Beta.Missed','dmm','WEBDL-1080p','failed','miss on every provider','acquire:1','[]',?,?),
+ (8,10,10,'tv-2160p',?,'The.Show.Missed','dmm','WEBDL-1080p','failed','miss on every provider','wanted','[102]',?,?),
+ (9,2,3,'movie-web',?,'Beta.Pushed','dmm','WEBDL-1080p','failed','miss on every provider','arrview:push','[]',?,?)`,
+		strings.Repeat("7", 40), ms(testNow.Add(-time.Hour)), ms(testNow.Add(-time.Hour)),
+		strings.Repeat("8", 40), ms(testNow.Add(-time.Hour)), ms(testNow.Add(-time.Hour)),
+		strings.Repeat("9", 40), ms(testNow.Add(-time.Hour)), ms(testNow.Add(-time.Hour)))
 	for _, tc := range []struct {
 		view, query string
 		count       int
 	}{
-		{"radarr", "", 4}, {"radarr", "eventType=1", 2}, {"radarr", "eventType=1&eventType=4", 3}, {"radarr", "eventType=1,3", 3},
-		{"radarr", "eventType=downloadFailed", 1}, {"radarr", "eventType=999", 0},
+		{"radarr", "", 5}, {"radarr", "eventType=1", 2}, {"radarr", "eventType=1&eventType=4", 4}, {"radarr", "eventType=1,3", 3},
+		{"radarr", "eventType=downloadFailed", 2}, {"radarr", "eventType=999", 0},
 		{"radarr", "downloadId=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", 2}, {"radarr", "downloadId=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", 1},
-		{"radarr", "movieIds=1000001", 3}, {"radarr", "movieIds=1000002", 1}, {"radarr", "movieIds=1000001,1000002", 4},
-		{"radarr", "movieIds=1000001&movieIds=1000002", 4}, {"radarr", "movieIds=999", 0},
+		{"radarr", "movieIds=1000001", 3}, {"radarr", "movieIds=1000002", 2}, {"radarr", "movieIds=1000001,1000002", 5},
+		{"radarr", "movieIds=1000001&movieIds=1000002", 5}, {"radarr", "movieIds=999", 0},
 		{"radarr", "movieIds=1000002&eventType=1", 0},
 		// The local pack grab of 101 and 102 is one record per episode.
 		{"sonarr", "", 4}, {"sonarr", "episodeId=101", 1}, {"sonarr", "episodeId=102", 3},
@@ -146,6 +155,11 @@ func TestHistorySQLFilters(t *testing.T) {
 	e.call("GET", "/sonarr/api/v3/history/series?seriesId=1000010&seasonNumber=0", nil, 200, &hs)
 	if len(hs) != 0 {
 		t.Fatalf("season filter: %+v", hs)
+	}
+	// The plain list reads the same: Beta's failed download and its pushed miss, not the router's passed-over miss.
+	e.call("GET", "/radarr/api/v3/history/movie?movieId=1000002&eventType=4", nil, 200, &hs)
+	if len(hs) != 2 || hs[0].SourceTitle == "Beta.Missed" || hs[1].SourceTitle == "Beta.Missed" {
+		t.Fatalf("movie history of misses: %+v", hs)
 	}
 	e.call("GET", "/radarr/api/v3/history/movie?movieId=1000001&eventType=1&includeMovie=true", nil, 200, &hs)
 	if len(hs) != 2 || hs[0].Movie == nil {

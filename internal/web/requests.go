@@ -1592,7 +1592,8 @@ func (w *Web) requestStatus(ctx context.Context, r *Request) (string, error) {
 
 // requestFailures are the failed downloads that count against request r in the versions vids, the one selection the
 // status (and so the request-failed notification) and the request detail use: failed since the approval (one not
-// started because downloads were off does not count: activity.NotStarted) and, for a series, covering a gap still
+// started because downloads were off does not count: activity.NotStarted, nor a candidate every provider missed
+// before any took it: activity.MissedSQL, the router tries the next one) and, for a series, covering a gap still
 // open: a download for the whole series, or one naming a current (not removed), aired episode of the request's
 // seasons (any season without) that the version does not hold. An import that closed the gap since, or the episode's
 // removal from the series, hides the failure.
@@ -1623,7 +1624,8 @@ func (w *Web) requestFailures(ctx context.Context, r *Request, vids []int64) (ma
 		gap += `))`
 	}
 	err := scanAll(ctx, w.st.Reader(), `SELECT id FROM download WHERE version_id IN (`+store.Placeholders(len(vids))+`)
-		AND state = 'failed' AND NOT `+activity.NotStartedSQL+` AND updated_at >= ?`+gap, args, func(rows *sql.Rows) error {
+		AND state = 'failed' AND NOT `+activity.NotStartedSQL+` AND NOT `+activity.MissedSQL("download")+`
+		AND updated_at >= ?`+gap, args, func(rows *sql.Rows) error {
 		var id int64
 		err := rows.Scan(&id)
 		out[id] = true

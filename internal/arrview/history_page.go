@@ -21,7 +21,7 @@ func (s *Service) historyPage(r *request, titleID int64, p *pagingResource) ([]h
 	for i, e := range []struct{ code, name, date, condition string }{
 		{"1", "grabbed", "added_at", "added_at IS NOT NULL"},
 		{"3", "downloadFolderImported", "imported_at", "imported_at IS NOT NULL"},
-		{"4", "downloadFailed", "updated_at", "state = 'failed'"},
+		{"4", "downloadFailed", "updated_at", "state = 'failed' AND NOT " + passedOverSQL},
 	} {
 		// Sonarr writes one record per episode: a pack has one per member, its position in the download's
 		// episodes giving the id (historyID). A download with no episodes keeps one record (LEFT JOIN on []).

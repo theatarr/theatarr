@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/decide/parser/radarr"
 	"github.com/theatarr/theatarr/internal/decide/parser/sonarr"
 	"github.com/theatarr/theatarr/internal/router"
@@ -44,7 +45,7 @@ const (
 // downloadHistory turns the router's downloads of the view's versions into history records: grabbed when a
 // provider took it (added_at), downloadFolderImported when the library linked it, downloadFailed when it failed,
 // after the grab or before any provider took it (the router's reason, e.g. "no provider of the version has an API
-// key set" or "miss on every provider", is data.message). In the Sonarr view each event has one record per episode of the
+// key set" or "miss on every provider", is data.message), except a candidate the router passed over (passedOverSQL). In the Sonarr view each event has one record per episode of the
 // download (the arr writes one per episode), with its own id (historyID).
 //
 // The failed record carries the keys of the arrs' HistoryService.Handle(DownloadFailedEvent): downloadClient,
@@ -132,6 +133,12 @@ func (s *Service) downloadHistory(r *request, ids []int64) ([]historyResource, e
 	}
 	return out, closeRows(rows)
 }
+
+// passedOverSQL is a download (alias d) every provider missed before any took it that the router chose itself
+// (activity.MissedSQL): a candidate passed over for the next one, not a failed download, so History has no
+// downloadFailed for it. A release the client chose (an interactive grab or a push, source arrview:...) keeps it: the
+// client waits for that release's outcome. historyPage selects the events, so downloadHistory needs no test of its own.
+var passedOverSQL = "(" + activity.MissedSQL("d") + " AND d.source NOT GLOB 'arrview:*')"
 
 // releaseGroupOf is the release group our parser port reads from a release name, or "".
 func releaseGroupOf(flavour, rel string) string {

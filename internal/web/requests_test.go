@@ -163,6 +163,12 @@ func TestRequestFlow(t *testing.T) {
 	if s := e.requestStatus(r.ID); s != ReqFailed {
 		t.Errorf("download failed: %s", s)
 	}
+	// A candidate every provider missed before any took it is not a failed download: the request stays approved.
+	e.exec(`UPDATE download SET error = ?`, router.MissOnEveryProvider)
+	e.web.syncRequests(context.Background())
+	if s := e.requestStatus(r.ID); s != ReqApproved {
+		t.Errorf("a miss on every provider: %s", s)
+	}
 	e.exec(`UPDATE version SET state = 'filled' WHERE title_id = ?`, tid)
 	e.web.syncRequests(context.Background())
 	if s := e.requestStatus(r.ID); s != ReqAvailable {

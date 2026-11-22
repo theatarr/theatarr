@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -88,6 +89,8 @@ func (w *Web) indexerStats(ctx context.Context, days int) (IndexerStats, error) 
 	}
 	if err := scanAll(ctx, db, `SELECT indexer, event, COUNT(DISTINCT download_id) FROM history
 		WHERE at >= ? AND event IN ('grabbed', 'imported', 'failed') AND download_id IS NOT NULL AND indexer <> ?
+		AND NOT (event = 'failed' AND EXISTS (SELECT 1 FROM download d WHERE d.id = history.download_id
+			AND `+activity.MissedSQL("d")+`))
 		GROUP BY indexer, event`, []any{from, policy.ManualIndexer},
 		func(rows *sql.Rows) error {
 			var k, ev string

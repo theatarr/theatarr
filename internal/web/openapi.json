@@ -1304,7 +1304,7 @@
         "average_ms": { "type": "integer", "description": "Average response time of the measured requests, ms. Absent when none was measured" },
         "grabbed": { "type": "integer", "description": "Downloads grabbed in the range" },
         "imported": { "type": "integer", "description": "Downloads imported in the range" },
-        "failed_downloads": { "type": "integer", "description": "Downloads failed in the range" }
+        "failed_downloads": { "type": "integer", "description": "Downloads failed in the range (a candidate every provider missed before any took it is not one)" }
       } },
       "Sources": { "type": "object", "required": ["indexers", "providers"], "properties": {
         "indexers": { "type": "array", "items": { "type": "object", "required": ["key", "kind", "privacy", "proxy", "versions"], "properties": { "key": { "type": "string" }, "kind": { "type": "string" }, "privacy": { "type": "string" }, "disabled": { "type": "boolean", "description": "Switched off in Settings › Indexers: not searched; absent when on" }, "budget": { "type": "string" }, "proxy": { "type": "boolean" }, "versions": { "type": "array", "items": { "type": "string" } }, "backoff": { "$ref": "#/components/schemas/Backoff" }, "budget_use": { "$ref": "#/components/schemas/BudgetUse" } } } },

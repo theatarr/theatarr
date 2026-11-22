@@ -89,7 +89,8 @@ budget.
 the result cache sends none), `failed` and `average_ms` over the `measured` requests only (absent when none was
 measured: counts from before migration 00148 have no measurement and must not read as "0 failed, 0 ms"), and
 `grabbed`, `imported` and `failed_downloads`: distinct downloads with that History event in the range, manual adds
-left out. `measured_since` is the first UTC day with a measured request. Settings › Indexers shows it as the
+left out, and a candidate every provider missed before any took it (the router tried the next one) not counted as a
+failed download. `measured_since` is the first UTC day with a measured request. Settings › Indexers shows it as the
 Statistics table under Status.
 
 ## Search planner
