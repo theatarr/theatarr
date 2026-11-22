@@ -39,13 +39,14 @@ const (
 const (
 	// HistoryGrabKindSQL is a download's kind (alias d): upgrade when its import replaced a file (an applied replace
 	// action, as the journal's "Upgraded" label says: an adopted file's replacement too) other than a gone file by a
-	// lower quality (HistoryDeadLower); else, before its import replaced anything, when an earlier download of the
-	// version had imported a file of its episodes; else grab.
+	// lower quality (HistoryDeadLower); a download still on its way (not imported, not failed) is one when an earlier
+	// download of the version had imported a file of its episodes; else grab.
 	HistoryGrabKindSQL = `CASE WHEN EXISTS (SELECT 1 FROM library_action ra WHERE ra.download_id = d.id
 			AND ra.kind = 'replace' AND ra.mode = 'applied' AND ra.detail NOT LIKE 'import undone%'
 			AND ra.detail NOT LIKE '%` + HistoryDeadLower + `')
-		OR (NOT EXISTS (SELECT 1 FROM library_action ra WHERE ra.download_id = d.id AND ra.kind = 'replace'
-			AND ra.mode = 'applied' AND ra.detail LIKE '%` + HistoryDeadLower + `')
+		OR (d.state NOT IN ('imported', 'failed') AND NOT EXISTS (SELECT 1 FROM library_action ra
+			WHERE ra.download_id = d.id AND ra.kind = 'replace' AND ra.mode = 'applied'
+			AND ra.detail LIKE '%` + HistoryDeadLower + `')
 		AND EXISTS (SELECT 1 FROM download p WHERE p.version_id = d.version_id AND p.id <> d.id
 			AND p.state = 'imported' AND p.imported_at < d.created_at
 			AND (d.episodes = '[]' OR EXISTS (SELECT 1 FROM json_each(p.episodes) pe

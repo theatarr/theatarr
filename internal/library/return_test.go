@@ -340,6 +340,16 @@ func TestReplacementOfGoneFileIsNoUpgrade(t *testing.T) {
 			t.Errorf("kind %s", got)
 		}
 	})
+	t.Run("failed, after an earlier import", func(t *testing.T) {
+		e := importUpEnv(t, "")
+		e.download(9, "movie-remux", 1, 10, "Amelie.2001.held-OLD", "x", "[]")
+		e.exec(`UPDATE download SET state = 'imported', imported_at = -1, info_hash = 'ffffffffffffffffffffffffffffffffffffffff' WHERE id = 9`)
+		e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
+		e.exec(`UPDATE download SET state = 'failed' WHERE id = 1`)
+		if got := kind(e); got != "grab" {
+			t.Errorf("kind %s", got)
+		}
+	})
 	t.Run("adopted", func(t *testing.T) {
 		e, _, _, _ := adoptedFilm(t)
 		if got := e.one(`SELECT detail FROM library_action WHERE kind = 'replace' AND download_id = 1`); strings.HasSuffix(got, store.HistoryDeadLower) {
