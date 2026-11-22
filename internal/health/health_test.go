@@ -548,11 +548,14 @@ func TestAccountsCache(t *testing.T) {
 	f := Accounts(func(context.Context) map[string]AccountSource { return sources(clients, keys) },
 		AccountOptions{Interval: 6 * time.Hour, Retry: 30 * time.Minute, Now: func() time.Time { return now }})
 	ctx := context.Background()
-	if r := f(ctx); r.Type != Warning || !strings.Contains(r.Message, "TorBox cannot be reached") {
+	if r := f(ctx); r.Type != Warning || !strings.Contains(r.Message, "TorBox cannot be reached") || r.Replayed {
 		t.Fatalf("first: %+v", r)
 	}
 	for range 5 {
-		f(ctx)
+		// The failed read replayed from the cache is no new evidence: the streak does not advance on it.
+		if r := f(ctx); !r.Replayed {
+			t.Fatalf("a replayed failure counts as fresh: %+v", r)
+		}
 	}
 	if acct.reads.Load() != 1 || down.reads.Load() != 1 {
 		t.Fatalf("polls read again: %d %d", acct.reads.Load(), down.reads.Load())
@@ -695,5 +698,30 @@ func TestCheckerCountsRuns(t *testing.T) {
 	now = now.Add(2 * time.Minute)
 	if n := runs(); n != 2 {
 		t.Fatalf("after a cancelled run %d", n)
+	}
+}
+
+// A run that only replays evidence an earlier run counted (Result.Replayed) leaves the streak where it was.
+func TestCheckerReplayedRunNotCounted(t *testing.T) {
+	now := t0
+	c := New(Options{TTL: time.Minute, Now: func() time.Time { return now }})
+	replayed := false
+	c.Add("AccountCheck", "Accounts", func(ctx context.Context) Result {
+		return Result{Type: Warning, Message: "m", Replayed: replayed}
+	})
+	if rs := c.Results(context.Background()); rs[0].Runs != 1 {
+		t.Fatalf("first %d", rs[0].Runs)
+	}
+	replayed = true
+	for range 3 {
+		now = now.Add(2 * time.Minute)
+		if rs := c.Results(context.Background()); rs[0].Runs != 1 {
+			t.Fatalf("a replayed run counted: %d", rs[0].Runs)
+		}
+	}
+	replayed = false
+	now = now.Add(2 * time.Minute)
+	if rs := c.Results(context.Background()); rs[0].Runs != 2 {
+		t.Fatalf("a fresh failed run %d", rs[0].Runs)
 	}
 }

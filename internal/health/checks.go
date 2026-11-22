@@ -751,6 +751,7 @@ type accountRead struct {
 	at      time.Time
 	account *provider.Account
 	err     error
+	fresh   bool // read in this run, not replayed from the cache
 }
 
 // Accounts checks each enabled debrid account's plan (providers.<key>, with a key set): an error when it is not
@@ -789,6 +790,7 @@ func Accounts(accounts func(ctx context.Context) map[string]AccountSource, o Acc
 			c := clients[k].Reader
 			r, ok := cache[cacheKey{k, clients[k].Fingerprint}]
 			if ok && (r.err == nil && o.Now().Sub(r.at) < o.Interval || r.err != nil && o.Now().Sub(r.at) < o.Retry) {
+				r.fresh = false
 				reads[i] = r
 				continue
 			}
@@ -801,7 +803,7 @@ func Accounts(accounts func(ctx context.Context) map[string]AccountSource, o Acc
 				if err == nil && a == nil {
 					err = errors.New("no account in the answer")
 				}
-				reads[i] = accountRead{at: o.Now(), account: a, err: err}
+				reads[i] = accountRead{at: o.Now(), account: a, err: err, fresh: true}
 			}()
 		}
 		wg.Wait()
@@ -817,6 +819,7 @@ func Accounts(accounts func(ctx context.Context) map[string]AccountSource, o Acc
 		now := o.Now()
 		typ := OK
 		var issues, fine []string
+		replayed := true // every issue is a failed read replayed from the cache
 		detail := map[string]any{}
 		for i, k := range keys {
 			r := reads[i]
@@ -861,6 +864,9 @@ func Accounts(accounts func(ctx context.Context) map[string]AccountSource, o Acc
 				continue
 			}
 			issues = append(issues, line)
+			if r.err == nil || r.fresh {
+				replayed = false
+			}
 			if Rank(t) > Rank(typ) {
 				typ = t
 			}
@@ -868,7 +874,8 @@ func Accounts(accounts func(ctx context.Context) map[string]AccountSource, o Acc
 		if typ == OK {
 			return Result{Type: OK, Detail: detail, Message: "Debrid accounts: " + strings.Join(fine, "; ")}
 		}
-		return Result{Type: typ, Detail: detail, Message: "Debrid account needs attention: " + strings.Join(issues, "; ")}
+		return Result{Type: typ, Detail: detail, Message: "Debrid account needs attention: " + strings.Join(issues, "; "),
+			Replayed: replayed}
 	}
 }
 

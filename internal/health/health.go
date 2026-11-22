@@ -60,6 +60,9 @@ type Result struct {
 	Hidden bool `json:"-"`
 	// Runs is how many completed runs in a row (this one included) gave this Type; a cached read is no new run.
 	Runs int `json:"-"`
+	// Replayed: the result rests only on evidence an earlier run already counted (a failed read the check replays
+	// from its own cache); the streak does not advance on it.
+	Replayed bool `json:"-"`
 }
 
 // Func runs one check. It sets Type, Message and Detail; the Checker fills the rest. A check that cannot read what
@@ -147,6 +150,9 @@ func (c *Checker) Results(ctx context.Context) []Result {
 			out[i].Runs = 1
 			if p, ok := c.streak[out[i].Source]; ok && p.Type == out[i].Type {
 				out[i].Runs = p.Runs + 1
+				if out[i].Replayed {
+					out[i].Runs = p.Runs
+				}
 			}
 			next[out[i].Source] = out[i]
 		}
