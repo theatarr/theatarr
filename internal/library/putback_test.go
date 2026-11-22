@@ -120,6 +120,17 @@ func TestPutBack(t *testing.T) {
 			content_file_id, broken_at - 86400, 'replaced', 'restored', updated_at FROM playing_break WHERE id = ?`, c.id)
 		aside(t, c)
 	})
+	t.Run("put back once before, in another folder", func(t *testing.T) {
+		// The earlier put-back followed a mount-folder rename (another target) of an adopted copy with no content
+		// file: the saved torrent hash and inner file say it is the same copy.
+		c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
+		c.exec(`UPDATE playing_break SET info_hash = ?, inner_file = 'episode.mkv' WHERE id = ?`, hashA, c.id)
+		c.exec(`INSERT INTO playing_break (incident, link_id, title_id, version_key, path, old_target, info_hash, inner_file,
+			broken_at, fixed_by, settled, updated_at) SELECT incident + 1000, link_id, title_id, version_key, path,
+			'/mnt/__all__/Name {abc}/episode.mkv', info_hash, inner_file, broken_at - 86400, 'replaced', 'restored', updated_at
+			FROM playing_break WHERE id = ?`, c.id)
+		aside(t, c)
+	})
 	t.Run("another copy put back before", func(t *testing.T) {
 		// Another file of the film that an earlier incident put back does not count.
 		c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)

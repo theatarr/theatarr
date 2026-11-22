@@ -1024,7 +1024,8 @@ before 00152 has no snapshot and gets no Undo; nor does one whose trash copy was
     untagged track saying nothing; a probe with no tag fact, or none, read as a held file's stored audio is; the held
     file's stored audio), would not refuse it over the current file, and when the rule applies a copy whose audio
     gives no verdict stays aside; no earlier incident put the same copy back in this library (a `restored` row of the
-    same content file or target: a copy is put back once); and the
+    same content file, target, or saved torrent hash and inner file: a copy is put back once, a folder rename
+    included); and the
     return's own checks pass (a passing obstacle there, a path another run changes, the delete fence, the slot
     changing between the reads, a read with no verdict or no answer in time, is no "no": the next sweep tries again).
     A copy read in a renamed mount folder is linked there and its release's mount folder follows. It waits for a later

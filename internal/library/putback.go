@@ -74,12 +74,15 @@ func (l *Library) putBackCopy(ctx context.Context, r returned, target, newFolder
 	if vp == nil || vp.PreferSeaDex || l.engine == nil {
 		return true, nil
 	}
-	// Once: a copy an earlier incident already put back in this library (its file, by content file or target) that
-	// broke again stays aside.
+	// Once: a copy an earlier incident already put back in this library (its file, by content file, target, or the
+	// saved torrent hash and inner file when both are known: a target a folder rename changed) that broke again stays
+	// aside.
 	var before bool
 	if err := db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM playing_break pb JOIN playing_break e
 		ON e.id <> pb.id AND e.title_id = pb.title_id AND e.version_key = pb.version_key AND e.settled = 'restored'
-		AND (e.content_file_id = pb.content_file_id OR e.old_target = pb.old_target) WHERE pb.id = ?)`, r.id).Scan(&before); err != nil {
+		AND (e.content_file_id = pb.content_file_id OR e.old_target = pb.old_target OR (pb.info_hash <> ''
+			AND pb.inner_file <> '' AND LOWER(e.info_hash) = LOWER(pb.info_hash) AND e.inner_file = pb.inner_file))
+		WHERE pb.id = ?)`, r.id).Scan(&before); err != nil {
 		return false, err
 	}
 	if before {
