@@ -204,7 +204,7 @@ broke while playing is searched at once").
   mid-file: one whose read and an immediate retry both fail joins the incident and is marked dead; their search is
   queued together once the watched file's search has ended. The outcome, one per incident about the watched file, is
   sent through `Library.OnPlayingOutcome`: `same_release`, `replaced` (an import fixed it), `unavailable` (nothing
-  could be done, or its search ended with nothing imported and nothing in flight), `restored`.
+  could be done, or its search ended with nothing imported and nothing in flight).
 - **Telling the viewer** (`tell`; `plex.Client.Terminate`: `GET /status/sessions/terminate?sessionId=…&reason=…`, the
   token in the header, through the gateway; `Session.ID` is the nested `Session.id`). Once the break is confirmed: after
   the dead mark, or, when step 1 has a candidate, after 30 s of it with the link still on the copy read (a file that
@@ -227,12 +227,12 @@ broke while playing is searched at once").
   sentences for their own incidents, not Plex's refusal.
 - **Incidents.** `Tracker.Incidents` lists the last 24 hours' incidents (title, episodes, how many files, viewer,
   player, the old and new release, what the player was told) as "Looking for another copy", "Replaced with another
-  release", "Readable again", "No other copy yet" or "Earlier copy put back". `GET /nowplaying` carries them as
+  release", "Readable again" or "No other copy yet". `GET /nowplaying` carries them as
   `incidents` (absent when none; see "Who sees what"), and the page lists them under "Files that stopped working".
 - **Where the outcome goes** (`cmd/theatarr/serveplaying.go`). Serve sets one `OnPlayingOutcome` hook on the startup
   library (its fallback copy for imports keeps it through `WithPolicy`) and on each settings generation's library: it writes the title's
   History row (event `playing`, `pb:<incident>:<kind>`, the broken copy's release; "Replaced after it stopped
-  working", "Readable again after it stopped working", "Stopped working, no other copy yet", "Earlier copy put back")
+  working", "Readable again after it stopped working", "Stopped working, no other copy yet")
   and hands the outcome to `Notifier.PlayingOutcome` (sent at once; [devices.md](devices.md)). The
   library reports each incident once, so each reaches a target once.
 

@@ -317,20 +317,19 @@ SignalR, Sonarr v5, `downloadclient`.
   (`internal/outcome`) is told once, about the watched file, through `Notifier.PlayingOutcome`: at once (not only in
   the digest), to Discord, ntfy and Telegram targets and as JSON to native targets, under the policy event name
   `playing` and the targets' `versions` filter. Arr webhooks get nothing, and there are no per-user messages.
-  - Kinds: `playing_replaced` (another release in its place; also a same-release outcome, worded "readable again"),
-    `playing_unavailable` (nothing available) and `playing_restored` (the earlier copy put back).
+  - Kinds sent today: `playing_replaced` (another release in its place; also a same-release outcome, worded
+    "readable again") and `playing_unavailable` (nothing available).
   - Text: what (the title and episodes), by what (the old and new release) and for whom it was playing (the Plex
     user and player): "Replaced while playing: Show (2020) S02E07 / The file stopped working while ann was watching
     on Living room TV. Another copy is in its place: play it again. / Was: … / Now: …"; "Readable again: …" (naming
-    the account when known); "No other copy: … No other copy is available right now."; "Earlier copy put back: …".
-  - Native: `theatarr.playing_replaced|unavailable|restored` with the outcome under `playing` in snake_case
+    the account when known); "No other copy: … No other copy is available right now.".
+  - Native: `theatarr.playing_replaced|unavailable` with the outcome under `playing` in snake_case
     (`incident`, `kind`, `title_id`, `version_key`, `title`, `episodes`, `old_release`, `new_release`, `account`,
     `viewer`, `player`, `at`), beside the usual `version` and `title`.
   - When: serve hooks every library's `OnPlayingOutcome` to it (`cmd/theatarr/serveplaying.go`), so each outcome goes
     the moment it is known: `same_release` once another account's copy reads, `replaced` once the import that fixed
     the watched file commits, `unavailable` once its search has ended with nothing imported and nothing in flight (or
-    at once when nothing can be done), `restored` once the earlier copy is put back. The same hook writes the title's
-    History row.
+    at once when nothing can be done). The same hook writes the title's History row.
   - Tests: `notify.TestPlayingOutcome`, `notify.TestPlayingText`, `main.TestPlayingOutcomesReachNotifyAndHistory`.
 
 ## Callers
