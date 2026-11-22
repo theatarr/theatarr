@@ -8,6 +8,7 @@ import { downloadReason, downloadSettings } from "@/lib/version-grab";
 import type { Episode, EpisodeList } from "@/api/library";
 import type { VersionControl } from "@/api/manage";
 import { fmtNumber } from "./format";
+import { entryDay } from "./calendar";
 import { availableIn, BETTER_PACK, upgradeFoundWord } from "./upgrade";
 
 export type Cell = Episode["versions"][string];
@@ -50,6 +51,12 @@ export function statusWords(s: Status, seeFiles: boolean): { label: string; tone
     default:
       return { label: seeFiles ? "Not in this library" : "Not available", tone: "neutral" };
   }
+}
+
+/** The day an episode airs, as the calendar places it: its air instant's day in this browser's zone, else its date
+ *  (entryDay); "" when it has neither. */
+export function episodeDay(e: Pick<Episode, "air_date" | "air_at">): string {
+  return e.air_at || e.air_date ? entryDay({ date: e.air_date ?? "", at: e.air_at }) : "";
 }
 
 /** Whether an episode has aired: the server's flag (its air instant has passed; the day of air_date only when it has no instant), never worked out here. */

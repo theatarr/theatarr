@@ -69,6 +69,7 @@ import {
   matchesFilter,
   mergedStatus,
   mergedUpgradeWord,
+  episodeDay,
   offCopies,
   plainAvailable,
   NO_MONITORED_SEASON,
@@ -359,7 +360,7 @@ function ColumnCell({ id, e, c, seeFiles, day, off = false }: { id: EpisodeColum
   const long = (v: string | undefined) => (v ? <span className="block max-w-[22rem] truncate" title={v}><Mono className="text-[11.5px]">{v}</Mono></span> : null);
   switch (id) {
     case "air":
-      return <TableCell className="whitespace-nowrap text-muted-foreground">{e.air_date ? day(e.air_date) : "—"}</TableCell>;
+      return <TableCell className="whitespace-nowrap text-muted-foreground">{episodeDay(e) ? day(episodeDay(e)) : "—"}</TableCell>;
     case "status": {
       const s = cellStatus(c, aired(e), off, !!e.removed);
       return (
@@ -407,7 +408,7 @@ function ColumnCell({ id, e, c, seeFiles, day, off = false }: { id: EpisodeColum
 /** Desktop, one library in view (Sonarr's layout): checkbox, monitor switch, number, title, the chosen columns, then
  *  Search and Interactive search. */
 function LibraryTable({ episodes, copies, anime, manage, seeFiles, selected, onSelect, onOpen, live, act, columns, inactive = false }: ListProps) {
-  const day = dayFormatter(episodes.map((e) => e.air_date));
+  const day = dayFormatter(episodes.map(episodeDay));
   const v = copies[0];
   const ids = episodes.map((e) => e.id);
   return (
@@ -492,7 +493,7 @@ function LibraryTable({ episodes, copies, anime, manage, seeFiles, selected, onS
 
 /** Desktop, All libraries: a column per library (or one availability column), then Search and Interactive search. */
 function MatrixTable({ episodes, copies, merged, anime, manage, seeFiles, selected, onSelect, onOpen, live, act }: ListProps) {
-  const day = dayFormatter(episodes.map((e) => e.air_date));
+  const day = dayFormatter(episodes.map(episodeDay));
   const ids = episodes.map((e) => e.id);
   return (
     <Table density="dense" data-testid="episode-table">
@@ -542,7 +543,7 @@ function MatrixTable({ episodes, copies, merged, anime, manage, seeFiles, select
               <div className={cn("font-medium", manage && !e.monitored && "text-muted-foreground")}>{e.name || `Episode ${e.number}`}</div>
                 <RemovedNote e={e} />
             </TableCell>
-            <TableCell className="whitespace-nowrap text-muted-foreground">{e.air_date ? day(e.air_date) : "—"}</TableCell>
+            <TableCell className="whitespace-nowrap text-muted-foreground">{episodeDay(e) ? day(episodeDay(e)) : "—"}</TableCell>
             {merged ? (
               <TableCell>
                 <StatusText st={statusOf(e, copies, true, seeFiles)} manage={false} />
@@ -572,7 +573,7 @@ function MatrixTable({ episodes, copies, merged, anime, manage, seeFiles, select
 
 /** Phones: one row per episode for the library in view (or across copies), with its state in words. */
 function EpisodeRows({ episodes, copies, merged, anime, manage, seeFiles, selected, onSelect, onOpen, live, act }: ListProps) {
-  const day = dayFormatter(episodes.map((e) => e.air_date));
+  const day = dayFormatter(episodes.map(episodeDay));
   const ids = episodes.map((e) => e.id);
   const nSel = ids.filter((i) => selected.has(i)).length;
   return (
@@ -608,7 +609,7 @@ function EpisodeRows({ episodes, copies, merged, anime, manage, seeFiles, select
                   <span className="whitespace-nowrap">
                     <span className="tabular-nums" data-testid="episode-number">{episodeNumber(e, anime)}</span>
                     {" · "}
-                    {e.air_date ? day(e.air_date) : "No air date"}
+                    {episodeDay(e) ? day(episodeDay(e)) : "No air date"}
                   </span>
                   <StatusText st={{ ...st, quality: undefined }} manage={manage} />
                   {st.quality ? <span className="max-w-[9rem] truncate text-[11px]">{st.quality}</span> : null}

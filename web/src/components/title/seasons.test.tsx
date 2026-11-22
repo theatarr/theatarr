@@ -938,4 +938,28 @@ describe("Episode window air day (F02)", () => {
     const meta = await screen.findByTestId("episode-meta");
     expect(meta.textContent).toContain(`Airs ${fmtDay(ymd(new Date(at)))}`);
   });
+
+  it.each([["the table", false], ["the phone list", true]])("names the same day in %s (fix round 2)", async (_, phone) => {
+    if (phone) vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    const at = "2026-11-26T12:00:00Z";
+    const ep = { ...episodes.episodes[1], air_date: "2026-11-20", air_at: at, aired: false };
+    mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: { ...episodes, episodes: [episodes.episodes[0], ep, episodes.episodes[2]] } }]);
+    renderPage(<Seasons id="1" anime />, "/title/1");
+    await screen.findAllByTestId("episode-number");
+    expect(document.body.textContent).toContain(fmtDay(ymd(new Date(at))));
+    expect(document.body.textContent).not.toContain(fmtDay("2026-11-20"));
+    vi.unstubAllGlobals();
+  });
+
+  it("names the instant's day when there is no date (fix round 2)", async () => {
+    const at = "2026-11-26T12:00:00Z";
+    const show = async (ep: object) => {
+      mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: { ...episodes, episodes: [episodes.episodes[0], ep, episodes.episodes[2]] } }, { method: "GET", path: "/titles/1/episodes/102", reply: { ...detail, episode: ep } }]);
+      const v = renderPage(<Seasons id="1" anime />, "/title/1?episode=102");
+      const text = (await screen.findByTestId("episode-meta")).textContent;
+      v.unmount();
+      return text;
+    };
+    expect(await show({ ...episodes.episodes[1], air_date: undefined, air_at: at, aired: false })).toContain(`Airs ${fmtDay(ymd(new Date(at)))}`);
+  });
 });
