@@ -245,25 +245,53 @@ func plannedFile(plan *Plan, rel string) *PlannedFile {
 	return nil
 }
 
-// storedAudio is a library file's known audio languages, from its stored probe, else (an adopted file) the arr's
-// media info ("eng/fre").
+// storedAudio is a library file's known audio languages: from its stored probe when a track of it carries the tag
+// fact; else (a probe stored before the fact was kept, or no probe) the arr's media info of an adopted file
+// ("eng/fre"); else the old probe's languages other than Matroska's default.
 func storedAudio(pr, media sql.NullString, adopted bool) []string {
+	p, err := parseProbe(pr)
+	if err != nil {
+		p = nil
+	}
+	if !tagFact(p) && adopted && media.String != "" {
+		var m struct {
+			AudioLanguages string `json:"audioLanguages"`
+		}
+		if json.Unmarshal([]byte(media.String), &m) == nil && m.AudioLanguages != "" {
+			if out := knownLanguages(strings.Split(m.AudioLanguages, "/")); len(out) > 0 {
+				return out
+			}
+		}
+	}
 	var tags []string
-	if p, err := parseProbe(pr); err == nil && p != nil {
+	if p != nil {
 		for _, a := range p.Audio {
 			if !a.Tagged && p.Container == "matroska" && strings.EqualFold(a.Language, "eng") {
 				continue // Matroska's default, not a tag (or a probe stored before the fact was kept)
 			}
 			tags = append(tags, a.Language)
 		}
-	} else if adopted && media.String != "" {
-		var m struct {
-			AudioLanguages string `json:"audioLanguages"`
-		}
-		if json.Unmarshal([]byte(media.String), &m) == nil && m.AudioLanguages != "" {
-			tags = strings.Split(m.AudioLanguages, "/")
-		}
 	}
+	return knownLanguages(tags)
+}
+
+// savedAudio is a stored copy's audio as the rule judges it (a returning copy): a probe with the tag fact read as a
+// fresh one (fileAudio), else the languages storedAudio knows; ok is false for no verdict.
+func savedAudio(pr, media sql.NullString, adopted bool) (langs []string, ok bool) {
+	if p, err := parseProbe(pr); err == nil && tagFact(p) {
+		return fileAudio(p)
+	}
+	langs = storedAudio(pr, media, adopted)
+	return langs, len(langs) > 0
+}
+
+// tagFact says whether a stored probe says of any audio track that its language was tagged in the file.
+func tagFact(p *probe.Result) bool {
+	return p != nil && slices.ContainsFunc(p.Audio, func(a probe.Audio) bool { return a.Tagged })
+}
+
+// knownLanguages is the tags the language table knows, as sorted codes.
+func knownLanguages(tags []string) []string {
 	var out []string
 	for _, t := range tags {
 		if c, ok := decide.AudioLanguage(t); ok {

@@ -365,6 +365,8 @@ mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
      series: the files at the link's own path or sharing an episode with it, active or dead). The new file is
      refused unless it shares an audio language with every one of them (their stored probe, else an adopted file's
      arr media info, read with the version's files when the plan is made); unknown audio shares none. A stored
+     probe none of whose tracks has `tagged` (a probe stored before the fact was kept) gives way to an adopted
+     file's arr media info when it names a language. Otherwise a stored
      Matroska `eng` track without `tagged` (untagged, or a probe stored before the fact was kept) is unknown;
      other languages in an old probe stay known. A French-only
      E01-E02 file does not replace an English E01 beside a French E02.
@@ -1010,7 +1012,9 @@ before 00152 has no snapshot and gets no Undo; nor does one whose trash copy was
     Unknown); it wins strictly under today's profile (`ImportUpgrade` accepts it over the current file and refuses the
     current file over it; a tie or any error keeps it aside); today's profile still allows its quality and its format
     score reaches the minimum; the wrong-audio rule, as an import applies it (its saved probe read as a fresh one, an
-    untagged track saying nothing; the held file's stored audio), would not refuse it over the current file; and the
+    untagged track saying nothing; a probe with no tag fact, or none, read as a held file's stored audio is; the held
+    file's stored audio), would not refuse it over the current file, and when the rule applies a copy whose audio
+    gives no verdict stays aside; and the
     return's own checks pass (a passing obstacle there, a path another run changes, the delete fence, the slot
     changing between the reads, a read with no verdict or no answer in time, is no "no": the next sweep tries again).
     A copy read in a renamed mount folder is linked there and its release's mount folder follows. It waits for a later

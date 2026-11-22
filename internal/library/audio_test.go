@@ -719,3 +719,34 @@ func TestAudioRuleSeriesYue(t *testing.T) {
 		}
 	}
 }
+
+// The refusal over a held file names the audio the file has: a probe stored before the tag fact was kept (no track
+// says it was tagged) and no probe at all read the arr's media info of an adopted file, as a fresh probe reads its
+// tags.
+func TestAudioRuleRefusalNamesStoredAudio(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		probe any // the held file's stored probe (nil: none)
+		media any // its adopted_media (nil: none)
+	}{
+		{"old probe and the arr's media", `{"container":"matroska","audio":[{"codec":"ac3","language":"eng"}]}`,
+			`{"audioLanguages":"eng"}`},
+		{"the arr's media alone", nil, `{"audioLanguages":"eng"}`},
+		{"a probe of today", `{"container":"matroska","audio":[{"codec":"ac3","language":"eng","tagged":true}]}`, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			e := newEnv(t, true)
+			e.audioFilm("English")
+			e.heldFilm("", "eng")
+			e.exec(`UPDATE content_file SET probe = ? WHERE id = 1`, tc.probe)
+			e.exec(`UPDATE link SET adopted_media = ? WHERE id = 1`, tc.media)
+			e.filmImport(1, hashA, movieRelease, tracks("fre"))
+			want := "Import refused: French audio only; the file in the library has English."
+			if got := e.one(`SELECT COALESCE(reason, '') FROM router_blocklist WHERE info_hash = ?`, hashA); got != want {
+				t.Errorf("reason %q, want %q", got, want)
+			}
+		})
+	}
+}

@@ -147,17 +147,16 @@ func (l *Library) putBackCopy(ctx context.Context, r returned, target, newFolder
 		return true, nil
 	}
 	// The wrong-audio rule, the old file over the current one, as an import judges it (audio.go): the returning
-	// copy's saved probe read as a fresh one (fileAudio: an untagged track says nothing), the held file's stored audio.
-	if pr, err := parseProbe(oldProbe); err == nil {
-		if langs, ok := fileAudio(pr); ok {
-			want, err := l.audioWanted(ctx, &importDownload{Version: *v})
-			if err != nil {
-				return false, err
-			}
-			if want != nil && !sharesLanguage(langs, want) &&
-				!sharesLanguage(langs, storedAudio(cur.probe, cur.media, cur.adopted)) {
-				return true, nil
-			}
+	// copy's saved audio (savedAudio: a probe with the tag fact read as a fresh one, else the arr's media info or the
+	// old probe), the held file's stored audio. When the rule applies and the copy's audio gives no verdict, aside.
+	want, err := l.audioWanted(ctx, &importDownload{Version: *v})
+	if err != nil {
+		return false, err
+	}
+	if want != nil {
+		langs, ok := savedAudio(oldProbe, nullString(s.AdoptedMedia), s.DownloadID == nil)
+		if !ok || !sharesLanguage(langs, want) && !sharesLanguage(langs, storedAudio(cur.probe, cur.media, cur.adopted)) {
+			return true, nil
 		}
 	}
 	// Nobody plays the file it would displace, and Plex says so.
@@ -235,6 +234,14 @@ func (l *Library) profileAllows(t *decide.Title, v decide.Version, kind string, 
 	}
 	pr := l.pol.Profiles[v.Policy.Profile]
 	return pr == nil || *x.Score >= pr.MinScore
+}
+
+// nullString is p as a nullable column (nil: NULL).
+func nullString(p *string) sql.NullString {
+	if p == nil {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: *p, Valid: true}
 }
 
 func deref(p *string) string {

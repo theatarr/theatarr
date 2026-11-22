@@ -134,13 +134,41 @@ func TestPutBack(t *testing.T) {
 		}
 	})
 	t.Run("audio inconclusive", func(t *testing.T) {
-		// As at import: an untagged track makes the rule say nothing, so the better copy comes back.
+		// The rule applies and the copy's audio gives no verdict (an untagged track): it stays aside.
 		c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
 		c.pol.Profiles["movie-state"].Language = "English"
 		c.exec(`UPDATE content_file SET probe = '{"container":"matroska","audio":[{"codec":"aac","language":"fre","tagged":true},
 			{"codec":"aac","language":"und"}]}' WHERE id = 1`)
+		aside(t, c)
+	})
+	// A copy whose saved probe has no tag fact (stored before it was kept), or no probe, is read as a held file is:
+	// the arr's media info of an adopted copy, else the old probe's languages.
+	t.Run("French copy, old probe", func(t *testing.T) {
+		c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
+		c.pol.Profiles["movie-state"].Language = "English"
+		c.exec(`UPDATE content_file SET probe = '{"container":"matroska","audio":[{"codec":"aac","language":"fre"}]}' WHERE id = 1`)
+		aside(t, c)
+	})
+	t.Run("French copy, adopted, no probe", func(t *testing.T) {
+		c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
+		c.pol.Profiles["movie-state"].Language = "English"
+		c.exec(`UPDATE content_file SET probe = NULL WHERE id = 1`)
+		c.exec(`UPDATE playing_break SET download_id = NULL, adopted_media = '{"audioLanguages":"fre"}' WHERE id = ?`, c.id)
+		aside(t, c)
+	})
+	t.Run("English copy, adopted, old probe", func(t *testing.T) {
+		c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
+		c.pol.Profiles["movie-state"].Language = "English"
+		c.exec(`UPDATE content_file SET probe = '{"container":"matroska","audio":[{"codec":"aac","language":"eng"}]}' WHERE id = 1`)
+		c.exec(`UPDATE playing_break SET download_id = NULL, adopted_media = '{"audioLanguages":"eng"}' WHERE id = ?`, c.id)
 		c.twoReads()
 		c.restored(t)
+	})
+	t.Run("copy of unknown audio", func(t *testing.T) {
+		c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
+		c.pol.Profiles["movie-state"].Language = "English"
+		c.exec(`UPDATE content_file SET probe = NULL WHERE id = 1`)
+		aside(t, c)
 	})
 	wait := func(t *testing.T, c *coveredEnv, stop func(), go_ func()) {
 		t.Helper()
