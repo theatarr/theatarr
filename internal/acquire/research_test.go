@@ -182,3 +182,20 @@ func TestResearchPlayingPastTheHour(t *testing.T) {
 		t.Error("playing counted as a failure, or not as a dead link")
 	}
 }
+
+// The playing search is not debited from the hour either: with per_hour 1, after a playing search another title's
+// dead-link search still runs within the hour.
+func TestResearchPlayingNotDebited(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, &policy.Wanted{PerHour: 1, AgainAfter: policy.Duration(6 * time.Hour)})
+	e.pol.Library = &policy.Library{Enabled: true, Versions: map[string]*policy.LibraryVersion{
+		"movie": {Roots: []string{"/media/movies"}}}}
+	e.research(router.ResearchRequest{TitleID: 2, VersionID: 102, Version: "movie", Reason: router.ReasonPlaying})
+	e.research(router.ResearchRequest{TitleID: 1, VersionID: 101, Version: "movie", Reason: router.ReasonDeadLink})
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_id = 101 AND research = 'dead_link'`); n != 1 {
+		t.Errorf("%d dead-link searches after a playing search with per_hour 1, want 1", n)
+	}
+	if used, err := e.a.wantedUsed(e.ctx, e.clock()); err != nil || used != 1 {
+		t.Errorf("searches drawn from the hour: %d %v, want 1", used, err)
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -262,12 +263,13 @@ func (a *Acquirer) searchNowSelection(titleID int64, key, reason string, season 
 }
 
 // wantedUsed counts the searches of the last hour that draw on router.wanted.per_hour: one per shared search (its
-// root and the other versions of its season), one per member of a merged search (its seasons).
+// root and the other versions of its season), one per member of a merged search (its seasons). The search for a file
+// that broke while playing (research playing) runs outside the hour and draws nothing from it.
 func (a *Acquirer) wantedUsed(ctx context.Context, now time.Time) (int, error) {
 	var used int
 	err := a.st.Reader().QueryRowContext(ctx, `SELECT COUNT(DISTINCT COALESCE(search_run, id) || '/' ||
-		COALESCE(season, -1)) FROM acquire_run WHERE source = ? AND infra <> 3 AND created_at > ?`, SourceWanted,
-		store.Millis(now.Add(-time.Hour))).Scan(&used)
+		COALESCE(season, -1)) FROM acquire_run WHERE source = ? AND infra <> 3 AND created_at > ?
+		AND COALESCE(research, '') <> ?`, SourceWanted, store.Millis(now.Add(-time.Hour)), router.ReasonPlaying).Scan(&used)
 	return used, err
 }
 

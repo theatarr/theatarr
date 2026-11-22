@@ -497,7 +497,8 @@ func (a *Acquirer) Round(ctx context.Context, scope []int64) (*WantedSummary, er
 	}
 	// Busy and running items are left out before the searches are grouped: what is left shares and merges. With the
 	// hour's searches spent nothing starts, and nothing is checked, except the search for a file that broke while
-	// someone played it (why router.ReasonPlaying): it starts whatever the hour has spent, alone.
+	// someone played it (why router.ReasonPlaying): it starts whatever the hour has spent, alone, and draws nothing
+	// from it (wantedUsed leaves it out too).
 	left := a.set.PerHour - sum.SearchedLastHour
 	var ready []target
 	for _, t := range ordered {
@@ -531,7 +532,9 @@ func (a *Acquirer) Round(ctx context.Context, scope []int64) (*WantedSummary, er
 			return nil, err
 		}
 		sum.Queued += groupCost(group)
-		left -= groupCost(group)
+		if slices.ContainsFunc(group, func(t target) bool { return t.why != router.ReasonPlaying }) {
+			left -= groupCost(group) // a playing search alone draws nothing from the hour
+		}
 	}
 	if sum.Due > 0 || full {
 		args := []any{"full", full, "due", sum.Due, "queued", sum.Queued}

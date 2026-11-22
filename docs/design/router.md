@@ -1026,7 +1026,8 @@ without the `again_after` skip, never merges it into a search of several seasons
 target is still missing and starts no `exhausted` re-search, and the journal words it "Search again after a file that
 stopped working while playing". Beyond that: it is not a failure run (`FailureResearchSQL`, `FailureWhy`), so a failed
 download of its own does not hold back the season's next search; its schedule row runs when the hour's searches are
-spent (`router.wanted.per_hour`), alone, and nothing else with it (`TestResearchPlayingPastTheHour`); its route reads
+spent (`router.wanted.per_hour`), alone, and nothing else with it, and it is not counted against the hour (Wanted's and
+Search now's count leave it out; `TestResearchPlayingPastTheHour`, `TestResearchPlayingNotDebited`); its route reads
 the title's version's open incident (table `playing_break`, by title and version: no incident id travels with the
 search) and takes only a release holding one of the incident's episodes still `wanted` (the run's episodes are its
 whole season; `TestPlayingRouteHoldsToIncidentEpisodes`), and each account the incident found out answers as not
