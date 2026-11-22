@@ -120,6 +120,8 @@ type Tracker struct {
 	rescuing  bool
 	quiet     map[int64]time.Time
 	settledAt time.Time
+	// comeBackAt is the sweep after which the old copies were last read (the worker's own).
+	comeBackAt time.Time
 	// sleep waits between the check's reads (tests make it advance a fake clock).
 	sleep func(ctx context.Context, d time.Duration) error
 }

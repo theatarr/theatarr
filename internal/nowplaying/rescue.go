@@ -25,8 +25,8 @@ import (
 
 const (
 	// pieceSize is how much a check reads, pieceLimit its time limit, pieceAhead how far past the play position.
-	pieceSize  = 256 << 10
-	pieceLimit = 15 * time.Second
+	pieceSize  = library.PlayingPiece
+	pieceLimit = library.PlayingPieceLimit
 	pieceAhead = 64 << 20
 	// retryGap is the wait between the first two reads.
 	retryGap = 20 * time.Second
@@ -62,6 +62,8 @@ type Rescuer interface {
 	ReportPlaying(ctx context.Context, incident int64, kind string) error
 	SettlePlayingRuns(ctx context.Context) error
 	ForgetRelease(ctx context.Context, target string) error
+	LastSweep() time.Time
+	ComeBack(ctx context.Context) error
 }
 
 // The library is the check's Rescuer.
@@ -205,6 +207,13 @@ func (t *Tracker) runRescue(ctx context.Context, j *rescueStart) {
 	if j.settle {
 		if err := lib.SettlePlayingRuns(ctx); err != nil && ctx.Err() == nil {
 			t.o.Logger.Warn("nowplaying: settling broken files' searches", "err", err)
+		}
+		// After each hourly sweep the old copies are read here, one at a time and off the sweep.
+		if swept := lib.LastSweep(); swept.After(t.comeBackAt) {
+			t.comeBackAt = swept
+			if err := lib.ComeBack(ctx); err != nil && ctx.Err() == nil {
+				t.o.Logger.Warn("nowplaying: reading returned copies", "err", err)
+			}
 		}
 		return
 	}

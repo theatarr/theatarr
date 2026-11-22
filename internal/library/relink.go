@@ -459,6 +459,9 @@ func (l *Library) relink(ctx context.Context, version string, dryRun bool, hints
 		return nil, errors.New("library: library.mount.path is not set")
 	}
 	out, err := l.sweep(ctx, version, dryRun, hints)
+	if err == nil && !dryRun {
+		l.swept.Store(l.now().UnixMilli()) // now playing's worker reads returned copies after it (ComeBack)
+	}
 	if errors.Is(err, ErrMountDown) && !dryRun {
 		// A sweep refused for the mount forgets the misses noted before: the listing that noted them may have been
 		// the start of the outage, and a partial listing after it must not confirm them all at once.
@@ -550,6 +553,10 @@ func (l *Library) relinkRoot(ctx context.Context, ix *mountIndex, zv *zurgView, 
 	if err != nil {
 		return sc, err
 	}
+	held, err := playingHeld(ctx, db)
+	if err != nil {
+		return sc, err
+	}
 	var found []mountLink  // links whose file is there: a dead row revives, a noted miss is forgotten
 	lists := relinkLists{} // decypharr: the file lists read in this sweep
 	var recompute []stateVersion
@@ -557,6 +564,11 @@ func (l *Library) relinkRoot(ctx context.Context, ix *mountIndex, zv *zurgView, 
 		knownHash, err := linkHash(ctx, db, ml.path)
 		if err != nil {
 			return sc, err
+		}
+		if m, marked := marks[ml.path]; marked && m.state == "dead" && m.target == ml.target && held[ml.path] == ml.target {
+			// A file that broke while someone played it: its old copy comes back only through a read (ComeBack), never
+			// by a listing (no revive, retire or repoint here).
+			continue
 		}
 		ok, err := ix.has(ml.folder, ml.inner)
 		if errors.Is(err, errFolderUnreadable) {

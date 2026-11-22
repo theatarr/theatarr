@@ -175,6 +175,12 @@ func newRescueEnv(t *testing.T, client, zurg bool) *rescueEnv {
 			updated_at) VALUES (?, ?, ?, ?, 1, 'Show.S01.1080p.WEB-DL-GRP', 'WEBDL-1080p', 'active', 0, 0)`,
 			10+i, filepath.Join(shows, "Show", name), tgt("Rel/"+name), 100+i)
 		e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (?, 1)`, 10+i)
+		if err := os.MkdirAll(filepath.Join(shows, "Show"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(tgt("Rel/"+name), filepath.Join(shows, "Show", name)); err != nil {
+			t.Fatal(err)
+		}
 		e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (?, ?)`, 10+i, ep)
 	}
 	e.exec(`INSERT INTO link (id, path, target, content_file_id, title_id, release_title, state, created_at, updated_at)
@@ -638,5 +644,33 @@ func TestRescueSignsAndCertainty(t *testing.T) {
 	e2.poll()
 	if n := e2.lib.readsOf("S01E02.mkv"); n != 0 {
 		t.Errorf("an arr's symlink was checked: %d reads", n)
+	}
+}
+
+// The old copy comes back: after each sweep the worker reads it; read on two sweeps an hour apart with nothing else
+// holding its episode, it is revived (the uncovered case).
+func TestRescueComeBackAfterSweep(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.play(2, "buffering")
+	e.poll()
+	if got := e.one(`SELECT state FROM link WHERE id = 11`); got != "dead" {
+		t.Fatalf("link %s", got)
+	}
+	e.stopPlaying()
+	e.lib.setBroken("S01E02.mkv", 0) // zurg repaired it
+	for range 2 {
+		if _, err := e.lib.Relink(e.ctx, "", false); err != nil {
+			t.Fatal(err)
+		}
+		if got := e.one(`SELECT state FROM link WHERE id = 11`); got != "dead" {
+			t.Fatalf("the sweep revived it by listing: %s", got)
+		}
+		e.advance(settleEvery)
+		e.poll()
+		e.advance(time.Hour)
+	}
+	if got := e.one(`SELECT state FROM link WHERE id = 11`) + " " + e.one(`SELECT settled FROM playing_break WHERE link_id = 11`); got != "active revived" {
+		t.Errorf("after two sweeps: %s", got)
 	}
 }

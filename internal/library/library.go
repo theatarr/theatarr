@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -126,6 +127,8 @@ type Library struct {
 	beforeSweepWrite func()
 	// onPlaying is told the outcome of each incident of a file that broke while playing (OnPlayingOutcome).
 	onPlaying func(outcome.Outcome)
+	// swept is when a relink sweep last ended without error (Unix ms; LastSweep).
+	swept atomic.Int64
 }
 
 // New builds the library service.
