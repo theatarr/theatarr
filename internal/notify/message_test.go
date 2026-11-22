@@ -221,3 +221,23 @@ func TestHealthWhileOffNotAnnounced(t *testing.T) {
 		t.Fatalf("sent %q", got)
 	}
 }
+
+// Two failing runs in a row alert whatever their level: a warning then an error is announced as failing.
+func TestHealthAlertAcrossLevels(t *testing.T) {
+	t.Parallel()
+	e := newDiscordEnv(t, true, nil)
+	ctx := context.Background()
+	for _, h := range [][]HealthItem{
+		{{Source: "MountCheck", Type: "warning", Message: "mount slow", Runs: 1}},
+		{{Source: "MountCheck", Type: "error", Message: "mount not readable", Runs: 2}},
+		nil} {
+		e.hlth = h
+		if err := e.n.Scan(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := []string{"Health check failing: MountCheck", "Health check OK again: MountCheck"}
+	if got, _ := e.sentTitles("chan"); !slices.Equal(got, want) {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}

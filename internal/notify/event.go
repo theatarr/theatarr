@@ -171,7 +171,7 @@ type HealthItem struct {
 	Source  string `json:"source"`
 	Type    string `json:"type"`
 	Message string `json:"message"`
-	// Runs is how many completed check runs in a row gave this Type (internal/health counts them); 0 for an item that
+	// Runs is how many completed check runs in a row failed, at any level (internal/health counts them); 0 for an item that
 	// comes from no check run (Pause). Not part of any payload.
 	Runs int `json:"-"`
 }

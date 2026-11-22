@@ -699,6 +699,12 @@ func TestCheckerCountsRuns(t *testing.T) {
 	if n := runs(); n != 2 {
 		t.Fatalf("after a cancelled run %d", n)
 	}
+	// Failing runs count on across a change of level (warning to error).
+	typ = Warning
+	now = now.Add(2 * time.Minute)
+	if n := runs(); n != 3 {
+		t.Fatalf("error then warning %d", n)
+	}
 }
 
 // A run that only replays evidence an earlier run counted (Result.Replayed) leaves the streak where it was.
