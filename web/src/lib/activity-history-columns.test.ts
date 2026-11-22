@@ -14,5 +14,8 @@ describe("eventMeaning", () => {
     expect(playing).toContain("RSS");
     expect(playing).not.toContain("searches go on");
     expect(eventMeaning("Stopped working, no other copy yet")).toBe("");
+    // The earlier copy put back (an Undo, or the put-back of a copy that reads again) is one of its outcomes.
+    expect(playing).toContain("the earlier copy put back");
+    expect(eventMeaning("Upgrade undone")).toContain("earlier file was put back");
   });
 });

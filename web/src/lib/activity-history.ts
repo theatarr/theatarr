@@ -12,7 +12,7 @@ export type HistoryEventId = "all" | "grabbed" | "imported" | "adopted" | "remov
 export const HISTORY_EVENTS: { id: HistoryEventId; label: string; events: string[] }[] = [
   { id: "all", label: "All events", events: [] },
   { id: "grabbed", label: "Grabbed", events: ["grabbed"] },
-  { id: "imported", label: "Imported and upgraded", events: ["imported", "deleted"] },
+  { id: "imported", label: "Imported and upgraded", events: ["imported", "deleted", "undone"] },
   { id: "adopted", label: "Adopted (files found in the library)", events: ["adopted"] },
   { id: "removed", label: "Removed and missing", events: ["removed", "missing", "title_removed"] },
   { id: "failed", label: "Failed and blocked", events: ["failed", "blocked"] },

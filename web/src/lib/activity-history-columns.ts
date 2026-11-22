@@ -26,6 +26,7 @@ export const EVENT_MEANINGS: { words: string; meaning: string }[] = [
   { words: "Adopted", meaning: "Taken over from Sonarr/Radarr's library; Theatarr did not download it." },
   { words: "Upgraded", meaning: "A better release was imported; \"Replaced\" says which files it took the place of." },
   { words: "Re-downloaded", meaning: "The same release was fetched again for a file that went missing." },
+  { words: "Upgrade undone", meaning: "An upgrade was undone by hand: the earlier file was put back, and the release that had replaced it is blocked in this library. \"By\" says who." },
   { words: "Removed", meaning: "This file was taken out of the library by hand (or by Sonarr/Radarr deleting it)." },
   { words: "Removed from library", meaning: "The title was removed from this library by hand; the reason says who removed it and whether its files were kept." },
   { words: "File missing", meaning: "The file behind a library link is gone and could not be found again." },
@@ -35,7 +36,7 @@ export const EVENT_MEANINGS: { words: string; meaning: string }[] = [
   { words: "Added to …", meaning: "The torrent was added to another provider as well (Add to other providers, removed in 0.4.5)." },
   { words: "Already on …", meaning: "The other provider held the torrent already, so nothing was added there." },
   { words: "Not cached on …", meaning: "Another provider did not have the torrent cached, so it was not added there." },
-  { words: "Stopped working while playing", meaning: "The file stopped working while someone played it. The line under it says what came of it: replaced by another release, readable again, or no other copy yet (a new release can still arrive through RSS; it says when the debrid account did not answer)." },
+  { words: "Stopped working while playing", meaning: "The file stopped working while someone played it. The line under it says what came of it: replaced by another release, readable again, the earlier copy put back, or no other copy yet (a new release can still arrive through RSS; it says when the debrid account did not answer)." },
 ];
 
 /** The meaning of an event's words ("Not started: …" for every not-started reason, "Added to …" and "Not cached on …"

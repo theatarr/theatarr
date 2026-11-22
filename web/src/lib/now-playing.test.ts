@@ -46,6 +46,8 @@ describe("now playing", () => {
   it("dots a removed incident neutral, not like a repaired one", () => {
     expect(incidentTone("removed")).toBe("neutral");
     expect(incidentTone("replaced")).toBe("ok");
+    // An earlier copy put back (Undo or the put-back) is a good outcome.
+    expect(incidentTone("restored")).toBe("ok");
     expect(incidentTone("unavailable")).toBe("bad");
   });
 });

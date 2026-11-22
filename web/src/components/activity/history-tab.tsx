@@ -212,6 +212,8 @@ function EventCell({ e, episodes, except }: { e: ActivityEvent; episodes: boolea
   return (
     <div className="min-w-0">
       <EventWords e={e} />
+      {/* An undone upgrade says who undid it, as the row's own line. */}
+      {e.event === "undone" && e.by ? <p className="mt-0.5 text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="history-by">By {e.by}</p> : null}
       {/* A playing row's meaning is said on it: its tooltip alone does not reach a phone. */}
       {e.event === "playing" ? <p className="mt-0.5 text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="history-meaning">{eventMeaning(e.words)}</p> : null}
       <GrabbedLine e={e} />

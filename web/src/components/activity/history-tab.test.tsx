@@ -6,6 +6,7 @@ import { expect, it } from "vitest";
 import { json, mockFetch, renderPage } from "@/test/page";
 import { fmtTime } from "@/lib/format";
 import { EpisodeHistoryRows, HistoryTab } from "./history-tab";
+import { historyParams, NO_HISTORY_FILTERS } from "@/lib/activity-history";
 
 const me = { id: 9, username: "manager", permissions: ["browse", "see_files", "manage"], csrf_token: "t" };
 const title = { id: 1, name: "Alpha", year: 2026, kind: "movie" };
@@ -316,4 +317,18 @@ it("offers Undo on an upgrade the server allows it for: asks first with the serv
   await user.click(within(dialog).getByTestId("confirm-ok"));
   await waitFor(() => expect(fetch.calls("POST", "/activity/replaced/31/undo")).toHaveLength(1));
   expect((await within(dialog).findByTestId("confirm-error")).textContent).toBe("Not undone: the earlier file is no longer available.");
+});
+
+it("words an undone upgrade with who undid it, and lists it under Imported and upgraded", async () => {
+  const undone = { ...link, id: "h:undo1", event: "undone", kind: "link", words: "Upgrade undone", tone: "info", by: "ann", reason: "moved aside to the library's trash" };
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: me },
+    { method: "GET", path: "/titles/facets", reply: {} },
+    { method: "GET", path: "/activity", reply: { state: "history", admin: true, history: [undone] } },
+  ]);
+  renderPage(<HistoryTab admin />, "/activity/history");
+  const [row] = await screen.findAllByTestId("history-row");
+  expect(within(row).getByTestId("history-words").textContent).toBe("Upgrade undone");
+  expect(within(row).getByTestId("history-by").textContent).toBe("By ann");
+  expect(historyParams({ ...NO_HISTORY_FILTERS, event: "imported" }).events?.split(",")).toContain("undone");
 });
