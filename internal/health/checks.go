@@ -806,7 +806,10 @@ func Accounts(accounts func(ctx context.Context) map[string]AccountSource, o Acc
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				rctx, cancel := context.WithTimeout(ctx, o.Timeout)
+				// A health check (gateway.HealthCheck), as the download poller's account probe: it goes through the
+				// failure back-off those probes keep extending while a provider is down, so the confirming read is
+				// made; rate limits and budgets still apply.
+				rctx, cancel := context.WithTimeout(gateway.HealthCheck(ctx), o.Timeout)
 				defer cancel()
 				a, err := c.Account(rctx)
 				if err == nil && a == nil {

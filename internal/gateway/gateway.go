@@ -574,10 +574,13 @@ func HealthCheck(ctx context.Context) context.Context {
 	return context.WithValue(ctx, healthCheckKey{}, true)
 }
 
+// IsHealthCheck reports whether ctx marks its requests as health checks (HealthCheck).
+func IsHealthCheck(ctx context.Context) bool { return ctx.Value(healthCheckKey{}) != nil }
+
 // beginHealthCheck reports whether a request backed off on subject may go through as a health check, and claims the
 // subject's one check in flight (the caller releases it with health.endCheck).
 func (g *Gateway) beginHealthCheck(ctx context.Context, subject string, now time.Time) bool {
-	if ctx.Value(healthCheckKey{}) == nil || !g.state.streakOnly(subject, now) || !g.health.streakOnly(subject, now) {
+	if !IsHealthCheck(ctx) || !g.state.streakOnly(subject, now) || !g.health.streakOnly(subject, now) {
 		return false
 	}
 	return g.health.beginCheck(subject)

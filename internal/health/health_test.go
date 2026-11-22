@@ -886,3 +886,35 @@ func TestAccountsHeldBackIsNoRead(t *testing.T) {
 		}
 	}
 }
+
+// backedOff is a provider down (503) whose failure back-off the download poller's probes keep extending: a plain read
+// is held back by the gateway, a health check (gateway.HealthCheck) goes through and fails.
+type backedOff struct{ reads, checks atomic.Int32 }
+
+func (b *backedOff) Account(ctx context.Context) (*provider.Account, error) {
+	b.reads.Add(1)
+	if !gateway.IsHealthCheck(ctx) {
+		return nil, &gateway.Refused{Reason: gateway.ReasonBackoff, Target: "provider:rd", Detail: "5 failures in a row"}
+	}
+	b.checks.Add(1)
+	return nil, &provider.APIError{Status: 503}
+}
+
+// A real outage is announced although the gateway's failure back-off holds back plain reads: the account read is a
+// health check, so it goes through and confirms at the second check run.
+func TestAccountsReadThroughFailureBackoff(t *testing.T) {
+	now := t0
+	down := &backedOff{}
+	c := New(Options{TTL: time.Minute, Now: func() time.Time { return now }})
+	c.Add("ProviderAccountCheck", "Debrid accounts", Accounts(func(context.Context) map[string]AccountSource {
+		return sources(map[string]AccountReader{"rd": down}, nil)
+	}, AccountOptions{Now: func() time.Time { return now }}))
+	var r Result
+	for range 2 {
+		now = now.Add(2 * time.Minute)
+		r = c.Results(context.Background())[0]
+	}
+	if r.Type != Warning || r.Runs != 2 || down.checks.Load() != 2 {
+		t.Fatalf("second run: %s runs %d, health checks %d of %d reads", r.Type, r.Runs, down.checks.Load(), down.reads.Load())
+	}
+}
