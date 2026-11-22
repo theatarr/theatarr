@@ -1016,6 +1016,28 @@ the grace does not hold the search back. Tests: `TestRelinkDeadQueuesOneSearch`,
 `TestRelinkDeadSeriesQueuesItsEpisodes`, `TestRelinkDeadSharedLinkQueuesActiveVersionOnly`,
 `TestRelinkDeadWhileGated`.
 
+### A file that broke while playing is searched at once
+
+A file someone was playing that now playing's check proved unreadable (`docs/design/now-playing.md` "A file that stops
+working while it plays") is marked dead at once by the library, which queues one `acquire.research` job of reason
+`playing` (`docs/design/library.md` "A file that broke while someone played it"). `router.DeadLinkLike` treats it as
+a dead link's search everywhere one is named: the acquirer runs it only while the library writes for the version and
+without the `again_after` skip, never merges it into a search of several seasons, its route adds only while its
+target is still missing and starts no `exhausted` re-search, and the journal words it "Search again after a file that
+stopped working while playing". Beyond that: it is not a failure run (`FailureResearchSQL`, `FailureWhy`), so a failed
+download of its own does not hold back the season's next search; its schedule row runs when the hour's searches are
+spent (`router.wanted.per_hour`), alone, and nothing else with it (`TestResearchPlayingPastTheHour`); its route reads
+the title's version's open incident (table `playing_break`, by title and version: no incident id travels with the
+search) and takes only a release holding one of the incident's episodes still `wanted` (the run's episodes are its
+whole season; `TestPlayingRouteHoldsToIncidentEpisodes`), and each account the incident found out answers as not
+holding the release for that route only (`skipProvider`: no miss is recorded there, the next account or release is
+tried at once; `TestPlayingRouteSkipsOutAccount`). The failed release on the account it failed on carries a
+`provider_cache` miss of source `router:playing` for 7 days (`client:<key>` on a client-routed version, whose client
+then takes a different release): no search takes it there again, another account may
+(`TestPlayingRouteSkipsFailedReleaseOnFailedAccount`). The router's own all-provider miss does not replace that row and
+a cached listing does not reopen it (`TestPlayingMissSurvivesAllProviderMiss`, `TestDMMListingReopensOlderUncached`);
+the library lifts it when the old copy reads again. Candidate rules stay those of a dead link's search.
+
 ## Pacing (`router_pacing`, persisted)
 
 Each provider's `pacing` in the policy:

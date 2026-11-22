@@ -810,6 +810,39 @@ state and Cutoff unmet are its own. The journal records an `edit_file` action (m
   (`TestRelinkDeadWhileGated`).
   Every sweep records its dead links again; the journal raises no flag for them (since 0.4.5): open dead links are on
   System › Status under Dangling links, with relink and search.
+- **A file that broke while someone played it** (`playingbreak.go`, `comeback.go`, `playingoutcome.go`; table
+  `playing_break`, 00151; how it is found and confirmed: `docs/design/now-playing.md` "A file that stops working while
+  it plays"). When now playing's check has proved by its own reads through the mount that a file does not read, the
+  library keeps the incident: one row per file (the watched one first; its id is the incident's), with the old copy as
+  it was (every link column a same-path import overwrites, and its episodes), the range the check read, the account
+  found out (if any), the viewer and the outcome. `PlayingBoundReached` gives the bound: one incident per title and
+  library in 24 hours (`PlayingBound`). When the same release cannot be had from another account, `MarkBrokenPlaying`
+  marks the file dead at once: under its link lease, with Pause off and the version's library writing, only while it
+  is the active link the check read (compare and swap), with no 30-minute rule and no repair grace, then its title or
+  episodes wanted (`markDead`, shared with the sweep's dead mark) and, in the same transaction, the release's miss on
+  the failed account (`router.RecordPlayingMiss`, source `router:playing`, 7 days; the client's `client:<key>` on a
+  client-routed version) and one `acquire.research` job (reason `playing`; a version sharing the link gets
+  `dead_link`). A release's other files found broken with it are marked as they are found without a search;
+  `QueuePlayingSearch` queues one `playing` search for their episodes together once the watched file's search has
+  ended (`SettlePlayingRuns`: no search job, due row, running search or route, nor a download in flight of the title's
+  version since the break). Rows are found by title, version, path and old target, never by the link id alone (a
+  same-path import keeps or replaces the row). **The sweep leaves an open incident's dead link alone** while its
+  target is still the old copy: it is not revived, moved aside or repointed by a listing
+  (`TestSweepLeavesUnsettledDeadLink`, `TestSweepDoesNotRepointUnsettledDeadLink`); a replacement at the same path (a
+  new target) is an ordinary link (`TestSweepTreatsSamePathReplacementAsActive`). **It comes back only through a
+  read**: after each sweep that ended without error (`LastSweep`) now playing's worker calls `ComeBack`, which reads each
+  open row's own file at its saved range (at its old target, or by its saved hash's recorded folder when the folder
+  was renamed). A read starts the file's streak (`back_since`), an unlisted file or a failed read ends it, and a read at
+  least 30 min (`deadConfirm`) after the streak began decides: with Pause off, the library writing, the title and
+  version still there and monitored, and no other active file holding its film or any one of its episodes, the link is
+  revived as the sweep revives one (action `relink`, "revived: the copy that broke while playing reads again"), the
+  row is settled `revived` and the release's `router:playing` miss is lifted; in a renamed folder the row is settled
+  and the next sweep repoints the link (`TestComeBackRevivesUncoveredCopy`). A copy another file now holds, in part or
+  whole, is left as it is for the comparison that puts it back or keeps it aside; so is one while paused or of a
+  version no longer monitored (`TestComeBackLeavesCoveredOrStoppedCopy`). The import that brings a file for an open
+  row's film or episodes notes it fixed (`fixed_by` `replaced`, the new release) in its transaction and, after the
+  commit, reports the watched file's outcome `replaced` once (`TestPlayingReplacedByImport`). `OnPlayingOutcome` is the
+  one hook told each incident's outcome (`internal/outcome`); nothing is deleted from any account.
 - **An implausible listing is a mount that is down** (`Mount.checkListing`). `Healthy` only stats
   `__all__`, and a zurg that restarted can serve it present but empty or half-loaded. So relink, the dangling report,
   and `Verify` refuse with `ErrMountDown` (nothing marked dead or missing, no title flipped to

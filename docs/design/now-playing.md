@@ -5,10 +5,11 @@ on which player, how Plex streams it, and whether it plays smoothly. When it doe
 For managers and admins it also shows where the file comes from: Theatarr's link, the versions, the release, the
 providers holding the content (marked **single copy** when only one does) and the zurg account serving it. It also
 shows the mount's fetch speed and the **next-episode pre-warm** (a head check, then the whole file read into the
-mount's cache). All state is kept in memory: there is no history
-table and no migration.
+mount's cache). The playbacks are kept in memory only; the one thing kept in the database is a file that broke while
+someone played it (table `playing_break`, below).
 
-Code: `internal/nowplaying` (tracker, mapping, verdict, pre-warm, rclone rc client), `internal/plex/sessions.go`
+Code: `internal/nowplaying` (tracker, mapping, verdict, pre-warm, rclone rc client, `rescue.go` and `incidents.go` for a
+file that stops working), `internal/plex/sessions.go`
 (sessions and the notification websocket), `internal/library` (`ZurgAPI.Stats`, the log followers' `OnLine`,
 `Library.Prewarm`), `cmd/theatarr/servenowplaying.go` (the `nowplaying` live-settings worker), `internal/web/nowplaying.go`
 (the API), `web/src/pages/now-playing.tsx` (the page).
@@ -149,6 +150,64 @@ An ongoing cache read's progress is shared with viewers of the same series versi
 being cached, including when the viewer who started it leaves or switches shows. Viewers of other episodes, titles
 and versions do not receive that progress.
 
+## A file that stops working while it plays
+
+When the file someone plays breaks on the debrid side, Theatarr checks it at once and replaces it, instead of
+leaving it to the hourly sweep's two misses and zurg's repair grace (`internal/nowplaying/rescue.go`; the library's part:
+`docs/design/library.md` "A file that broke while someone played it"; the search: `docs/design/router.md` "A file that
+broke while playing is searched at once").
+
+- **Which file.** Only a file that is certain: Plex's path is an active Theatarr symlink into the mount, and its library
+  is decided (Plex's path is the link's own, or lies in exactly one library's roots). A regular file, an arr's own
+  symlink or a target several libraries share with no deciding path is never checked. The hash it is copied and its
+  siblings found by is the one the link has stored (an adopted link's source included), else the one release the
+  registry records in its folder; one only guessed from a folder name gives no copy and no sibling check.
+- **The signs.** Plex says buffering; the playback ends below 90 % of its duration (seen where a poll drops the
+  session; a failed poll is not a stop); with zurg, `/stats` lists a blocked read of the file, or its log calls the
+  file broken or its download link broken. Not slow playback, starved reads, rate limits, cooldowns or pre-warm
+  failures. Pause on or a library that writes nothing: no check. One check runs at a time, in one worker beside the
+  poll (the poll, the websocket and the sweep never wait for it); a live playback's check goes before a stopped one's;
+  a file that read fine (or gave no verdict) is not checked again for 2 minutes.
+- **The reads** (`Library.ReadPiece`): 256 KiB through the mount, never from a provider, at the play position plus
+  64 MiB but never into the second half of what is left (players read the tail on open, so it is cached), with a 15 s
+  limit. A read error, zero bytes where the file has them, or no answer in time is a failure; a time-out kills only
+  that read's helper and counts neither toward the mount's breaker nor toward the helpers' back-off, and no read starts
+  while a helper so killed lingers (without helpers: none after two abandoned reads). An open breaker, every helper busy
+  or held back, a cancelled read: no verdict, the check ends quietly. Read 1 fails; 20 s; read 2 fails; the mount still
+  lists (`MountListed`, with zurg's `/ready`); the control read (below); read 3 of the same range fails. Any read that
+  passes ends the check: nothing is marked, stopped or recorded. That is about a minute from the sign.
+- **Mount, account or release** (the control read, at mid-file of another release). The serving account is zurg's last
+  "Large transfer" account, else the release's only complete holder in the record. A release only it holds reads: only
+  this release is broken. It fails: one only another account holds is read; that reads: the account is out; it fails,
+  or there is none: the mount, and nothing is done. zurg saying the account cools down also means it is out. With the
+  account unknown any other release must read; the release then counts as broken on each holder.
+- **The repair.** The bound first: one incident per title and library a day; a second one that day gets no fast
+  path (the hourly path as today). Then the incident is recorded, and: **step 1**, the same release on another account
+  of the library, in its provider order, as the automatic "Add to other providers" adds it (one account at a time; it
+  counts when the release was added there or is there complete), the rclone listing of its folder forgotten where
+  configured, and the same range read every 10 s for up to a minute: it reads, the incident settles `copy` (link
+  unchanged, outcome "readable again"); it does not, that account gets the release's miss too. **Step 2**, the file is
+  marked dead at once and one `playing` search is queued for it, held to its episodes and off the accounts it failed
+  on. Not on a client-routed (decypharr) version, which has no step 1: the miss on the client's key makes its client
+  take a different release. The account out and no other in the library (or a client version): nothing is replaced,
+  the incident settles `none`, outcome unavailable. **The release's other files** are then read the same way, at
+  mid-file: one whose read and an immediate retry both fail joins the incident and is marked dead; their search is
+  queued together once the watched file's search has ended. The outcome, one per incident about the watched file, is
+  sent through `Library.OnPlayingOutcome`: `same_release`, `replaced` (an import fixed it), `unavailable` (nothing
+  could be done, or its search ended with nothing imported and nothing in flight), `restored`.
+- **Telling the viewer** (`tell`; `plex.Client.Terminate`: `GET /status/sessions/terminate?sessionId=…&reason=…`, the
+  token in the header, through the gateway; `Session.ID` is the nested `Session.id`). Once the break is confirmed (after
+  read 3; when step 1 has a candidate, after 30 s of it; a file that reads again gets no message), the same playback
+  (session id, viewer, item and part), read from Plex right before, is stopped with "This file stopped working.
+  Looking for another copy. Try again in a few minutes.", or "This file stopped working. Try again later." when nothing
+  will be done (the day's bound reached, the account out with no other). Only when it is buffering or its position has
+  not moved since the sign; one still advancing gets it at its next sign; a paused one never; no session left: nothing
+  is sent. Never when the mount is the problem, never after a read that passed. `Options.StopWithMessage` switches it
+  (on when unset); off, nothing is ever sent to Plex. A refusal by Plex is logged once and kept on the incident.
+- **Incidents.** `Tracker.Incidents` lists the last 24 hours' incidents (title, episodes, how many files, viewer,
+  player, the old and new release, what the player was told) as "Looking for another copy", "Replaced", "Readable
+  again", "No other copy" or "Earlier copy put back".
+
 ## Who sees what
 
 `GET /nowplaying` needs the browse permission. Managers and admins (see files) get everything: every playback, its
@@ -166,8 +225,9 @@ off or nothing plays. Its reads count as a look at the page, so the tracker poll
 
 ## Not in it
 
-There is no play history (and no Tautulli), no movie or details-page warming, no provider adds or restores, no
-changes to zurg, Plex or the mount, and no mid-stream failover.
+There is no play history (and no Tautulli), no movie or details-page warming, no provider adds or restores beyond the
+repair's "Add to other providers" of a broken release, no changes to zurg or the mount, nothing sent to Plex but the
+stop of a broken stream, and no mid-stream failover.
 
 ## Tests
 
@@ -182,7 +242,16 @@ fragments, pings answered with pongs, close, size limit, closed on cancel throug
 The caching read's tests cover the start past half, once per session and link, progress, the size cap, a read error
 and that it runs to the end after its session ends or moves on. `internal/library/nowplaying_test.go` covers the head read (at most
 4 MiB from offset 0, closed at once, in process and in a helper) and the whole-file read (in order, rate cap,
-progress). `internal/web/nowplaying_test.go`
+progress). `internal/nowplaying/rescue_test.go` covers the file that stops working on a temporary folder as the mount with the
+real library: replaced within two minutes of the sign on a zurg mount; the same release from another account; a mount
+with no zurg API and no log on a client-routed version; a file that reads fine; a restart-length outage; the mount
+down; one account out (with and without another); a pack's other files searched together after the watched one's
+search; the day's bound; a hung read that blocks neither poll nor page; an early stop, and an arr's symlink never
+checked; the come-back after two sweeps; and the message (once confirmed, after step 1's 30 s, never with the setting
+off, without a session or while paused, at the next sign while advancing, "try again later", a refusal kept).
+`internal/library/readpiece_test.go` covers the piece read's verdicts (a cached head and an unreadable piece, helper
+errors give none, a hang in process and in a helper counted nowhere, a sweep unblocked beside a lingering helper).
+`internal/web/nowplaying_test.go`
 covers the redaction for users, `web/src/lib/now-playing.test.ts` the page's labels and
 `web/src/components/now-playing-card.test.tsx` the Home card.
 
