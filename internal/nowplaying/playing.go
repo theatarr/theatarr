@@ -2,26 +2,26 @@ package nowplaying
 
 import "time"
 
-// Playing is what Plex plays now as the library's put-back asks it (library.PlayingNow): each session's Theatarr
-// link and link target, and the titles of the sessions that may be playing another of the item's files (Plex lists
-// several media or parts without saying which plays, or the file is not Theatarr's for certain; 0 for a session
-// whose title is not known). answered: the last poll of Plex, within fresh, answered. Unlike Snapshot it does not
-// make the tracker poll faster.
-func (t *Tracker) Playing(fresh time.Duration) (links []int64, targets []string, unclear []int64, answered bool) {
+// MayPlay answers the library's put-back (library.PlayingNow) about one replacement, its link, target and title:
+// may a session be playing it? Yes for a session playing it (its link or its target), and for a session of the same
+// title whose file Plex did not say (several media or parts, none marked) or is not Theatarr's for certain; no for any
+// other session, a session with no Theatarr title among them. answered: the last poll of Plex, within fresh,
+// answered. Unlike Snapshot it does not make the tracker poll faster.
+func (t *Tracker) MayPlay(linkID int64, target string, titleID int64, fresh time.Duration) (may, answered bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.err != "" || t.updatedAt.IsZero() || t.o.Now().Sub(t.updatedAt) > fresh {
-		return nil, nil, nil, false
+		return false, false
 	}
 	for _, se := range t.sess {
-		if se.src == nil {
-			unclear = append(unclear, 0)
-			continue
-		}
-		links, targets = append(links, se.src.LinkID), append(targets, se.src.Target)
-		if se.s.Ambiguous || !se.src.certain {
-			unclear = append(unclear, se.src.TitleID)
+		src := se.src
+		switch {
+		case src == nil:
+		case linkID != 0 && src.LinkID == linkID, target != "" && src.Target == target:
+			return true, true
+		case src.TitleID == titleID && (se.s.Ambiguous || !src.certain):
+			return true, true
 		}
 	}
-	return links, targets, unclear, true
+	return false, true
 }

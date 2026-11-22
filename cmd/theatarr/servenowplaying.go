@@ -28,14 +28,14 @@ func nowPlayingSnapshot() *nowplaying.Snapshot {
 	return &s
 }
 
-// nowPlayingFiles is what Plex plays now for the library's put-back (library.PlayingNow, nowplaying.Tracker.Playing):
-// nothing answered while the tracker is off or its last poll of Plex, within two minutes, failed.
-func nowPlayingFiles() ([]int64, []string, []int64, bool) {
+// nowPlayingFiles answers the library's put-back (library.PlayingNow, nowplaying.Tracker.MayPlay): nothing answered
+// while the tracker is off or its last poll of Plex, within two minutes, failed.
+func nowPlayingFiles(linkID int64, target string, titleID int64) (bool, bool) {
 	t := serveNowPlaying.Load()
 	if t == nil {
-		return nil, nil, nil, false
+		return false, false
 	}
-	return t.Playing(2 * time.Minute)
+	return t.MayPlay(linkID, target, titleID, 2*time.Minute)
 }
 
 // nowPlayingLine forwards a zurg log line to the tracker.

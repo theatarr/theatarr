@@ -19,10 +19,9 @@ import (
 // someone played it, replaced since and read again on two sweeps, comes back in place of its replacement through the
 // same return as Undo (return.go), when it is a strict win under today's profile; else it is kept aside as before.
 
-// PlayingNow answers what Plex is playing now: each session's link (its id) and link target, the titles of the
-// sessions that may be playing another file of their item (Plex did not say which; 0: a session whose title is not
-// known), and whether Plex answered lately (false: nothing can be said).
-type PlayingNow func() (links []int64, targets []string, unclear []int64, answered bool)
+// PlayingNow answers whether a Plex session may be playing a replacement (its link, target and title): playing it, or
+// a session of its title whose file is not identified; answered false while Plex has not answered lately.
+type PlayingNow func(linkID int64, target string, titleID int64) (may, answered bool)
 
 // SetPlayingNow sets the answer the put-back asks before it displaces a file (nil: Plex never answers, so nothing is
 // put back).
@@ -164,12 +163,10 @@ func (l *Library) putBackCopy(ctx context.Context, r returned, target string) (a
 	if l.playingNow == nil {
 		return false, nil
 	}
-	links, targets, unclear, answered := l.playingNow()
-	if !answered || slices.Contains(unclear, r.titleID) || slices.Contains(unclear, 0) {
-		return false, nil // a session that may be playing the replacement: a later sweep
-	}
-	if slices.Contains(links, cur.id) || slices.Contains(targets, cur.target) {
-		l.log.Info("library: put-back waits: its replacement is playing", "link", r.path, "playing", cur.path)
+	if may, answered := l.playingNow(cur.id, cur.target, r.titleID); !answered || may {
+		if may {
+			l.log.Info("library: put-back waits: its replacement may be playing", "link", r.path, "replacement", cur.path)
+		}
 		return false, nil
 	}
 	reported := false

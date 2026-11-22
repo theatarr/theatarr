@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -40,7 +41,9 @@ func newCoveredEnv(t *testing.T, old, nw string, samePath bool) *coveredEnv {
 		c.outcomes = append(c.outcomes, o.Kind)
 		c.mu.Unlock()
 	})
-	e.lib.SetPlayingNow(func() ([]int64, []string, []int64, bool) { return c.playing, nil, c.unclear, !c.silent })
+	e.lib.SetPlayingNow(func(link int64, _ string, title int64) (bool, bool) {
+		return slices.Contains(c.playing, link) || slices.Contains(c.unclear, title), !c.silent
+	})
 	e.exec(`UPDATE link SET quality = ? WHERE id = 1`, old)
 	e.exec(`UPDATE playing_break SET quality = ?, fixed_by = 'replaced', new_release = 'Other', reported = 'replaced'
 		WHERE id = ?`, old, id)

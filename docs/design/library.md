@@ -1009,7 +1009,7 @@ before 00152 has no snapshot and gets no Undo; nor does one whose trash copy was
     write, while the incident's search is open, while the replacement is being played (a session's link or target),
     while a session of the title does not say which file it plays (Plex lists several media or parts, or the file is
     not Theatarr's for certain), or while Plex has not answered lately (the now playing tracker off, or its last poll
-    failed or is over two minutes old; `Tracker.Playing`). Then the row is settled
+    failed or is over two minutes old; `Tracker.MayPlay`, one question about the one replacement: a session of another title, or with no Theatarr title, never makes it wait). Then the row is settled
     `restored`, the miss lifted, and the outcome `restored` ("Earlier copy put back") is sent once by its own
     transition (ReportPlaying would send nothing after "replaced"). Its actions' details start "earlier copy put
     back": the journal says so, and History has the playing row only, no "Removed". No blocklist, no search, no
