@@ -2,6 +2,7 @@ import { Columns3, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router";
+import { useBulkMonitor } from "@/api/copies";
 import { useStatus } from "@/api/hooks";
 import { useMonitor, useScopedSearch } from "@/api/manage";
 import { useLibraryName } from "@/lib/library-names";
@@ -250,6 +251,15 @@ export function WantedPage() {
   // The regular repeat runs only while a backlog switch is on.
   const backlogOn = d ? d.missing || d.cutoff_unmet !== "off" : false;
   const name = (row: WantedRow) => d?.titles[row.title_id] || `Title ${row.title_id}`;
+  // A film row's Unmonitor turns off that one copy (the library's bulk monitor with one title and one library); a
+  // season row has it per episode.
+  const qc = useQueryClient();
+  const unmonitor = useBulkMonitor();
+  const unmonitorFilm = (row: WantedRow) => unmonitor.mutate({ title_ids: [row.title_id], versions: [row.version], monitored: false }, {
+    onSuccess: (o) => toast({ tone: "ok", title: "Not monitored", body: `${name(row)} in ${label(row.version)}: ${o.message}.` }),
+    onError: failed("Not changed"),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["wanted"] }),
+  });
   const titleName = title ? d?.titles[title] || `Title ${title}` : "";
   const sortBy = (column: string) => {
     const c = column as keyof typeof FIRST;
@@ -280,6 +290,7 @@ export function WantedPage() {
       {/* With Last search hidden, the decision link stays a row action. */}
       {row.decision_id && perms.admin && !prefs.shown.includes("last") ? <DecisionLink row={row} /> : null}
       <button type="button" className="text-primary hover:underline disabled:cursor-not-allowed disabled:text-[var(--ink-3)] disabled:no-underline" disabled={!!why || asked(row) || search.isPending} title={why || (asked(row) ? "Already asked for" : undefined)} onClick={() => request({ body: { only, items: [rowItem(row)] }, count: 1, title: "Search now" }, false)}>Search now</button>
+      {row.targets.includes("movie") ? <button type="button" className="text-primary hover:underline disabled:cursor-not-allowed disabled:text-[var(--ink-3)] disabled:no-underline" aria-label={`Unmonitor ${name(row)}`} disabled={unmonitor.isPending} onClick={() => unmonitorFilm(row)}>Unmonitor</button> : null}
       {why && row.waiting !== "downloads_off" && row.waiting !== "in_flight" ? <span className="text-[var(--ink-3)]" data-testid="search-blocked">{why}</span> : null}
     </div>;
   };

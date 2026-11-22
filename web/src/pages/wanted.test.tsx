@@ -579,3 +579,15 @@ it("hides Search selected with the checkboxes while paused", async () => {
   await screen.findByTestId("wanted-row");
   expect(screen.getByRole("button", { name: "Search selected (0)" })).toBeTruthy();
 });
+
+it("offers Unmonitor on a film row, which turns off that one copy and reads the list again", async () => {
+  const user = userEvent.setup();
+  const fetch = mockFetch([admin, { method: "GET", path: "/wanted", reply: page }, status,
+    { method: "POST", path: "/titles/monitor", reply: { dry_run: false, items: [], changed: 1, unchanged: 0, missing: 0, stale: 0, message: "Unmonitored 1 copy in 1 library" } }]);
+  renderPage(<WantedPage />, "/wanted");
+  const r = await screen.findByTestId("wanted-row");
+  await user.click(within(r).getByRole("button", { name: "Unmonitor Alpha" }));
+  await waitFor(() => expect(fetch.calls("POST", "/titles/monitor")).toHaveLength(1));
+  expect(fetch.calls("POST", "/titles/monitor")[0].body).toEqual({ title_ids: [1], versions: ["movie-web"], monitored: false });
+  await waitFor(() => expect(fetch.calls("GET", "/wanted").length).toBeGreaterThan(1));
+});
