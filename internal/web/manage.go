@@ -1279,6 +1279,7 @@ func (w *Web) storedEpisodeReleases(ctx context.Context, out *Releases, it evIte
 		if !strings.EqualFold(best.target, it.code()) {
 			out.Message += ", which covered " + it.code()
 		}
+		out.Message += storedSearchWhy(ctx, db, best.run)
 	}
 	// A wider search's result count is the whole search's, not this episode's candidates: storedGrabbed says so.
 	scope := ""

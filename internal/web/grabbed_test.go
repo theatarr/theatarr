@@ -1139,3 +1139,22 @@ func TestMergedSearchHistoryByEpisodes(t *testing.T) {
 		t.Fatalf("summaries %v", sums)
 	}
 }
+
+// The stored search of a file that stopped working while playing says so in the Last search's words.
+func TestStoredPlayingSearchWords(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	now := store.Millis(testNow)
+	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, state, results, accepted,
+		message, research, created_at, updated_at) VALUES (51, 'wanted', 1, 2, 'movie-web', 'movie', 'nothing', 3, 0,
+		'', 'playing', ?, ?)`, now-5000, now-5000)
+	e.exec(`INSERT INTO journal_decision (id, source, run_id, title_id, version_key, target, results, accepted,
+		candidates, created_at) VALUES (95, 'acquire:51', 51, 1, 'movie-web', 'movie', 3, 0, '[]', ?)`, now-5000)
+	var r Releases
+	if code := e.getKey(APIBase+"/titles/1/releases?version=movie-web", e.apiKey(), &r); code != 200 {
+		t.Fatalf("releases %d", code)
+	}
+	if r.Message != "From a search after it stopped working while playing" {
+		t.Errorf("message %q", r.Message)
+	}
+}
