@@ -118,13 +118,14 @@ function ReplacedToggle({ e }: { e: ActivityEvent }) {
   );
 }
 
-/** Where Undo goes on a row, decided once: with one replaced file the server offers it for, in the row's actions;
- *  with several, beside each of them in the opened list. */
 type HistoryFile = NonNullable<ActivityEvent["replaced"]>[number];
 
+/** Where Undo goes on a row, decided once and by the number of replaced files: a row that replaced one file has it
+ *  in its actions; a row that replaced several has it beside each file the server offers it for, in the opened list. */
 function undoPlacement(e: ActivityEvent): { row?: HistoryFile; perFile: ReadonlySet<HistoryFile> } {
-  const eligible = (e.replaced ?? []).filter((f) => f.undo && f.id);
-  return eligible.length === 1 ? { row: eligible[0], perFile: new Set() } : { perFile: new Set(eligible) };
+  const files = e.replaced ?? [];
+  const eligible = files.filter((f) => f.undo && f.id);
+  return files.length === 1 ? { row: eligible[0], perFile: new Set() } : { perFile: new Set(eligible) };
 }
 
 /** The first episode a file held as [season, episode]; files without one go last. */
