@@ -359,19 +359,29 @@ func (t *Tracker) check(ctx context.Context, lib Rescuer, j *sign) {
 		passed(r)
 		return
 	}
+	// Plex's size may be an older file's at the same path: when the mounted file's size can be read, the next reads take
+	// their range from it. A read 1 that started at or past its end failed for that alone: it is no failure, and the
+	// count starts again at the corrected range. A file whose size cannot be read (gone from the mount) keeps its range;
+	// its reads fail as any unreadable file's.
+	if mounted, err := lib.MountFileSize(ctx, src.Target); err == nil {
+		if mounted < 2*pieceSize {
+			fine()
+			return
+		}
+		past := off >= mounted
+		if off = pieceOffset(j.s.ViewOffset, j.s.Duration, mounted); off >= mounted {
+			fine()
+			return
+		}
+		if past {
+			if r := t.read(ctx, lib, src.Target, off); r != readFailed {
+				passed(r)
+				return
+			}
+		}
+	}
 	// A zurg cooldown line counts only when logged from here on (control).
 	failedAt := t.o.Now()
-	// Plex's size may be an older file's at the same path: the next reads take their range from the mounted file's size,
-	// and one that would start at or past its end is no evidence (the first read may have failed only for that).
-	mounted, err := lib.MountFileSize(ctx, src.Target)
-	if err != nil || mounted < 2*pieceSize {
-		fine()
-		return
-	}
-	if off = pieceOffset(j.s.ViewOffset, j.s.Duration, mounted); off >= mounted {
-		fine()
-		return
-	}
 	log.Info("nowplaying: a playing file did not read; reading it again", "offset", off)
 	if t.sleep(ctx, retryGap) != nil {
 		fine()

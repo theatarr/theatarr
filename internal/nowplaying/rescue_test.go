@@ -1764,3 +1764,41 @@ func TestRescueSiblingPassHoldsIncident(t *testing.T) {
 		t.Errorf("reads while held %v, held after %d", e.lib.heldReads, e.lib.held)
 	}
 }
+
+// A watched file gone from a mount that still lists has no size to read: the reads fail and the check goes on to the
+// control read and the repair, as for any unreadable file.
+func TestRescueMissingFileStillRepaired(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	if err := os.Remove(filepath.Join(e.mount, "__all__", "Rel", "S01E02.mkv")); err != nil {
+		t.Fatal(err)
+	}
+	e.copyOK["ad"] = true
+	e.play(2, "buffering")
+	e.poll()
+	if fmt.Sprint(e.copies) != "[ad]" || e.one(`SELECT COUNT(*) FROM playing_break`) != "1" {
+		t.Errorf("copies %v, %s incidents", e.copies, e.one(`SELECT COUNT(*) FROM playing_break`))
+	}
+}
+
+// Read 1 started past the end of a shorter file (Plex's size an older file's): it is no failure, and the count starts
+// again at the corrected range: two failures there are not enough, the third marks the file.
+func TestRescueOutOfRangeReadDoesNotCount(t *testing.T) {
+	for _, c := range []struct {
+		fails int
+		want  string
+	}{{2, "active"}, {3, "dead"}} {
+		e := newRescueEnv(t, false, false)
+		if err := os.Truncate(filepath.Join(e.mount, "__all__", "Rel", "S01E02.mkv"), fileSize/2); err != nil {
+			t.Fatal(err)
+		}
+		e.lib.setBroken("S01E02.mkv", c.fails+1) // the out-of-range read 1, then c.fails in range
+		e.play(2, "buffering")
+		e.plex.mu.Lock()
+		e.plex.ss[0].ViewOffset = 2_100_000
+		e.plex.mu.Unlock()
+		e.poll()
+		if got := e.one(`SELECT state FROM link WHERE id = 11`); got != c.want {
+			t.Errorf("%d in-range failures: link %s, want %s", c.fails, got, c.want)
+		}
+	}
+}
