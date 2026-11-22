@@ -8,6 +8,8 @@ export type AddChoice = {
   /** Every version to have on: the new ticks and the ones already on. */
   versions: string[];
   seasons?: { season: number; monitored: boolean }[];
+  /** A series in the library: the seasons changed in the sheet (the copies it has take only these). */
+  changedSeasons?: number[];
   search: boolean;
   anime: boolean;
   /** A new series' monitor preset; unset sends the seasons as picked (today's request). */
@@ -36,7 +38,7 @@ export function addRequest(target: AddTarget, opts: Pick<AddOptions, "kind" | "t
   // adds no key.
   const movie: Partial<AddRequest> = kind === "movie" && c.minimumAvailability ? { minimum_availability: c.minimumAvailability } : {};
   const common = { versions: c.versions, seasons: c.monitor && kind === "series" && fresh ? undefined : c.seasons, search: c.search, ...movie };
-  if (!fresh) return { title_id: titleId, kind, ...common };
+  if (!fresh) return { title_id: titleId, kind, ...common, ...(kind === "series" && c.seasons && c.changedSeasons ? { changed_seasons: c.changedSeasons } : {}) };
   // The preset, the new-seasons choice and the type are a new series' only: the request names the libraries the
   // title already has too, and they would be rewritten; the type is the one the series has. Each left at its default adds no key, so the body is the one sent before
   // these choices existed. monitor_new none alone would leave the seasons of the first refresh unmonitored as well

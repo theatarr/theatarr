@@ -230,16 +230,15 @@ export function AddSheet({ target, onClose, onLeave }: { target: AddTarget; onCl
   const submit = (search: boolean) => {
     if (!o) return;
     // Chosen seasons send every shown season's choice, specials included, and no preset.
-    // Save seasons on a series in the library sends only the seasons changed here, so the others keep their own
-    // episode choices; a new copy takes every shown season.
-    const onlyChanged = current && chosen.length === 0;
-    const seasonList = o.kind === "series" && (epKnown || choosing)
-      ? (o.seasons ?? []).filter((s) => !onlyChanged || (seasons[s.season] !== undefined && seasons[s.season] !== seasonDefault(s))).map((s) => ({ season: s.season, monitored: seasonOn(s.season, seasonDefault(s)) }))
-      : undefined;
+    const seasonList = o.kind === "series" && (epKnown || choosing) ? (o.seasons ?? []).map((s) => ({ season: s.season, monitored: seasonOn(s.season, seasonDefault(s)) })) : undefined;
+    // A series in the library: a new copy takes every shown season, the copies it has only the seasons changed here
+    // (changed_seasons), so their other seasons keep their own episode choices.
+    const changedSeasons = current && seasonList ? (o.seasons ?? []).filter((s) => seasons[s.season] !== undefined && seasons[s.season] !== seasonDefault(s)).map((s) => s.season) : undefined;
     add.mutate(
       addRequest(target, o, {
         versions: [...chosen, ...versions.filter((v) => v.on).map((v) => v.key)],
         seasons: seasonList,
+        changedSeasons,
         search: canSearch && search,
         anime,
         monitor: preset,

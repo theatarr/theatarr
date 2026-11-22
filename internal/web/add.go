@@ -453,6 +453,10 @@ type AddRequest struct {
 	MinimumAvailability string `json:"minimum_availability"`
 	// Search asks for a search after the add, for the versions catalog.Searchable lets through.
 	Search bool `json:"search"`
+	// ChangedSeasons, for a series in the library, are the season numbers the person changed: Seasons then apply in
+	// full only to the copies this add turns on (and their partners in sync), and the copies the title has take
+	// only these seasons. Absent: Seasons apply to every copy of the add.
+	ChangedSeasons []int `json:"changed_seasons"`
 
 	// Set by a request's approval only: Seasons apply to seasonVersions (nil: every version of the add), and
 	// moreSeasons are monitored in moreVersions, versions the series already has, leaving their other seasons as
@@ -708,6 +712,27 @@ func (w *Web) addTitle(ctx context.Context, req AddRequest, source string) (*Add
 		w.fillFromTMDb(ctx, &req, kind)
 	}
 	monitored := req.Monitored == nil || *req.Monitored
+	// The copies the series has, which keep their seasons but the ones changed (ChangedSeasons).
+	var kept []string
+	if req.ChangedSeasons != nil && req.TitleID > 0 && kind == policy.KindSeries && req.seasonVersions == nil {
+		_, held, err := w.versionsHeld(ctx, req.TitleID)
+		if err != nil {
+			return nil, err
+		}
+		fresh := []string{}
+		for _, k := range req.Versions {
+			if slices.Contains(held, k) {
+				kept = append(kept, k)
+			} else {
+				fresh = append(fresh, k)
+			}
+		}
+		if len(held) > 0 {
+			req.seasonVersions = fresh
+		} else {
+			kept = nil // every copy was removed: the add restores it like a new one
+		}
+	}
 	in := catalog.Input{Kind: kind, TitleID: req.TitleID, TmdbID: req.TMDbID, TvdbID: req.TVDbID, ImdbID: strings.TrimSpace(req.IMDbID),
 		Title: req.Title, Year: req.Year, Anime: req.Anime, Monitored: monitored, Seasons: req.Seasons, Source: source,
 		MonitorNew: req.MonitorNew, Monitor: req.Monitor, SeriesType: req.SeriesType, SeasonVersions: req.seasonVersions,
@@ -775,6 +800,13 @@ func (w *Web) addTitle(ctx context.Context, req AddRequest, source string) (*Add
 		if !res.Created && !restored && req.SeriesType != "" {
 			// The type is the series' one value, shared by the copies it has: an add never changes it.
 			return &addError{http.StatusBadRequest, fmt.Sprintf("series_type is for a new title: this one is already in the library (title %d)", res.TitleID)}
+		}
+		for _, se := range req.Seasons {
+			if len(kept) > 0 && slices.Contains(req.ChangedSeasons, se.Number) {
+				if err := catalog.SetSeasonMonitored(ctx, tx, res.TitleID, kept, se.Number, se.Monitored, w.now()); err != nil {
+					return err
+				}
+			}
 		}
 		if req.newSeasonsOff && len(res.New) > 0 {
 			if err := catalog.SetMonitorNew(ctx, tx, res.TitleID, res.New, catalog.MonitorNone, w.now()); err != nil {

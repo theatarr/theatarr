@@ -2538,3 +2538,36 @@ func TestMovieAnimeSkip(t *testing.T) {
 		t.Errorf("anime_skip: %v", skipped)
 	}
 }
+
+// TestAddCopyKeepsTheOtherCopysSeasons: adding a library to a series in the library gives the new copy the sheet's
+// seasons in full, and the copy it has only the seasons the person changed (changed_seasons).
+func TestAddCopyKeepsTheOtherCopysSeasons(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, func(p *policy.Policy) {
+		tv := *p.Versions["tv-2160p"]
+		tv.Library = "/media/tv-1080p"
+		p.Versions["tv-1080p"] = &tv
+	})
+	e.exec(`UPDATE episode_version_state SET monitored = 0 WHERE version_id = 10 AND episode_id = 102`)
+	monitored := func(k string) string {
+		var out []string
+		_ = scanAll(context.Background(), e.st.Reader(), `SELECT s.episode_id FROM episode_version_state s
+			JOIN version v ON v.id = s.version_id WHERE v.title_id = 10 AND v.policy_key = ? AND s.monitored = 1
+			ORDER BY s.episode_id`, []any{k}, func(r *sql.Rows) error {
+			var s string
+			out = append(out, s)
+			return r.Scan(&out[len(out)-1])
+		})
+		return strings.Join(out, ",")
+	}
+	seasons := []map[string]any{{"season": 0, "monitored": false}, {"season": 1, "monitored": true}, {"season": 2, "monitored": false}}
+	e.call("POST", APIBase+"/titles", map[string]any{"title_id": 10, "kind": "series", "versions": []string{"tv-1080p", "tv-2160p"},
+		"seasons": seasons, "changed_seasons": []int{2}}, 201, nil)
+	if got := monitored("tv-1080p"); got != "101,102" {
+		t.Errorf("new copy monitors %q, want 101,102", got)
+	}
+	// S01E02 stays off in the copy the title had; season 2, changed, follows the sheet.
+	if got := monitored("tv-2160p"); got != "101" {
+		t.Errorf("existing copy monitors %q, want 101", got)
+	}
+}

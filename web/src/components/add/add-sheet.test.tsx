@@ -184,10 +184,10 @@ it("keeps one Save seasons when only the seasons of a series in the library chan
   expect(screen.queryByTestId("add-submit-search")).toBeNull();
   expect(screen.getByTestId("add-count").textContent).toBe("1 library");
   await user.click(screen.getByTestId("add-submit"));
-  expect(await bodyOf(fetch)).toEqual({ title_id: 10, kind: "series", versions: ["tv-old"], seasons: [{ season: 1, monitored: false }], search: false });
+  expect(await bodyOf(fetch)).toEqual({ title_id: 10, kind: "series", versions: ["tv-old"], seasons: [{ season: 1, monitored: false }], changed_seasons: [1], search: false });
 });
 
-it("saves only the season changed for a series in the library, leaving its other seasons as they are", async () => {
+it("names the season changed for a series in the library, so its other seasons stay as they are", async () => {
   const seasons = [{ season: 0, episodes: 2, monitored: false }, { season: 1, episodes: 8, monitored: true }, { season: 2, episodes: 8, monitored: false }];
   const inLibrary = { ...seriesOptions, title_id: 10, episodes_known: true, seasons, versions: [{ ...tv, key: "tv-old", on: true, default: false }] };
   const fetch = mockFetch(routes(inLibrary));
@@ -195,7 +195,7 @@ it("saves only the season changed for a series in the library, leaving its other
   renderPage(<AddSheet target={{ kind: "series", name: "Kappa", title_id: 10 }} onClose={() => {}} />);
   await user.click(within(await screen.findByTestId("add-seasons")).getAllByRole("checkbox")[0]);
   await user.click(screen.getByTestId("add-submit"));
-  expect(await bodyOf(fetch)).toEqual({ title_id: 10, kind: "series", versions: ["tv-old"], seasons: [{ season: 0, monitored: true }], search: false });
+  expect(await bodyOf(fetch)).toEqual({ title_id: 10, kind: "series", versions: ["tv-old"], seasons: [{ season: 0, monitored: true }, { season: 1, monitored: true }, { season: 2, monitored: false }], changed_seasons: [0], search: false });
 });
 
 it("sends today's request for a new series when every new choice is left alone", async () => {
@@ -298,7 +298,8 @@ it("offers neither series choice for a series already in the library", async () 
   expect(await screen.findByTestId("add-seasons")).toBeTruthy();
   for (const id of ["add-monitor", "add-monitor-new", "add-series-type", "add-anime", "add-minimum-availability"]) expect(screen.queryByTestId(id)).toBeNull();
   await user.click(screen.getByTestId("add-submit"));
-  expect(await bodyOf(fetch)).toEqual({ title_id: 10, kind: "series", versions: ["tv-web", "tv-old"], seasons: [{ season: 1, monitored: true }], search: false });
+  // The copy the series has keeps its seasons: none was changed.
+  expect(await bodyOf(fetch)).toEqual({ title_id: 10, kind: "series", versions: ["tv-web", "tv-old"], seasons: [{ season: 1, monitored: true }], changed_seasons: [], search: false });
 });
 
 it("counts only the libraries this click adds for a film already in two", async () => {
