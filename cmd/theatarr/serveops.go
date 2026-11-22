@@ -87,6 +87,16 @@ func (o serveOps) EditFileFacts(ctx context.Context, linkID int64, e library.Fil
 	return o.av.EditFileFacts(ctx, linkID, e)
 }
 
+// UndoOffers and UndoUpgrade give History's Undo (internal/web/undo.go) the library's return through the arr views'
+// service; web answers a refusal (library.ReturnRefused) 409 with its sentence.
+func (o serveOps) UndoOffers(ctx context.Context, ids []int64) (map[int64]string, error) {
+	return o.av.UndoOffers(ctx, ids)
+}
+
+func (o serveOps) UndoUpgrade(ctx context.Context, actionID int64, by string) (*library.Undone, error) {
+	return o.av.UndoUpgrade(ctx, actionID, by)
+}
+
 func renameRefusal(err error) error {
 	if errors.Is(err, library.ErrRefused) {
 		return &arrview.Refused{Reason: err.Error()}

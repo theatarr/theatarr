@@ -829,6 +829,38 @@ for every library, as after an ordinary import; the dialog's answer lists each l
 state and Cutoff unmet are its own. The journal records an `edit_file` action (migration 00150): "Facts corrected
 <file> by <user>: WEBDL-1080p → Bluray-1080p", with each library's score.
 
+
+## Undo an upgrade
+
+A manager puts back the file an import displaced, from History's replaced file of an "Upgraded" or "Replaced" row
+(`library.UndoUpgrade`, `return.go`; `POST activity/replaced/{id}/undo`, the replace action's id). Every displaced
+file's trash row keeps its link row as it was (`link_trash.snapshot`, 00152, written in the import's commit before
+the new link overwrites anything): content file, download, file facts, the adoption fields, folder hash, episodes,
+release, quality, score, and the link that took its place (link id, path, target, download). A replacement made
+before 00152 has no snapshot and gets no Undo; nor does one whose trash copy was purged.
+
+- **Offered** (History's `undo`, managers only) when the snapshot exists, the recorded successor still holds the
+  slot (its row active at its path and target, and no active link at the earlier path), and the earlier file is on
+  the mount (a stat). No quality comparison and no wrong-audio check (the owner's choice, as Manual import); it does
+  not wait for a player.
+- **A return** builds a plan of one link (the earlier path, mount target and episodes; no download row) and writes it
+  through `installLinks`; no other library, no blocklist from a failure, no retry, no search. Under the leases it
+  checks, else refuses with one sentence and changes nothing: the successor still holds the slot ("The library
+  changed since; nothing was undone"); no other library shares either path ("That library path is shared with
+  another copy"); the successor holds no episode the earlier file does not ("The current file also holds episode 4;
+  the earlier file holds only episode 3"); one piece of the earlier file reads through the mount ("The earlier file
+  is no longer available"). The row is restored exactly from the snapshot (an adopted film keeps its row and every
+  adoption fact); the successor moves to the trash as an upgrade's file would. Any failure, in a link step or the
+  commit, takes back every symlink change and the trash copies it made, and leaves no row (`TestUndoFailedWriteRollsBack`).
+- After it, the undone release is blocked in that library (`router_blocklist`, source library) and marked researched,
+  so no search starts. Its actions' details start "upgrade undone by <who>": History shows one "Upgrade undone" row
+  (event `undone`) with the undone release, never "Removed"; the journal labels both actions "Upgrade undone".
+- A replacement of a gone (dead) file by a lower quality is no upgrade: its replace action's detail ends "its file
+  was gone, and a lower quality took its place", History says "Replaced" and the journal "Replaced", and the journal
+  kind is `grab`. The journal's `upgrade` kind is a download whose import replaced any other file (an adopted file's
+  replacement too), or, before its import replaced anything, one with an earlier import of its episodes
+  (`store.HistoryGrabKindSQL`).
+
 ## Relink and verify
 
 - `Relink` (every `relink_interval`, 1 h): walks each listed root, groups the links into the mount by release folder,

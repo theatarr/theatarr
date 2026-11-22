@@ -109,6 +109,10 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 			})
 		},
 		fence: func(ctx context.Context) error { return l.fence(ctx, d) },
+		linkFailed: func(ctx context.Context, lk *PlannedLink, err error) {
+			_ = l.record(ctx, nil, action{Kind: "link", Mode: modeOf(err), Version: v.Key, DownloadID: d.ID, Path: lk.Path,
+				Target: lk.Target, Detail: err.Error()})
+		},
 		stopped: func(ctx context.Context, made []PlannedLink, moved []trashed, cause error) error {
 			return l.stopped(ctx, d, root, plan, made, moved, cause)
 		},
@@ -187,10 +191,10 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 			}
 			return row, nil
 		},
-		linkTx: func(ctx context.Context, tx *sql.Tx, lk *PlannedLink) error {
-			return recordFile(ctx, tx, d.ID, lk, now)
-		},
-		detail: func(lk *PlannedLink) string {
+		linkTx: func(ctx context.Context, tx *sql.Tx, lk *PlannedLink) (string, error) {
+			if err := recordFile(ctx, tx, d.ID, lk, now); err != nil {
+				return "", err
+			}
 			detail := ""
 			if lk.Exists {
 				detail = "already linked"
@@ -198,7 +202,7 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 			if o := d.Manual[lk.File].Overrides; o != nil && o.ImportMode != "" {
 				detail += "; client importMode " + o.ImportMode + "; Theatarr linked instead; source left in place"
 			}
-			return detail
+			return detail, nil
 		},
 		linkedTx: func(ctx context.Context, tx *sql.Tx, linked []PlannedLink) error {
 			// A file that broke while playing whose film or every episode has a file again: fixed by this import.
@@ -237,13 +241,12 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 					return err
 				}
 			}
-			pj, _ := json.Marshal(plan)
 			if _, err := tx.ExecContext(ctx, `INSERT INTO library_import (download_id, state, mount_folder, last_error, plan, attempts, created_at, updated_at)
 				VALUES (?, ?, ?, ?, ?, 1, ?, ?) ON CONFLICT (download_id) DO UPDATE SET state = excluded.state,
 				mount_folder = excluded.mount_folder, last_error = excluded.last_error, plan = excluded.plan,
 				attempts = CASE WHEN excluded.state = 'partial' AND library_import.state <> 'partial' THEN 1
 					ELSE library_import.attempts + 1 END, updated_at = excluded.updated_at`,
-				d.ID, state, plan.Folder, lastErr, string(pj), now, now); err != nil {
+				d.ID, state, plan.Folder, lastErr, r.plan, now, now); err != nil {
 				return err
 			}
 			var err error

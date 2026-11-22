@@ -1,0 +1,552 @@
+package library
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"slices"
+	"strings"
+
+	"github.com/theatarr/theatarr/internal/decide"
+	"github.com/theatarr/theatarr/internal/decide/format"
+	"github.com/theatarr/theatarr/internal/decide/profile"
+	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/router"
+	"github.com/theatarr/theatarr/internal/store"
+)
+
+// A return puts an earlier file back where an import displaced it (docs/design/library.md "Undo an upgrade"): a
+// plan of exactly one link, the old file's path, mount target and episodes, written through installLinks with every
+// fact of its old row as the import's trash row saved it (link_trash.snapshot). No download row, no other library,
+// no blocklist from a failure, no retry, no search: a return that cannot be made says why in one sentence and
+// changes nothing.
+
+// Return prefixes: the detail of a return's journal actions starts with one, so History reads it as what it is.
+const (
+	undoPrefix = store.HistoryUndonePrefix
+)
+
+// The sentences a refused return answers with.
+const (
+	returnGone    = "The earlier file is no longer available"
+	returnChanged = "The library changed since; nothing was undone"
+	returnShared  = "That library path is shared with another copy"
+)
+
+// ReturnRefused is a return that changed nothing; Sentence says why.
+type ReturnRefused struct{ Sentence string }
+
+func (e *ReturnRefused) Error() string { return e.Sentence }
+
+// trashSnapshot is a displaced file's link row as an import found it, before the new link took its place
+// (link_trash.snapshot), and the link that took it (Successor).
+type trashSnapshot struct {
+	LinkID        int64   `json:"link_id"`
+	State         string  `json:"state"`
+	Target        string  `json:"target"`
+	ContentFileID *int64  `json:"content_file_id,omitempty"`
+	DownloadID    *int64  `json:"download_id,omitempty"`
+	FileMetadata  *string `json:"file_metadata,omitempty"`
+	keptFacts
+	Episodes  []int64   `json:"episodes"`
+	Release   *string   `json:"release,omitempty"`
+	Quality   *string   `json:"quality,omitempty"`
+	Score     *int64    `json:"score,omitempty"`
+	Successor successor `json:"successor"`
+}
+
+// successor is the link that took a displaced file's place.
+type successor struct {
+	LinkID     int64  `json:"link_id"`
+	Path       string `json:"path"`
+	Target     string `json:"target"`
+	DownloadID int64  `json:"download_id,omitempty"`
+}
+
+// readSnapshot reads the link row id (else the row at path) as a trash snapshot; nil when there is none.
+func readSnapshot(ctx context.Context, tx *sql.Tx, id int64, path string) (*trashSnapshot, error) {
+	where, arg := `id = ?`, any(id)
+	if id == 0 {
+		where, arg = `path = ?`, path
+	}
+	s := &trashSnapshot{}
+	var cf, dl, score sql.NullInt64
+	var meta, from, source, media, hash, rel, q sql.NullString
+	err := tx.QueryRowContext(ctx, `SELECT id, state, target, content_file_id, download_id, file_metadata, adopted,
+		adopted_from, adopted_source, adopted_media, folder_hash, release_title, quality, score FROM link WHERE `+where,
+		arg).Scan(&s.LinkID, &s.State, &s.Target, &cf, &dl, &meta, &s.Adopted, &from, &source, &media, &hash, &rel, &q,
+		&score)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	s.ContentFileID, s.DownloadID, s.Score = nullInt(cf), nullInt(dl), nullInt(score)
+	s.FileMetadata, s.Release, s.Quality = nullStr(meta), nullStr(rel), nullStr(q)
+	s.AdoptedFrom, s.AdoptedSource, s.AdoptedMedia, s.FolderHash = nullStr(from), nullStr(source), nullStr(media),
+		nullStr(hash)
+	s.Episodes = []int64{}
+	rows, err := tx.QueryContext(ctx, `SELECT episode_id FROM link_episode WHERE link_id = ? ORDER BY episode_id`,
+		s.LinkID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var e int64
+		if err := rows.Scan(&e); err != nil {
+			return nil, err
+		}
+		s.Episodes = append(s.Episodes, e)
+	}
+	return s, rows.Err()
+}
+
+func nullInt(n sql.NullInt64) *int64 {
+	if !n.Valid {
+		return nil
+	}
+	return &n.Int64
+}
+
+func nullStr(n sql.NullString) *string {
+	if !n.Valid {
+		return nil
+	}
+	return &n.String
+}
+
+// lowerQuality says whether quality now ranks below quality was (both known qualities of the title kind).
+func lowerQuality(kind, now, was string) bool {
+	fl := format.Radarr
+	if policy.Kind(kind) == policy.KindSeries {
+		fl = format.Sonarr
+	}
+	qn, ok := profile.QualityByName(fl, now)
+	qw, ok2 := profile.QualityByName(fl, was)
+	return ok && ok2 && profile.Weight(fl, qn) < profile.Weight(fl, qw)
+}
+
+// undoEntry is the trash entry of a History replacement: the file an import moved aside, as it was.
+type undoEntry struct {
+	version, path, target string
+	snap                  trashSnapshot
+	release               string // the replacing release, as the Undo button names it
+}
+
+// undoEntryOf resolves a replace action (History's replaced file, by its library_action id) to its trash entry with
+// a snapshot, not purged: sql.ErrNoRows when there is none (a replacement before link_trash.snapshot, or a purged
+// trash copy).
+func (l *Library) undoEntryOf(ctx context.Context, actionID int64) (*undoEntry, error) {
+	db := l.st.Reader()
+	var detail string
+	if err := db.QueryRowContext(ctx, `SELECT detail FROM library_action WHERE id = ? AND kind = 'replace'
+		AND mode = 'applied' AND download_id IS NOT NULL`, actionID).Scan(&detail); err != nil {
+		return nil, err
+	}
+	tp, ok := strings.CutPrefix(detail, "moved aside to ")
+	if !ok {
+		return nil, sql.ErrNoRows
+	}
+	tp = strings.TrimSuffix(tp, store.HistoryDeadLower)
+	e := &undoEntry{}
+	var raw string
+	if err := db.QueryRowContext(ctx, `SELECT version_key, path, target, snapshot FROM link_trash WHERE trash_path = ?
+		AND purged_at IS NULL AND snapshot IS NOT NULL`, tp).Scan(&e.version, &e.path, &e.target, &raw); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal([]byte(raw), &e.snap); err != nil {
+		return nil, err
+	}
+	if e.snap.Successor.LinkID == 0 {
+		return nil, sql.ErrNoRows
+	}
+	_ = db.QueryRowContext(ctx, `SELECT COALESCE((SELECT release_title FROM download WHERE id = ?),
+		(SELECT release_title FROM link WHERE id = ?), '')`, e.snap.Successor.DownloadID, e.snap.Successor.LinkID).
+		Scan(&e.release)
+	return e, nil
+}
+
+// holdsSlot says whether the successor still holds the slot: its row active at its path and target, and (when the
+// earlier file had another path) no active link at that path.
+func (e *undoEntry) holdsSlot(ctx context.Context, q rowQuerier) (bool, error) {
+	s := e.snap.Successor
+	var ok bool
+	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM link WHERE id = ? AND path = ? AND target = ?
+		AND state = 'active') AND (? = ? OR NOT EXISTS (SELECT 1 FROM link WHERE path = ? AND state = 'active'))`,
+		s.LinkID, s.Path, s.Target, s.Path, e.path, e.path).Scan(&ok)
+	return ok, err
+}
+
+// UndoWords is the sentence the Undo button shows before it acts.
+func UndoWords(release string) string {
+	return "Undo upgrade: puts the earlier file back and blocks " + release + " in this library"
+}
+
+// UndoOffers says, for History's replaced files (their library_action ids), which offer Undo, with the button's
+// sentence: the replacement's trash entry and snapshot exist, it is the latest replacement of that slot (the
+// recorded successor still holds it), and the earlier file is still on the mount (a stat; the Undo itself reads a
+// piece).
+func (l *Library) UndoOffers(ctx context.Context, ids []int64) (map[int64]string, error) {
+	out := map[int64]string{}
+	if l.mount == nil {
+		return out, nil
+	}
+	for _, id := range ids {
+		e, err := l.undoEntryOf(ctx, id)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if l.pol.Versions[e.version] == nil {
+			continue
+		}
+		if ok, err := e.holdsSlot(ctx, l.st.Reader()); err != nil {
+			return nil, err
+		} else if !ok {
+			continue
+		}
+		p, ok := l.mount.FromLink(e.target)
+		if !ok {
+			continue
+		}
+		if _, err := l.mount.Stat(ctx, p); err != nil {
+			continue
+		}
+		out[id] = UndoWords(e.release)
+	}
+	return out, nil
+}
+
+// Undone is what UndoUpgrade did: the file put back, and the release it blocked in that library.
+type Undone struct {
+	TitleID int64
+	Version string
+	Path    string
+	Release string
+}
+
+// UndoUpgrade puts back the file a History replacement (its library_action id) displaced, from its trash entry's
+// snapshot, and blocks the replacing release in that library, marked researched (no search starts). by names who
+// asked. A refusal is a *ReturnRefused; sql.ErrNoRows when the replacement has no trash entry with a snapshot.
+func (l *Library) UndoUpgrade(ctx context.Context, actionID int64, by string) (*Undone, error) {
+	if l.runtime != nil {
+		pinned, target := l.runtime(ctx)
+		return target.undoUpgrade(pinned, actionID, by)
+	}
+	return l.undoUpgrade(ctx, actionID, by)
+}
+
+func (l *Library) undoUpgrade(ctx context.Context, actionID int64, by string) (*Undone, error) {
+	e, err := l.undoEntryOf(ctx, actionID)
+	if err != nil {
+		return nil, err
+	}
+	if l.pol.Versions[e.version] == nil {
+		return nil, &ReturnRefused{Sentence: returnChanged}
+	}
+	var hash, release string
+	_ = l.st.Reader().QueryRowContext(ctx, `SELECT COALESCE(info_hash, ''), COALESCE(release_title, '') FROM download
+		WHERE id = ?`, e.snap.Successor.DownloadID).Scan(&hash, &release)
+	if release == "" {
+		release = e.release
+	}
+	r := &returnFile{entry: e, prefix: undoPrefix + " by " + orSomeone(by) + ": "}
+	r.endTx = func(ctx context.Context, tx *sql.Tx, v *importVersion, now int64) error {
+		// The undone release stays out of this library: blocked, researched (no search starts).
+		if err := router.Blocklist(ctx, tx, v.Key, hash, v.Title.ID, e.snap.Successor.DownloadID, release,
+			"the upgrade was undone by "+orSomeone(by), router.BlocklistLibrary, now); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `UPDATE router_blocklist SET researched_at = ? WHERE version_key = ?
+			AND info_hash = ?`, now, v.Key, router.BlocklistKey(hash, release))
+		return err
+	}
+	v, err := l.returnOne(ctx, r)
+	if err != nil {
+		return nil, err
+	}
+	return &Undone{TitleID: v.Title.ID, Version: v.Key, Path: e.path, Release: release}, nil
+}
+
+func orSomeone(by string) string {
+	if by == "" {
+		return "someone"
+	}
+	return by
+}
+
+// returnFile is one return: the trash entry it puts back, the prefix of its journal actions, and what it adds to
+// the commit (endTx; nil for nothing).
+type returnFile struct {
+	entry  *undoEntry
+	prefix string
+	endTx  func(ctx context.Context, tx *sql.Tx, v *importVersion, now int64) error
+}
+
+// errReturnFailed is a return whose link or move failed: it is rolled back.
+var errReturnFailed = errors.New("library: return failed")
+
+// returnOne writes a return through installLinks: after the leases, the checks (the file reads, the successor still
+// holds the slot, the returning file holds every episode of the file it displaces, no other library shares either
+// path); any failure takes back every symlink change and leaves no row.
+func (l *Library) returnOne(ctx context.Context, r *returnFile) (*importVersion, error) {
+	e := r.entry
+	db := l.st.Reader()
+	s := e.snap.Successor
+	v := &importVersion{Key: e.version, Policy: l.pol.Versions[e.version]}
+	if err := db.QueryRowContext(ctx, `SELECT l.title_id, t.kind, v.id FROM link l JOIN title t ON t.id = l.title_id
+		JOIN version v ON v.title_id = l.title_id AND v.policy_key = ? WHERE l.id = ?`, e.version, s.LinkID).
+		Scan(&v.Title.ID, &v.Title.Kind, &v.VersionID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &ReturnRefused{Sentence: returnChanged}
+		}
+		return nil, err
+	}
+	root := ""
+	for _, rt := range l.gate.Roots(e.version) {
+		if strings.HasPrefix(e.path, strings.TrimSuffix(rt, "/")+"/") {
+			root = rt
+		}
+	}
+	lk := PlannedLink{Path: e.path, Target: e.target, Episodes: e.snap.Episodes}
+	lk.prev, _ = os.Readlink(e.path)
+	if s.Path != e.path {
+		lk.Replaces, lk.ReplaceIDs = []string{s.Path}, []int64{s.LinkID}
+	}
+	// The file's inputs as they were; its state judged as an import judges it (left to the next pass when the
+	// engine cannot judge it).
+	lf := linkedFile{}
+	if e.snap.FileMetadata != nil {
+		lf.metadata = *e.snap.FileMetadata
+	}
+	if e.snap.Quality != nil {
+		lf.quality = *e.snap.Quality
+	}
+	if e.snap.Score != nil {
+		lf.score = int(*e.snap.Score)
+	}
+	if l.engine != nil && v.Policy != nil {
+		rel := ""
+		if e.snap.Release != nil {
+			rel = *e.snap.Release
+		}
+		f, err := decide.LinkFileInputs([]byte(cmpOr(lf.metadata, "{}")), v.Title.Kind, rel, lf.quality)
+		var t *decide.Title
+		if err == nil {
+			t, err = l.cutoffTitle(ctx, v.Title.ID, v.VersionID, v.Policy)
+		}
+		if err == nil {
+			lf.state, err = l.importedState(v, t, &f)
+		}
+		if err != nil {
+			l.log.Warn("library: return: state left to the next pass", "path", e.path, "err", err)
+		}
+	}
+	plan := &Plan{Version: e.version, Links: []PlannedLink{lk}}
+	score, quality := sql.NullInt64{}, sql.NullString{}
+	if e.snap.Quality != nil {
+		quality = sql.NullString{String: *e.snap.Quality, Valid: true}
+	}
+	if e.snap.Score != nil {
+		score = sql.NullInt64{Int64: *e.snap.Score, Valid: true}
+	}
+	var dl int64
+	if e.snap.DownloadID != nil {
+		dl = *e.snap.DownloadID
+	}
+	var release any
+	if e.snap.Release != nil {
+		release = *e.snap.Release
+	}
+	kept := e.snap.keptFacts
+	_, err := l.installLinks(ctx, &install{v: v, root: root, plan: plan, files: map[string]linkedFile{e.path: lf},
+		now: store.Millis(l.now()), prefix: r.prefix,
+		begin: func(ctx context.Context) error { return l.returnChecks(ctx, e, v) },
+		stopped: func(ctx context.Context, made []PlannedLink, moved []trashed, cause error) error {
+			l.rollbackReturn(v, made, moved)
+			return cause
+		},
+		row: func(ctx context.Context, tx *sql.Tx, lk *PlannedLink) (linkRow, error) {
+			row := linkRow{downloadID: dl, release: release, quality: &quality, score: &score, kept: &kept}
+			if e.snap.ContentFileID != nil {
+				var id int64
+				err := tx.QueryRowContext(ctx, `SELECT id FROM content_file WHERE id = ?`, *e.snap.ContentFileID).Scan(&id)
+				if err != nil && !errors.Is(err, sql.ErrNoRows) {
+					return row, err
+				}
+				if err == nil {
+					row.contentFileID = id
+				}
+			}
+			return row, nil
+		},
+		linkTx: func(ctx context.Context, tx *sql.Tx, lk *PlannedLink) (string, error) {
+			return r.prefix + "the earlier file is back", nil
+		},
+		endTx: func(ctx context.Context, tx *sql.Tx, res *installed) error {
+			if len(res.failures) > 0 || len(res.linked) == 0 {
+				return fmt.Errorf("%w: %s", errReturnFailed, strings.Join(res.failures, "; "))
+			}
+			if r.endTx != nil {
+				return r.endTx(ctx, tx, v, store.Millis(l.now()))
+			}
+			return nil
+		},
+	})
+	if err != nil {
+		var rr *ReturnRefused
+		switch {
+		case errors.As(err, &rr):
+		case errors.Is(err, ErrLinkChanged), errors.Is(err, errReturnFailed):
+			l.log.Info("library: return not made", "path", e.path, "err", err)
+			err = &ReturnRefused{Sentence: returnChanged}
+		}
+		return nil, err
+	}
+	l.log.Info("library: earlier file put back", "path", e.path, "version", e.version, "replaced", s.Path)
+	return v, nil
+}
+
+func cmpOr(s, or string) string {
+	if s == "" {
+		return or
+	}
+	return s
+}
+
+// returnChecks are a return's checks under its leases: the earlier file reads (one piece through the mount), the
+// recorded successor still holds the slot, the returning file holds every episode of the file it displaces, and no
+// other library shares either path. Each refusal is one sentence.
+func (l *Library) returnChecks(ctx context.Context, e *undoEntry, v *importVersion) error {
+	db := l.st.Reader()
+	s := e.snap.Successor
+	if ok, err := e.holdsSlot(ctx, db); err != nil {
+		return err
+	} else if !ok {
+		return &ReturnRefused{Sentence: returnChanged}
+	}
+	if cur, err := os.Readlink(s.Path); err != nil || cur != s.Target {
+		return &ReturnRefused{Sentence: returnChanged}
+	}
+	if s.Path != e.path {
+		if _, err := os.Lstat(e.path); !errors.Is(err, os.ErrNotExist) {
+			return &ReturnRefused{Sentence: returnChanged}
+		}
+	}
+	var shared bool
+	if err := db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM link_version WHERE version_id <> ? AND (link_id = ?
+		OR link_id IN (SELECT id FROM link WHERE path = ?)))`, v.VersionID, s.LinkID, e.path).Scan(&shared); err != nil {
+		return err
+	}
+	if shared {
+		return &ReturnRefused{Sentence: returnShared}
+	}
+	var held []int64
+	if err := scanRows(ctx, db, `SELECT episode_id FROM link_episode WHERE link_id = ? ORDER BY episode_id`,
+		[]any{s.LinkID}, func(r *sql.Rows) error {
+			var id int64
+			err := r.Scan(&id)
+			held = append(held, id)
+			return err
+		}); err != nil {
+		return err
+	}
+	var extra []int64
+	for _, id := range held {
+		if !slices.Contains(e.snap.Episodes, id) {
+			extra = append(extra, id)
+		}
+	}
+	if len(extra) > 0 {
+		words, err := episodeWords(ctx, db, extra, e.snap.Episodes)
+		if err != nil {
+			return err
+		}
+		return &ReturnRefused{Sentence: words}
+	}
+	if _, err := l.ReadPiece(ctx, e.target, 0, PlayingPiece, PlayingPieceLimit); err != nil {
+		l.log.Info("library: return: the earlier file does not read", "target", e.target, "err", err)
+		return &ReturnRefused{Sentence: returnGone}
+	}
+	return nil
+}
+
+// episodeWords is the refusal of a return whose file would leave episodes uncovered: "The current file also holds
+// episode 4; the earlier file holds only episode 3" (S01E04 when the episodes span seasons).
+func episodeWords(ctx context.Context, db *sql.DB, extra, own []int64) (string, error) {
+	type ep struct{ season, number int }
+	eps := map[int64]ep{}
+	all := append(slices.Clone(extra), own...)
+	for _, id := range all {
+		var e ep
+		if err := db.QueryRowContext(ctx, `SELECT season, number FROM episode WHERE id = ?`, id).Scan(&e.season,
+			&e.number); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return "", err
+		}
+		eps[id] = e
+	}
+	seasons := map[int]bool{}
+	for _, e := range eps {
+		seasons[e.season] = true
+	}
+	list := func(ids []int64) string {
+		var ws []string
+		for _, id := range ids {
+			e := eps[id]
+			if len(seasons) > 1 {
+				ws = append(ws, fmt.Sprintf("S%02dE%02d", e.season, e.number))
+			} else {
+				ws = append(ws, fmt.Sprint(e.number))
+			}
+		}
+		w := "episode"
+		if len(ids) > 1 {
+			w = "episodes"
+		}
+		if len(seasons) > 1 {
+			return strings.Join(ws, ", ")
+		}
+		return w + " " + strings.Join(ws, ", ")
+	}
+	if len(own) == 0 {
+		return "The current file also holds " + list(extra) + "; the earlier file holds none", nil
+	}
+	return "The current file also holds " + list(extra) + "; the earlier file holds only " + list(own), nil
+}
+
+// rollbackReturn takes back a return's symlink changes: each link it made goes (a link made in place points at the
+// file it replaced again), each file it moved aside is linked back, and the trash copies it made go. Nothing was
+// recorded. A step that fails is logged; the others still run.
+func (l *Library) rollbackReturn(v *importVersion, made []PlannedLink, moved []trashed) {
+	inPlace := map[string]trashed{}
+	for _, m := range moved {
+		if m.path == m.linkPath {
+			inPlace[m.path] = m
+		}
+	}
+	warn := func(path string, err error) {
+		if err != nil {
+			l.log.Warn("library: return not taken back", "path", path, "err", err)
+		}
+	}
+	for _, lk := range made {
+		if m, ok := inPlace[lk.Path]; ok {
+			warn(lk.Path, l.w.symlink(v.Key, m.target, lk.Path))
+			continue
+		}
+		warn(lk.Path, l.w.removeLink(v.Key, lk.Path))
+	}
+	for _, m := range moved {
+		if m.path != m.linkPath {
+			warn(m.path, l.w.symlink(v.Key, m.target, m.path))
+		}
+		warn(m.trashPath, l.w.purgeTrash(v.Key, m.trashPath))
+	}
+}

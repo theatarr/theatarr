@@ -62,6 +62,29 @@ func (s *Service) EditFileFacts(ctx context.Context, linkID int64, e library.Fil
 	return fl.EditFileFacts(ctx, linkID, e)
 }
 
+type undoLibrary interface {
+	UndoOffers(ctx context.Context, ids []int64) (map[int64]string, error)
+	UndoUpgrade(ctx context.Context, actionID int64, by string) (*library.Undone, error)
+}
+
+// UndoOffers and UndoUpgrade expose the library's Undo of a History replacement (library return.go) to the native
+// web API; without the library none is offered.
+func (s *Service) UndoOffers(ctx context.Context, ids []int64) (map[int64]string, error) {
+	ul, ok := s.library.(undoLibrary)
+	if !ok {
+		return map[int64]string{}, nil
+	}
+	return ul.UndoOffers(ctx, ids)
+}
+
+func (s *Service) UndoUpgrade(ctx context.Context, actionID int64, by string) (*library.Undone, error) {
+	ul, ok := s.library.(undoLibrary)
+	if !ok {
+		return nil, refused("Undo is unavailable")
+	}
+	return ul.UndoUpgrade(ctx, actionID, by)
+}
+
 // Operator actions for the web UI (docs/design/ui.md "Recovery actions"), on the same parts the arr views' grab, queue
 // and file endpoints use: the decision engine, the router and the library. They work on one title's versions
 // directly, not through a view. internal/web calls them (web.Ops) and records each in the journal.

@@ -3,11 +3,14 @@ package library
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
+
+	"github.com/theatarr/theatarr/internal/store"
 )
 
 // install is one write of planned links through installLinks: the version, its root and plan, each link's file
@@ -36,9 +39,13 @@ type install struct {
 	beginTx func(ctx context.Context, tx *sql.Tx, linked []PlannedLink) error
 	// row gives the values of a planned link's row (it may record the link's content file first).
 	row func(ctx context.Context, tx *sql.Tx, lk *PlannedLink) (linkRow, error)
-	// linkTx runs after each link's rows and before its journal action; detail is that action's detail.
-	linkTx func(ctx context.Context, tx *sql.Tx, lk *PlannedLink) error
-	detail func(lk *PlannedLink) string
+	// linkFailed runs when a link could not be made (an import records it at once).
+	linkFailed func(ctx context.Context, lk *PlannedLink, err error)
+	// prefix starts the detail of every replace action and the reason of every trash row ("" for an import): a
+	// return's own words, so History does not read its moves as removals.
+	prefix string
+	// linkTx runs after each link's rows and gives its journal action's detail.
+	linkTx func(ctx context.Context, tx *sql.Tx, lk *PlannedLink) (string, error)
 	// linkedTx runs once every link is written, before the replaced files' rows (linked: the links made or in
 	// place).
 	linkedTx func(ctx context.Context, tx *sql.Tx, linked []PlannedLink) error
@@ -50,9 +57,23 @@ type install struct {
 
 // linkRow is what a planned link's row records besides its path, target and file inputs.
 type linkRow struct {
-	contentFileID any // the content_file row (nil: none)
-	downloadID    int64
-	release       string
+	contentFileID any   // the content_file row (nil: none)
+	downloadID    int64 // the download (0: none)
+	release       any   // the release title (nil: none)
+	// quality and score are an earlier row's, put back by a return (nil: the file input's).
+	quality *sql.NullString
+	score   *sql.NullInt64
+	// kept are an earlier row's adoption facts and folder hash, put back by a return (nil: a new file has none).
+	kept *keptFacts
+}
+
+// keptFacts are a link row's adoption fields and folder hash (each nil when NULL).
+type keptFacts struct {
+	Adopted       bool    `json:"adopted,omitempty"`
+	AdoptedFrom   *string `json:"adopted_from,omitempty"`
+	AdoptedSource *string `json:"adopted_source,omitempty"`
+	AdoptedMedia  *string `json:"adopted_media,omitempty"`
+	FolderHash    *string `json:"folder_hash,omitempty"`
 }
 
 // installed is what installLinks did: the links made or found in place, the files moved aside, the failures, and
@@ -62,6 +83,7 @@ type installed struct {
 	moved    []trashed
 	failures []string
 	raced    int
+	plan     string // the plan as JSON, with each link's outcome (Done, Error), once the links are made
 }
 
 // installLinks writes planned links: under one lease per link path (linklock.go) and the torrent delete fence held
@@ -72,6 +94,13 @@ type installed struct {
 // result; the caller decides what that means (an import records partial).
 func (l *Library) installLinks(ctx context.Context, in *install) (*installed, error) {
 	v, root, plan := in.v, in.root, in.plan
+	// An import's errors name its download; a return's (no download) its file.
+	errf := func(id int64, format string, args ...any) error {
+		if in.downloadID == 0 && len(plan.Links) > 0 {
+			return fmt.Errorf("library: %s: "+format, append([]any{plan.Links[0].Path}, args...)...)
+		}
+		return errf(id, format, args...)
+	}
 	stopped := func(ctx context.Context, made []PlannedLink, moved []trashed, err error) error {
 		if in.stopped == nil {
 			return err
@@ -162,8 +191,9 @@ func (l *Library) installLinks(ctx context.Context, in *install) (*installed, er
 				}
 				if err := l.w.symlink(v.Key, lk.Target, lk.Path); err != nil {
 					fail(err.Error())
-					_ = l.record(ctx, nil, action{Kind: "link", Mode: modeOf(err), Version: v.Key, DownloadID: in.downloadID,
-						Path: lk.Path, Target: lk.Target, Detail: err.Error()})
+					if in.linkFailed != nil {
+						in.linkFailed(ctx, lk, err)
+					}
 					continue
 				}
 				made = append(made, *lk)
@@ -242,6 +272,7 @@ func (l *Library) installLinks(ctx context.Context, in *install) (*installed, er
 		}
 	}
 
+	pj, _ := json.Marshal(plan)
 	var strays []trashed
 	err = l.refWriteTx(ctx, func(tx *sql.Tx) error {
 		if in.claimTx != nil {
@@ -262,6 +293,17 @@ func (l *Library) installLinks(ctx context.Context, in *install) (*installed, er
 		for _, m := range append(slices.Clone(moved), gone...) {
 			oldRel[m.path] = linkFacts(ctx, tx, m.linkID, m.path)
 		}
+		// And every displaced file's row as it is, for Undo (link_trash.snapshot); the link that takes its place is
+		// added once it is written.
+		snaps := map[string]*trashSnapshot{}
+		for _, m := range moved {
+			s, err := readSnapshot(ctx, tx, m.linkID, m.path)
+			if err != nil {
+				return err
+			}
+			snaps[m.path] = s
+		}
+		successors := map[string]successor{}
 		for _, lk := range linked {
 			var row linkRow
 			if in.row != nil {
@@ -275,20 +317,35 @@ func (l *Library) installLinks(ctx context.Context, in *install) (*installed, er
 			}
 			var linkID int64
 			lf := in.files[lk.Path]
+			kept := keptFacts{}
+			if row.kept != nil {
+				kept = *row.kept
+			}
+			score := sql.NullInt64{Int64: int64(lf.score), Valid: true}
+			if row.score != nil {
+				score = *row.score
+			}
+			quality := sql.NullString{String: lf.quality, Valid: true}
+			if row.quality != nil {
+				quality = *row.quality
+			}
 			// The row at the path is this title's (takePathTx): its title never changes, and a new file starts with
 			// no noted miss, none of an adopted file's facts, and no folder hash (usage finds the new one).
 			err := tx.QueryRowContext(ctx, `INSERT INTO link (path, target, kind, content_file_id, title_id, download_id,
-					release_title, quality, score, file_metadata, state, last_checked_at, created_at, updated_at)
-				VALUES (?, ?, 'symlink', ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)
+					release_title, quality, score, file_metadata, adopted, adopted_from, adopted_source, adopted_media,
+					folder_hash, state, last_checked_at, created_at, updated_at)
+				VALUES (?, ?, 'symlink', ?, ?, NULLIF(?, 0), ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)
 				ON CONFLICT (path) DO UPDATE SET target = excluded.target, content_file_id = excluded.content_file_id,
 					download_id = excluded.download_id, release_title = excluded.release_title,
-					quality = excluded.quality, score = excluded.score, state = 'active', adopted = 0,
-					adopted_from = NULL, adopted_source = NULL, adopted_media = NULL, folder_hash = NULL,
+					quality = excluded.quality, score = excluded.score, state = 'active', adopted = excluded.adopted,
+					adopted_from = excluded.adopted_from, adopted_source = excluded.adopted_source,
+					adopted_media = excluded.adopted_media, folder_hash = excluded.folder_hash,
 					file_metadata = excluded.file_metadata, missing_since = NULL,
 					last_checked_at = excluded.last_checked_at, updated_at = excluded.updated_at
 				WHERE link.title_id = excluded.title_id
-				RETURNING id`, lk.Path, lk.Target, row.contentFileID, v.Title.ID, row.downloadID, row.release, lf.quality,
-				lf.score, lf.metadata, now, now, now).
+				RETURNING id`, lk.Path, lk.Target, row.contentFileID, v.Title.ID, row.downloadID, row.release, quality,
+				score, lf.metadata, kept.Adopted, kept.AdoptedFrom, kept.AdoptedSource, kept.AdoptedMedia,
+				kept.FolderHash, now, now, now).
 				Scan(&linkID)
 			if errors.Is(err, sql.ErrNoRows) {
 				return linkChanged(0, lk.Path, lk.Target, "the path holds another title's link")
@@ -296,6 +353,7 @@ func (l *Library) installLinks(ctx context.Context, in *install) (*installed, er
 			if err != nil {
 				return err
 			}
+			successors[lk.Path] = successor{LinkID: linkID, Path: lk.Path, Target: lk.Target, DownloadID: row.downloadID}
 			if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO link_version (link_id, version_id) VALUES (?, ?)`, linkID, v.VersionID); err != nil {
 				return err
 			}
@@ -312,18 +370,16 @@ func (l *Library) installLinks(ctx context.Context, in *install) (*installed, er
 					return err
 				}
 			}
+			detail := ""
 			if in.linkTx != nil {
-				if err := in.linkTx(ctx, tx, &lk); err != nil {
+				if detail, err = in.linkTx(ctx, tx, &lk); err != nil {
 					return err
 				}
 			}
-			detail := ""
-			if in.detail != nil {
-				detail = in.detail(&lk)
-			}
+			relTitle, _ := row.release.(string)
 			if err := l.record(ctx, tx, action{Kind: "link", Mode: "applied", Version: v.Key, DownloadID: in.downloadID,
-				LinkID: linkID, Path: lk.Path, Target: lk.Target, Detail: detail, Rel: relFacts{Release: row.release,
-					Quality: lf.quality, Score: sql.NullInt64{Int64: int64(lf.score), Valid: true}, TitleID: v.Title.ID,
+				LinkID: linkID, Path: lk.Path, Target: lk.Target, Detail: detail, Rel: relFacts{Release: relTitle,
+					Quality: lf.quality, Score: score, TitleID: v.Title.ID,
 					Episodes: lk.Episodes}}); err != nil {
 				return err
 			}
@@ -359,12 +415,28 @@ func (l *Library) installLinks(ctx context.Context, in *install) (*installed, er
 					return err
 				}
 			}
-			if _, err := tx.ExecContext(ctx, `INSERT INTO link_trash (link_id, version_key, path, trash_path, target, reason, moved_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?)`, oldID, m.version, m.path, m.trashPath, m.target, m.reason, now); err != nil {
+			var snap any
+			if s := snaps[m.path]; s != nil {
+				s.Successor = successors[m.linkPath]
+				b, err := json.Marshal(s)
+				if err != nil {
+					return err
+				}
+				snap = string(b)
+			}
+			if _, err := tx.ExecContext(ctx, `INSERT INTO link_trash (link_id, version_key, path, trash_path, target, reason,
+				moved_at, snapshot) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, oldID, m.version, m.path, m.trashPath, m.target,
+				in.prefix+m.reason, now, snap); err != nil {
 				return err
 			}
+			detail := in.prefix + "moved aside to " + m.trashPath
+			if s := snaps[m.path]; s != nil && s.State == "dead" &&
+				lowerQuality(v.Title.Kind, in.files[m.linkPath].quality, oldRel[m.path].Quality) {
+				// A file that was gone, replaced by a lower quality: a replacement, not an upgrade (History, journal).
+				detail += store.HistoryDeadLower
+			}
 			if err := l.record(ctx, tx, action{Kind: "replace", Mode: "applied", Version: m.version, DownloadID: in.downloadID,
-				Path: m.path, Target: m.target, Detail: "moved aside to " + m.trashPath, Rel: oldRel[m.path]}); err != nil {
+				Path: m.path, Target: m.target, Detail: detail, Rel: oldRel[m.path]}); err != nil {
 				return err
 			}
 		}
@@ -393,13 +465,14 @@ func (l *Library) installLinks(ctx context.Context, in *install) (*installed, er
 				return err
 			}
 			if err := l.record(ctx, tx, action{Kind: "replace", Mode: "applied", Version: m.version, DownloadID: in.downloadID,
-				Path: m.path, Detail: "already gone from the library (moved aside by an interrupted import)",
+				Path: m.path, Detail: in.prefix + "already gone from the library (moved aside by an interrupted import)",
 				Rel: oldRel[m.path]}); err != nil {
 				return err
 			}
 		}
 		if in.endTx != nil {
-			return in.endTx(ctx, tx, &installed{linked: linked, moved: moved, failures: failures, raced: raced})
+			return in.endTx(ctx, tx, &installed{linked: linked, moved: moved, failures: failures, raced: raced,
+				plan: string(pj)})
 		}
 		return nil
 	})

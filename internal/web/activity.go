@@ -42,6 +42,7 @@ func (w *Web) mountActivityAPI(mux *http.ServeMux) {
 	w.handle(mux, "GET "+b+"/activity/downloads/{id}/attempts", SignedIn, auth.PermSeeFiles, w.apiActivityAttempts)
 	w.handle(mux, "GET "+b+"/activity/continue", SignedIn, auth.PermBrowse, w.apiContinue)
 	w.handle(mux, "GET "+b+"/calendar", SignedIn, auth.PermBrowse, w.apiCalendar)
+	w.mountUndoAPI(mux)
 }
 
 // viewerAdmin is whether the caller gets the admin fields: see files, unless it asks for the user view.
@@ -186,7 +187,8 @@ type ActivityEvent struct {
 	Kind string    `json:"kind"`
 	// Event is the History event: grabbed, imported, adopted, deleted (for an upgrade), removed (a file, by hand),
 	// missing, failed, blocked, copy_added, copy_not_cached, title_removed (the title left a library: Remove title or
-	// Remove copy), playing (what came of a file that stopped working while someone played it) (journal.HistoryEvents).
+	// Remove copy), playing (what came of a file that stopped working while someone played it), undone (an upgrade
+	// undone by hand) (journal.HistoryEvents).
 	Event   string        `json:"event"`
 	Title   ActivityTitle `json:"title"`
 	Version string        `json:"version,omitempty"`
@@ -232,6 +234,10 @@ type ActivityEvent struct {
 
 // HistoryFile is one file an upgrade replaced: its path, its release (empty when not known) and its episodes.
 type HistoryFile struct {
+	// ID is the replacement's id (what Undo takes); Undo, for a manager, the Undo button's sentence when Undo is
+	// offered ("" when not).
+	ID       int64    `json:"id,omitempty"`
+	Undo     string   `json:"undo,omitempty"`
 	Path     string   `json:"path"`
 	Release  string   `json:"release,omitempty"`
 	Quality  string   `json:"quality,omitempty"`
@@ -412,6 +418,9 @@ func (w *Web) apiActivity(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		evs, err := w.historyEvents(ctx, jp.Items, admin)
+		if err == nil && admin {
+			err = w.undoOffers(ctx, r, evs)
+		}
 		if err != nil {
 			w.internal(rw, err)
 			return
@@ -768,7 +777,7 @@ func (w *Web) historyEvents(ctx context.Context, hs []*journal.HistoryRow, admin
 					r.Size, r.Formats
 			}
 			for _, f := range h.Replaced {
-				hf := HistoryFile{Path: f.Path, Episodes: f.Episodes}
+				hf := HistoryFile{ID: f.ID, Path: f.Path, Episodes: f.Episodes}
 				if r := f.Release; r != nil {
 					hf.Release, hf.Quality, hf.Score = r.Title, r.Quality, r.Score
 				}
@@ -860,8 +869,11 @@ func entryWords(h *journal.HistoryRow, notStarted string, tag func(string) strin
 		return "Adopted", "ok"
 	case journal.EvDeleted:
 		words := "Upgraded"
-		if h.Redownload() {
+		switch {
+		case h.Redownload():
 			words = "Re-downloaded"
+		case h.NotUpgrade():
+			words = "Replaced" // files that were gone, replaced by a lower quality
 		}
 		if h.Import == "partial" {
 			return words, "warn"
@@ -869,6 +881,8 @@ func entryWords(h *journal.HistoryRow, notStarted string, tag func(string) strin
 		return words, "ok"
 	case journal.EvRemoved:
 		return "Removed", "info"
+	case journal.EvUndone:
+		return "Upgrade undone", "info"
 	case journal.EvMissing:
 		return "File missing", "bad"
 	case journal.EvFailed:

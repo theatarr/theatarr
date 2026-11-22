@@ -35,6 +35,8 @@ import (
 //     found already there, or not cached;
 //   - title_removed: a title taken out of a library (Remove title, Remove copy), one row per library, with who
 //     removed it and what became of its files (Removal);
+//   - undone: an upgrade undone by hand (Undo): the replacing file moved aside and the earlier one put back, with the
+//     undone release and who undid it (By);
 //   - playing: the outcome of a file that stopped working while someone played it (pb:<incident>:<kind>, the kind in
 //     Source: replaced, same_release, unavailable or restored), with the broken copy's release; no journal entry.
 //
@@ -59,11 +61,12 @@ const (
 	EvCopyAlready   = "copy_already"
 	EvTitleRemoved  = "title_removed"
 	EvPlaying       = "playing"
+	EvUndone        = "undone"
 )
 
 // HistoryEvents lists every History event, for filters.
 var HistoryEvents = []string{EvGrabbed, EvImported, EvAdopted, EvDeleted, EvRemoved, EvMissing, EvFailed, EvBlocked,
-	EvCopyAdded, EvCopyAlready, EvCopyNotCached, EvTitleRemoved, EvPlaying}
+	EvCopyAdded, EvCopyAlready, EvCopyNotCached, EvTitleRemoved, EvPlaying, EvUndone}
 
 // KindCopy is the kind of a provider copy's History row (copy:<provider_copy_event>); not a journal kind.
 const KindCopy = "copy"
@@ -133,9 +136,27 @@ func (h *HistoryRow) Redownload() bool {
 // ReplacedFile is one file an upgrade replaced: its path, its release (title, quality, score; nil when not known) and
 // the episodes it held.
 type ReplacedFile struct {
+	// ID is the library action that moved it aside (what Undo takes).
+	ID       int64
 	Path     string
 	Release  *Release
 	Episodes []string
+	// DeadLower: the file was gone, and a lower quality took its place.
+	DeadLower bool
+}
+
+// NotUpgrade reports whether an upgrade's row (deleted) only replaced files that were gone with a lower quality:
+// History and the journal say "Replaced" for it, not "Upgraded".
+func (h *HistoryRow) NotUpgrade() bool {
+	if h.Event != EvDeleted || len(h.Replaced) == 0 {
+		return false
+	}
+	for _, f := range h.Replaced {
+		if !f.DeadLower {
+			return false
+		}
+	}
+	return true
 }
 
 // HistoryPage is one page of History, newest first.
@@ -412,6 +433,12 @@ func (j *Journal) history(ctx context.Context, f Filter, episode int64) (*Histor
 				x.Source, _, _ = strings.Cut(r, " ")
 			}
 		}
+		if x.Event == EvUndone {
+			// "upgrade undone by <who>: moved aside to …"
+			if r, ok := strings.CutPrefix(s.detail, store.HistoryUndonePrefix+" by "); ok {
+				x.By, _, _ = strings.Cut(r, ": ")
+			}
+		}
 		if x.Event == EvTitleRemoved {
 			rm := ParseRemovalDetail(s.detail)
 			x.Removal = &rm
@@ -439,7 +466,7 @@ func (j *Journal) history(ctx context.Context, f Filter, episode int64) (*Histor
 		if x.Event == EvDeleted || x.Event == EvAdopted {
 			// The row's release is the new file; Replaced the files it replaced.
 			for _, rf := range s.replacedFiles {
-				f := ReplacedFile{Path: rf.Path}
+				f := ReplacedFile{ID: rf.ID, Path: rf.Path, DeadLower: rf.DeadLower}
 				if rf.Release != "" || rf.Quality != nil {
 					f.Release = &Release{Title: clean(rf.Release)}
 					if rf.Quality != nil {

@@ -226,6 +226,7 @@ func (b *builder) download(e *Entry, rest string) error {
 			return err
 		}
 		var linked, replaced []string
+		deadLower := 0 // replaced files that were gone, by a lower quality (store.HistoryDeadLower)
 		for _, k := range kids {
 			switch {
 			case k.mode != "applied":
@@ -233,10 +234,15 @@ func (b *builder) download(e *Entry, rest string) error {
 				linked = append(linked, k.path)
 			case !strings.HasPrefix(k.detail, "import undone"):
 				replaced = append(replaced, k.path)
+				if strings.HasSuffix(k.detail, store.HistoryDeadLower) {
+					deadLower++
+				}
 			}
 		}
 		e.Paths = append(linked, replaced...)
 		switch {
+		case len(replaced) > 0 && deadLower == len(replaced):
+			e.Label = "Replaced" // as History says: gone files, replaced by a lower quality, not an upgrade
 		case len(replaced) > 0:
 			e.Label = "Upgraded" // as History says: it replaced a file
 		case d.state == "failed":
@@ -873,6 +879,19 @@ func (b *builder) libWords(e *Entry, id int64, kind, mode, path, detail string, 
 		e.Label, e.Summary = "Not done", join("Could not "+verbs[kind]+" "+name, b.plain(detail))
 	case kind == "link" && withDownload:
 		e.Label, e.Summary = "Linked", "Linked "+name
+	case !withDownload && (strings.HasPrefix(detail, store.HistoryUndonePrefix) ||
+		strings.HasPrefix(detail, store.HistoryPutBackPrefix)):
+		// A return (library return.go): the earlier file put back, the file it displaced moved aside.
+		e.Label = "Upgrade undone"
+		if strings.HasPrefix(detail, store.HistoryPutBackPrefix) {
+			e.Label = "Earlier copy put back"
+		}
+		_, rest, _ := strings.Cut(detail, ": ")
+		verb := "Put back "
+		if kind == "replace" {
+			verb = "Moved aside "
+		}
+		e.Summary = join(verb+name, b.plain(rest))
 	case kind == "link" && strings.HasPrefix(strings.ToLower(detail), "adopted from "):
 		return b.adoption(e, id, name, detail)
 	case kind == "link":

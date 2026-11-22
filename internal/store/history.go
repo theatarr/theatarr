@@ -22,14 +22,34 @@ type Execer interface {
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 }
 
+// Words a library action's detail carries for History (internal/library return.go and install.go).
+const (
+	// HistoryUndonePrefix starts the detail of an Undo's actions (no download): its replace action is History's
+	// "Upgrade undone" row (event undone), never "Removed".
+	HistoryUndonePrefix = "upgrade undone"
+	// HistoryPutBackPrefix starts the detail of a put-back's actions (a copy that reads again, put back in place of
+	// its replacement): its playing row stands for it, so it gives no row of its own.
+	HistoryPutBackPrefix = "earlier copy put back"
+	// HistoryDeadLower ends the detail of an import's replace action whose file was gone (a dead link) and whose
+	// replacement is of a lower quality: a replacement, not an upgrade ("Replaced"; the journal's kind grab).
+	HistoryDeadLower = "; its file was gone, and a lower quality took its place"
+)
+
 // Expressions of History's rows; the grab kind and a library action's title are also the journal's (internal/journal).
 const (
-	// HistoryGrabKindSQL is a download's kind (alias d): upgrade when an earlier download of the version had imported
-	// a file of its episodes, else grab.
-	HistoryGrabKindSQL = `CASE WHEN EXISTS (SELECT 1 FROM download p WHERE p.version_id = d.version_id AND p.id <> d.id
+	// HistoryGrabKindSQL is a download's kind (alias d): upgrade when its import replaced a file (an applied replace
+	// action, as the journal's "Upgraded" label says: an adopted file's replacement too) other than a gone file by a
+	// lower quality (HistoryDeadLower); else, before its import replaced anything, when an earlier download of the
+	// version had imported a file of its episodes; else grab.
+	HistoryGrabKindSQL = `CASE WHEN EXISTS (SELECT 1 FROM library_action ra WHERE ra.download_id = d.id
+			AND ra.kind = 'replace' AND ra.mode = 'applied' AND ra.detail NOT LIKE 'import undone%'
+			AND ra.detail NOT LIKE '%` + HistoryDeadLower + `')
+		OR (NOT EXISTS (SELECT 1 FROM library_action ra WHERE ra.download_id = d.id AND ra.kind = 'replace'
+			AND ra.mode = 'applied' AND ra.detail LIKE '%` + HistoryDeadLower + `')
+		AND EXISTS (SELECT 1 FROM download p WHERE p.version_id = d.version_id AND p.id <> d.id
 			AND p.state = 'imported' AND p.imported_at < d.created_at
 			AND (d.episodes = '[]' OR EXISTS (SELECT 1 FROM json_each(p.episodes) pe
-				WHERE pe.value IN (SELECT value FROM json_each(d.episodes)))))
+				WHERE pe.value IN (SELECT value FROM json_each(d.episodes))))))
 	THEN 'upgrade' ELSE 'grab' END`
 	// historyGrabbedWhere: the download (alias d) reached a provider or client: past adding, or a failed one that was
 	// added, reused or accepted by a provider (a requeue clears added_at).
@@ -200,6 +220,10 @@ func historyActionClass(kind, mode string, downloadID int64, detail string) stri
 		return ""
 	case kind == "replace" && downloadID != 0 && !prefix("import undone"):
 		return "deleted"
+	case kind == "replace" && downloadID == 0 && prefix(HistoryUndonePrefix):
+		return "undone"
+	case downloadID == 0 && prefix(HistoryPutBackPrefix):
+		return ""
 	case kind == "link" && downloadID == 0 && prefix("adopted from "):
 		return "adopted"
 	case kind == "replace" && downloadID == 0 && !prefix("change of episodes failed"):
@@ -243,6 +267,8 @@ type HistoryReplacedFile struct {
 	Quality  *string `json:"quality"`
 	Score    *int64  `json:"score"`
 	Episodes []int64 `json:"episodes"`
+	// DeadLower: the file was gone, and a lower quality took its place (HistoryDeadLower).
+	DeadLower bool `json:"dead_lower,omitempty"`
 }
 
 // HistoryLibraryAction writes the History row of library action id (its kind, mode, download and detail), when
@@ -260,7 +286,7 @@ func HistoryLibraryAction(ctx context.Context, ex Execer, id int64, kind, mode s
 }
 
 func historyLibraryAction(ctx context.Context, ex Execer, id int64, class string) error {
-	link := map[string]string{"deleted": historyOldLinkSQL, "removed": historyOldLinkSQL,
+	link := map[string]string{"deleted": historyOldLinkSQL, "removed": historyOldLinkSQL, "undone": historyOldLinkSQL,
 		"adopted": historyAdoptLinkSQL, "missing": historyDeadLinkSQL}[class]
 	var m historyMember
 	if err := ex.QueryRowContext(ctx, historyMemberSQL(link), id).Scan(&m.id, &m.at, &m.title, &m.version, &m.dl,
@@ -282,7 +308,7 @@ func historyLibraryAction(ctx context.Context, ex Execer, id int64, class string
 	const union = `(SELECT json_group_array(DISTINCT value) FROM (SELECT value FROM json_each(history.episodes)
 		UNION ALL SELECT value FROM json_each(?)))`
 	switch class {
-	case "removed", "missing":
+	case "removed", "missing", "undone":
 		return insert(class, 1, nil)
 	case "adopted":
 		res, err := ex.ExecContext(ctx, `UPDATE history SET at = MAX(at, ?), files = files + 1, episodes = `+union+`
@@ -297,7 +323,8 @@ func historyLibraryAction(ctx context.Context, ex Execer, id int64, class string
 		return insert(class, 1, nil)
 	}
 	// An upgrade's replaced file: added to its download's row in its library, which names what replaced it.
-	f := HistoryReplacedFile{ID: m.id, At: m.at, Path: m.path, Release: m.rel, Episodes: []int64{}}
+	f := HistoryReplacedFile{ID: m.id, At: m.at, Path: m.path, Release: m.rel, Episodes: []int64{},
+		DeadLower: strings.HasSuffix(m.detail, HistoryDeadLower)}
 	_ = json.Unmarshal([]byte(m.episodes), &f.Episodes)
 	if m.quality.Valid {
 		f.Quality = &m.quality.String

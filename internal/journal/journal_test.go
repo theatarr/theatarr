@@ -823,8 +823,11 @@ func TestListFolds(t *testing.T) {
 		{Filter{Kinds: []string{KindImport}}, []string{"dl:5:import"}},
 		{Filter{Kinds: []string{KindAction}}, []string{"act:1"}},
 		{Filter{Kinds: []string{KindLink}}, []string{"lib:6", "lib:3", "lib:2", "lib:1"}},
-		{Filter{Kinds: []string{KindGrab, KindImport, KindLink, KindAction}}, []string{"lib:6", "lib:3", "dl:5"}},
-		{Filter{Kinds: []string{KindUpgrade, KindImport}}, []string{"dl:5:import"}},
+		// dl:5 replaced a file (its label Upgraded): it is an upgrade, not a grab (F25), so Grabbed lists its
+		// entries without it and Upgraded folds them into it.
+		{Filter{Kinds: []string{KindGrab, KindImport, KindLink, KindAction}}, []string{"lib:6", "lib:3", "lib:2", "lib:1",
+			"dl:5:import"}},
+		{Filter{Kinds: []string{KindUpgrade, KindImport}}, []string{"dl:5"}},
 		// A since bound after the parent lists what came after it.
 		{Filter{Since: at.Add(30 * time.Minute)}, []string{"lib:6", "lib:3", "lib:2", "lib:1", "dl:5:import"}},
 		{Filter{Since: at.Add(2*time.Hour + 3*time.Second)}, []string{"lib:6", "lib:5", "lib:4"}},
