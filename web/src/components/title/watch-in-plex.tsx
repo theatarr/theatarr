@@ -1,6 +1,7 @@
 // Watch in Plex (docs/design/now-playing.md "Watch in Plex"): on the title page, one button per library of the title
 // with a file. Nothing is asked until the tap: then GET /titles/{id}/plex?version=<library> looks the title up, and a
-// found item opens in the Plex app on iOS (app_url) and in Plex Web everywhere else (web_url, a new tab); otherwise the
+// found item opens in the Plex app on iOS (app_url) and in Plex Web everywhere else (web_url, a new tab, or an "Open in
+// Plex" link when the browser refuses it); otherwise the
 // server's sentence ("Not found in Plex yet", or what to fix) shows in place.
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
@@ -26,7 +27,15 @@ function PlexButton({ titleId, v, named }: { titleId: number; v: Version; named:
     onSuccess: (r) => {
       if (!r.found) return;
       if (isIOS() && r.app_url) window.location.assign(r.app_url);
-      else if (r.web_url && !window.open(r.web_url, "_blank", "noopener")) setRefused(r.web_url);
+      else if (r.web_url) {
+        // A blank tab cut from this page, then sent to Plex Web: with noopener window.open gives nothing back even
+        // when the tab opens, so the fallback link could not tell a refused tab from an opened one.
+        const tab = window.open("", "_blank");
+        if (tab) {
+          tab.opener = null;
+          tab.location.href = r.web_url;
+        } else setRefused(r.web_url);
+      }
     },
   });
   const message = look.data && !look.data.found ? look.data.message || "Not found in Plex yet" : look.error ? (look.error as Error).message : "";

@@ -18,14 +18,19 @@ it("offers one button per library with a file, asks Plex only on the tap, and op
     { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["browse"] } },
     { method: "GET", path: "/titles/7/plex", reply: { found: true, web_url: "https://app.plex.tv/desktop/#!/x", app_url: "plex://preplay/?x" } },
   ]);
-  const open = vi.spyOn(window, "open").mockImplementation(() => null);
+  const tab = { opener: window as unknown, location: { href: "" } };
+  const open = vi.spyOn(window, "open").mockImplementation(() => tab as never);
   renderPage(<WatchInPlex titleId={7} versions={versions as never} />);
   const box = await screen.findByTestId("watch-in-plex");
   const buttons = within(box).getAllByRole("button");
   expect(buttons.map((b) => b.textContent)).toEqual(["Watch in Plex · 4K Remux", "Watch in Plex · 4K WEB"]);
   expect(api.calls("GET", "/titles/7/plex")).toHaveLength(0);
   await userEvent.setup().click(buttons[1]);
-  await waitFor(() => expect(open).toHaveBeenCalledWith("https://app.plex.tv/desktop/#!/x", "_blank", "noopener"));
+  // A blank tab, cut from this page, then sent to Plex Web: no fallback link when it opened.
+  await waitFor(() => expect(tab.location.href).toBe("https://app.plex.tv/desktop/#!/x"));
+  expect(open).toHaveBeenCalledWith("", "_blank");
+  expect(tab.opener).toBeNull();
+  expect(screen.queryByRole("link", { name: "Open in Plex" })).toBeNull();
   expect(api.calls("GET", "/titles/7/plex").map((c) => c.search)).toEqual(["?version=movie-web"]);
 });
 
