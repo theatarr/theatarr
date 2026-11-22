@@ -1170,3 +1170,22 @@ func TestRescueSameReleaseAccountEvidence(t *testing.T) {
 		t.Errorf("outcomes %+v", e.outcomes)
 	}
 }
+
+// A holder counts only with a complete record (state downloaded at 100 %): an account still downloading the release
+// at 100 % is not one, so the release's only complete holder is the serving account, and the other account stays a
+// candidate for step 1.
+func TestRescueCompleteHolderOnly(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash, progress, state) VALUES
+		('tb', 't50', ?, 100, 'downloading')`, strings.Repeat("a", 40))
+	e.pol.Versions["tv"].Providers = []string{"rd", "ad", "tb"}
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.play(2, "buffering")
+	e.poll()
+	if fmt.Sprint(e.copies) != "[ad tb]" {
+		t.Errorf("step 1 asked %v", e.copies)
+	}
+	if got := e.one(`SELECT group_concat(provider) FROM provider_cache WHERE source = 'router:playing'`); got != "rd" {
+		t.Errorf("misses on %q", got)
+	}
+}
