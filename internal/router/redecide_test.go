@@ -491,7 +491,7 @@ func TestHandGrabOfUnairedTVCapturePassesRoute(t *testing.T) {
 	setup := func(t *testing.T, preferSeaDex bool) *env {
 		t.Helper()
 		e := newEnv(t, true)
-		e.pol.Profiles = map[string]*policy.Profile{"tv": {Qualities: []policy.QualityItem{{Name: "HDTV-720p"}},
+		e.pol.Profiles = map[string]*policy.Profile{"tv": {Qualities: []policy.QualityItem{{Name: "HDTV-720p"}, {Name: "WEBDL-720p"}},
 			Cutoff: "HDTV-720p", Propers: policy.PropersPreferAndUpgrade}}
 		e.pol.Versions["series"].Profile = "tv"
 		e.pol.Versions["series"].PreferSeaDex = preferSeaDex
@@ -592,6 +592,53 @@ func TestHandGrabOfUnairedTVCapturePassesRoute(t *testing.T) {
 		}
 		if held(decide.WithOnDisk(e.ctx), "Show.S01E01.720p.HDTV.x264-GRP") {
 			t.Error("a file on disk held")
+		}
+	})
+
+	// The same, with a WEB fallback the route adds: the held HDTV's queued row closes quietly too.
+	t.Run("postponed_with_fallback", func(t *testing.T) {
+		t.Parallel()
+		e := setup(t, true)
+		e.exec(`UPDATE episode SET air_date_utc_at = ? WHERE id = 101`, e.clock.Add(time.Hour).UnixMilli())
+		for _, k := range []string{"rd", "ad", "tb"} {
+			e.exec(`INSERT INTO router_pacing (provider, backoff_until, failures, reason, updated_at)
+				VALUES (?, ?, 1, 'x', 0)`, k, e.clock.Add(time.Minute).UnixMilli())
+		}
+		q := jobs.NewQueue(e.st)
+		q.SetClock(func() time.Time { return e.clock })
+		e.r.RegisterJobs(jobs.NewWorker(q, jobs.WorkerOptions{}), q)
+		tv := hdtv("d")
+		tv.Origin = OriginRSS
+		web := cand(h("e"), "Show.S01E01.720p.WEB-DL.x264-GRP")
+		web.Release.Size, web.Release.Seeders = 1<<30, 10
+		web.Quality, web.Episodes, web.Origin = "WEBDL-720p", []int64{101}, OriginRSS
+		if res, err := e.r.Route(e.ctx, Request{TitleID: 2, VersionID: 20, Version: "series", Source: "rss",
+			Candidates: []Candidate{tv, web}}); err != nil || res.Outcome != OutcomeDeferred {
+			t.Fatalf("defer: %+v %v steps=%s", res, err, steps(res))
+		}
+		var raw string
+		if err := e.st.Reader().QueryRow(`SELECT payload FROM job WHERE kind = ? AND state = 'queued'`, JobRoute).Scan(&raw); err != nil {
+			t.Fatal(err)
+		}
+		var resumed routePayload
+		if err := json.Unmarshal([]byte(raw), &resumed); err != nil {
+			t.Fatal(err)
+		}
+		if len(resumed.Candidates) != 2 || e.count(`SELECT COUNT(*) FROM download WHERE id = ? AND info_hash = ?`,
+			resumed.DownloadID, h("d")) != 1 {
+			t.Fatalf("deferred payload %+v", resumed)
+		}
+		e.exec(`UPDATE episode SET air_date_utc_at = ? WHERE id = 101`, e.clock.Add(5*24*time.Hour).UnixMilli())
+		e.clock = e.clock.Add(2 * time.Minute)
+		res, err := e.r.Route(e.ctx, resumed.Request)
+		if err != nil || res.Outcome != OutcomeAdded || res.Hash != h("e") {
+			t.Fatalf("resume: %+v %v steps=%s", res, err, steps(res))
+		}
+		if n := e.count(`SELECT COUNT(*) FROM download WHERE state = 'failed' OR info_hash = ?`, h("d")); n != 0 {
+			t.Errorf("%d failed or held download rows left", n)
+		}
+		if n := e.count(`SELECT COUNT(*) FROM history WHERE ref LIKE '%:fail'`); n != 0 {
+			t.Errorf("%d failure History rows", n)
 		}
 	})
 

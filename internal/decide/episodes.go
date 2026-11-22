@@ -142,7 +142,7 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 	d.LanguagesAssumed = in.LanguagesAssumed
 
 	media := &profile.Media{Title: t.Name, Runtime: t.Runtime, OriginalLanguage: original, Anime: s.typ == sonarr.SeriesTypeAnime,
-		Monitored: t.Monitored, SeriesType: s.typ.String(), Pilot: pilot(t)}
+		Monitored: t.Monitored, SeriesType: s.typ.String(), Pilot: pilot(t), TimeZone: t.TimeZone}
 	for i := range t.Episodes {
 		media.Episodes = append(media.Episodes, profileEpisode(&t.Episodes[i]))
 	}
@@ -203,7 +203,7 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 		}
 	}
 	subj := &profile.Subject{Profile: p.Profile, Media: media, Release: pr, Episodes: episodes,
-		Cached: e.cacheStanding(v.Policy, &rel.Release), OnDisk: ctx.Value(onDiskContextKey{}) != nil}
+		Cached: e.cacheStanding(v.Policy, &rel.Release), OnDisk: OnDisk(ctx)}
 	if search != nil {
 		subj.Search = profileSearch(search, s)
 	}
@@ -349,12 +349,8 @@ func firstUpgraded(p *Profile, episodes []*profile.Episode, qm profile.QualityMo
 }
 
 func profileEpisode(ep *Episode) *profile.Episode {
-	pe := &profile.Episode{ID: ep.ID, Monitored: ep.Monitored, SeasonNumber: ep.Season, EpisodeNumber: ep.Number,
-		Runtime: ep.Runtime, AirDateUtc: ep.AirDateUTC, Title: ep.Title, LastGrab: ep.LastGrab}
-	if ep.AirTimeUnknown {
-		pe.AirDay = ep.AirDate
-	}
-	return pe
+	return &profile.Episode{ID: ep.ID, Monitored: ep.Monitored, SeasonNumber: ep.Season, EpisodeNumber: ep.Number,
+		Runtime: ep.Runtime, AirDateUtc: ep.AirDateUTC, AirDay: ep.AirDate, Title: ep.Title, LastGrab: ep.LastGrab}
 }
 
 // pilot is the first episode of the lowest season above 0 (Sonarr's AcceptableSize fallback when the series runtime

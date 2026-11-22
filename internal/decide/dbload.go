@@ -39,6 +39,7 @@ var titleSelect = `SELECT t.id, t.kind, t.name, COALESCE(t.year, 0), COALESCE(t.
 	t.use_scene_numbering, COALESCE(t.runtime_minutes, 0), COALESCE(t.original_language, ''), t.monitored,
 	COALESCE(tm.runtime_minutes, 0), COALESCE(NULLIF(tm.original_language, ''), sm.original_language, ''),
 	COALESCE((SELECT a.name FROM title_alias a WHERE a.title_id = t.id AND a.source = 'tmdb-original' LIMIT 1), ''),
+	COALESCE(sm.time_zone, ''),
 	(SELECT m.body FROM metadata_cache m WHERE m.source = 'tmdb' AND m.key IN (
 		'/movie/' || t.tmdb_id || '?append_to_response=external_ids%2Crelease_dates%2Calternative_titles%2Ctranslations',
 		'/movie/' || t.tmdb_id || '?append_to_response=external_ids%2Crelease_dates')
@@ -314,9 +315,6 @@ func loadEpisodes(ctx context.Context, db *sql.DB, tvs []titleVersion, history b
 		return nil, err
 	}
 	tl, _ := json.Marshal(titles)
-	if err := markMadeUpAirTimes(ctx, db, out, byTitle, tl); err != nil {
-		return nil, err
-	}
 	nrows, err := db.QueryContext(ctx, `SELECT n.title_id, n.episode_id, n.scheme, n.season, n.number FROM episode_number n
 		WHERE n.title_id IN (SELECT value FROM json_each(?)) AND n.scheme IN ('absolute_tvdb', 'scene', 'scene_absolute')
 		ORDER BY n.title_id, n.source, n.id`, string(tl))
@@ -456,7 +454,7 @@ func scanTitle(rows *sql.Rows) (Title, error) {
 	var lang, metaLang, original string
 	var metaRuntime int
 	if err := rows.Scan(&t.ID, &kind, &t.Name, &t.Year, &t.SecondaryYear, &t.IMDb, &t.TMDb, &anime, &t.TVDB,
-		&t.SeriesType, &t.UseSceneNumbering, &runtime, &lang, &t.Monitored, &metaRuntime, &metaLang, &original, &body); err != nil {
+		&t.SeriesType, &t.UseSceneNumbering, &runtime, &lang, &t.Monitored, &metaRuntime, &metaLang, &original, &t.TimeZone, &body); err != nil {
 		return t, err
 	}
 	t.Kind, t.Anime = policy.Kind(kind), anime == 1
@@ -709,55 +707,3 @@ func NewLibrary(titles map[int64]Title) Library {
 
 func (l *titleLibrary) ByIMDb(id string) *Title { return l.byIMDb[id] }
 func (l *titleLibrary) ByTMDb(id int) *Title    { return l.byTMDb[id] }
-
-// markMadeUpAirTimes sets AirTimeUnknown as Calendar decides it (activity.Calendar): an episode's instant is made up
-// when the first instant of its season's episodes that air the same day is midnight of that day in the series' zone
-// (series_meta.time_zone; UTC without one), what the refresh writes without an airs time (tvrefresh.MidnightAir).
-func markMadeUpAirTimes(ctx context.Context, db *sql.DB, out [][]Episode, byTitle map[int64][]int, titles []byte) error {
-	zones := map[int64]string{}
-	rows, err := db.QueryContext(ctx, `SELECT title_id, time_zone FROM series_meta
-		WHERE title_id IN (SELECT value FROM json_each(?))`, string(titles))
-	if err != nil {
-		return err
-	}
-	for rows.Next() {
-		var title int64
-		var zone string
-		if err := rows.Scan(&title, &zone); err != nil {
-			rows.Close()
-			return err
-		}
-		zones[title] = zone
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return err
-	}
-	type day struct {
-		season int
-		date   string
-	}
-	for title, tis := range byTitle {
-		loc, err := time.LoadLocation(zones[title])
-		if err != nil {
-			loc = time.UTC
-		}
-		for _, ti := range tis {
-			eps := out[ti]
-			first := map[day]time.Time{}
-			for _, e := range eps {
-				k := day{e.Season, e.AirDate}
-				if f, ok := first[k]; e.AirDateUTC != nil && (!ok || e.AirDateUTC.Before(f)) {
-					first[k] = *e.AirDateUTC
-				}
-			}
-			for i := range eps {
-				e := &eps[i]
-				d, err := time.ParseInLocation(time.DateOnly, e.AirDate, loc)
-				f, ok := first[day{e.Season, e.AirDate}]
-				e.AirTimeUnknown = err == nil && e.AirDateUTC != nil && ok && f.Equal(d)
-			}
-		}
-	}
-	return nil
-}

@@ -523,6 +523,8 @@ func TestNotAiredSpecification(t *testing.T) {
 		{"a pack", "HDTV-720p", true, []*Episode{ep(2, 1, hours(-48)), ep(2, 2, hours(120))}, true},
 		{"two episodes by the first", "HDTV-720p", false, []*Episode{ep(2, 1, hours(2)), ep(2, 2, hours(120))}, true},
 		{"two episodes, the first ahead", "HDTV-720p", false, []*Episode{ep(2, 1, hours(40)), ep(2, 2, hours(41))}, false},
+		{"three episodes by the last", "HDTV-720p", false, []*Episode{ep(2, 1, hours(-48)), ep(2, 2, hours(-24)),
+			ep(2, 3, hours(120))}, false},
 	}
 	// A ten-episode range is decided by its last: E01-E09 aired, E10 airs in five days.
 	var ten []*Episode
@@ -619,7 +621,13 @@ func TestNotAiredSpecification(t *testing.T) {
 	if got := e.Run(sp, s); !strings.Contains(got.Message, "airs Thu 29 Oct, 9:30 pm EDT;") {
 		t.Errorf("words with minutes: %q", got.Message)
 	}
+	// The refresh's placeholder: midnight of the air date in the series' zone prints the day alone.
 	s.Episodes[0].AirDay = "2026-10-29"
+	if got := e.Run(sp, s); !strings.Contains(got.Message, "airs Thu 29 Oct, 9:30 pm EDT;") {
+		t.Errorf("a real time on the air date: %q", got.Message)
+	}
+	at = time.Date(2026, 10, 29, 0, 0, 0, 0, ny)
+	s.Media = &Media{TimeZone: "America/New_York"}
 	want = "Not aired yet: S02E05 airs Thu 29 Oct; a TV recording cannot exist before then."
 	if got := e.Run(sp, s); got.Message != want {
 		t.Errorf("date-only words: %q, want %q", got.Message, want)

@@ -58,6 +58,9 @@ type Title struct {
 	// import's wrong-audio rule reads it; OriginalLanguage, which the decisions read, is resolved as before.
 	NamedOriginalLanguage string
 	Anime                 bool
+	// TimeZone is a series' listing zone (series_meta.time_zone), "" unknown: an air instant at midnight of the air
+	// date there is the refresh's placeholder for a listing without an airs time.
+	TimeZone string
 
 	// Series (Sonarr's Series): the TVDB id, the series type (standard, daily, anime; "" is standard), whether the
 	// series has scene numbering, whether it is monitored, its scene mappings, and its episodes with the version's
@@ -86,11 +89,8 @@ type Episode struct {
 	Title         string
 	AirDate       string // YYYY-MM-DD, "" unknown
 	AirDateUTC    *time.Time
-	// AirTimeUnknown: AirDateUTC is made up (the refresh's midnight of the air day for a listing without an airs
-	// time), as Calendar reads it; AirDate alone is the day.
-	AirTimeUnknown bool
-	Runtime        int
-	Monitored      bool
+	Runtime       int
+	Monitored     bool
 	// File is the version's file of the episode (nil: none); FileID groups the episodes of one file.
 	File   *ExistingFile
 	FileID int64

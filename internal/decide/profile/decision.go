@@ -192,8 +192,7 @@ type Episode struct {
 	EpisodeNumber int
 	Runtime       int // minutes, 0 unknown
 	AirDateUtc    *time.Time
-	// AirDay is the air date (YYYY-MM-DD) when the listing gives the day only (AirDateUtc is then a made-up
-	// midnight), "" when it gives a time.
+	// AirDay is the air date as listed (YYYY-MM-DD), "" unknown.
 	AirDay string
 	// File is the episode's current file, nil when it has none.
 	File *File
@@ -211,6 +210,9 @@ type Media struct {
 	Runtime int
 	// OriginalLanguage is the movie's original language (Radarr language id).
 	OriginalLanguage int
+	// TimeZone is the series' listing zone (a zone name, "" UTC): an air instant at midnight of the air date there is
+	// the refresh's placeholder for a listing without an airs time (ours).
+	TimeZone string
 	// Anime is Sonarr's SeriesType == Anime.
 	Anime bool
 	// MovieFile is Radarr's current file, nil when the movie has none.

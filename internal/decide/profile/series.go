@@ -140,14 +140,24 @@ func notAired(e *Engine, s *Subject) Decision {
 	if held || ep == nil || ep.SeasonNumber == 0 || ep.AirDateUtc == nil || !ep.AirDateUtc.After(now.Add(notAiredLead)) {
 		return Accept()
 	}
+	zone := ""
+	if s.Media != nil {
+		zone = s.Media.TimeZone
+	}
 	return Reject(ReasonNotAiredYet, fmt.Sprintf("Not aired yet: S%02dE%02d airs %s; a TV recording cannot exist before then.",
-		ep.SeasonNumber, ep.EpisodeNumber, airWords(ep, now.Location())))
+		ep.SeasonNumber, ep.EpisodeNumber, airWords(ep, zone, now.Location())))
 }
 
 // airWords is an episode's air time as the UI says it, in loc with the zone's short name: "Thu 26 Nov, 9 pm UTC"
-// ("9:30 pm" off the hour), or the day alone when the listing gives no time.
-func airWords(ep *Episode, loc *time.Location) string {
-	if d, err := time.Parse(time.DateOnly, ep.AirDay); err == nil {
+// ("9:30 pm" off the hour). An instant at exactly midnight of the air date in the series' zone (UTC when unknown) is
+// the refresh's placeholder for a listing without an airs time (tvrefresh.MidnightAir, as Calendar reads it): the day
+// alone.
+func airWords(ep *Episode, zone string, loc *time.Location) string {
+	listing, err := time.LoadLocation(zone)
+	if err != nil {
+		listing = time.UTC
+	}
+	if d, err := time.ParseInLocation(time.DateOnly, ep.AirDay, listing); err == nil && d.Equal(*ep.AirDateUtc) {
 		return d.Format("Mon 2 Jan")
 	}
 	t := ep.AirDateUtc.In(loc)

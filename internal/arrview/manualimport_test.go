@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -351,5 +352,30 @@ func TestPlanReasonDropsLibraryPrefix(t *testing.T) {
 		if got := planReason(errors.New(in)); got != want {
 			t.Errorf("%q: %q", in, got)
 		}
+	}
+}
+
+// onDiskDecider records whether each decision was marked as one about a file on disk.
+type onDiskDecider struct {
+	Decider
+	seen *[]bool
+}
+
+func (d onDiskDecider) Decide(ctx context.Context, rel decide.Release, titleID int64, version string) (*decide.Decision,
+	error) {
+	*d.seen = append(*d.seen, decide.OnDisk(ctx))
+	return d.Decider.Decide(ctx, rel, titleID, version)
+}
+
+// AF D3: the native import by path decides a file on disk, so the not-aired hold cannot change its episodes.
+func TestNativeImportDecidesAFileOnDisk(t *testing.T) {
+	t.Parallel()
+	e := newDevEnv(t)
+	var seen []bool
+	e.svc.decider = onDiskDecider{Decider: e.svc.decider, seen: &seen}
+	e.svc.prepareImport(t.Context(), importRow{titleID: 10, version: "tv-2160p", kind: policy.KindSeries,
+		release: "The.Show.S01E01E02.2160p.HDTV.x265-GRP", hash: strings.Repeat("d", 40)})
+	if !slices.Equal(seen, []bool{true}) {
+		t.Errorf("decisions marked on disk: %v", seen)
 	}
 }

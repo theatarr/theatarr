@@ -201,8 +201,8 @@ func (s *Service) prepareImport(ctx context.Context, r importRow) library.NewImp
 	quality, score, formats := "", 0, "[]"
 	epMap := ""
 	if s.decider != nil {
-		if d, err := s.decider.Decide(ctx, decide.Release{Release: indexer.Release{Title: r.release, Seeders: -1, Peers: -1,
-			InfoHash: r.hash}}, r.titleID, r.version); err == nil {
+		if d, err := s.decider.Decide(decide.WithOnDisk(ctx), decide.Release{Release: indexer.Release{Title: r.release,
+			Seeders: -1, Peers: -1, InfoHash: r.hash}}, r.titleID, r.version); err == nil {
 			quality, score = d.Quality, d.Score
 			b, _ := json.Marshal(d.Formats)
 			formats = string(b)

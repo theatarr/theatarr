@@ -21,6 +21,9 @@ func WithOnDisk(ctx context.Context) context.Context {
 	return context.WithValue(ctx, onDiskContextKey{}, true)
 }
 
+// OnDisk reports whether ctx carries WithOnDisk.
+func OnDisk(ctx context.Context) bool { return ctx.Value(onDiskContextKey{}) != nil }
+
 // WithSearch marks movie search decisions (including automatic searches), so RSS-only specs are skipped.
 // Series decisions carry their criteria in SeriesSearch instead.
 func WithSearch(ctx context.Context) context.Context {

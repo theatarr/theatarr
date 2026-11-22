@@ -69,15 +69,17 @@ from ordinary matching loads.
   36 hours after now, by the stored `air_date_utc_at`: it cannot exist before the broadcast, so it is a fake. The
   episode that decides is the earliest of a release of one or two episodes and the latest with an air date of a
   longer range (a fake `E01-E10` does not ride on E01; none dated: not delayed). Never delayed: WEB, disc and unknown sources, an episode without an air date,
-  season 0, an upgrade (every episode it maps to has a file), a file already on disk (Manual import, reuse for another
-  library: `decide.WithOnDisk`), and packs (they keep `FullSeason`). Automatic search, RSS and the route's second
-  decision apply it alike; RSS does not remember it, so a later sighting is decided again. A queued route that this
-  hold alone refuses when it resumes (the listing moved later while it waited for a provider) closes quietly: its
-  unstarted download is removed, with no failure, History or blocklist row. A grab by
+  season 0, an upgrade (every episode it maps to has a file), a file already on disk (Manual import, the import by path,
+  reuse for another library: `decide.WithOnDisk`), and packs (they keep `FullSeason`). Automatic search, RSS and the route's second
+  decision apply it alike; RSS does not remember it, so a later sighting is decided again. When a queued route resumes
+  and this hold alone refuses the release its download holds (the listing moved later while it waited for a
+  provider), that unstarted download is removed quietly, with no failure, History or blocklist row; the route goes
+  on with its other releases. A grab by
   hand from Interactive search still works: the release is listed with the reason and Grab overrides it (the route
   never decides a grab by hand again). Words: "Not aired yet: S02E05 airs Thu 26 Nov, 9 pm UTC; a TV recording cannot
-  exist before then.", in the server's zone with its short name; the day alone when the time is made up, decided as Calendar decides it
-  (the season's first instant that day is midnight of the air date in the series' zone, UTC without one). No History or blocklist row.
+  exist before then.", in the server's zone with its short name; the day alone when the deciding episode's instant is the refresh's placeholder
+  (exactly midnight of its air date in the series' zone, `series_meta.time_zone`, UTC without one), as Calendar
+  reads it. No History or blocklist row.
 - **`theatarr decide -tvdb N -version KEY [-season N [-episode N]] 'Title'`** decides a series release; `-search` with
   `-season` searches that season.
 - **Parser and season packs** (every series library, no setting): release names parse as v4plus, the Sonarr v4

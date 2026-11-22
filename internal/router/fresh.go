@@ -350,6 +350,9 @@ func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate)
 			r.skipFresh(s, c, "rejected_now", "rejected under the current policy: "+strings.Join(why, "; "))
 			if notAiredOnly(d) {
 				held++
+				if err := r.noteHeldResume(ctx, s, c); err != nil {
+					return nil, err
+				}
 			}
 			continue
 		}
@@ -443,6 +446,9 @@ func (r *Router) remapResumed(ctx context.Context, s *routeState, cands []Candid
 			r.skipFresh(s, c, "rejected_now", "rejected under the current policy: "+strings.Join(why, "; "))
 			if notAiredOnly(d) {
 				held++
+				if err := r.noteHeldResume(ctx, s, c); err != nil {
+					return nil, err
+				}
 			}
 			continue
 		}
@@ -548,12 +554,38 @@ func (r *Router) closeNotAired(ctx context.Context, s *routeState) ([]Candidate,
 	s.res.Outcome = OutcomeCancelled
 	s.res.Steps = append(s.res.Steps, Step{Outcome: "cancelled", Code: "not_aired", Message: msg})
 	if s.req.DownloadID != 0 {
-		if _, err := r.st.Writer().ExecContext(ctx, `DELETE FROM download WHERE id = ? AND state = ? AND added_at IS NULL`,
-			s.req.DownloadID, StateQueued); err != nil {
-			return nil, fmt.Errorf("router: close not aired: %w", err)
+		if err := r.closeHeldQueued(ctx, s.req.DownloadID); err != nil {
+			return nil, err
 		}
 	}
 	return nil, nil
+}
+
+// noteHeldResume marks the route's resumed download as held when c, refused only for air time, is its release.
+func (r *Router) noteHeldResume(ctx context.Context, s *routeState, c Candidate) error {
+	if s.req.DownloadID == 0 {
+		return nil
+	}
+	var hash string
+	err := r.st.Writer().QueryRowContext(ctx, `SELECT COALESCE(info_hash, '') FROM download WHERE id = ?`,
+		s.req.DownloadID).Scan(&hash)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("router: held resume: %w", err)
+	}
+	if hash != "" && indexer.NormalizeHash(hash) == indexer.NormalizeHash(c.Release.InfoHash) {
+		s.heldResume = true
+	}
+	return nil
+}
+
+// closeHeldQueued removes a queued download, never added, that waits only for its episode to air: a hold, not a
+// failure, so no History or blocklist row is left.
+func (r *Router) closeHeldQueued(ctx context.Context, dl int64) error {
+	if _, err := r.st.Writer().ExecContext(ctx, `DELETE FROM download WHERE id = ? AND state = ? AND added_at IS NULL`,
+		dl, StateQueued); err != nil {
+		return fmt.Errorf("router: close not aired: %w", err)
+	}
+	return nil
 }
 
 func (r *Router) skipFresh(s *routeState, c Candidate, code, message string) {
