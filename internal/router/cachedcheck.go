@@ -131,7 +131,7 @@ func (r *Router) resumeCachedCheck(ctx context.Context, x pollRow, t *provider.T
 	}
 	done := false
 	if why == "" {
-		if done, why, err = r.deleteOwnPolled(ctx, x, false); err != nil {
+		if done, why, err = r.deleteOwnPolled(ctx, x, false, "tried again at the next poll"); err != nil {
 			return checkGoOn, err
 		}
 	}
@@ -152,8 +152,9 @@ func (r *Router) resumeCachedCheck(ctx context.Context, x pollRow, t *provider.T
 // the journal, and the poller that then finds the torrent gone takes it as our delete (owedDeleted). done: it is gone.
 // Otherwise why says why it cannot be deleted at all, or is "" when it waits for the gate or the delete failed: it is
 // tried again at the next poll. tooLarge: the add is one AllDebrid refuses as too big (pollTooLarge), deleted with
-// the AllDebrid adder's own too-big delete (adder.TooLargeDeleter).
-func (r *Router) deleteOwnPolled(ctx context.Context, x pollRow, tooLarge bool) (done bool, why string, err error) {
+// the AllDebrid adder's own too-big delete (adder.TooLargeDeleter). then is what the caller does after a failed
+// delete, for the log.
+func (r *Router) deleteOwnPolled(ctx context.Context, x pollRow, tooLarge bool, then string) (done bool, why string, err error) {
 	var send func(ctx context.Context, id string, proof adder.OwnAdd) error
 	if d, ok := r.adders[x.pk].(adder.TooLargeDeleter); ok && tooLarge {
 		send = d.DeleteOwnTooLargeAdd
@@ -177,7 +178,7 @@ func (r *Router) deleteOwnPolled(ctx context.Context, x pollRow, tooLarge bool) 
 	if err != nil {
 		gone, present := r.readAfterDelete(ctx, x.pk, x.tid)
 		if !gone {
-			r.log.Warn("the delete of our add failed; tried again at the next poll", "download", x.id,
+			r.log.Warn("the delete of our add failed; "+then, "download", x.id,
 				"provider", x.pk, "torrent", x.tid, "err", err, "still_there", present)
 			if present {
 				// Not deleted: the journal ends. Otherwise it stays, for a later not-found.
@@ -206,7 +207,7 @@ func (r *Router) pollNameRefused(ctx context.Context, x pollRow, t *provider.Tor
 		return nil
 	}
 	if why == "" {
-		done, no, err := r.deleteOwnPolled(ctx, x, false)
+		done, no, err := r.deleteOwnPolled(ctx, x, false, "tried again at the next poll")
 		if err != nil || (!done && no == "") {
 			return err
 		}
@@ -233,14 +234,15 @@ func (r *Router) pollNameRefused(ctx context.Context, x pollRow, t *provider.Tor
 // pollTooLarge is download x on a provider that refuses its torrent as too big for it after the add (AllDebrid
 // statusCode 8, provider.Torrent.TooLarge): as Real-Debrid's 29 and TorBox's DOWNLOAD_TOO_LARGE at the add, a miss
 // there for the content's miss TTL and the release routed again (requeue) to the next provider; nothing blocklisted.
-// Our own new add (ownPolledAdd: own_add, not reused) is deleted (deleteOwnPolled, one attempt) when
+// Our own new add (ownPolledAdd: own_add, not reused) is deleted (deleteOwnPolled, one attempt; held at the write
+// gate it waits for the next poll) when
 // router.alldebrid_delete_uncached is on; any other magnet, or ours when the delete was refused or failed, stays,
 // listed on Torrents as failed.
 func (r *Router) pollTooLarge(ctx context.Context, x pollRow, t *provider.Torrent, now time.Time, sum *PollSummary) error {
 	rctx := context.WithoutCancel(ctx)
 	kept := "the add was not provably ours"
 	if pv := r.pol.Providers[x.pk]; pv != nil && pv.Kind == provider.KindAllDebrid && !r.set.AllDebridDeleteUncached {
-		kept = "router.alldebrid_delete_uncached is off"
+		kept = `"Delete uncached AllDebrid adds" is off`
 	} else if pv != nil {
 		why, err := r.ownPolledAdd(ctx, x, t)
 		if err != nil {
@@ -249,13 +251,19 @@ func (r *Router) pollTooLarge(ctx context.Context, x pollRow, t *provider.Torren
 			return nil
 		}
 		if why == "" {
-			done, no, err := r.deleteOwnPolled(ctx, x, true)
+			if err := r.mayWrite(x.version); err != nil {
+				// Pause, or the router off: nothing is sent, and the download waits for the next poll as it is.
+				r.log.Info("too big; the delete of our add waits for the gate", "download", x.id, "provider", x.pk,
+					"torrent", x.tid, "why", err)
+				return nil
+			}
+			done, no, err := r.deleteOwnPolled(ctx, x, true, "the magnet is kept and the release routed onward")
 			if err != nil {
 				return err
 			}
 			if !done && no == "" {
-				// Refused, failed or held at the gate: one attempt, then the magnet is kept as any other, so the
-				// release still goes to the next provider.
+				// Sent and refused or failed: one attempt, then the magnet is kept as any other, so the release
+				// still goes to the next provider.
 				no = "the delete failed"
 			}
 			why = no

@@ -1186,7 +1186,7 @@ func TestAllDebridTooBigFromPollerKeptReasons(t *testing.T) {
 	}{
 		{name: "refused", deleteFails: true, want: "the magnet stays on the account (the delete failed)"},
 		{name: "reused", reused: true, want: "the magnet stays on the account (the torrent was reused from the account)", notWant: "our add"},
-		{name: "off", off: true, want: "the magnet stays on the account (router.alldebrid_delete_uncached is off)", notWant: "provably"},
+		{name: "off", off: true, want: `the magnet stays on the account ("Delete uncached AllDebrid adds" is off)`, notWant: "provably"},
 	} {
 		e, f, _ := newDebridEnv(t, true, true)
 		withQueue(e)
@@ -1231,5 +1231,29 @@ func TestAllDebridTooBigFromPollerKeptReasons(t *testing.T) {
 		if n := f.count("ad.test POST /v4/magnet/delete"); n != wantDeletes {
 			t.Errorf("%s: %d delete attempts, want %d", tc.name, n, wantDeletes)
 		}
+	}
+}
+
+// Code 8 while the library may not write (Pause, the router off): the delete of our own add waits at the gate, and the
+// download is left as it is for the next poll, not requeued as after a refused delete.
+func TestAllDebridTooBigFromPollerWaitsAtTheGate(t *testing.T) {
+	t.Parallel()
+	e, f, _ := newDebridEnv(t, false, true)
+	withQueue(e)
+	f.ad[1001] = &fakeAD{hash: h("a"), code: 8}
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
+		provider_torrent_id, state, own_add, added_at, created_at, updated_at)
+		VALUES (1, 1, 10, 'movie', ?, 'Movie.2024.2160p.WEB.H265-GRP', 'pub', 'ad', '1001', 'added', 1, 0, 0, 0)`, h("a"))
+	if _, err := e.r.Poll(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM download WHERE id = 1 AND state = 'added' AND provider = 'ad'`); n != 1 {
+		t.Errorf("download moved on while the delete waits at the gate")
+	}
+	if n := f.count("ad.test POST /v4/magnet/delete"); n != 0 {
+		t.Errorf("%d deletes through the gate", n)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM provider_cache WHERE provider = 'ad'`); n != 0 {
+		t.Errorf("miss recorded while waiting")
 	}
 }
