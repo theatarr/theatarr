@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/store"
@@ -346,4 +347,51 @@ func TestReplacementOfGoneFileIsNoUpgrade(t *testing.T) {
 			t.Errorf("kind %s", got)
 		}
 	})
+}
+
+// A pack's pending import retry (E02's link failed) does not undo the Undo of its E01 upgrade: the Undo ends that
+// download's import in this library.
+func TestUndoEndsPendingRetry(t *testing.T) {
+	t.Parallel()
+	e := importUpEnv(t, "")
+	old := e.heldLink(1, "WEBDL-1080p", "Show.S01E01.1080p.WEB-DL.DDP5.1.H.264-OLD", 201)
+	target, _ := os.Readlink(old)
+	e.readable(target)
+	rel := "Show.S01.2160p.WEB-DL.DDP5.1.H.265-GRP"
+	e.release(rel, map[string]float64{"Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2700,
+		"Show.S01E02.2160p.WEB-DL.DDP5.1.H.265-GRP.mkv": 2650})
+	e.seriesDownload(1, 2, 20, hashA, rel, "[201, 202]", nil)
+	blocker := filepath.Join(e.shows, "Show (2020)", "Season 01", "Show (2020) - S01E02 - Second Part [WEBDL-2160p]-GRP.mkv")
+	if err := os.MkdirAll(filepath.Dir(blocker), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(blocker, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.lib.Import(e.ctx, 1, false); err == nil {
+		t.Fatal("a partial import reported no error")
+	}
+	if got := e.one(`SELECT state FROM library_import WHERE download_id = 1`); got != "partial" {
+		t.Fatalf("library_import %s", got)
+	}
+	var action int64
+	if err := e.st.Reader().QueryRow(`SELECT id FROM library_action WHERE kind = 'replace' AND download_id = 1`).Scan(&action); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.lib.UndoUpgrade(e.ctx, action, "ann"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(blocker); err != nil {
+		t.Fatal(err)
+	}
+	e.now = e.now.Add(time.Hour)
+	if _, err := e.lib.Run(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.Readlink(old); got != target {
+		t.Errorf("E01 points at %q after the retry", got)
+	}
+	if got := e.one(`SELECT state FROM download WHERE id = 1`); got != "imported" {
+		t.Errorf("download %s", got)
+	}
 }

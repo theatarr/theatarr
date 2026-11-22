@@ -264,8 +264,14 @@ func (l *Library) undoUpgrade(ctx context.Context, actionID int64, by string) (*
 			"the upgrade was undone by "+orSomeone(by), router.BlocklistLibrary, now); err != nil {
 			return err
 		}
-		_, err := tx.ExecContext(ctx, `UPDATE router_blocklist SET researched_at = ? WHERE version_key = ?
-			AND info_hash = ?`, now, v.Key, router.BlocklistKey(hash, release))
+		if _, err := tx.ExecContext(ctx, `UPDATE router_blocklist SET researched_at = ? WHERE version_key = ?
+			AND info_hash = ?`, now, v.Key, router.BlocklistKey(hash, release)); err != nil {
+			return err
+		}
+		// Its import, still pending in this library (a partial one waits for its retry), ends here: a retry would
+		// link the blocked release again. What it did not link is wanted and searched the ordinary way.
+		_, err := tx.ExecContext(ctx, `UPDATE download SET state = 'imported', imported_at = COALESCE(imported_at, ?),
+			error = NULL, updated_at = ? WHERE id = ? AND state = 'importing'`, now, now, e.snap.Successor.DownloadID)
 		return err
 	}
 	v, err := l.returnOne(ctx, r)
