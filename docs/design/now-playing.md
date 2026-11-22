@@ -202,7 +202,8 @@ broke while playing is searched at once").
   (session id, viewer, item and part), read from Plex right before, is stopped with "This file stopped working.
   Looking for another copy. Try again in a few minutes.", or "This file stopped working. Try again later." when nothing
   will be done (the day's bound reached, the account out with no other). Only when it is buffering or its position has
-  not moved since the sign; one still advancing gets it at its next sign; a paused one never; no session left: nothing
+  not moved since the sign; one still advancing gets it at the next fresh Plex sample of it that is buffering or has
+  not moved since the sample before (never on a remembered verdict or an old zurg line); a paused one never; no session left: nothing
   is sent. Never when the mount is the problem, never after a read that passed. `Options.StopWithMessage` switches it
   (on when unset); off, nothing is ever sent to Plex. A refusal by Plex is logged once and kept on the incident.
 - **Incidents.** `Tracker.Incidents` lists the last 24 hours' incidents (title, episodes, how many files, viewer,

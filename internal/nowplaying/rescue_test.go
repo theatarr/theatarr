@@ -795,6 +795,17 @@ func TestRescueMessageAtNextSign(t *testing.T) {
 	if got := e.stop.stopped(); len(got) != 0 {
 		t.Fatalf("stopped while advancing: %q", got)
 	}
+	// Still playing and advancing, with zurg's blocked read and its log line still remembered: no stop.
+	for range 2 {
+		e.plex.mu.Lock()
+		e.plex.ss[0].ViewOffset += 10_000
+		e.plex.mu.Unlock()
+		e.advance(10 * time.Second)
+		e.poll()
+	}
+	if got := e.stop.stopped(); len(got) != 0 {
+		t.Fatalf("stopped a stream still advancing: %q", got)
+	}
 	e.plex.mu.Lock()
 	e.plex.ss[0].State = "buffering"
 	e.plex.mu.Unlock()

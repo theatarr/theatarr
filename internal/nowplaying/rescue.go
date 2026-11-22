@@ -125,10 +125,14 @@ func (t *Tracker) liveSigns(now time.Time) {
 		}
 	}
 	for _, se := range t.sess {
-		if p := t.pending[se.s.SessionKey]; p != nil && (se.health.Verdict == "buffering" || t.blockedRead(se) ||
-			t.zurgBroken(se)) {
-			p.due = true // its next sign: the message it is owed, judged from here
-			p.j.s.ViewOffset = se.s.ViewOffset
+		// A message owed goes at the next fresh Plex sample of the same playback that is buffering, or whose position
+		// has not moved since the previous sample; never on a remembered verdict or an old zurg line.
+		if p := t.pending[se.s.SessionKey]; p != nil && se.s.File == p.j.s.File && se.s.RatingKey == p.j.s.RatingKey {
+			if se.s.State == "buffering" || se.s.State == "playing" && se.s.ViewOffset <= p.lastOffset {
+				p.due = true
+				p.j.s.ViewOffset = se.s.ViewOffset
+			}
+			p.lastOffset = se.s.ViewOffset
 		}
 		switch {
 		case se.health.Verdict == "buffering":
@@ -751,6 +755,8 @@ type pendingTell struct {
 	msg      string
 	incident int64
 	due      bool
+	// lastOffset is the playback's position at the latest fresh Plex sample.
+	lastOffset int64
 }
 
 // tell stops the playback of a confirmed broken file with msg (Options.StopWithMessage on, the default): only the same
@@ -784,7 +790,7 @@ func (t *Tracker) tell(ctx context.Context, j *sign, msg string, incident int64)
 	case now.State != "buffering" && now.ViewOffset > j.s.ViewOffset:
 		// Still advancing (what it has cached plays on): told at its next sign.
 		t.mu.Lock()
-		t.pending[j.key] = &pendingTell{j: *j, msg: msg, incident: incident}
+		t.pending[j.key] = &pendingTell{j: *j, msg: msg, incident: incident, lastOffset: now.ViewOffset}
 		t.mu.Unlock()
 		return
 	}
