@@ -89,14 +89,42 @@ func (t *Tracker) Incidents() []Incident {
 		out = append(out, in)
 	}
 	rows.Close()
+	// The episodes' labels in one read, each incident's in its own order.
+	ids := make([][]int64, len(out))
+	var all []int64
 	for i := range out {
-		var ids []int64
-		_ = json.Unmarshal([]byte(eps[i]), &ids)
-		for _, id := range ids {
-			var season, number int
-			if db.QueryRowContext(ctx, `SELECT season, number FROM episode WHERE id = ?`, id).Scan(&season, &number) == nil {
-				out[i].Episodes = append(out[i].Episodes, fmt.Sprintf("S%02dE%02d", season, number))
+		_ = json.Unmarshal([]byte(eps[i]), &ids[i])
+		all = append(all, ids[i]...)
+	}
+	labels := episodeLabels(ctx, db, all)
+	for i := range out {
+		for _, id := range ids[i] {
+			if l, ok := labels[id]; ok {
+				out[i].Episodes = append(out[i].Episodes, l)
 			}
+		}
+	}
+	return out
+}
+
+// episodeLabels reads the S01E02 labels of episodes, by id, in one query.
+func episodeLabels(ctx context.Context, db *sql.DB, ids []int64) map[int64]string {
+	out := map[int64]string{}
+	if len(ids) == 0 {
+		return out
+	}
+	js, _ := json.Marshal(ids)
+	rows, err := db.QueryContext(ctx, `SELECT id, season, number FROM episode WHERE id IN (SELECT value FROM json_each(?))`,
+		string(js))
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var season, number int
+		if rows.Scan(&id, &season, &number) == nil {
+			out[id] = fmt.Sprintf("S%02dE%02d", season, number)
 		}
 	}
 	return out

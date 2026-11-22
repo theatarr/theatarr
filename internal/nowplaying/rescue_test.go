@@ -865,6 +865,11 @@ func TestIncidents(t *testing.T) {
 		in[0].OldRelease != "Show.S01.1080p.WEB-DL-GRP" || in[0].Message == "" {
 		t.Fatalf("incidents %+v", in)
 	}
+	e.exec(`UPDATE playing_break SET episodes = '[3,1]' WHERE link_id = 11`)
+	if in := e.tr.Incidents(); fmt.Sprint(in[0].Episodes) != "[S01E03 S01E01]" {
+		t.Errorf("labels in the row's order: %v", in[0].Episodes)
+	}
+	e.exec(`UPDATE playing_break SET episodes = '[2]' WHERE link_id = 11`)
 	e.exec(`UPDATE playing_break SET fixed_by = 'replaced', new_release = 'Show.S01E02.2160p' WHERE link_id = 11`)
 	if in := e.tr.Incidents(); in[0].Status != "Replaced" || in[0].NewRelease != "Show.S01E02.2160p" {
 		t.Errorf("replaced %+v", in[0])

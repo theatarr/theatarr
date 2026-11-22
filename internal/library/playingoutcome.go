@@ -68,15 +68,22 @@ func (l *Library) playingOutcome(ctx context.Context, incident int64, kind strin
 	if kind != outcome.Replaced {
 		o.NewRelease = ""
 	}
-	var ids []int64
-	_ = json.Unmarshal([]byte(eps), &ids)
-	for _, id := range ids {
-		var season, number int
-		if db.QueryRowContext(ctx, `SELECT season, number FROM episode WHERE id = ?`, id).Scan(&season, &number) == nil {
-			o.Episodes = append(o.Episodes, fmt.Sprintf("S%02dE%02d", season, number))
-		}
+	// The episodes' labels in one read, in the row's order.
+	rows, err := db.QueryContext(ctx, `SELECT je.value, e.season, e.number FROM json_each(?) je
+		JOIN episode e ON e.id = je.value ORDER BY je.key`, eps)
+	if err != nil {
+		return o, err
 	}
-	return o, nil
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var season, number int
+		if err := rows.Scan(&id, &season, &number); err != nil {
+			return o, err
+		}
+		o.Episodes = append(o.Episodes, fmt.Sprintf("S%02dE%02d", season, number))
+	}
+	return o, rows.Err()
 }
 
 // playingFixedTx notes, in an import's transaction after its links are written, the open rows of a title's version
