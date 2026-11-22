@@ -1209,7 +1209,11 @@ func TestHistoryImportAudioNote(t *testing.T) {
 	if r := historyReason(h, "", strings.ToUpper, nil); r != want {
 		t.Errorf("reason %q", r)
 	}
-	// Whole through History's read.
+	// Whole through History's read, a longer one too (two languages).
+	h.Reason = "audio: French and German only, not what this library wants; taken because an earlier release with the " +
+		"same audio was refused"
+	want = "Audio: French and German only, not what this library wants; taken because an earlier release with the same " +
+		"audio was refused"
 	o := newOpsEnv(t)
 	o.exec(`INSERT INTO history (ref, at, event, kind, title_id, version_key, release, quality, files, reason, import_state)
 		VALUES ('dl:9:import', ?, 'imported', 'import', 1, 'movie-remux', 'Alpha.2020.2160p.WEB-GRP', 'WEBDL-2160p', 1, ?,

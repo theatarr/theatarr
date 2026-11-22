@@ -414,6 +414,9 @@ func (j *Journal) history(ctx context.Context, f Filter, episode int64) (*Histor
 			// Whole, as the Blocklist reads it: its words (the web's blockedReasonWords) come from the text inside the
 			// wrapper, which the short cut would lose.
 			x.Reason = cleanText(s.reason, true)
+		case x.Event == EvImported && strings.HasPrefix(s.reason, "audio: "):
+			// The wrong-audio rule's note on a film taken with audio not wanted: whole, as the journal says it.
+			x.Reason = cleanText(s.reason, true)
 		case s.reason != "":
 			x.Reason = cleanMessage(s.reason)
 		}
