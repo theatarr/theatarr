@@ -30,9 +30,14 @@ const (
 var comeBackLimit = PlayingPieceLimit
 
 // playingHeld are the open incidents' links by path, with the old target: a dead link still pointing there is the
-// incident's to bring back.
+// incident's to bring back. An incident's dead link that belongs only to removed versions (removed with its files
+// kept) stays held after its row settled: the sweep neither revives, retires nor rewrites it.
 func playingHeld(ctx context.Context, db *sql.DB) (map[string]string, error) {
-	rows, err := db.QueryContext(ctx, `SELECT path, old_target FROM playing_break WHERE settled = ''`)
+	rows, err := db.QueryContext(ctx, `SELECT pb.path, pb.old_target FROM playing_break pb WHERE pb.settled = ''
+		OR EXISTS (SELECT 1 FROM link l WHERE l.path = pb.path AND l.target = pb.old_target AND l.state = 'dead'
+			AND EXISTS (SELECT 1 FROM link_version lv WHERE lv.link_id = l.id)
+			AND NOT EXISTS (SELECT 1 FROM link_version lv WHERE lv.link_id = l.id AND NOT EXISTS (
+				SELECT 1 FROM arrview_removed_version rv WHERE rv.version_id = lv.version_id)))`)
 	if err != nil {
 		return nil, err
 	}

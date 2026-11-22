@@ -446,3 +446,31 @@ func TestComeBackSettlesRemovedRowsUnread(t *testing.T) {
 		}
 	}
 }
+
+// A version removed with "Keep files" while its file was broken: the row is settled unread, and the kept dead link,
+// which belongs only to removed versions, stays out of the ordinary sweep (no revive from the listing, no rewrite
+// after its folder is renamed) over later maintenance passes.
+func TestRemovedVersionKeepsItsDeadLinkOutOfTheSweep(t *testing.T) {
+	e, id := brokenWhilePlaying(t)
+	e.exec(`UPDATE version SET monitored = 0 WHERE id = 10`)
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (10, 'ui', 0)`)
+	target := e.linkTarget(1)
+	for range 2 {
+		if err := e.lib.ComeBack(e.ctx); err != nil {
+			t.Fatal(err)
+		}
+		e.sweep()
+		e.now = e.now.Add(time.Hour)
+	}
+	if got := e.one(`SELECT settled FROM playing_break WHERE id = ?`, id) + " " +
+		e.one(`SELECT state || ' ' || target FROM link WHERE id = 1`); got != "aside dead "+target {
+		t.Fatalf("after two passes: %s", got)
+	}
+	if err := os.Rename(filepath.Join(e.mount, "__all__", "Name"), filepath.Join(e.mount, "__all__", "Name {"+hashA[:6]+"}")); err != nil {
+		t.Fatal(err)
+	}
+	e.sweep()
+	if got := e.one(`SELECT state || ' ' || target FROM link WHERE id = 1`); got != "dead "+target {
+		t.Errorf("after a rename: %s", got)
+	}
+}

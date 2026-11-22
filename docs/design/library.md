@@ -844,6 +844,8 @@ state and Cutoff unmet are its own. The journal records an `edit_file` action (m
   - **The sweep leaves an open incident's dead link alone** while its target is still the old copy: no revive, move
     aside or repoint by a listing (`TestSweepLeavesUnsettledDeadLink`, `TestSweepDoesNotRepointUnsettledDeadLink`). A
     replacement at the same path (a new target) is an ordinary link (`TestSweepTreatsSamePathReplacementAsActive`).
+    Such a dead link that belongs only to removed versions (removed with "Keep files") stays out of the sweep after
+    its row settled, too (`TestRemovedVersionKeepsItsDeadLinkOutOfTheSweep`).
   - **It comes back only through a read.** After each relink sweep that ended without error (not one a zurg rename
     started) the relink task calls `ComeBack` for each open row whose old copy is not in place: its link still dead at
     the old target, replaced by an import, or moved aside by a partial import while other files hold some of its
