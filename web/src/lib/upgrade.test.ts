@@ -179,3 +179,12 @@ describe("plain words for accounts without see files", () => {
     expect(availabilityFilters(false).some((a) => /cutoff/i.test(a.label + a.hint))).toBe(false);
   });
 });
+
+describe("a season's Why", () => {
+  it("compares the release found with the episode file it was judged against, named", () => {
+    const u = { state: "upgrade_available" as const, quality: "WEBDL-1080p", score: 0, below: 3,
+      replaces: { episode: "S20E156", quality: "HDTV-1080p", score: 200 },
+      next: { release: "Show.S20E156.1080p.WEB-DL", quality: "WEBDL-1080p", score: 202, reason: "better format score: 202 over 200", source: "search", seen_at: "2026-11-13T12:00:00Z" } };
+    expect(whyLines(u, 0, null, null, new Date("2026-11-15T12:00:00Z"))[0]).toBe("S20E156 has: HDTV-1080p, score 200.");
+  });
+});

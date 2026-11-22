@@ -601,3 +601,36 @@ func TestEpisodeFileNoDownload(t *testing.T) {
 		t.Errorf("own download: %+v", f)
 	}
 }
+
+// TestUpgradeWhyPairsTheEpisode: a series copy's (or season's) Why? names the file the release found would replace,
+// with that episode, not the quality and score most of its files have.
+func TestUpgradeWhyPairsTheEpisode(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	e.exec(`UPDATE link SET quality = 'HDTV-1080p', score = 200 WHERE id = 900`)
+	e.exec(`UPDATE episode_version_state SET state = 'filled' WHERE episode_id = 103`)
+	e.exec(`INSERT INTO link (id, path, target, title_id, release_title, quality, score, file_metadata, adopted,
+		created_at, updated_at) VALUES (903, '/tv/Show/S02E01.mkv', '/zurg/Show/S02E01.mkv', 10,
+		'The.Show.S02E01.1080p.WEB-DL-GRP', 'WEBDL-1080p', 1700, '{"Score":1700}', 1, 1000, 1000)`)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (903, 10)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (903, 103)`)
+	var d TitleDetail
+	e.call("GET", APIBase+"/titles/10", nil, 200, &d)
+	u := d.Versions[0].Upgrade
+	if u == nil || u.Next == nil || u.Quality != "WEBDL-1080p" || u.Replaces == nil || u.Replaces.Episode != "S01E01" ||
+		u.Replaces.Quality != "HDTV-1080p" || u.Replaces.Score == nil || *u.Replaces.Score != 200 {
+		t.Fatalf("copy Why: %+v replaces %+v", u, u.Replaces)
+	}
+	var l EpisodeList
+	e.call("GET", APIBase+"/titles/10/episodes?season=1", nil, 200, &l)
+	seen := false
+	for _, se := range l.Seasons {
+		if c := se.Versions["tv-2160p"]; se.Season == 1 {
+			seen = c.Upgrade != nil && c.Upgrade.Replaces != nil && c.Upgrade.Replaces.Episode == "S01E01" &&
+				c.Upgrade.Replaces.Quality == "HDTV-1080p"
+		}
+	}
+	if !seen {
+		t.Errorf("season 1 Why: %+v", l.Seasons)
+	}
+}

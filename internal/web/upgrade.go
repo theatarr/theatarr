@@ -90,6 +90,9 @@ type UpgradeInfo struct {
 	// BelowQuality (series, for callers who see files, where QualityMet is stored): the episodes of Below whose
 	// file's quality misses the cutoff quality itself; the rest fall short on the format score only.
 	BelowQuality int `json:"below_quality,omitempty"`
+	// Replaces (series copy or season, for callers who see files, with Next): the episode file Next was judged
+	// against, so Why? compares the release with its own file rather than with what most files have.
+	Replaces *UpgradeFile `json:"replaces,omitempty"`
 	// For callers who see files: the file's format score, the best release seen and the last search that covered
 	// the item.
 	Score      *int64       `json:"score,omitempty"`
@@ -101,12 +104,19 @@ type UpgradeInfo struct {
 	QualityMet *bool `json:"quality_met,omitempty"`
 }
 
+// UpgradeFile is one episode's file: its code ("S20E156"), quality and format score.
+type UpgradeFile struct {
+	Episode string `json:"episode"`
+	Quality string `json:"quality,omitempty"`
+	Score   *int64 `json:"score,omitempty"`
+}
+
 // redactUpgrade keeps the state, the qualities and the counts.
 func redactUpgrade(u *UpgradeInfo) {
 	if u == nil {
 		return
 	}
-	u.Score, u.Next, u.LastSearch, u.QualityMet, u.BelowQuality = nil, nil, nil, nil, 0
+	u.Score, u.Next, u.LastSearch, u.QualityMet, u.BelowQuality, u.Replaces = nil, nil, nil, nil, 0, nil
 	if c := u.Cutoff; c != nil {
 		*c = Cutoff{Quality: c.Quality, Upgrades: c.Upgrades}
 	}
@@ -654,6 +664,9 @@ func (s *upgradeSet) explain(v upgradeVersion, episode int64) *UpgradeInfo {
 		counts := map[qs]int{}
 		var best qs
 		have := false
+		// The file the chosen Next was judged against, and its episode.
+		var paired itemFile
+		var pairedEp upgradeEpisode
 		for _, e := range s.episodes[v.id] {
 			if episode > 0 && e.id != episode {
 				continue
@@ -684,6 +697,9 @@ func (s *upgradeSet) explain(v upgradeVersion, episode int64) *UpgradeInfo {
 				u.Seen++
 			}
 			note(next, at)
+			if next != nil && u.Next == next {
+				paired, pairedEp = f, e
+			}
 		}
 		if !have {
 			return u
@@ -707,6 +723,10 @@ func (s *upgradeSet) explain(v upgradeVersion, episode int64) *UpgradeInfo {
 					}
 				}
 			}
+		}
+		if u.Next != nil && episode == 0 {
+			u.Replaces = &UpgradeFile{Episode: fmt.Sprintf("S%02dE%02d", pairedEp.season, pairedEp.number),
+				Quality: paired.quality, Score: paired.score}
 		}
 		if episode > 0 {
 			u.Below, u.Seen, u.BelowQuality = 0, 0, 0
