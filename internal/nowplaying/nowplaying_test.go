@@ -52,12 +52,12 @@ func TestParseZurgLine(t *testing.T) {
 			t.Errorf("%q: file %q", c.line, ev.File)
 		}
 	}
-	// The line's own time, when it starts with one (zurg's RFC 3339 UTC stamp, tab-separated, the level perhaps
+	// A cooldown line's own time, when it starts with an RFC 3339 stamp (zurg's, tab-separated, the level perhaps
 	// coloured); none: zero.
 	for line, want := range map[string]string{
 		"2026-11-22T05:06:13.365Z\tWARN\tAccount rd is cooling down for 60s":                "2026-11-22T05:06:13.365Z",
 		"2026-11-22T05:06:13.365Z\t\x1b[33mWARN\x1b[0m\tAccount rd is cooling down for 60s": "2026-11-22T05:06:13.365Z",
-		"[2026-11-22 05:06:13] WARN Account rd is cooling down for 60s":                     "2026-11-22T05:06:13Z",
+		"[2026-11-22 05:06:13] WARN Account rd is cooling down for 60s":                     "",
 		"2026-11-22T06:06:13+01:00 WARN Account rd is cooling down for 60s":                 "2026-11-22T05:06:13Z",
 		"WARN Account rd is cooling down for 60s":                                           "",
 	} {
