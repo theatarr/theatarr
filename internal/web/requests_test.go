@@ -537,7 +537,7 @@ func TestActivityScopedToRequests(t *testing.T) {
 // TestActivityScopedToRequestedCopies: a household user's activity (now, history, the continue row and download
 // events) covers the versions and seasons of the requests they are on, not every copy of the title:
 // another user's movie-web download of a title they asked for in movie-remux is hidden, as is a season
-// they did not ask for (history is scoped by version only). Those who see files are unchanged.
+// they did not ask for (in History too, for a row with episodes). Those who see files are unchanged.
 func TestActivityScopedToRequestedCopies(t *testing.T) {
 	t.Parallel()
 	e := newAddEnv(t, nil)
@@ -631,6 +631,14 @@ func TestActivityScopedToRequestedCopies(t *testing.T) {
 	}
 	if got := versions(mgr); !slices.Equal(got, []string{"movie-remux", "movie-web", "tv-2160p", "tv-2160p"}) {
 		t.Errorf("manager's history versions %v", got)
+	}
+	// A row with episodes is kept to the requested seasons too: ann asked for season 2 only.
+	e.exec(`UPDATE download SET state = 'failed', error = 'not cached' WHERE id IN (?, ?)`, s1, s2)
+	e.sqlSources = true
+	var failed ActivityPage
+	e.callAs(ann, "GET", APIBase+"/activity?state=history&kinds=failure", nil, 200, &failed)
+	if len(failed.History) != 1 || !slices.Equal(failed.History[0].Episodes, []string{"S02E01"}) {
+		t.Errorf("ann's failures %+v, want season 2's only", failed.History)
 	}
 
 	ds, err := activity.Downloads(ctx, e.st.Reader(), activity.Filter{})

@@ -737,16 +737,23 @@ func historyMatch(f Filter, titles []int64) ([]string, []any) {
 	if f.Restricted {
 		var or []string
 		for _, t := range f.Within {
-			vs, narrowed := f.WithinVersions[t]
-			if !narrowed {
-				or, args = append(or, `title_id = ?`), append(args, t)
-				continue
+			c := `title_id = ?`
+			args = append(args, t)
+			if vs, narrowed := f.WithinVersions[t]; narrowed {
+				c += ` AND COALESCE(version_key, '') IN (''` + strings.Repeat(", ?", len(vs)) + `)`
+				for _, v := range vs {
+					args = append(args, v)
+				}
 			}
-			or, args = append(or, `title_id = ? AND COALESCE(version_key, '') IN (''`+strings.Repeat(", ?", len(vs))+`)`),
-				append(args, t)
-			for _, v := range vs {
-				args = append(args, v)
+			// A title narrowed to seasons: rows with an episode in them, or with none.
+			if ss, narrowed := f.WithinSeasons[t]; narrowed {
+				c += ` AND (json_array_length(episodes) = 0 OR EXISTS (SELECT 1 FROM json_each(episodes) je
+					JOIN episode se ON se.id = je.value WHERE se.season IN (` + store.Placeholders(len(ss)) + `)))`
+				for _, n := range ss {
+					args = append(args, n)
+				}
 			}
+			or = append(or, c)
 		}
 		w = append(w, `(`+strings.Join(or, " OR ")+`)`)
 	}

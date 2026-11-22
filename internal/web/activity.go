@@ -349,12 +349,15 @@ func (w *Web) apiActivity(rw http.ResponseWriter, r *http.Request) {
 		}
 		// The journal pages over the caller's titles and the kind, so every page is full until the end.
 		f.TitleKind = kind
-		// History is scoped by version only: journal entries carry no seasons.
+		// History is scoped by the requests' versions, and a row with episodes by their seasons (Queue's scope), before
+		// paging.
 		if scope != nil {
-			f.Restricted, f.WithinVersions = true, map[int64][]string{}
+			f.Restricted, f.WithinVersions, f.WithinSeasons = true, map[int64][]string{}, map[int64][]int{}
 			for id, gs := range scope {
 				f.Within = append(f.Within, id)
 				var vs []string
+				var ss []int
+				whole := false
 				for _, g := range gs {
 					if len(g.versions) == 0 {
 						vs = nil
@@ -362,9 +365,17 @@ func (w *Web) apiActivity(rw http.ResponseWriter, r *http.Request) {
 					}
 					vs = append(vs, g.versions...)
 				}
+				for _, g := range gs {
+					whole = whole || len(g.seasons) == 0
+					ss = append(ss, g.seasons...)
+				}
 				if vs != nil {
 					slices.Sort(vs)
 					f.WithinVersions[id] = slices.Compact(vs)
+				}
+				if !whole {
+					slices.Sort(ss)
+					f.WithinSeasons[id] = slices.Compact(ss)
 				}
 			}
 			slices.Sort(f.Within)

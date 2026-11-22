@@ -218,8 +218,8 @@ and no other-requester list or count.
   copies the user's live requests ask for (`requestScope`): the request's versions and, for a
   series, its seasons, so another member's movie-web download of a title the user asked for in movie-remux is not
   theirs. These are the request's versions and seasons, not the member's own ask (a pending request grows by what
-  a joiner adds, and seasons are kept per request only), and history is scoped by version alone (journal entries
-  carry no seasons). History ids are opaque, and a download toast names no library (`downloadToast`).
+  a joiner adds, and seasons are kept per request only), and history is scoped by version, and a row with
+  episodes by the requested seasons (a row without episodes stays). History ids are opaque, and a download toast names no library (`downloadToast`).
   Because `acquiring` stays title-wide, a change of state or import of any of a title's downloads also sends its
   requesters a `title` event (reason `acquiring`, id and name only), so posters and the title page refetch it
   (`TestAcquiringTitleEvent`). `TestActivityScopedToRequestedCopies` covers it. Visibility comes from the permissions alone (`?as=user` on activity only

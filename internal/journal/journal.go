@@ -134,6 +134,9 @@ type Filter struct {
 	// WithinVersions narrows Restricted titles listed in it to entries of those versions (and entries naming no
 	// version); a title in Within but not here keeps every entry.
 	WithinVersions map[int64][]string
+	// WithinSeasons narrows Restricted titles listed in it to History rows with an episode of those seasons (and rows
+	// with no episodes); a title in Within but not here keeps every season. History only.
+	WithinSeasons map[int64][]int
 	// TitleKind keeps entries of titles of this kind: movie, series (both without anime) or anime.
 	TitleKind string
 	// Kinds keeps these kinds.
