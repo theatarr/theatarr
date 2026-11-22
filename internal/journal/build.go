@@ -464,7 +464,11 @@ func (b *builder) decisionFor(e *Entry, d *dlRow) error {
 		if d.added.Valid {
 			ranked := slices.SortedStableFunc(slices.Values(append([]snapshot.Candidate{*r.Chosen}, r.RunnersUp...)),
 				func(a, b snapshot.Candidate) int { return a.Rank - b.Rank })
-			r.ChosenOver = snapshot.ChosenLine(ranked, d.hash)
+			eps, err := snapshot.DownloadEpisodes(b.ctx, b.db, d.id)
+			if err != nil {
+				return err
+			}
+			r.ChosenOver = snapshot.ChosenLine(ranked, d.hash, eps)
 		}
 		if r.Chosen.Existing != nil {
 			s := r.Chosen.Existing.Score

@@ -97,6 +97,9 @@ type Candidate struct {
 type Over struct {
 	Release string `json:"release"`
 	Reason  string `json:"reason"`
+	// Episodes are that release's episodes (none for a film; not recorded before phase AF: then the candidate of
+	// that name says them).
+	Episodes []string `json:"episodes,omitempty"`
 }
 
 // Search is one decided search.
@@ -142,7 +145,7 @@ func Candidates(ranked []*decide.Decision, rels map[*decide.Decision]indexer.Rel
 		if d.Accepted {
 			if len(out) < KeepAccepted {
 				if o := d.ChosenOver(); o != nil {
-					c.Over = &Over{Release: o.Release, Reason: o.Reason}
+					c.Over = &Over{Release: o.Release, Reason: o.Reason, Episodes: o.Episodes}
 				}
 				out = append(out, c)
 			}
@@ -296,11 +299,45 @@ func Record(ctx context.Context, db Execer, s Search) error {
 
 // ChosenLine is the one explanation of a stored search's choice, for the release its route took (Last search, the
 // journal's grab entry; the caller checks it was taken): "Chosen over <next>: <reason>", the reason recorded when
-// the search was ranked. It says nothing about releases ranked above it. "" when nothing was ranked after it.
-func ChosenLine(cands []Candidate, taken string) string {
+// the search was ranked. It says nothing about releases ranked above it. "" when nothing was ranked after it, or when
+// that release covers none of episodes, the episodes the download was taken for (DownloadEpisodes; nil: any).
+func ChosenLine(cands []Candidate, taken string, episodes []string) string {
 	i := slices.IndexFunc(cands, func(c Candidate) bool { return c.Accepted && taken != "" && strings.EqualFold(c.InfoHash, taken) })
 	if i < 0 || cands[i].Over == nil || cands[i].Over.Reason == "" {
 		return ""
 	}
-	return "Chosen over " + cands[i].Over.Release + ": " + cands[i].Over.Reason
+	over := cands[i].Over
+	its := over.Episodes
+	if j := slices.IndexFunc(cands, func(c Candidate) bool { return c.Accepted && c.Release == over.Release }); its == nil && j >= 0 {
+		its = cands[j].Episodes
+	}
+	if len(episodes) > 0 && len(its) > 0 && !slices.ContainsFunc(its, func(e string) bool { return slices.Contains(episodes, e) }) {
+		return ""
+	}
+	return "Chosen over " + over.Release + ": " + over.Reason
+}
+
+// Querier is a *sql.DB or *sql.Tx.
+type Querier interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+}
+
+// DownloadEpisodes is the episodes download dl was taken for, named as Candidate.Episodes names them (S01E02); none
+// for a film.
+func DownloadEpisodes(ctx context.Context, db Querier, dl int64) ([]string, error) {
+	rows, err := db.QueryContext(ctx, `SELECT printf('S%02dE%02d', e.season, e.number) FROM download d,
+		json_each(d.episodes) j JOIN episode e ON e.id = j.value WHERE d.id = ? ORDER BY e.season, e.number`, dl)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var s string
+		if err := rows.Scan(&s); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
 }

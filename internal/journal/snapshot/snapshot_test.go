@@ -119,22 +119,35 @@ func TestDropPublicVolumeFlags(t *testing.T) {
 func TestChosenLine(t *testing.T) {
 	over := &Over{Release: "A.WEB-THREE", Reason: "higher quality (Remux-2160p over WEBDL-2160p)"}
 	cands := []Candidate{{Accepted: true, InfoHash: "h1"}, {Accepted: true, InfoHash: "h3", Over: over}, {Accepted: true, InfoHash: "h4"}}
-	if got := ChosenLine(cands, "H3"); got != "Chosen over A.WEB-THREE: higher quality (Remux-2160p over WEBDL-2160p)" {
+	if got := ChosenLine(cands, "H3", nil); got != "Chosen over A.WEB-THREE: higher quality (Remux-2160p over WEBDL-2160p)" {
 		t.Errorf("lower one taken: %q", got)
 	}
-	if got := ChosenLine(cands[1:], "h3"); got != "Chosen over A.WEB-THREE: higher quality (Remux-2160p over WEBDL-2160p)" {
+	if got := ChosenLine(cands[1:], "h3", nil); got != "Chosen over A.WEB-THREE: higher quality (Remux-2160p over WEBDL-2160p)" {
 		t.Errorf("best taken: %q", got)
 	}
 	// Nothing after it (one accepted release), or not among the candidates.
-	if got := ChosenLine([]Candidate{{Accepted: true, InfoHash: "h4"}}, "h4"); got != "" {
+	if got := ChosenLine([]Candidate{{Accepted: true, InfoHash: "h4"}}, "h4", nil); got != "" {
 		t.Errorf("one release: %q", got)
 	}
-	if got := ChosenLine(cands, "h9"); got != "" {
+	if got := ChosenLine(cands, "h9", nil); got != "" {
 		t.Errorf("unknown: %q", got)
 	}
 	// Another episode's better release is no better choice for this one.
 	eps := []Candidate{{Accepted: true, InfoHash: "h1", Episodes: []string{"S01E02"}}, {Accepted: true, InfoHash: "h3", Episodes: []string{"S01E01"}, Over: over}}
-	if got := ChosenLine(eps, "h3"); got != "Chosen over A.WEB-THREE: higher quality (Remux-2160p over WEBDL-2160p)" {
+	if got := ChosenLine(eps, "h3", nil); got != "Chosen over A.WEB-THREE: higher quality (Remux-2160p over WEBDL-2160p)" {
 		t.Errorf("episodes: %q", got)
+	}
+	// A pack taken for only some of its episodes (the others were covered already) is not chosen over a release of
+	// none of them.
+	pack := []Candidate{{Accepted: true, InfoHash: "h1", Episodes: []string{"S01E01", "S01E02"},
+		Over: &Over{Release: "A.S01E01-ONE", Reason: "a pack"}},
+		{Accepted: true, InfoHash: "h2", Release: "A.S01E01-ONE", Episodes: []string{"S01E01"}}}
+	if got := ChosenLine(pack, "h1", []string{"S01E02"}); got != "" {
+		t.Errorf("runner-up of none of the taken episodes: %q", got)
+	}
+	for _, eps := range [][]string{{"S01E01", "S01E02"}, nil} {
+		if got := ChosenLine(pack, "h1", eps); got != "Chosen over A.S01E01-ONE: a pack" {
+			t.Errorf("runner-up of a taken episode (%v): %q", eps, got)
+		}
 	}
 }

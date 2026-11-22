@@ -90,6 +90,8 @@ func (d *Decision) SeaDexPreference() int {
 type Over struct {
 	Release string
 	Reason  string
+	// Episodes are that release's (Decision.Episodes).
+	Episodes []string
 }
 
 // ChosenOver is Over, recorded when the decisions were ranked; nil when none.
@@ -112,7 +114,7 @@ func recordOver(ordered []*profile.Subject, bySubject map[*profile.Subject]*Deci
 				continue
 			}
 			if why := explain(s, n); why != "" {
-				d.over = &Over{Release: nd.Release, Reason: why}
+				d.over = &Over{Release: nd.Release, Reason: why, Episodes: nd.Episodes}
 			}
 			break
 		}

@@ -594,7 +594,11 @@ func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt6
 	out.Grabbed = searchSummary(dls, pick, current, candidatesOf(out.Candidates), oc, state, message, w.providerTag)
 	// Only for the download shown, and only when a provider took it (its own added_at), as the Journal says it.
 	if len(dls) > 0 && dls[pick].added {
-		out.Chosen = snapshot.ChosenLine(candidatesOf(out.Candidates), dls[pick].hash)
+		eps, err := snapshot.DownloadEpisodes(ctx, db, dls[pick].id)
+		if err != nil {
+			return err
+		}
+		out.Chosen = snapshot.ChosenLine(candidatesOf(out.Candidates), dls[pick].hash, eps)
 	}
 	return nil
 }

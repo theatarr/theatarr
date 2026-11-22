@@ -1234,3 +1234,36 @@ func TestChosenLine(t *testing.T) {
 		t.Errorf("rss: chosen %q for a download no provider took (grabbed %q)", r.Chosen, r.Grabbed)
 	}
 }
+
+// A season pack the route took for S01E02 alone (S01E01 was covered already) is not "chosen over" a release of S01E01
+// only.
+func TestChosenLineNamesNoReleaseOfOtherEpisodes(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	now := store.Millis(addNow)
+	const h1, h2 = "1111111111111111111111111111111111111111", "2222222222222222222222222222222222222222"
+	cands := `[{"rank":1,"release":"Show.S01.2160p.WEB-PACK","info_hash":"` + h1 + `","accepted":true,
+		  "episodes":["S01E01","S01E02"],"over":{"release":"Show.S01E01.2160p.WEB-ONE","reason":"a pack","episodes":["S01E01"]}},
+		{"rank":2,"release":"Show.S01E01.2160p.WEB-ONE","info_hash":"` + h2 + `","accepted":true,"episodes":["S01E01"]}]`
+	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, state, results, accepted,
+		message, created_at, updated_at) VALUES (61, 'wanted', 10, 10, 'tv-2160p', 's01', 'routed', 2, 2, '', ?, ?)`,
+		now-5000, now-5000)
+	e.exec(`INSERT INTO journal_decision (id, source, run_id, title_id, version_key, target, results, accepted,
+		candidates, created_at) VALUES (98, 'acquire:61', 61, 10, 'tv-2160p', 's01', 2, 2, ?, ?)`, cands, now-5000)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
+		state, episodes, source, created_at, updated_at, added_at) VALUES
+		(7, 10, 10, 'tv-2160p', ?, 'Show.S01.2160p.WEB-PACK', 'idx', 'ad', 'downloading', '[102]', 'acquire:61', ?, ?, ?)`,
+		h1, now-4900, now-4900, now-4800)
+	var r Releases
+	e.call("GET", APIBase+"/titles/10/episodes/102/releases", nil, 200, &r)
+	if r.Chosen != "" {
+		t.Errorf("chosen %q (grabbed %q)", r.Chosen, r.Grabbed)
+	}
+	// Taken for both episodes, the line stands.
+	e.exec(`UPDATE download SET episodes = '[101, 102]' WHERE id = 7`)
+	r = Releases{}
+	e.call("GET", APIBase+"/titles/10/episodes/102/releases", nil, 200, &r)
+	if want := "Chosen over Show.S01E01.2160p.WEB-ONE: a pack"; r.Chosen != want {
+		t.Errorf("chosen %q, want %q (grabbed %q)", r.Chosen, want, r.Grabbed)
+	}
+}
