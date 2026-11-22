@@ -686,3 +686,29 @@ func TestUndoAsksTheGateAboutPaths(t *testing.T) {
 		t.Errorf("undo: %v", err)
 	}
 }
+
+// A library the title was removed from ("Remove from library" with its files kept) offers no Undo, and an Undo
+// posted anyway is refused: nothing changes.
+func TestUndoRemovedVersion(t *testing.T) {
+	t.Parallel()
+	e, old, _, action := adoptedFilm(t)
+	newPath := e.one(`SELECT path FROM link WHERE download_id = 1`)
+	newTarget, _ := os.Readlink(newPath)
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (10, 'ui', 0)`)
+	if offers, err := e.lib.UndoOffers(e.ctx, []int64{action}); err != nil || len(offers) != 0 {
+		t.Errorf("offers %v %v", offers, err)
+	}
+	var rr *ReturnRefused
+	if _, err := e.lib.UndoUpgrade(e.ctx, action, "ann"); !errors.As(err, &rr) {
+		t.Fatalf("undo: %v", err)
+	}
+	if got, _ := os.Readlink(newPath); got != newTarget {
+		t.Errorf("the kept file points at %q", got)
+	}
+	if _, err := os.Lstat(old); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the earlier file came back: %v", err)
+	}
+	if got := e.one(`SELECT COUNT(*) FROM router_blocklist`); got != "0" {
+		t.Errorf("blocklist rows %s", got)
+	}
+}

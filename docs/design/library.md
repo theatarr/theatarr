@@ -849,7 +849,8 @@ before 00152 has no snapshot and gets no Undo; nor does one whose trash copy was
 - **Offered** (History's `undo`, managers only; one query for a page's replaced files) when the snapshot exists, the
   recorded successor still holds the slot (the same row at its path and target, holding the same download's file, in
   the same library, active or dead: a dead one still owns the slot, and Undo helps most then; no active link at the
-  earlier path), no other active file of the library holds the film or an episode of the earlier file (more than one
+  earlier path; not a library the title was removed from, files kept: the POST refuses it too, "The library changed
+  since; nothing was undone"), no other active file of the library holds the film or an episode of the earlier file (more than one
   file took its place: a one-file Undo would leave two files on one episode), the library writes (the write gate)
   and the successor's symlink is still in place, and the earlier file is on the mount (a stat, its size not zero).
   The POST asks the gate again and answers with its reason ("The library does not write now: …"). No quality comparison and no wrong-audio check (the owner's choice, as Manual import); it does
