@@ -459,9 +459,11 @@ func (w *Web) storedReleases(ctx context.Context, out *Releases, scope storedSco
 	if scope.run != 0 {
 		cond, args = cond+" AND run_id = ?", append(args, scope.run)
 	}
+	var research string
 	err := db.QueryRowContext(ctx, `SELECT created_at, candidates, rejections, notes, target, results, accepted,
-		run_id, source FROM journal_decision WHERE title_id = ? AND version_key = ?`+cond+` ORDER BY created_at DESC, id DESC
-		LIMIT 1`, args...).Scan(&jAt, &cj, &rj, &notes, &target, &results, &accepted, &run, &jSource)
+		run_id, source, COALESCE((SELECT research FROM acquire_run WHERE id = journal_decision.run_id), '')
+		FROM journal_decision WHERE title_id = ? AND version_key = ?`+cond+` ORDER BY created_at DESC, id DESC
+		LIMIT 1`, args...).Scan(&jAt, &cj, &rj, &notes, &target, &results, &accepted, &run, &jSource, &research)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) && !strings.Contains(err.Error(), "no such table") {
 		return err
 	}
@@ -476,7 +478,7 @@ func (w *Web) storedReleases(ctx context.Context, out *Releases, scope storedSco
 		out.Candidates = mergeCopies(cands)
 		_ = json.Unmarshal([]byte(rj), &out.Rejections)
 		if out.Message == "" {
-			out.Message = "From " + sourceWord(target) + storedSearchWhy(ctx, db, run)
+			out.Message = "From " + sourceWord(target) + storedSearchWhy(research)
 		}
 		if err := w.storedGrabbed(ctx, out, run, jSource, jAt, 0, ""); err != nil {
 			return err
@@ -610,15 +612,10 @@ func scanRunDownload(r *sql.Rows, d *runDownload) error {
 }
 
 // sourceWord names what a stored decision came from, after "From": "RSS", "a search", "a search for S01".
-// storedSearchWhy says why a stored search's run started, when the words for it are more than "a search": " after a
-// file stopped working while playing" for the search of a file that broke while someone played it (which file is not
-// said: the episode shown may be another the search covered); "" for any other.
-func storedSearchWhy(ctx context.Context, db *sql.DB, run sql.NullInt64) string {
-	if !run.Valid {
-		return ""
-	}
-	var research string
-	_ = db.QueryRowContext(ctx, `SELECT COALESCE(research, '') FROM acquire_run WHERE id = ?`, run.Int64).Scan(&research)
+// storedSearchWhy says why a stored search's run started (its acquire_run.research), when the words for it are more
+// than "a search": " after a file stopped working while playing" for the search of a file that broke while someone
+// played it (which file is not said: the episode shown may be another the search covered); "" for any other.
+func storedSearchWhy(research string) string {
 	if research == router.ReasonPlaying {
 		return " after a file stopped working while playing"
 	}

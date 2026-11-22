@@ -1193,6 +1193,7 @@ func (w *Web) storedEpisodeReleases(ctx context.Context, out *Releases, it evIte
 		source, target    string
 		run               sql.NullInt64
 		decided           string // journal_decision.source
+		research          string // its run's acquire_run.research
 		results, accepted int
 		notes             string
 		cands             []snapshot.Candidate
@@ -1239,12 +1240,14 @@ func (w *Web) storedEpisodeReleases(ctx context.Context, out *Releases, it evIte
 			best = &s
 		}
 	}
-	err := scanAll(ctx, db, `SELECT created_at, target, results, accepted, notes, candidates, rejections, run_id, source
+	err := scanAll(ctx, db, `SELECT created_at, target, results, accepted, notes, candidates, rejections, run_id, source,
+		COALESCE((SELECT research FROM acquire_run WHERE id = journal_decision.run_id), '')
 		FROM journal_decision WHERE title_id = ? AND version_key = ? ORDER BY created_at DESC, id`, []any{out.TitleID, out.Version},
 		func(r *sql.Rows) error {
 			var s stored
 			var cj, rj string
-			if err := r.Scan(&s.at, &s.target, &s.results, &s.accepted, &s.notes, &cj, &rj, &s.run, &s.decided); err != nil {
+			if err := r.Scan(&s.at, &s.target, &s.results, &s.accepted, &s.notes, &cj, &rj, &s.run, &s.decided,
+				&s.research); err != nil {
 				return err
 			}
 			s.source = "journal"
@@ -1276,7 +1279,7 @@ func (w *Web) storedEpisodeReleases(ctx context.Context, out *Releases, it evIte
 	}
 	if out.Message == "" {
 		// Why the search ran is the search's, not the episode's: it comes before what it covered.
-		out.Message = "From " + sourceWord(best.target) + storedSearchWhy(ctx, db, best.run)
+		out.Message = "From " + sourceWord(best.target) + storedSearchWhy(best.research)
 		if !strings.EqualFold(best.target, it.code()) {
 			out.Message += ", which covered " + it.code()
 		}
