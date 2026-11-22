@@ -277,9 +277,11 @@ type ActivityPage struct {
 var historyKinds = []string{journal.KindGrab, journal.KindUpgrade, journal.KindImport, journal.KindLink,
 	journal.KindFailure, journal.KindStall, journal.KindBlocklist, journal.KindAction}
 
-// userHistoryEvents are the History events a caller without "see files" gets: not the provider copies.
+// userHistoryEvents are the History events a caller without "see files" gets: not the provider copies, and not what
+// came of a file that stopped working while someone (perhaps another viewer) played it.
 var userHistoryEvents = slices.DeleteFunc(slices.Clone(journal.HistoryEvents), func(ev string) bool {
-	return ev == journal.EvCopyAdded || ev == journal.EvCopyAlready || ev == journal.EvCopyNotCached
+	return ev == journal.EvCopyAdded || ev == journal.EvCopyAlready || ev == journal.EvCopyNotCached ||
+		ev == journal.EvPlaying
 })
 
 var activityKinds = map[string]bool{"": true, "movie": true, "series": true, "anime": true}

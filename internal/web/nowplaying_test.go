@@ -109,8 +109,9 @@ func TestPlayingHistoryRows(t *testing.T) {
 			'WEBDL-1080p', '[]', 1, 1)`, id, id, 10+id)
 		store.HistoryPlaying(ctx, e.st.Writer(), int64(id), kind, int64(1000*(id+1)))
 	}
+	key := e.apiKey()
 	var hist ActivityPage
-	if code := e.getKey(APIBase+"/activity?state=history&title_id=9&events=playing", e.apiKey(), &hist); code != 200 {
+	if code := e.getKey(APIBase+"/activity?state=history&title_id=9&events=playing", key, &hist); code != 200 {
 		t.Fatalf("history: %d", code)
 	}
 	words := map[string]string{}
@@ -125,5 +126,18 @@ func TestPlayingHistoryRows(t *testing.T) {
 		"Stopped working, no other copy yet": "bad", "Earlier copy put back": "ok"}
 	if fmt.Sprint(words) != fmt.Sprint(want) {
 		t.Errorf("words %v", words)
+	}
+	// Only for those who see files: a household view gets neither the rows nor the filter.
+	var user ActivityPage
+	if code := e.getKey(APIBase+"/activity?state=history&title_id=9&as=user", key, &user); code != 200 {
+		t.Fatalf("household history: %d", code)
+	}
+	for _, h := range user.History {
+		if h.Event == journal.EvPlaying {
+			t.Errorf("household sees %+v", h)
+		}
+	}
+	if code := e.getKey(APIBase+"/activity?state=history&events=playing&as=user", key, nil); code != 400 {
+		t.Errorf("household filter by playing: %d", code)
 	}
 }

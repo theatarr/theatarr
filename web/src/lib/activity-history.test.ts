@@ -51,6 +51,8 @@ describe("activity history filters", () => {
     // Household History has no Grabbed rows: no Grabbed filter, and an old Grabbed link reads All events.
     expect(historyEventsFor(false).map((e) => e.id)).not.toContain("grabbed");
     expect(historyEventsFor(true).map((e) => e.id)).toContain("grabbed");
+    expect(historyEventsFor(false).map((e) => e.id)).not.toContain("playing");
+    expect(historyEventsFor(true).map((e) => e.id)).toContain("playing");
     expect(historyFiltersFor({ ...NO_HISTORY_FILTERS, event: "grabbed" }, false).event).toBe("all");
     expect(historyFiltersFor({ ...NO_HISTORY_FILTERS, event: "grabbed" }, true).event).toBe("grabbed");
     // Since is local midnight of that day.
