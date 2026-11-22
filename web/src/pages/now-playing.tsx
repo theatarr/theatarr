@@ -97,8 +97,8 @@ function Incidents({ items, seeFiles }: { items: NowPlayingIncident[]; seeFiles:
             return (
               <li key={i.id} className="space-y-1 px-4 py-3 text-sm [overflow-wrap:anywhere]" data-testid="now-playing-incident">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium text-[var(--ink)]">
-                  <Link to={`/title/${i.title_id}`} className="underline-offset-2 hover:underline">{incidentLabel(i)}</Link>
-                  {seeFiles && i.version ? <VersionTag k={i.version} /> : null}
+                  <Link to={`/title/${i.title_id}`} className="min-w-0 underline-offset-2 hover:underline">{incidentLabel(i)}</Link>
+                  {seeFiles && i.version ? <VersionTag k={i.version} className="h-auto min-h-5 max-w-full whitespace-normal py-0.5 leading-tight [overflow-wrap:anywhere] [&>span]:shrink-0" /> : null}
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={cn("size-2 shrink-0 rounded-full", DOT[incidentTone(i.state)])} aria-hidden />

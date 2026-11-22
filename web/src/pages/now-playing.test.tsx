@@ -87,6 +87,18 @@ describe("Now playing's files that stopped working", () => {
     expect(rows[2].textContent).toContain("Plex refused to stop the player: status 401.");
     expect(screen.getByRole("link", { name: "Show (2020) · S02E07" }).getAttribute("href")).toBe("/title/7");
     expect(rows[0].innerHTML).not.toMatch(/truncate|text-ellipsis|line-clamp/);
+    // The library, for those who see files; a long name wraps inside the card.
+    const tag = rows[0].querySelector("[data-vkey]");
+    expect(tag?.getAttribute("data-vkey")).toBe("tv-web");
+    expect(tag?.className).toContain("whitespace-normal");
+    expect(tag?.className).not.toMatch(/(^|\s)whitespace-nowrap(\s|$)/);
+  });
+  it("gives a member their own rows without the library, the file count or the releases", async () => {
+    show(["browse", "request"], [{ id: 3, title_id: 7, title: "Show (2020)", episodes: ["S02E07"], viewer: "ann", player: "Living room TV",
+      state: "replaced", status: "Replaced with another release", at }]);
+    const rows = await screen.findAllByTestId("now-playing-incident");
+    expect(rows[0].querySelector("[data-vkey]")).toBeNull();
+    expect(rows[0].textContent).not.toMatch(/files of the release|Broken copy|Replaced by/);
   });
   it("shows no list when there is none", async () => {
     show(["browse", "request"]);
