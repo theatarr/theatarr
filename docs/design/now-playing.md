@@ -354,6 +354,6 @@ library's active links of the title are matched on their path. The answer is `{f
 `web_url` is `https://app.plex.tv/desktop/#!/server/<machine>/details?key=%2Flibrary%2Fmetadata%2F<ratingKey>` (Plex
 Web; Android can hand it to the app), and `app_url` is `plex://preplay/?metadataKey=…&server=<machine>`, the form the
 Plex iOS app opens. The web app picks one by platform. Otherwise it answers `{found: false, message}`: "Not found in
-Plex yet" (no section, no file, or Plex has not listed it), or the sentence for a Plex that does not answer or refuses
-the token (`uipages.Fix`). A title in two libraries is two Plex items and gets two lookups, one per library with a
+Plex yet" (no section, no file, or Plex has not listed it), or, for managers and admins, the sentence for a Plex that does not
+answer or refuses the token (`uipages.Fix`); a member reads "Plex does not answer", as on Now playing. A title in two libraries is two Plex items and gets two lookups, one per library with a
 file (`web.TestPlexLink`; a section of 5000 episodes from the fake takes about 20 ms to list and match).

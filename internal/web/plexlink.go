@@ -63,7 +63,7 @@ func (w *Web) apiPlexLink(rw http.ResponseWriter, r *http.Request) {
 		notFoundYet()
 		return
 	}
-	lv := pol.LibrarySettings().Versions[key]
+	lv := pol.Library.Versions[key]
 	if lv == nil || lv.PlexSection <= 0 {
 		notFoundYet()
 		return
@@ -98,7 +98,11 @@ func (w *Web) apiPlexLink(rw http.ResponseWriter, r *http.Request) {
 		if se := (*plex.StatusError)(nil); errors.As(err, &se) {
 			class = uipages.HTTPClass(se.Status)
 		}
-		writeJSON(rw, http.StatusOK, PlexLink{Message: uipages.Fix(uipages.FixPlex, "", pol.Library.Plex.URL, class)})
+		msg := "Plex does not answer" // as Now playing: a member reads no address and no settings page
+		if w.permsOf(r).SeeFiles {
+			msg = uipages.Fix(uipages.FixPlex, "", pol.Library.Plex.URL, class)
+		}
+		writeJSON(rw, http.StatusOK, PlexLink{Message: msg})
 	}
 	machine, err := pc.Identity(r.Context())
 	if err != nil {

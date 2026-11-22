@@ -61,6 +61,7 @@ func TestPlexLink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	var getAs func(key, path string) PlexLink
 	e := newEnvWith(t, func(cfg *Config) {
 		cfg.PlexItems = func(context.Context) (PlexItems, *policy.Policy, error) { return c, pol, nil }
 	})
@@ -75,7 +76,13 @@ func TestPlexLink(t *testing.T) {
 		(823, '/lib/movies/Later (2021)/Later.mkv', '/m/c', 803, 'active', ?, ?)`, now, now, now, now, now, now)
 	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (821, 811), (822, 812), (823, 813), (821, 814)`)
 	key := e.apiKey()
-	get := func(path string) PlexLink {
+	uid := e.account("member", auth.RoleUser, auth.StatusActive, true)
+	memberKey, _, err := e.auth.CreateKey(context.Background(), "k-member", uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	get := func(path string) PlexLink { return getAs(key, path) }
+	getAs = func(key, path string) PlexLink {
 		t.Helper()
 		r := httptest.NewRequest("GET", APIBase+path, nil)
 		r.Header.Set(auth.APIKeyHeader, key)
@@ -90,6 +97,9 @@ func TestPlexLink(t *testing.T) {
 		return out
 	}
 	film := get("/titles/801/plex?version=movie-pl")
+	if m := getAs(memberKey, "/titles/801/plex?version=movie-pl"); m != film {
+		t.Errorf("a member's link %+v", m)
+	}
 	if !film.Found || film.WebURL != "https://app.plex.tv/desktop/#!/server/abc123/details?key=%2Flibrary%2Fmetadata%2F55" ||
 		film.AppURL != "plex://preplay/?metadataKey=%2Flibrary%2Fmetadata%2F55&server=abc123" {
 		t.Errorf("film %+v", film)
@@ -106,12 +116,16 @@ func TestPlexLink(t *testing.T) {
 	if got := get("/titles/801/plex?version=none-pl"); got.Found || got.Message != "Not found in Plex yet" {
 		t.Errorf("no section %+v", got)
 	}
-	if listings != 3 {
+	if listings != 4 {
 		t.Errorf("%d listings, want one per lookup with a section and a file", listings)
 	}
 	srv.Close()
 	if got := get("/titles/801/plex?version=movie-pl"); got.Found ||
 		got.Message != "Plex does not answer at "+srv.URL+": check the address under Settings › Plex & playback" {
 		t.Errorf("down %+v", got)
+	}
+	// A member reads no address and no settings page they cannot open.
+	if got := getAs(memberKey, "/titles/801/plex?version=movie-pl"); got.Found || got.Message != "Plex does not answer" {
+		t.Errorf("member down %+v", got)
 	}
 }

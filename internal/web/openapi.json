@@ -218,7 +218,7 @@
     },
     "/titles/{id}/plex": {
       "get": {
-        "summary": "Watch in Plex: where the title of one library is in Plex, asked on demand (one identity call and one listing of the library's Plex section, matched on the library's files; a series links to its show). Nothing is stored. found false with \"Not found in Plex yet\", or with a sentence that says what to fix when Plex does not answer",
+        "summary": "Watch in Plex: where the title of one library is in Plex, asked on demand (one identity call and one listing of the library's Plex section, matched on the library's files; a series links to its show). Nothing is stored. found false with \"Not found in Plex yet\", or when Plex does not answer with a sentence that says what to fix (managers and admins) or \"Plex does not answer\" (others)",
         "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "version", "in": "query", "required": true, "description": "Library (policy key)", "schema": { "type": "string" } }],
         "responses": {
           "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlexLink" } } } },
