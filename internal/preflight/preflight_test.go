@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/health"
+	"github.com/theatarr/theatarr/internal/plex"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/settings"
 	"github.com/theatarr/theatarr/internal/uipages"
@@ -273,7 +274,14 @@ func TestRunBadInstall(t *testing.T) {
 		r := Run(ctx, o)
 		want(t, r, "views//radarr", Fail, "HTTP 404")
 		want(t, r, "views/api keys", Warn, "no API keys")
-		want(t, r, "plex/plex", Fail, "connection refused")
+		if it := want(t, r, "plex/plex", Fail, "connection refused"); it.Next != uipages.Fix(uipages.FixPlex, "", "http://plex.invalid:32400", uipages.FailConnectivity) {
+			t.Errorf("plex down: next %q", it.Next)
+		}
+		// A refused token names the token field, not the URL.
+		o.Plex = func(context.Context) error { return &plex.StatusError{Method: "GET", Path: "/identity", Status: 401} }
+		if it := want(t, Run(ctx, o), "plex/plex", Fail, "HTTP 401"); it.Next != uipages.Fix(uipages.FixPlex, "", "", uipages.FailAuth) {
+			t.Errorf("plex refused: next %q", it.Next)
+		}
 		want(t, r, "egress/vpn egress", Fail, "VPN egress failed")
 		want(t, r, "indexers/back-offs", Warn, "feed backed off")
 	})

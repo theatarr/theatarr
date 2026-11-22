@@ -53,7 +53,7 @@ func Fix(kind, name, at, class string) string {
 	case FixPlex:
 		switch class {
 		case FailAuth:
-			return "Plex refused the token: sign in to Plex again under " + Plex
+			return "Plex refused the token: paste a new one under " + Plex
 		case FailConnectivity, FailTimeout, FailHTTP:
 			if at == "" {
 				return "Plex does not answer: check the address under " + Plex
@@ -82,8 +82,10 @@ func Fix(kind, name, at, class string) string {
 			return name + " refused the key: check it under " + Metadata
 		case FailCredential:
 			return "No " + name + " key is set: add one under " + Metadata
-		case FailConnectivity, FailTimeout, FailHTTP:
+		case FailConnectivity, FailTimeout:
 			return name + " is not answering: try again later"
+		case FailHTTP:
+			return name + " answered with errors: check its key under " + Metadata + ", or try again later"
 		}
 	}
 	return ""

@@ -146,7 +146,8 @@ func TestMetadata(t *testing.T) {
 		store.Millis(t0.Add(-time.Minute)), store.Millis(t0.Add(time.Hour)))
 	exec(t, st, `INSERT INTO tvdb_sync (id, since_at, run_at) VALUES (1, 0, ?)`, store.Millis(t0.Add(-24*time.Hour)))
 	r = Metadata(st, MetadataOptions{TMDb: true, TVDB: true, Now: now})(ctx)
-	if r.Type != Warning || !strings.Contains(r.Message, "3 of 3 TMDb refreshes") || !strings.Contains(r.Message, "TVDB") {
+	if r.Type != Warning || !strings.Contains(r.Message, "3 of 3 TMDb refreshes in the last day failed: "+
+		uipages.Fix(uipages.FixMetadata, "TMDb", "", uipages.FailHTTP)) || !strings.Contains(r.Message, "TVDB") {
 		t.Errorf("failing: %+v", r)
 	}
 	// Overdue rows and no good fetch for days; the removed title's old row is not refreshed again, so not counted.
@@ -504,9 +505,9 @@ func TestAccounts(t *testing.T) {
 		{"refused", map[string]AccountReader{"rd": refused, "tb": far}, Error,
 			"Debrid account needs attention: Real-Debrid refused the key: paste a new API token under " + uipages.Providers},
 		{"down", map[string]AccountReader{"rd": far, "tb": down}, Warning,
-			"Debrid account needs attention: TB: account not readable (dial tcp: connection refused)"},
+			"Debrid account needs attention: TorBox cannot be reached: check this server's network and VPN"},
 		{"hung", map[string]AccountReader{"tb": hung}, Warning,
-			"Debrid account needs attention: TB: account not readable (context deadline exceeded)"},
+			"Debrid account needs attention: TorBox is not answering properly: it may be down; try again later"},
 		{"worst", map[string]AccountReader{"ad": free, "tb": soon}, Error,
 			"Debrid account needs attention: AD: not premium; TB: premium ends Nov 1 (in 6d)"},
 	} {
@@ -547,7 +548,7 @@ func TestAccountsCache(t *testing.T) {
 	f := Accounts(func(context.Context) map[string]AccountSource { return sources(clients, keys) },
 		AccountOptions{Interval: 6 * time.Hour, Retry: 30 * time.Minute, Now: func() time.Time { return now }})
 	ctx := context.Background()
-	if r := f(ctx); r.Type != Warning || !strings.Contains(r.Message, "TB: account not readable") {
+	if r := f(ctx); r.Type != Warning || !strings.Contains(r.Message, "TorBox cannot be reached") {
 		t.Fatalf("first: %+v", r)
 	}
 	for range 5 {

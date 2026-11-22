@@ -275,7 +275,7 @@ source, fetch and pre-warm, the cause detail, zurg's stream count and the rclone
 playbacks, matched on the Plex account linked to their Theatarr account (plex.tv id or name), with the verdict and cause
 but no detail, and of the source only the title (for the link to its page). Plex's error text is replaced by "Plex
 does not answer". Managers and admins get a sentence that says what to fix in `error` ("Plex does not answer at
-<address>: check the address under Settings › Plex & playback", or "Plex refused the token: sign in to Plex again"
+<address>: check the address under Settings › Plex & playback", or "Plex refused the token: paste a new one under Settings › Plex & playback"
 for a 401/403) and Plex's own error in `error_detail`. Of the files that stopped working while playing, managers and admins get every incident with its
 releases and what Plex answered; users get only the incidents of their own playbacks (the viewer matched on their
 linked Plex name), with what came of each, their player and the message their player showed, but no release names and

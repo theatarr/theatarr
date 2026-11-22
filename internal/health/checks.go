@@ -248,7 +248,8 @@ func Metadata(st *store.Store, o MetadataOptions) Func {
 			raise(Notice, plural(overdue, "title is", "titles are")+" more than a day overdue for a refresh")
 		}
 		if failed >= 3 && failed*2 >= tried {
-			raise(Warning, fmt.Sprintf("%d of %d TMDb refreshes in the last day failed", failed, tried))
+			raise(Warning, fmt.Sprintf("%d of %d TMDb refreshes in the last day failed: %s", failed, tried,
+				uipages.Fix(uipages.FixMetadata, "TMDb", "", uipages.FailHTTP)))
 		}
 		if o.TVDB {
 			var runAt sql.NullInt64
@@ -826,7 +827,13 @@ func Accounts(accounts func(ctx context.Context) map[string]AccountSource, o Acc
 			case errors.Is(r.err, provider.ErrAuth):
 				t, line = Error, uipages.Fix(uipages.FixProvider, uipages.ProviderName(k), "", uipages.FailAuth)
 			case r.err != nil:
-				t, line = Warning, name+": account not readable ("+short(r.err.Error())+")"
+				class := uipages.FailConnectivity
+				if errors.Is(r.err, context.DeadlineExceeded) {
+					class = uipages.FailTimeout
+				} else if errors.As(r.err, new(*provider.APIError)) {
+					class = uipages.FailHTTP
+				}
+				t, line = Warning, uipages.Fix(uipages.FixProvider, uipages.ProviderName(k), "", class)
 			case !a.Expires.IsZero() && !a.Expires.After(now):
 				t, line = Error, name+": premium ended "+day(a.Expires, now)
 			case !a.Premium:

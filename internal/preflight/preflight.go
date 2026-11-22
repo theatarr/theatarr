@@ -11,6 +11,7 @@ package preflight
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/health"
 	"github.com/theatarr/theatarr/internal/library"
+	"github.com/theatarr/theatarr/internal/plex"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/secrets"
 	"github.com/theatarr/theatarr/internal/settings"
@@ -618,7 +620,11 @@ func (c *checker) plex(ctx context.Context) {
 		return
 	}
 	if err := c.o.Plex(ctx); err != nil {
-		c.add(AreaPlex, "plex", Fail, "check the Plex server URL in "+uipages.Plex+" and that the container can reach it", "%s: %v",
+		class := uipages.FailConnectivity
+		if se := (*plex.StatusError)(nil); errors.As(err, &se) {
+			class = uipages.HTTPClass(se.Status)
+		}
+		c.add(AreaPlex, "plex", Fail, uipages.Fix(uipages.FixPlex, "", plexURL, class), "%s: %v",
 			plexURL, strings.ReplaceAll(err.Error(), lib.Plex.URL, plexURL))
 		return
 	}
