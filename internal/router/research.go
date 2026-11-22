@@ -182,23 +182,23 @@ func (r *Router) deadLinkRoute(ctx context.Context, source string) (string, []in
 	return reason, out, nil
 }
 
-// PlayingOutFor is how long an account an incident found out keeps a playing search off it: the day Now playing lists
-// the incident for.
+// PlayingOutFor is how long an account an incident found out keeps a playing search off it, and its broken release
+// stays out of it: the day Now playing lists the incident for.
 const PlayingOutFor = 24 * time.Hour
 
 // playingIncident reads the open incident of a title's version (internal/library playing_break, found by title and
 // version: no incident id travels with the search): the episodes its route must take one of (the open rows not
 // fixed yet whose search was queued, and not the watched file's once its search has ended and been reported, so the
 // release's other files' search does not take the watched episode again), the accounts it found out within
-// PlayingOutFor, which the route skips (an old outage steers nothing), and, from those same rows, the releases that
-// broke with the episodes each broke for (broke: hash -> episodes; a film's rows have none), which the route leaves
-// out on every account for those episodes (a film: for the film).
+// PlayingOutFor, which the route skips (an old outage steers nothing), and, from those same rows broken within
+// PlayingOutFor, the releases that broke with the episodes each broke for (broke: hash -> episodes; a film's rows
+// have none), which the route leaves out on every account for those episodes (a film: for the film).
 func (r *Router) playingIncident(ctx context.Context, titleID int64, version string) (eps []int64, out []string,
 	broke map[string][]int64, err error) {
-	rows, err := r.st.Writer().QueryContext(ctx, `SELECT info_hash, episodes,
-		CASE WHEN broken_at > ? THEN out_account ELSE '' END,
+	rows, err := r.st.Writer().QueryContext(ctx, `SELECT CASE WHEN broken_at > ?1 THEN info_hash ELSE '' END, episodes,
+		CASE WHEN broken_at > ?1 THEN out_account ELSE '' END,
 		searched, CASE WHEN watched = 1 AND reported <> '' THEN 'ended' ELSE fixed_by END FROM playing_break
-		WHERE title_id = ? AND version_key = ? AND settled = ''`, store.Millis(r.now().Add(-PlayingOutFor)), titleID,
+		WHERE title_id = ?2 AND version_key = ?3 AND settled = ''`, store.Millis(r.now().Add(-PlayingOutFor)), titleID,
 		version)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("router: playing incident: %w", err)

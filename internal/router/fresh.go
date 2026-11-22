@@ -210,10 +210,12 @@ func (r *Router) freshCandidates(ctx context.Context, s *routeState) ([]Candidat
 				}
 			}
 		}
-		if eps, ok := broke[indexer.NormalizeHash(c.Release.InfoHash)]; ok && (s.vp.Kind != policy.KindSeries ||
-			slices.ContainsFunc(c.Episodes, func(id int64) bool { return slices.Contains(eps, id) })) {
-			r.skipFresh(s, c, "playing_same_release", "the release that stopped working while playing")
-			continue
+		if len(broke) > 0 {
+			if eps, ok := broke[indexer.NormalizeHash(c.Release.InfoHash)]; ok && (s.vp.Kind != policy.KindSeries ||
+				slices.ContainsFunc(c.Episodes, func(id int64) bool { return slices.Contains(eps, id) })) {
+				r.skipFresh(s, c, "playing_same_release", "the release that stopped working while playing")
+				continue
+			}
 		}
 		kept = append(kept, c)
 	}

@@ -1035,8 +1035,8 @@ other files' search; `TestPlayingRouteHoldsToIncidentEpisodes`, `TestPlayingSibl
 (`PlayingOutFor`, the day Now playing lists it; an older outage steers nothing, `TestPlayingRouteOldOutAccountIgnored`)
 answers as not holding the release for that route only (`skipProvider`: no miss is recorded there, the next account or
 release is tried at once; `TestPlayingRouteSkipsOutAccount`), and a release that broke is left out on every account for the
-episodes it broke for (the hash of the incident rows this route searches for, a film's for the film; not an older
-incident's whose search has ended), for that route only, with no miss written (`playing_same_release`;
+episodes it broke for (the hash of the incident rows this route searches for that broke within `PlayingOutFor`, a
+film's for the film), for that route only, with no miss written (`playing_same_release`;
 `TestPlayingRouteLeavesOutIncidentRelease`, `TestPlayingRouteLeavesOutItsOwnIncidentRelease`). The failed release on the account it failed on carries a
 `provider_cache` miss of source `router:playing` for 7 days (`client:<key>` on a client-routed version, whose client
 then takes a different release): no search takes it there again (a live miss, as any), another account may
