@@ -421,7 +421,8 @@ stay the view's.
   `monitorNewItems` goes to the versions' intent (`series_monitor`), from
   PUT `series` and PUT `series/editor` alike, and the series resource reports that intent. Files are never moved
   (`moveFiles` with a root other than the one shown is refused with 400 before anything is stored: Theatarr links
-  files and never moves them; the root alone is saved without it, `TestEditorRefusesMoveFiles`).
+  files and never moves them; the root alone is saved without it; the single-title PUT with `?moveFiles=true` alike,
+  `TestEditorRefusesMoveFiles`).
   - **Series type.** A `seriesType` equal to the one the view showed stores nothing
     (`TestSeriesTypeEchoChangesNothing`); another value is an edit of the title's type, seen on every view and by
     every library (`TestSeriesTypeEdit`). The libraries a profile change, an editor profile change or an add turns

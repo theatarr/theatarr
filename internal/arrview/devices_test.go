@@ -244,6 +244,24 @@ func TestEditorRefusesMoveFiles(t *testing.T) {
 		if n := e.one(`SELECT COUNT(*) FROM arrview_title WHERE root_folder_path <> ''`); n != 0 {
 			t.Fatalf("%s: a refused move stored %d roots", tc.view, n)
 		}
+		// The single-title PUT with ?moveFiles=true (by path id, and by the body's id) refuses the same way.
+		moved := map[string]any{}
+		for k, v := range before {
+			moved[k] = v
+		}
+		moved["rootFolderPath"], moved["path"] = "/elsewhere", "/elsewhere/x"
+		for _, p := range []string{fmt.Sprintf("/%s/api/v3/%s/%d?moveFiles=true", tc.view, res, id),
+			fmt.Sprintf("/%s/api/v3/%s?moveFiles=true", tc.view, res)} {
+			errs = nil
+			e.call("PUT", p, moved, 400, &errs)
+			if len(errs) != 1 || errs[0]["propertyName"] != "MoveFiles" {
+				t.Fatalf("%s: %v", p, errs)
+			}
+		}
+		if n := e.one(`SELECT COUNT(*) FROM arrview_title WHERE root_folder_path <> ''`); n != 0 {
+			t.Fatalf("%s: a refused single-title move stored %d roots", tc.view, n)
+		}
+		e.call("PUT", fmt.Sprintf("/%s/api/v3/%s/%d?moveFiles=true", tc.view, res, id), before, 202, nil)
 		e.call("PUT", "/"+tc.view+"/api/v3/"+res+"/editor", map[string]any{tc.ids: []int{id},
 			"rootFolderPath": root, "moveFiles": true}, 202, nil)
 		e.call("PUT", "/"+tc.view+"/api/v3/"+res+"/editor", map[string]any{tc.ids: []int{id},

@@ -430,6 +430,21 @@ type editorIn struct {
 	MoveFiles bool `json:"moveFiles"`
 }
 
+// refuseMove answers 400 when root (a client's Move Files target) differs from the root a title shows: Theatarr links
+// files and never moves them, so nothing may be stored (the editor, and the single-title PUT with ?moveFiles=true).
+func (s *Service) refuseMove(w http.ResponseWriter, v *View, es []*entry, root string) bool {
+	if root == "" {
+		return false
+	}
+	for _, e := range es {
+		if shown, _ := s.rootAndPath(v, e); path.Clean(shown) != path.Clean(root) {
+			badRequest(w, "MoveFiles", "Theatarr does not move files: save without Move Files to change only the root folder", true)
+			return true
+		}
+	}
+	return false
+}
+
 // PUT movie/editor and series/editor (MovieEditorController / SeriesEditorController.SaveAll): bulk changes to the
 // view's versions of the titles, as a full PUT would make them (except that a supplied minimum availability is
 // always stored, where a PUT skips the value the view shows): monitored, profile (turns on its versions, never
@@ -469,14 +484,8 @@ func (s *Service) editor(w http.ResponseWriter, r *request) {
 		s.internal(w, r, err)
 		return
 	}
-	if in.MoveFiles && in.RootFolderPath != "" {
-		for _, e := range es {
-			if root, _ := s.rootAndPath(r.v, e); path.Clean(root) != path.Clean(in.RootFolderPath) {
-				badRequest(w, "MoveFiles", "Theatarr does not move files: save without Move Files to change only the root folder",
-					true)
-				return
-			}
-		}
+	if in.MoveFiles && s.refuseMove(w, r.v, es, in.RootFolderPath) {
+		return
 	}
 	apply := in.ApplyTags.value("add", "remove", "replace")
 	if apply == "" {

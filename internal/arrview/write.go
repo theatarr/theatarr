@@ -914,6 +914,9 @@ func (s *Service) updateTitle(w http.ResponseWriter, r *request) {
 		notFound(w, strings.TrimSuffix(r.raw[0], "s")+" with ID "+strconv.FormatInt(in.ID, 10)+" does not exist")
 		return
 	}
+	if r.queryBool("moveFiles", false) && s.refuseMove(w, r.v, []*entry{e}, in.RootFolderPath) {
+		return
+	}
 	v := r.v
 	var reported map[int]bool
 	if v.Flavour == Sonarr {
