@@ -61,6 +61,7 @@ func (w *Web) requestDetail(ctx context.Context, r *Request) (*RequestDetail, er
 		}
 	}
 	out.Versions = slices.Clone(r.Versions)
+	upcoming := upcomingSeason(episodes, r.Seasons) // the same for every library
 	for i := range out.Versions {
 		v := &out.Versions[i]
 		p := RequestProgress{Key: v.Key, Words: "Waiting for a release that matches"}
@@ -92,7 +93,6 @@ func (w *Web) requestDetail(ctx context.Context, r *Request) (*RequestDetail, er
 			}
 			p.Have, p.Total = &have, &total
 		}
-		upcoming := upcomingSeason(episodes, r.Seasons)
 		// Keep all concurrent acquisitions: a series can be downloading several requested episodes at once.
 		// failed is the latest failure the status counts against this library (requestFailures).
 		var failed *activity.Download
