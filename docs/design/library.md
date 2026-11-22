@@ -847,7 +847,9 @@ state and Cutoff unmet are its own. The journal records an `edit_file` action (m
     Such a dead link that belongs only to removed versions (removed with "Keep files") stays out of the sweep after
     its row settled, too (`TestRemovedVersionKeepsItsDeadLinkOutOfTheSweep`).
   - **It comes back only through a read.** After each relink sweep that ended without error (not one a zurg rename
-    started) the relink task calls `ComeBack` for each open row whose old copy is not in place: its link still dead at
+    started) the relink task starts one `ComeBack` pass beside the library's loop (one at a time: a sweep that ends
+    while one runs starts none; `TestServeLibraryComeBackBesideTheLoop`) for each open row whose old copy is not in
+    place: its link still dead at
     the old target, replaced by an import, or moved aside by a partial import while other files hold some of its
     episodes. Now playing's worker never reads them, so a live check or an owed message never waits behind them
     (`TestServeLibraryFinishesPlayingIncidents`). Rows are read the least recently checked first, and a read that

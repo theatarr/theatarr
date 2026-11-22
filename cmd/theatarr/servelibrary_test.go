@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"github.com/theatarr/theatarr/internal/tasks"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -317,7 +319,73 @@ func TestServeLibraryFinishesPlayingIncidents(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	if got := one(`SELECT settled FROM playing_break WHERE id = 2`); got != "aside" {
-		t.Errorf("after a sweep the come-back pass did not run: settled %q", got)
+	for one(`SELECT settled FROM playing_break WHERE id = 2`) != "aside" { // the pass runs beside the loop
+		if time.Now().After(deadline) {
+			t.Fatal("after a sweep the come-back pass did not run")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// The come-back pass after a sweep runs beside the library's loop: a hung read (up to its time limit) holds up
+// neither the sweep's task nor the import wake-ups.
+func TestServeLibraryComeBackBesideTheLoop(t *testing.T) {
+	t.Parallel()
+	l := newImportLoop(t, false)
+	dir := t.TempDir()
+	mount := filepath.Join(dir, "zurg")
+	root := l.s.pol.Versions["movie"].Library
+	hung := filepath.Join(mount, "__all__", "A", "a.mkv")
+	for _, d := range []string{filepath.Dir(hung), root} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := syscall.Mkfifo(hung, 0o644); err != nil {
+		t.Skip("mkfifo:", err)
+	}
+	t.Cleanup(func() { // let the hung read return
+		if w, err := os.OpenFile(hung, os.O_WRONLY|syscall.O_NONBLOCK, 0); err == nil {
+			w.Close()
+		}
+	})
+	path := filepath.Join(root, "a.mkv")
+	if err := os.Symlink(hung, path); err != nil {
+		t.Fatal(err)
+	}
+	l.s.pol.Library.Mount.Path = mount
+	l.s.pol.Router = &policy.Router{Enabled: true}
+	l.s.set = l.s.pol.LibrarySettings()
+	l.s.set.PollInterval, l.s.set.RelinkInterval, l.s.set.DanglingEvery = time.Hour, time.Hour, time.Hour
+	l.s.lib = library.New(library.Options{Store: l.st, Policy: l.s.pol, Logger: l.s.log})
+	l.exec(t, `INSERT INTO link (id, path, target, title_id, state, created_at, updated_at) VALUES (7, ?, ?, 1, 'dead', 0, 0)`,
+		path, hung)
+	l.exec(t, `INSERT INTO link_version (link_id, version_id) VALUES (7, 10)`)
+	l.exec(t, `INSERT INTO playing_break (id, incident, watched, link_id, title_id, version_key, path, old_target, broken_at,
+		searched, reported, updated_at) VALUES (1, 1, 1, 7, 1, 'movie', ?, ?, 0, 1, 'unavailable', 0)`, path, hung)
+	ctx, cancel := context.WithCancel(context.Background())
+	tb := tasks.New(ctx, nil, nil)
+	done := make(chan struct{})
+	go func() { defer close(done); l.s.Run(ctx, tb) }()
+	t.Cleanup(func() { cancel(); <-done })
+	deadline := time.Now().Add(10 * time.Second)
+	start := time.Now()
+	for {
+		if ran, err := tb.Run(ctx, "library.relink", time.Now().Add(time.Hour)); err != nil && !errors.Is(err, tasks.ErrUnknown) {
+			t.Fatal(err)
+		} else if ran {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the relink task did not run")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if took := time.Since(start); took > 5*time.Second {
+		t.Fatalf("the sweep's task waited %v for the come-back's hung read", took)
+	}
+	l.notify()
+	if l.pass(t); time.Since(start) > 5*time.Second {
+		t.Errorf("an import wake-up waited %v behind the come-back", time.Since(start))
 	}
 }

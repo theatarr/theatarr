@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/theatarr/theatarr/internal/decide"
@@ -237,6 +238,22 @@ func (s *serveLibrary) Run(ctx context.Context, tb *tasks.Table) {
 	defer followers.Wait()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	// One come-back pass at a time runs beside the loop (a hung read must not hold up the loop's wake-ups); a sweep
+	// that ends while one runs starts none. It ends with Run, like the followers.
+	loopCtx := ctx
+	var comingBack atomic.Bool
+	comeBack := func() {
+		if !comingBack.CompareAndSwap(false, true) {
+			return
+		}
+		followers.Go(func() {
+			defer comingBack.Store(false)
+			ctx, current := s.forOperation(loopCtx)
+			if err := current.lib.ComeBack(ctx); err != nil && ctx.Err() == nil {
+				s.log.Warn("library: reading returned copies", "err", err)
+			}
+		})
+	}
 	if s.set.ZurgLog != "" {
 		onRenames := func(ctx context.Context, m map[string]string) {
 			ctx, current := s.forOperation(ctx)
@@ -276,9 +293,7 @@ func (s *serveLibrary) Run(ctx context.Context, tb *tasks.Table) {
 				return err
 			}
 			// After each sweep the old copies of files that broke while playing are read, one at a time (ComeBack).
-			if err := current.lib.ComeBack(ctx); err != nil && ctx.Err() == nil {
-				s.log.Warn("library: reading returned copies", "err", err)
-			}
+			comeBack()
 			return nil
 		}}
 	dangling := tasks.Task{Key: "library.dangling", Name: "Report dangling links", Every: s.set.DanglingEvery,
