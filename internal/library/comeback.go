@@ -120,21 +120,16 @@ func (l *Library) ComeBack(ctx context.Context) error {
 		if err != nil {
 			return nil
 		}
-		target, newFolder := r.old, ""
-		if !listed || r.hash != "" {
-			_, nf, nt, err := l.pickFolder(ctx, db, ix, lists, ml, listed, false, "", r.hash)
-			if err != nil {
+		// Only the place the selection returns is read: never a fallback to the old path.
+		_, newFolder, target, err := l.pickFolder(ctx, db, ix, lists, ml, listed, false, "", r.hash)
+		if err != nil {
+			return err
+		}
+		if target == "" {
+			if err := l.setBack(ctx, r.id, false); err != nil { // not where its torrent is: the streak ends
 				return err
 			}
-			switch {
-			case nt != "" && nt != r.old:
-				target, newFolder = nt, nf
-			case !listed:
-				if err := l.setBack(ctx, r.id, false); err != nil { // not on the mount: the streak ends
-					return err
-				}
-				continue
-			}
+			continue
 		}
 		_, err = l.ReadPiece(ctx, target, r.offset, PlayingPiece, PlayingPieceLimit)
 		switch {

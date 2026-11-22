@@ -340,10 +340,13 @@ func (l *Library) candidatesFor(ctx context.Context, db *sql.DB, ml mountLink, s
 // link's recorded identity) and the folder names it may have (candidates, identityFolders), an explicit rename hint,
 // decypharr's current name for the hash, and a candidate's confirmation by zurg and decypharr. ok says the link's own
 // folder holds the file: then only a hash-suffixed folder of its identity holding the same file moves it. It returns
-// the hash, and the folder and target found ("" when none). The relink sweep and the come-back of a file that broke
-// while playing (ComeBack) both choose with it.
+// the hash and the place the file is now: the folder (another one, or "" for the link's own) and its target, the
+// link's own target when it is still the right place, "" when the identified torrent no longer holds the file (its
+// hash-suffixed folder is there without it, or no folder holds it). The relink sweep and the come-back of a file
+// that broke while playing (ComeBack) both choose with it.
 func (l *Library) pickFolder(ctx context.Context, db *sql.DB, ix *mountIndex, lists relinkLists, ml mountLink, ok,
 	hinted bool, hint, savedHash string) (hash, newFolder, newTarget string, err error) {
+	suffixed := false // the identity's hash-suffixed folder is there (ok): the link's own bare folder is not proof
 	hash, names, err := l.candidatesFor(ctx, db, ml, savedHash)
 	if err != nil {
 		return "", "", "", err
@@ -372,6 +375,7 @@ func (l *Library) pickFolder(ctx context.Context, db *sql.DB, ix *mountIndex, li
 				}
 			}
 			names = filtered
+			suffixed = len(names) > 0
 		}
 	}
 	if l.decy != nil && !ok && !hinted && len(hash) == 40 {
@@ -403,8 +407,14 @@ func (l *Library) pickFolder(ctx context.Context, db *sql.DB, ix *mountIndex, li
 			}
 		}
 		if found {
+			if n == ml.folder {
+				return hash, "", ml.target, nil
+			}
 			return hash, n, l.mount.ToLink(filepath.Join(l.mount.AllPath(), n, ml.inner)), nil
 		}
+	}
+	if ok && !suffixed {
+		return hash, "", ml.target, nil // no evidence it moved: the link's own place
 	}
 	return hash, "", "", nil
 }
@@ -674,7 +684,7 @@ func (l *Library) relinkRoot(ctx context.Context, ix *mountIndex, zv *zurgView, 
 			continue
 		}
 		dl := DanglingLink{Path: ml.path, Target: ml.target}
-		hash, newFolder, newTarget, err := l.pickFolder(ctx, db, ix, lists, ml, ok, hinted, hint, "")
+		hash, newFolder, newTarget, err := l.pickFolder(ctx, db, ix, lists, ml, ok, hinted, hint, knownHash)
 		if err != nil {
 			return sc, err
 		}

@@ -257,3 +257,27 @@ func TestComeBackDecypharrRename(t *testing.T) {
 		t.Errorf("got %s", got)
 	}
 }
+
+// The saved hash's suffixed folder exists but no longer holds the watched file, while another torrent's same-named
+// file reads at the bare name: the come-back reads nothing there, revives nothing, and keeps the miss.
+func TestComeBackNoFallbackToBareName(t *testing.T) {
+	e, id := brokenWhilePlaying(t)
+	moved := "Name {" + hashA[:6] + "}"
+	if err := os.MkdirAll(filepath.Join(e.mount, "__all__", moved), 0o755); err != nil { // the torrent, without the file
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(e.mount, "__all__", moved, "other.nfo"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		if err := e.lib.ComeBack(e.ctx); err != nil {
+			t.Fatal(err)
+		}
+		e.now = e.now.Add(time.Hour)
+	}
+	if got := e.one(`SELECT state FROM link WHERE id = 1`) + " " + e.one(`SELECT settled FROM playing_break WHERE id = ?`, id) +
+		" " + e.one(`SELECT COUNT(*) FROM provider_cache WHERE source = 'router:playing'`) + " " +
+		e.one(`SELECT back_since IS NULL FROM playing_break WHERE id = ?`, id); got != "dead  1 1" {
+		t.Errorf("got %q", got)
+	}
+}
