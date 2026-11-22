@@ -402,6 +402,42 @@ type ZurgBlockedRead struct {
 	Status   string `json:"status"`
 	Reason   string `json:"reason"`
 	Attempts int    `json:"attempts"`
+	// Failure is what zurg (48c6d3c on) says of the refusal: nil from a zurg that sends none.
+	Failure *ZurgReadFailure `json:"failure,omitempty"`
+}
+
+// ZurgReadFailure is a blocked read's failure object: its scope (as zurg names it: the account, or the file),
+// the provider, the provider's own code, and when zurg tries again (zero when not sent or not an RFC 3339 time).
+type ZurgReadFailure struct {
+	Scope        string
+	Provider     string
+	ProviderCode string
+	NextRetry    time.Time
+}
+
+// UnmarshalJSON reads the failure object; a code may be text or a number, and a field it cannot read stays empty.
+func (f *ZurgReadFailure) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		Scope        string          `json:"scope"`
+		Provider     string          `json:"provider"`
+		ProviderCode json.RawMessage `json:"provider_code"`
+		NextRetry    json.RawMessage `json:"next_retry"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	f.Scope, f.Provider = raw.Scope, raw.Provider
+	if json.Unmarshal(raw.ProviderCode, &f.ProviderCode) != nil {
+		var n json.Number
+		if json.Unmarshal(raw.ProviderCode, &n) == nil {
+			f.ProviderCode = n.String()
+		}
+	}
+	var at string
+	if json.Unmarshal(raw.NextRetry, &at) == nil {
+		f.NextRetry, _ = time.Parse(time.RFC3339Nano, at)
+	}
+	return nil
 }
 
 // UnmarshalJSON accepts the textual and numeric status forms returned by zurg.

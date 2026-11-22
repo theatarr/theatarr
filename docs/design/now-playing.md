@@ -48,7 +48,10 @@ generation in force.
   5 min while it keeps failing. Its `playing` notifications are the only source of **buffering** (sessions rarely show
   it). A state change sets the playback's verdict at once and triggers a sessions read, which finds its cause, as does
   a notification for a session the tracker does not know.
-- **zurg `/stats`** (with `zurg_api`): `active_streams` and `blocked_reads`, the files zurg refuses reads of.
+- **zurg `/stats`** (with `zurg_api`): `active_streams` and `blocked_reads`, the files zurg refuses reads of. A blocked
+  read's `failure` object (zurg 48c6d3c on: `scope`, `provider`, `provider_code`, `next_retry`) goes into the words only
+  ("zurg refuses reads of the file: cooling down (Real-Debrid, account, code …, next try 14:05 UTC)"); nothing is decided
+  by it.
   Blocked-read status accepts numeric or textual values from zurg; Theatarr reports it as a string.
 - **zurg's log** (with `zurg_log`): the library's log follower passes each line on. Lines about a playing file are
   kept for 10 minutes: `Large transfer` (which account served it), `Cut a read` (a starved read from a slow delivery

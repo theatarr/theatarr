@@ -464,6 +464,28 @@ func TestVerdicts(t *testing.T) {
 	}
 }
 
+// A blocked read's failure object names the provider, its scope, the provider's code and the next try in the words
+// (zurg 48c6d3c); without one the reason alone, as before.
+func TestBlockedReadWords(t *testing.T) {
+	at := time.Date(2026, 11, 21, 14, 5, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		b    library.ZurgBlockedRead
+		want string
+	}{
+		{library.ZurgBlockedRead{Reason: "starved"}, "starved"},
+		{library.ZurgBlockedRead{Status: "blocked"}, "blocked"},
+		{library.ZurgBlockedRead{Reason: "cooling down", Failure: &library.ZurgReadFailure{Scope: "account", Provider: "rd",
+			ProviderCode: "too_many_requests", NextRetry: at}},
+			"cooling down (Real-Debrid, account, code too_many_requests, next try 14:05 UTC)"},
+		{library.ZurgBlockedRead{Reason: "broken", Failure: &library.ZurgReadFailure{Scope: "file", Provider: "other"}},
+			"broken (other, file)"},
+	} {
+		if got := blockedWords(tc.b); got != tc.want {
+			t.Errorf("%+v: %q, want %q", tc.b, got, tc.want)
+		}
+	}
+}
+
 type httpDoer struct{}
 
 func (httpDoer) Do(_ context.Context, tg gateway.Target, req *http.Request) (*http.Response, error) {

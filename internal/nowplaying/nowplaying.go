@@ -598,6 +598,42 @@ func verdictOf(se *session, now time.Time) string {
 	return "ok"
 }
 
+// blockedWords says why zurg refuses a file's reads: its reason (else its status), and what its failure object
+// names (zurg 48c6d3c on): the provider, the scope, the provider's code and the next try. Words only.
+func blockedWords(b library.ZurgBlockedRead) string {
+	why := b.Reason
+	if why == "" {
+		why = b.Status
+	}
+	f := b.Failure
+	if f == nil {
+		return why
+	}
+	var parts []string
+	if f.Provider != "" {
+		parts = append(parts, providerNames[f.Provider])
+		if parts[0] == "" {
+			parts[0] = f.Provider
+		}
+	}
+	if f.Scope != "" {
+		parts = append(parts, f.Scope)
+	}
+	if f.ProviderCode != "" {
+		parts = append(parts, "code "+f.ProviderCode)
+	}
+	if !f.NextRetry.IsZero() {
+		parts = append(parts, "next try "+f.NextRetry.UTC().Format("15:04")+" UTC")
+	}
+	if len(parts) == 0 {
+		return why
+	}
+	return strings.TrimSpace(why + " (" + strings.Join(parts, ", ") + ")")
+}
+
+// providerNames are the providers zurg names by code.
+var providerNames = map[string]string{"rd": "Real-Debrid", "ad": "AllDebrid", "tb": "TorBox"}
+
 // cause is the likeliest reason a playback struggles, in order: Plex's transcoder, the provider (zurg names the
 // file), the mount (unhealthy, zurg not ready or the cache erroring), the provider again (the mount fetches
 // the file slower than its bitrate), or a relayed network connection. Without evidence the cause is unknown.
@@ -613,11 +649,7 @@ func (t *Tracker) cause(se *session, mountErr error) (string, string) {
 				f = path.Base(b.Path)
 			}
 			if f == base || f == target || (se.src != nil && se.src.Hash != "" && b.Hash == se.src.Hash) {
-				why := b.Reason
-				if why == "" {
-					why = b.Status
-				}
-				return "provider", "zurg refuses reads of the file: " + why
+				return "provider", "zurg refuses reads of the file: " + blockedWords(b)
 			}
 		}
 	}
