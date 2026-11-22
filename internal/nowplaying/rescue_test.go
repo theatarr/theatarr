@@ -806,6 +806,15 @@ func TestRescueMessageAtNextSign(t *testing.T) {
 	if got := e.stop.stopped(); len(got) != 0 {
 		t.Fatalf("stopped a stream still advancing: %q", got)
 	}
+	// A rewind is movement too, not a stuck stream.
+	e.plex.mu.Lock()
+	e.plex.ss[0].ViewOffset -= 300_000
+	e.plex.mu.Unlock()
+	e.advance(10 * time.Second)
+	e.poll()
+	if got := e.stop.stopped(); len(got) != 0 {
+		t.Fatalf("stopped a stream that was rewound: %q", got)
+	}
 	e.plex.mu.Lock()
 	e.plex.ss[0].State = "buffering"
 	e.plex.mu.Unlock()

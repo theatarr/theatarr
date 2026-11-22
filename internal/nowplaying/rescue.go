@@ -126,9 +126,10 @@ func (t *Tracker) liveSigns(now time.Time) {
 	}
 	for _, se := range t.sess {
 		// A message owed goes at the next fresh Plex sample of the same playback that is buffering, or whose position
-		// has not moved since the previous sample; never on a remembered verdict or an old zurg line.
+		// is the same as at the previous sample (a change either way, a rewind too, is movement); never on a
+		// remembered verdict or an old zurg line.
 		if p := t.pending[se.s.SessionKey]; p != nil && se.s.File == p.j.s.File && se.s.RatingKey == p.j.s.RatingKey {
-			if se.s.State == "buffering" || se.s.State == "playing" && se.s.ViewOffset <= p.lastOffset {
+			if se.s.State == "buffering" || se.s.State == "playing" && se.s.ViewOffset == p.lastOffset {
 				p.due = true
 				p.j.s.ViewOffset = se.s.ViewOffset
 			}
@@ -795,7 +796,7 @@ func (t *Tracker) tell(ctx context.Context, j *sign, msg string, incident int64)
 	switch {
 	case now == nil, now.State == "paused":
 		return
-	case now.State != "buffering" && now.ViewOffset > j.s.ViewOffset:
+	case now.State != "buffering" && now.ViewOffset != j.s.ViewOffset:
 		// Still advancing (what it has cached plays on): told at its next sign.
 		t.mu.Lock()
 		t.pending[j.key] = &pendingTell{j: *j, msg: msg, incident: incident, lastOffset: now.ViewOffset}
