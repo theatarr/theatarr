@@ -277,9 +277,9 @@ func QualityOverviewOf(in OverviewInput) QualityOverview {
 		}
 		return flavour + "/name:" + name
 	}
-	addFormat := func(flavour, name, scope string, ref *policy.FormatRef, recordID int64) *FormatSummary {
+	// spec is ref's specification, decoded once by the caller (refSpec).
+	addFormat := func(flavour, name, scope string, ref *policy.FormatRef, spec format.FormatJSON, recordID int64) *FormatSummary {
 		t := in.Trash[flavour]
-		spec := refSpec(ref)
 		id, def := identityOf(t, name, ref, spec)
 		k := formatKey(flavour, id, name)
 		// A standalone format of ours is shown by the name it was saved with; its key stays in Key for editing and
@@ -333,7 +333,7 @@ func QualityOverviewOf(in OverviewInput) QualityOverview {
 		if fl == "" {
 			fl = string(format.Radarr)
 		}
-		addFormat(fl, key, "global", ref, globalIDs[key])
+		addFormat(fl, key, "global", ref, refSpec(ref), globalIDs[key])
 	}
 	for _, setKey := range sortedPolicyKeys(p.FormatSets) {
 		set := p.FormatSets[setKey]
@@ -342,7 +342,7 @@ func QualityOverviewOf(in OverviewInput) QualityOverview {
 			if ref != nil && ref.Ref != "" {
 				continue
 			}
-			addFormat(set.Flavour, name, setKey, ref, 0)
+			addFormat(set.Flavour, name, setKey, ref, refSpec(ref), 0)
 		}
 	}
 	for _, key := range sortedPolicyKeys(p.Profiles) {
@@ -379,7 +379,8 @@ func QualityOverviewOf(in OverviewInput) QualityOverview {
 			if display == "" {
 				display = name
 			}
-			id, def := identity(t, display, ref)
+			spec := refSpec(ref)
+			id, def := identityOf(t, display, ref, spec)
 			ids[name] = id
 			row := ScoreRow{Format: name, TrashID: id, Score: pr.Formats[name], Definition: def}
 			if def == DefinitionOurs {
@@ -398,7 +399,7 @@ func QualityOverviewOf(in OverviewInput) QualityOverview {
 			}
 			row.State = scoreState(row, s.Binding != "", state.Scores)
 			s.Scores = append(s.Scores, row)
-			fs := addFormat(fl, display, scopeOf(pr, ref), ref, 0)
+			fs := addFormat(fl, display, scopeOf(pr, ref), ref, spec, 0)
 			fs.ScoredBy = append(fs.ScoredBy, FormatUse{Profile: key, Score: row.Score, State: row.State})
 		}
 		if t != nil {

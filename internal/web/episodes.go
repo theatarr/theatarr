@@ -200,23 +200,19 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 		`+activity.EpisodeMonitoredSQL+`, COALESCE(
 			(SELECT MIN(n.number) FROM episode_number n WHERE n.episode_id = e.id AND n.scheme = 'absolute_tvdb'),
 			(SELECT MIN(n.number) FROM episode_number n WHERE n.episode_id = e.id AND n.scheme = 'absolute')),
-		e.air_date_utc_at, e.removed_at IS NOT NULL, `+activity.SeriesZoneSQL+`, `+activity.SeriesAirTimeSQL+`,
-		`+activity.DayFirstAirSQL+`
+		e.air_date_utc_at, e.removed_at IS NOT NULL
 		FROM episode e JOIN title t ON t.id = e.title_id WHERE e.title_id = ? AND (e.removed_at IS NULL
 			OR e.id = ? OR EXISTS (SELECT 1 FROM link_episode le JOIN link l
 				ON l.id = le.link_id WHERE le.episode_id = e.id AND l.state = 'active'))
 		ORDER BY e.season, e.number`, []any{id, keep}, func(r *sql.Rows) error {
 		var e Episode
 		var rt, abs, airAt sql.NullInt64
-		var zone, airTime string
-		var firstMs int64
 		if err := r.Scan(&e.ID, &e.Season, &e.Number, &e.Name, &e.AirDate, &rt, &e.Monitored, &abs, &airAt,
-			&e.Removed, &zone, &airTime, &firstMs); err != nil {
+			&e.Removed); err != nil {
 			return err
 		}
 		e.Aired = clock.aired(airAt, e.AirDate)
-		// A made-up midnight for a date without a time is not given out: the pages show the nominal date.
-		if airAt.Valid && !activity.MadeUpAir(e.AirDate, zone, airTime, firstMs) {
+		if airAt.Valid {
 			t := store.FromMillis(airAt.Int64)
 			e.AirAt = &t
 		}
@@ -226,6 +222,9 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 		all = append(all, e)
 		return nil
 	}); err != nil {
+		return nil, err
+	}
+	if err := withdrawMadeUpAir(ctx, db, id, all); err != nil {
 		return nil, err
 	}
 	if err := scanAll(ctx, db, `SELECT s.episode_id, s.version_id, s.state, s.monitored FROM episode_version_state s
@@ -376,4 +375,40 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 		return nil, err
 	}
 	return out, w.fillEpisodeAcquisition(ctx, db, out)
+}
+
+// withdrawMadeUpAir takes back the instant of each episode whose stored instant is the refresh's made-up midnight for
+// a date without a time (activity.MadeUpAir), so the pages show the nominal date; Aired keeps the stored instant. The
+// series' zone and air time are read once, and the day's earliest instant once per season and date.
+func withdrawMadeUpAir(ctx context.Context, db *sql.DB, titleID int64, all []Episode) error {
+	var zone, airTime string
+	if err := db.QueryRowContext(ctx, `SELECT time_zone, air_time FROM series_meta WHERE title_id = ?`, titleID).
+		Scan(&zone, &airTime); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	type day struct {
+		season int64
+		date   string
+	}
+	first := map[day]int64{}
+	if err := scanAll(ctx, db, `SELECT season, air_date, MIN(air_date_utc_at) FROM episode WHERE title_id = ?
+		AND air_date IS NOT NULL AND air_date_utc_at IS NOT NULL GROUP BY season, air_date`, []any{titleID},
+		func(r *sql.Rows) error {
+			var d day
+			var ms int64
+			if err := r.Scan(&d.season, &d.date, &ms); err != nil {
+				return err
+			}
+			first[d] = ms
+			return nil
+		}); err != nil {
+		return err
+	}
+	for i := range all {
+		e := &all[i]
+		if e.AirAt != nil && activity.MadeUpAir(e.AirDate, zone, airTime, first[day{e.Season, e.AirDate}]) {
+			e.AirAt = nil
+		}
+	}
+	return nil
 }

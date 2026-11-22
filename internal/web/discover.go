@@ -247,14 +247,14 @@ func (w *Web) upcomingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 		return nil, err
 	}
 	coming, comingArgs := newAirClock(now).comingSQL("e")
-	err = scanAll(ctx, db, `SELECT title_id, season, number, name, air_date, air_date_utc_at, zone, air_time, first_ms FROM (
-		SELECT e.title_id, e.season, e.number, e.name, e.air_date, e.air_date_utc_at,
-			`+activity.SeriesZoneSQL+` AS zone, `+activity.SeriesAirTimeSQL+` AS air_time,
-			`+activity.DayFirstAirSQL+` AS first_ms, ROW_NUMBER() OVER (PARTITION BY e.title_id
+	// The series' zone and air time and the day's earliest instant (activity.MadeUpAir) only for the episode shown.
+	err = scanAll(ctx, db, `SELECT e.title_id, e.season, e.number, e.name, e.air_date, e.air_date_utc_at,
+		`+activity.SeriesZoneSQL+`, `+activity.SeriesAirTimeSQL+`, `+activity.DayFirstAirSQL+` FROM (
+		SELECT e.title_id, e.season, e.number, e.name, e.air_date, e.air_date_utc_at, ROW_NUMBER() OVER (PARTITION BY e.title_id
 			ORDER BY e.air_date, e.season, e.number) AS rn
 		FROM episode e JOIN title t ON t.id = e.title_id WHERE e.season > 0 AND e.removed_at IS NULL AND `+coming+`
 			AND e.air_date <= ?
-			AND `+inLibrary+`) WHERE rn = 1`,
+			AND `+inLibrary+`) e WHERE e.rn = 1`,
 		append(comingArgs, end), func(r *sql.Rows) error {
 			var p pick
 			var season, number int64
