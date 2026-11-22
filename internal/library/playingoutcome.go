@@ -199,7 +199,8 @@ func (l *Library) SettlePlayingRuns(ctx context.Context) error {
 // playingPending reports whether a search started for an incident of a title's version (broken at since, about
 // eps; none for a film) may still bring a file: a search job for those episodes queued or running, a schedule row of
 // their season due for a reason other than the regular retries, a search of their season or its route still running,
-// or a download in flight holding one of them (any, for a film). Another season's searches do not count.
+// a failed download of them whose re-search the router has not queued yet (its blocklist row not researched), or a
+// download in flight holding one of them (any, for a film). Another season's searches do not count.
 func (l *Library) playingPending(ctx context.Context, titleID int64, version string, since int64,
 	eps []int64) (bool, error) {
 	db := l.st.Reader()
@@ -230,8 +231,14 @@ func (l *Library) playingPending(ctx context.Context, titleID int64, version str
 			AND state IN ('queued', 'searching') AND COALESCE(season, -1) IN `+seasons+`)
 		OR EXISTS (SELECT 1 FROM acquire_run r JOIN job j ON j.id = r.route_job WHERE r.title_id = ?3
 			AND r.version_key = ?4 AND r.created_at >= ?5 AND j.state IN ('queued', 'running')
-			AND COALESCE(r.season, -1) IN `+seasons+`)`,
-		string(js), router.JobResearch, titleID, version, since).Scan(&pending)
+			AND COALESCE(r.season, -1) IN `+seasons+`)
+		OR EXISTS (SELECT 1 FROM router_blocklist b LEFT JOIN download d ON d.id = b.download_id
+			WHERE b.title_id = ?3 AND b.version_key = ?4 AND b.researched_at IS NULL AND b.created_at >= ?5
+			AND b.source IN (?6, ?7, ?8, ?9, ?10)
+			AND (json_array_length(?1) = 0 OR d.id IS NULL OR json_array_length(COALESCE(d.episodes, '[]')) = 0
+				OR EXISTS (SELECT 1 FROM json_each(d.episodes) de WHERE de.value IN (SELECT value FROM json_each(?1)))))`,
+		string(js), router.JobResearch, titleID, version, since, router.ReasonStalled, router.ReasonTorrentFiles,
+		router.ReasonLibrary, router.ReasonProvider, router.ReasonReadyTimeout).Scan(&pending)
 	if err != nil || pending {
 		return pending, err
 	}

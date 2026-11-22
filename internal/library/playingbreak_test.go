@@ -318,3 +318,35 @@ func TestMarkBrokenPlayingOnlyTheCheckedCopy(t *testing.T) {
 		t.Errorf("searches %+v", jobs)
 	}
 }
+
+// A failed download of the incident's search whose re-search the router has not queued yet (its blocklist row not
+// researched) still counts as pending: no outcome, no siblings' search before the retry.
+func TestSettlePlayingWaitsForBlocklistRetry(t *testing.T) {
+	e := playingEnv(t)
+	id, err := e.lib.OpenPlayingIncident(e.ctx, PlayingIncident{TitleID: 2, Version: "tv"}, PlayingFile{LinkID: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.lib.MarkBrokenPlaying(e.ctx, id, PlayingFile{LinkID: 2, Target: e.linkTarget(2)}, true, nil); err != nil {
+		t.Fatal(err)
+	}
+	e.exec(`UPDATE job SET state = 'done'`)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, quality,
+		score, episodes, provider, name, state, created_at, updated_at) VALUES (7, 2, 20, 'tv', ?, 'Show.S01E02.X',
+		'idx', 'WEBDL-1080p', 1, '[202]', 'rd', 'x', 'failed', 0, 0)`, strings.Repeat("7", 40))
+	e.exec(`INSERT INTO router_blocklist (version_key, info_hash, title_id, reason, source, download_id, created_at)
+		VALUES ('tv', ?, 2, 'stalled', 'stalled', 7, ?)`, strings.Repeat("7", 40), e.now.UnixMilli())
+	if err := e.lib.SettlePlayingRuns(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.one(`SELECT reported FROM playing_break WHERE id = ?`, id); got != "" {
+		t.Errorf("reported %q before the router queued the retry", got)
+	}
+	e.exec(`UPDATE router_blocklist SET researched_at = ?`, e.now.UnixMilli())
+	if err := e.lib.SettlePlayingRuns(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.one(`SELECT reported FROM playing_break WHERE id = ?`, id); got != "unavailable" {
+		t.Errorf("reported %q once nothing is pending", got)
+	}
+}

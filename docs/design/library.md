@@ -824,8 +824,9 @@ state and Cutoff unmet are its own. The journal records an `edit_file` action (m
   client-routed version; none for an account found out by an outage, which the incident's `out_account` keeps away) and one `acquire.research` job (reason `playing`; a version sharing the link gets
   `dead_link`). A release's other files found broken with it are marked as they are found without a search;
   `QueuePlayingSearch` queues one `playing` search for their episodes together once the watched file's search has
-  ended (`SettlePlayingRuns`: no search job for its episodes, due row, running search or route of their season, nor
-  a download in flight holding one of them, since the break; another season's searches do not count). Rows are found by title, version, path and old target, never by the link id alone (a
+  ended (`SettlePlayingRuns`: no search job for its episodes, due row, running search or route of their season, failed
+  download of them the router has not searched again yet, nor a download in flight holding one of them, since the
+  break; another season's searches do not count). Rows are found by title, version, path and old target, never by the link id alone (a
   same-path import keeps or replaces the row). **The sweep leaves an open incident's dead link alone** while its
   target is still the old copy: it is not revived, moved aside or repointed by a listing
   (`TestSweepLeavesUnsettledDeadLink`, `TestSweepDoesNotRepointUnsettledDeadLink`); a replacement at the same path (a
