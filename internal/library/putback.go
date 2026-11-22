@@ -41,8 +41,8 @@ const putBackPrefix = store.HistoryPutBackPrefix + ": "
 
 // putBackOrAside settles a replaced copy that read again: put back (putBackCopy), left for a later sweep, or kept aside
 // exactly as before.
-func (l *Library) putBackOrAside(ctx context.Context, r returned, target string) error {
-	aside, err := l.putBackCopy(ctx, r, target)
+func (l *Library) putBackOrAside(ctx context.Context, r returned, target, newFolder string) error {
+	aside, err := l.putBackCopy(ctx, r, target, newFolder)
 	if err != nil || !aside {
 		return err
 	}
@@ -57,7 +57,10 @@ func (l *Library) putBackOrAside(ctx context.Context, r returned, target string)
 // not write, while the incident's search is open, and while the replacement is playing or Plex does not answer.
 // The facts are the row's own; the return's checks still apply (a refusal keeps it aside). aside: it is kept aside
 // (settleAside); else it was put back or waits.
-func (l *Library) putBackCopy(ctx context.Context, r returned, target string) (aside bool, err error) {
+//
+// newFolder is the renamed mount folder the copy is read in now ("" for its own): the return links it there and the
+// release's mount folder follows, as a relink's repoint does.
+func (l *Library) putBackCopy(ctx context.Context, r returned, target, newFolder string) (aside bool, err error) {
 	if !l.writableNow(r.version) {
 		return false, nil
 	}
@@ -96,7 +99,7 @@ func (l *Library) putBackCopy(ctx context.Context, r returned, target string) (a
 	// The one file of the version that holds its film or some of its episodes now.
 	var succ []heldNow
 	if err := scanRows(ctx, db, `SELECT l.id, l.path, l.target, COALESCE(l.file_metadata, '{}'),
-		COALESCE(l.release_title, ''), COALESCE(l.quality, ''), cf.probe, l.adopted_media, l.adopted = 1, l.download_id
+		COALESCE(l.release_title, ''), COALESCE(l.quality, ''), cf.probe, l.adopted_media, l.download_id IS NULL, l.download_id
 		FROM link l JOIN link_version lv ON lv.link_id = l.id AND lv.version_id = ?
 		LEFT JOIN content_file cf ON cf.id = l.content_file_id
 		WHERE l.state = 'active' AND l.title_id = ? AND (? <> 'series' OR EXISTS (SELECT 1 FROM link_episode le
@@ -173,6 +176,12 @@ func (l *Library) putBackCopy(ctx context.Context, r returned, target string) (a
 		reported = false
 		if err := settleReturnTx(ctx, tx, r.id, r.hash, "restored", now); err != nil {
 			return err
+		}
+		if newFolder != "" && r.hash != "" {
+			if _, err := tx.ExecContext(ctx, `UPDATE content SET mount_folder = ? WHERE LOWER(info_hash) = ?`, newFolder,
+				r.hash); err != nil {
+				return err
+			}
 		}
 		// Its own outcome, once: ReportPlaying would send nothing after the import's "replaced".
 		res, err := tx.ExecContext(ctx, `UPDATE playing_break SET reported = ?, updated_at = ? WHERE id = ? AND watched = 1

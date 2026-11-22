@@ -3,6 +3,7 @@ package library
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 	"time"
@@ -100,6 +101,37 @@ func TestPutBack(t *testing.T) {
 		c.exec(`UPDATE content_file SET probe = '{"container":"matroska","audio":[{"codec":"aac","language":"fre","tagged":true}]}'
 			WHERE id = 1`)
 		aside(t, c)
+	})
+	t.Run("audio shared with an adopted replacement", func(t *testing.T) {
+		// The held file is an arr adoption (no download; adopted stays 0): its stored media audio counts.
+		c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
+		c.pol.Profiles["movie-state"].Language = "English"
+		c.exec(`UPDATE content_file SET probe = '{"container":"matroska","audio":[{"codec":"aac","language":"fre","tagged":true}]}'
+			WHERE id = 1`)
+		c.exec(`UPDATE link SET adopted_media = '{"audioLanguages":"fre"}', adopted_from = 'radarr x' WHERE id = 2`)
+		c.twoReads()
+		c.restored(t)
+	})
+	t.Run("renamed folder", func(t *testing.T) {
+		c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
+		renamed := "Name {" + hashA[:6] + "}"
+		if err := os.Rename(filepath.Join(c.mount, "__all__", "Name"), filepath.Join(c.mount, "__all__", renamed)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := c.lib.RelinkRenamed(c.ctx, map[string]string{"Name": renamed}); err != nil {
+			t.Fatal(err)
+		}
+		c.twoReads()
+		want := filepath.Join(c.mount, "__all__", renamed, "episode.mkv")
+		if c.settled() != "restored" {
+			t.Fatalf("settled %q", c.settled())
+		}
+		if got, _ := os.Readlink(c.oldPath); got != want {
+			t.Errorf("old path points at %q", got)
+		}
+		if got := c.one(`SELECT mount_folder FROM content WHERE id = 1`); got != renamed {
+			t.Errorf("mount folder %s", got)
+		}
 	})
 	t.Run("audio inconclusive", func(t *testing.T) {
 		// As at import: an untagged track makes the rule say nothing, so the better copy comes back.
