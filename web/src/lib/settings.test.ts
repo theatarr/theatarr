@@ -101,7 +101,10 @@ describe("refusals explained", () => {
       'versions[movie-web].providers[1]: "rd" listed out of fallback order (providers[rd].order is 2)',
     ]));
     expect(e.kind).toBe("order");
-    expect(e.message).toMatch(/Libraries editor/);
+    // What works now: the order arrows reorder the libraries, so a library saved from an older draft is put in order.
+    expect(e.message).toBe("Nothing was saved. Put this library's providers in the current fallback order (Settings › Download clients lists it) and save again.");
+    const named = explainError(new ApiError(422, 'settings refused: versions[movie-web].providers[1]: "rd" listed out of fallback order (providers[rd].order is 2)'), undefined, ["ad", "rd", "tb"]);
+    expect(named.message).toBe("Nothing was saved. Put this library's providers in the current fallback order, ad › rd › tb, and save again.");
   });
   it("keeps a connected app's own errors as they are outside Stop managing, with the mistyped key (F31 review)", () => {
     const fields = [{ path: "views[radarr].versions[0]", message: 'unknown library "movie-wbe"' }];

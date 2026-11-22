@@ -192,7 +192,9 @@ export function explainStopError(e: unknown, now = Date.now()): Explained {
   };
 }
 
-export function explainError(e: unknown, now = Date.now()): Explained {
+/** order: the providers' keys in the current fallback order, when the caller has them (the Libraries editor), to name
+ *  it in the "listed out of fallback order" advice. */
+export function explainError(e: unknown, now = Date.now(), order?: readonly string[]): Explained {
   if (!(e instanceof ApiError)) {
     const msg = e instanceof Error ? e.message : String(e);
     return { kind: "other", title: "Something went wrong", message: msg };
@@ -284,8 +286,7 @@ export function explainError(e: unknown, now = Date.now()): Explained {
         return {
           kind: "order",
           title: "A library lists the providers in another order",
-          message:
-            "Every library names its providers in fallback order, and the order here must agree with all of them. Nothing was saved. Change the libraries' provider lists in the Libraries editor first, then reorder here.",
+          message: `Nothing was saved. Put this library's providers in the current fallback order${order?.length ? `, ${order.join(" › ")},` : " (Settings › Download clients lists it)"} and save again.`,
           server,
           detail,
         };
