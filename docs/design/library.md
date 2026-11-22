@@ -817,7 +817,10 @@ state and Cutoff unmet are its own. The journal records an `edit_file` action (m
     (every link column a same-path import overwrites, and its episodes), the range the check read, the account found
     out (if any), the viewer and the outcome. Rows are found by title, version, path and old target, never by the link
     id alone (a same-path import keeps or replaces the row).
-  - **The bound.** One incident per title and library in 24 hours (`PlayingBoundReached`, `PlayingBound`).
+  - **The bound.** One incident per title and library in 24 hours (`PlayingBoundReached`, `PlayingBound`). When now
+    playing starts, an incident a stop cut off before its file was marked or searched (its link still the active copy
+    it read) is dropped (`DropUnfinishedPlaying`): it is not listed and not counted, and the next sign checks again
+    (`TestDropUnfinishedPlaying`, `TestNowPlayingStartDropsUnfinishedIncident`).
   - **The dead mark** (`MarkBrokenPlaying`, one file). Under its link lease, with Pause off and the version's library
     writing, only while the link still points at the copy the check read, with no 30-minute rule and no repair grace.
     In one transaction: the row, the release's miss on the failed account (`router.RecordPlayingMiss`, source

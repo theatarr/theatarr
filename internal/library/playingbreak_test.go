@@ -423,3 +423,38 @@ func TestPlayingSearchable(t *testing.T) {
 		t.Errorf("film unmonitored: %v %v", got, err)
 	}
 }
+
+// At start, an incident cut off before its file was marked or searched (a restart during step 1), whose link is
+// still the active copy it read, is dropped: Now playing does not list it and the day's bound does not count it.
+// A marked incident (and its siblings waiting for their search), or one settled, stays.
+func TestDropUnfinishedPlaying(t *testing.T) {
+	e := playingEnv(t)
+	cut, err := e.lib.OpenPlayingIncident(e.ctx, PlayingIncident{TitleID: 2, Version: "tv"}, PlayingFile{LinkID: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	marked, err := e.lib.OpenPlayingIncident(e.ctx, PlayingIncident{TitleID: 2, Version: "tv"}, PlayingFile{LinkID: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := e.lib.MarkBrokenPlaying(e.ctx, marked, PlayingFile{LinkID: 1, Target: e.linkTarget(1)}, true, nil); err != nil || !ok {
+		t.Fatalf("marked %v: %v", ok, err)
+	}
+	if ok, err := e.lib.MarkBrokenPlaying(e.ctx, marked, PlayingFile{LinkID: 3, Target: e.linkTarget(3)}, false, nil); err != nil || !ok {
+		t.Fatalf("sibling %v: %v", ok, err)
+	}
+	copied, err := e.lib.OpenPlayingIncident(e.ctx, PlayingIncident{TitleID: 2, Version: "tv"}, PlayingFile{LinkID: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.lib.SettlePlayingIncident(e.ctx, copied, "copy", ""); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := e.lib.DropUnfinishedPlaying(e.ctx); err != nil || n != 1 {
+		t.Fatalf("dropped %d: %v", n, err)
+	}
+	if got := e.one(`SELECT group_concat(incident || ':' || link_id) FROM (SELECT incident, link_id FROM playing_break ORDER BY id)`); got !=
+		fmt.Sprintf("%d:1,%d:3,%d:2", marked, marked, copied) {
+		t.Errorf("rows left %s (cut %d)", got, cut)
+	}
+}

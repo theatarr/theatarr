@@ -73,6 +73,15 @@ func (l serveLoops) runNowPlaying(ctx context.Context, rt *serveRuntime) error {
 	if err != nil {
 		return err
 	}
+	if lib := rt.Library.current(); o.Mount != nil && lib != nil {
+		// A check a stop cut off before anything was done (a restart during step 1) leaves its incident open: dropped
+		// here, so it neither shows as "Looking for another copy" nor uses up the day's bound; the next sign checks again.
+		if n, err := lib.DropUnfinishedPlaying(ctx); err != nil {
+			o.Logger.Warn("now playing: unfinished incidents not removed", "err", err)
+		} else if n > 0 {
+			o.Logger.Info("now playing: removed incidents a stop cut off before anything was done", "rows", n)
+		}
+	}
 	t := nowplaying.New(o)
 	serveNowPlaying.Store(t)
 	defer serveNowPlaying.CompareAndSwap(t, nil)

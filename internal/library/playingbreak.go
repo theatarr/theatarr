@@ -544,3 +544,17 @@ func (l *Library) PlayingSearchable(ctx context.Context, linkID int64, version s
 		version, linkID).Scan(&ok)
 	return ok, err
 }
+
+// DropUnfinishedPlaying removes, when now playing starts, the incidents a stop cut off before anything was done:
+// open rows never marked, searched or fixed whose link is still the active copy the check read. Their check starts
+// again at the next sign, and the day's bound does not count them. It returns how many rows it removed.
+func (l *Library) DropUnfinishedPlaying(ctx context.Context) (int, error) {
+	res, err := l.st.Writer().ExecContext(ctx, `DELETE FROM playing_break WHERE settled = '' AND fixed_by = ''
+		AND searched = 0 AND EXISTS (SELECT 1 FROM link l WHERE l.id = playing_break.link_id
+			AND l.path = playing_break.path AND l.target = playing_break.old_target AND l.state = 'active')`)
+	if err != nil {
+		return 0, err
+	}
+	n, err := res.RowsAffected()
+	return int(n), err
+}
