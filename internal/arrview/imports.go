@@ -529,10 +529,7 @@ func (s *Service) manualFromDownload(ctx context.Context, r *request, hash strin
 			m.QualityWeight = qualityWeight(r.v.Flavour, f.Facts.Quality, profile.Revision{Version: f.Facts.Revision, Real: f.Facts.Real})
 		}
 		m.RelativePath = f.Rel
-		// The audio rule's note is the last of the file's notes (library audioGuard).
-		if i := strings.Index(f.Note, "Manual import: "); i >= 0 {
-			m.Note = f.Note[i:]
-		}
+		m.Note = audioNoteOf(f.Note)
 		if why, ok := rejected[f.Path]; ok {
 			m.Rejections = append(m.Rejections, importRejection{Reason: why, Type: "permanent"})
 		} else if _, ok := linked[f.Rel]; !ok && f.Unread {
@@ -680,6 +677,12 @@ func (s *Service) manualFromFolder(ctx context.Context, r *request, folder strin
 		m, err := s.decideFile(ctx, r.v, f.path, filepath.Base(folder), name, f.size, 0, nil, "")
 		if err != nil {
 			return nil, err
+		}
+		// The title the listing matched the file to: the audio note for it.
+		if m.Movie != nil {
+			m.Note = s.audioNote(ctx, r.v, resolveID(m.Movie.ID), f.path, nil)
+		} else if m.Series != nil {
+			m.Note = s.audioNote(ctx, r.v, resolveID(m.Series.ID), f.path, episodeIDs(m.Episodes))
 		}
 		out = append(out, m)
 	}
@@ -846,9 +849,54 @@ func (s *Service) manualImportReprocess(w http.ResponseWriter, r *request) {
 		if f, ok := it["id"].(float64); ok {
 			m.ID = int64(f)
 		}
+		m.Note = s.audioNote(ctx, r.v, tid, p, eps)
 		out = append(out, m)
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// audioNote is the wrong-audio rule's note on a file on the mount for a title of a one-library view ("Manual import:
+// French audio only; ..."): the same read-only preview as a download's list (a dry run under library.ManualPreview,
+// as an import by path), "" when there is none, the file is not on the mount, or nothing can be planned.
+func (s *Service) audioNote(ctx context.Context, v *View, titleID int64, path string, episodes []int64) string {
+	if s.library == nil || titleID <= 0 || len(v.Versions) != 1 {
+		return ""
+	}
+	at, err := s.library.Locate(ctx, path)
+	if err != nil || at.Rel == "" {
+		return ""
+	}
+	key := v.Versions[0]
+	vp := s.pol.Versions[key]
+	if vp == nil {
+		return ""
+	}
+	var versionID int64
+	if err := s.st.Reader().QueryRowContext(ctx, `SELECT id FROM version WHERE title_id = ? AND policy_key = ?`,
+		titleID, key).Scan(&versionID); err != nil {
+		return ""
+	}
+	rel := strings.TrimSuffix(filepath.Base(at.Rel), filepath.Ext(at.Rel))
+	row := s.prepareImport(ctx, importRow{titleID: titleID, versionID: versionID, version: key, kind: vp.Kind,
+		release: rel, name: at.Folder, sourcePath: path, files: []manualFile{{rel: at.Rel, episodes: episodes}}})
+	plan, err := s.library.PlanNew(library.ManualPreview(ctx), row)
+	if err != nil || plan == nil {
+		return ""
+	}
+	for _, f := range append(slices.Clone(plan.Files), plan.Rejected...) {
+		if f.Rel == at.Rel || f.Path == path {
+			return audioNoteOf(f.Note)
+		}
+	}
+	return ""
+}
+
+// audioNoteOf is the audio rule's part of a file's note: the last of its notes (library audioGuard).
+func audioNoteOf(note string) string {
+	if i := strings.Index(note, "Manual import: "); i >= 0 {
+		return note[i:]
+	}
+	return ""
 }
 
 // manualImportCommand runs the ManualImport command (ManualImportService.Execute): each file is imported as the
@@ -1089,4 +1137,15 @@ func manualLanguage(flavour string, id int) (language, bool) {
 	}
 	l, ok := radarr.LanguageByID(id)
 	return language{ID: l.ID, Name: l.Name}, ok
+}
+
+// episodeIDs are a resource's episode ids.
+func episodeIDs(eps []episodeResource) []int64 {
+	var out []int64
+	for _, e := range eps {
+		if e.ID > 0 {
+			out = append(out, e.ID)
+		}
+	}
+	return out
 }

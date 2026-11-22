@@ -70,6 +70,8 @@ type fakeLibrary struct {
 	onUnlink func(int64)
 	onCheck  func() // runs in each CheckUnlink
 	plan     func(id int64) *library.Plan
+	// planNew, when set, is PlanNew's plan (else an empty dry run).
+	planNew func(n library.NewImport) *library.Plan
 	// during runs while a plan is made (Import and PlanNew); mountDown makes the guarded reads fail as a dead
 	// mount does.
 	during    func()
@@ -129,6 +131,9 @@ func (f *fakeLibrary) PlanNew(_ context.Context, n library.NewImport) (*library.
 		f.during()
 	}
 	f.imports = append(f.imports, "new dry")
+	if f.planNew != nil {
+		return f.planNew(n), nil
+	}
 	return &library.Plan{Release: n.ReleaseTitle, Version: n.Version, DryRun: true}, nil
 }
 

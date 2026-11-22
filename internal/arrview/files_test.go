@@ -193,6 +193,22 @@ func TestManualImportAndImportAPI(t *testing.T) {
 	if len(noted) != 1 || noted[0].Note != "Manual import: French audio only; this library wants English or Japanese." {
 		t.Errorf("audio note %+v", noted)
 	}
+	// Review choices (reprocess) of a file on the mount keeps the audio note: the same read-only preview, for the
+	// title and episodes chosen.
+	e.lib.planNew = func(n library.NewImport) *library.Plan {
+		note := ""
+		if n.TitleID == 1 && n.SourcePath == "/mnt/debrid/__all__/Alpha.WEB/a.mkv" {
+			note = "Manual import: French audio only; this library wants English or Japanese."
+		}
+		return &library.Plan{DryRun: true, Files: []library.PlannedFile{{Path: n.SourcePath, Rel: "a.mkv", Note: note}}}
+	}
+	var reviewed []manualImportResource
+	e.call("POST", "/v/movie-web/radarr/api/v3/manualimport", []map[string]any{{"id": 7,
+		"path": "/mnt/debrid/__all__/Alpha.WEB/a.mkv", "movieId": IDBase + 1}}, 200, &reviewed)
+	if len(reviewed) != 1 || reviewed[0].Note != "Manual import: French audio only; this library wants English or Japanese." {
+		t.Errorf("reviewed audio note %+v", reviewed)
+	}
+	e.lib.planNew = nil
 	// The ManualImport command imports the chosen file of our download (through the library) at its path, and
 	// says what it refused: a file off the mount.
 	e.exec(`UPDATE download SET state = 'ready' WHERE id = 1`)
