@@ -45,6 +45,7 @@ func (e *ReturnRefused) Error() string { return e.Sentence }
 // (link_trash.snapshot), and the link that took it (Successor).
 type trashSnapshot struct {
 	LinkID        int64   `json:"link_id"`
+	TitleID       int64   `json:"title_id"`
 	State         string  `json:"state"`
 	Target        string  `json:"target"`
 	ContentFileID *int64  `json:"content_file_id,omitempty"`
@@ -56,6 +57,24 @@ type trashSnapshot struct {
 	Quality   *string   `json:"quality,omitempty"`
 	Score     *int64    `json:"score,omitempty"`
 	Successor successor `json:"successor"`
+}
+
+// relFacts are the snapshot's release facts, as History records the displaced file (linkFacts).
+func (s *trashSnapshot) relFacts() relFacts {
+	f := relFacts{TitleID: s.TitleID}
+	if s.Release != nil {
+		f.Release = *s.Release
+	}
+	if s.Quality != nil {
+		f.Quality = *s.Quality
+	}
+	if s.Score != nil {
+		f.Score = sql.NullInt64{Int64: *s.Score, Valid: true}
+	}
+	if len(s.Episodes) > 0 {
+		f.Episodes = s.Episodes
+	}
+	return f
 }
 
 // successor is the link that took a displaced file's place.
@@ -73,22 +92,17 @@ func readSnapshot(ctx context.Context, tx *sql.Tx, id int64, path string) (*tras
 		where, arg = `path = ?`, path
 	}
 	s := &trashSnapshot{}
-	var cf, dl, score sql.NullInt64
-	var meta, from, source, media, hash, rel, q sql.NullString
-	err := tx.QueryRowContext(ctx, `SELECT id, state, target, content_file_id, download_id, file_metadata, adopted,
-		adopted_from, adopted_source, adopted_media, folder_hash, release_title, quality, score FROM link WHERE `+where,
-		arg).Scan(&s.LinkID, &s.State, &s.Target, &cf, &dl, &meta, &s.Adopted, &from, &source, &media, &hash, &rel, &q,
-		&score)
+	err := tx.QueryRowContext(ctx, `SELECT id, title_id, state, target, content_file_id, download_id, file_metadata,
+		adopted, adopted_from, adopted_source, adopted_media, folder_hash, release_title, quality, score FROM link
+		WHERE `+where, arg).Scan(&s.LinkID, &s.TitleID, &s.State, &s.Target, &s.ContentFileID, &s.DownloadID,
+		&s.FileMetadata, &s.Adopted, &s.AdoptedFrom, &s.AdoptedSource, &s.AdoptedMedia, &s.FolderHash, &s.Release,
+		&s.Quality, &s.Score)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	s.ContentFileID, s.DownloadID, s.Score = nullInt(cf), nullInt(dl), nullInt(score)
-	s.FileMetadata, s.Release, s.Quality = nullStr(meta), nullStr(rel), nullStr(q)
-	s.AdoptedFrom, s.AdoptedSource, s.AdoptedMedia, s.FolderHash = nullStr(from), nullStr(source), nullStr(media),
-		nullStr(hash)
 	s.Episodes = []int64{}
 	rows, err := tx.QueryContext(ctx, `SELECT episode_id FROM link_episode WHERE link_id = ? ORDER BY episode_id`,
 		s.LinkID)
@@ -104,20 +118,6 @@ func readSnapshot(ctx context.Context, tx *sql.Tx, id int64, path string) (*tras
 		s.Episodes = append(s.Episodes, e)
 	}
 	return s, rows.Err()
-}
-
-func nullInt(n sql.NullInt64) *int64 {
-	if !n.Valid {
-		return nil
-	}
-	return &n.Int64
-}
-
-func nullStr(n sql.NullString) *string {
-	if !n.Valid {
-		return nil
-	}
-	return &n.String
 }
 
 // lowerQuality says whether quality now ranks below quality was (both known qualities of the title kind).
@@ -216,37 +216,48 @@ func UndoWords(release string) string {
 
 // UndoOffers says, for History's replaced files (their library_action ids), which offer Undo, with the button's
 // sentence: the replacement's trash entry and snapshot exist, it is the latest replacement of that slot (the
-// recorded successor still holds it), and the earlier file is still on the mount (a stat; the Undo itself reads a
-// piece).
+// recorded successor still holds it, alone), and the earlier file is still on the mount (a stat, its size not zero;
+// the Undo itself reads a piece). One query for all of them, then a stat each.
 func (l *Library) UndoOffers(ctx context.Context, ids []int64) (map[int64]string, error) {
 	out := map[int64]string{}
-	if l.mount == nil {
+	if l.mount == nil || len(ids) == 0 {
 		return out, nil
 	}
-	for _, id := range ids {
-		e, err := l.undoEntryOf(ctx, id)
-		if errors.Is(err, sql.ErrNoRows) {
+	idj, _ := json.Marshal(ids)
+	type offer struct {
+		id                       int64
+		version, target, release string
+	}
+	var offers []offer
+	if err := scanRows(ctx, l.st.Reader(), `SELECT la.id, r.version_key, r.target,
+		COALESCE((SELECT release_title FROM download WHERE id = json_extract(r.snapshot, '$.successor.download_id')),
+			(SELECT release_title FROM link WHERE id = json_extract(r.snapshot, '$.successor.link_id')), '')
+		FROM library_action la JOIN link_trash r ON r.trash_path = CASE WHEN la.detail LIKE '%' || ?1
+			THEN substr(la.detail, 16, length(la.detail) - 15 - length(?1)) ELSE substr(la.detail, 16) END
+		WHERE la.id IN (SELECT value FROM json_each(?2)) AND la.kind = 'replace' AND la.mode = 'applied'
+		AND la.download_id IS NOT NULL AND la.detail LIKE 'moved aside to %' AND r.purged_at IS NULL
+		AND r.snapshot IS NOT NULL AND json_extract(r.snapshot, '$.successor.link_id') > 0
+		AND `+slotHeldSQL+` AND NOT `+othersHoldSQL, []any{store.HistoryDeadLower, string(idj)},
+		func(rs *sql.Rows) error {
+			var o offer
+			err := rs.Scan(&o.id, &o.version, &o.target, &o.release)
+			offers = append(offers, o)
+			return err
+		}); err != nil {
+		return nil, err
+	}
+	for _, o := range offers {
+		if l.pol.Versions[o.version] == nil {
 			continue
 		}
-		if err != nil {
-			return nil, err
-		}
-		if l.pol.Versions[e.version] == nil {
-			continue
-		}
-		if held, others, err := e.slot(ctx, l.st.Reader()); err != nil {
-			return nil, err
-		} else if !held || others {
-			continue
-		}
-		p, ok := l.mount.FromLink(e.target)
+		p, ok := l.mount.FromLink(o.target)
 		if !ok {
 			continue
 		}
-		if _, err := l.mount.Stat(ctx, p); err != nil {
+		if fi, err := l.mount.Stat(ctx, p); err != nil || fi.Size() == 0 {
 			continue
 		}
-		out[id] = UndoWords(e.release)
+		out[o.id] = UndoWords(o.release)
 	}
 	return out, nil
 }
@@ -360,21 +371,12 @@ func (l *Library) returnOne(ctx context.Context, r *returnFile) (*importVersion,
 	// The file's inputs as they were; its state judged as an import judges it (left to the next pass when the
 	// engine cannot judge it).
 	lf := linkedFile{}
-	if e.snap.FileMetadata != nil {
-		lf.metadata = *e.snap.FileMetadata
-	}
-	if e.snap.Quality != nil {
-		lf.quality = *e.snap.Quality
-	}
+	lf.metadata, lf.quality = deref(e.snap.FileMetadata), deref(e.snap.Quality)
 	if e.snap.Score != nil {
 		lf.score = int(*e.snap.Score)
 	}
 	if l.engine != nil && v.Policy != nil {
-		rel := ""
-		if e.snap.Release != nil {
-			rel = *e.snap.Release
-		}
-		f, err := decide.LinkFileInputs([]byte(cmpOr(lf.metadata, "{}")), v.Title.Kind, rel, lf.quality)
+		f, err := decide.LinkFileInputs([]byte(cmpOr(lf.metadata, "{}")), v.Title.Kind, deref(e.snap.Release), lf.quality)
 		var t *decide.Title
 		if err == nil {
 			t, err = l.cutoffTitle(ctx, v.Title.ID, v.VersionID, v.Policy)

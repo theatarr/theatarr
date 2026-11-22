@@ -74,23 +74,19 @@ func (l *Library) putBackCopy(ctx context.Context, r returned, target string) (d
 	e := &undoEntry{version: r.version, path: r.path, target: target}
 	s := &e.snap
 	var kind, eps, meta string
-	var cf, dl, score sql.NullInt64
-	var rel, q, from, source, media, hash sql.NullString
 	var versionID int64
 	if err := db.QueryRowContext(ctx, `SELECT t.kind, v.id, pb.content_file_id, pb.download_id, pb.release_title,
 		pb.quality, pb.score, pb.file_metadata, pb.adopted, pb.adopted_from, pb.adopted_source, pb.adopted_media,
 		pb.folder_hash, pb.episodes FROM playing_break pb JOIN title t ON t.id = pb.title_id
 		JOIN version v ON v.title_id = pb.title_id AND v.policy_key = pb.version_key WHERE pb.id = ?`, r.id).Scan(&kind,
-		&versionID, &cf, &dl, &rel, &q, &score, &meta, &s.Adopted, &from, &source, &media, &hash, &eps); err != nil {
+		&versionID, &s.ContentFileID, &s.DownloadID, &s.Release, &s.Quality, &s.Score, &meta, &s.Adopted,
+		&s.AdoptedFrom, &s.AdoptedSource, &s.AdoptedMedia, &s.FolderHash, &eps); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, false, nil
 		}
 		return false, false, err
 	}
-	s.ContentFileID, s.DownloadID, s.Score = nullInt(cf), nullInt(dl), nullInt(score)
-	s.Release, s.Quality, s.FileMetadata = nullStr(rel), nullStr(q), &meta
-	s.AdoptedFrom, s.AdoptedSource, s.AdoptedMedia, s.FolderHash = nullStr(from), nullStr(source), nullStr(media),
-		nullStr(hash)
+	s.FileMetadata, s.TitleID = &meta, r.titleID
 	s.Episodes = []int64{}
 	if err := json.Unmarshal([]byte(eps), &s.Episodes); err != nil {
 		return false, false, nil
@@ -123,7 +119,7 @@ func (l *Library) putBackCopy(ctx context.Context, r returned, target string) (d
 	if err != nil {
 		return false, false, nil
 	}
-	oldF, err := decide.LinkFileInputs([]byte(meta), kind, rel.String, q.String)
+	oldF, err := decide.LinkFileInputs([]byte(meta), kind, deref(s.Release), deref(s.Quality))
 	if err != nil {
 		return false, false, nil
 	}
@@ -147,7 +143,7 @@ func (l *Library) putBackCopy(ctx context.Context, r returned, target string) (d
 	if s.ContentFileID != nil {
 		_ = db.QueryRowContext(ctx, `SELECT probe FROM content_file WHERE id = ?`, *s.ContentFileID).Scan(&oldProbe)
 	}
-	if langs := storedAudio(oldProbe, media, s.Adopted); len(langs) > 0 {
+	if langs := storedAudio(oldProbe, sql.NullString{String: deref(s.AdoptedMedia), Valid: s.AdoptedMedia != nil}, s.Adopted); len(langs) > 0 {
 		want, err := l.audioWanted(ctx, &importDownload{Version: *v})
 		if err != nil {
 			return false, false, err
@@ -224,4 +220,11 @@ func (l *Library) profileAllows(t *decide.Title, v decide.Version, kind string, 
 	}
 	pr := l.pol.Profiles[v.Policy.Profile]
 	return pr == nil || *x.Score >= pr.MinScore
+}
+
+func deref(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }

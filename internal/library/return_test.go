@@ -542,3 +542,15 @@ func TestUndoFailureLeavesNothing(t *testing.T) {
 		}
 	})
 }
+
+// An earlier file of size zero on the mount is not offered.
+func TestUndoOfferEmptyFile(t *testing.T) {
+	t.Parallel()
+	e, _, target, action := adoptedFilm(t)
+	if err := os.Truncate(target, 0); err != nil {
+		t.Fatal(err)
+	}
+	if offers, _ := e.lib.UndoOffers(e.ctx, []int64{action}); len(offers) != 0 {
+		t.Errorf("offered: %v", offers)
+	}
+}

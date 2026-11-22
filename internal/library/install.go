@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -294,19 +293,22 @@ func (l *Library) installLinks(ctx context.Context, in *install) (*installed, er
 			}
 		}
 		// The old files' release facts, before a link at the same path is overwritten (History, 00129).
+		// A displaced file's row is read once, as it is: its facts for History, and the whole row for Undo
+		// (link_trash.snapshot; the link that takes its place is added once it is written).
 		oldRel := map[string]relFacts{}
-		for _, m := range append(slices.Clone(moved), gone...) {
-			oldRel[m.path] = linkFacts(ctx, tx, m.linkID, m.path)
-		}
-		// And every displaced file's row as it is, for Undo (link_trash.snapshot); the link that takes its place is
-		// added once it is written.
 		snaps := map[string]*trashSnapshot{}
 		for _, m := range moved {
 			s, err := readSnapshot(ctx, tx, m.linkID, m.path)
 			if err != nil {
 				return err
 			}
-			snaps[m.path] = s
+			snaps[m.path], oldRel[m.path] = s, relFacts{}
+			if s != nil {
+				oldRel[m.path] = s.relFacts()
+			}
+		}
+		for _, m := range gone {
+			oldRel[m.path] = linkFacts(ctx, tx, m.linkID, m.path)
 		}
 		successors := map[string]successor{}
 		for _, lk := range linked {
