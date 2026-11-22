@@ -118,7 +118,7 @@ func (s *Service) runCommandIn(ctx context.Context, v *View, canon string, body 
 	ua string, narrow func(*commandScope)) (int64, error) {
 	body["name"] = canon
 	for k := range body {
-		if strings.EqualFold(k, "_mmJobs") {
+		if strings.EqualFold(k, "_mmJobs") || strings.EqualFold(k, "_mmScope") {
 			delete(body, k)
 		}
 	}
@@ -134,6 +134,9 @@ func (s *Service) runCommandIn(ctx context.Context, v *View, canon string, body 
 		}
 		if narrow != nil {
 			narrow(sc)
+			// The narrowed scope is part of the command's identity (the repeat check below): a retry in another
+			// library, or an ordinary search of the same title, is not this command.
+			body["_mmScope"] = fmt.Sprintf("%v %v %v", sc.versions, sc.sel.Seasons, sc.sel.NoJoin)
 		}
 		status, result, msg, started, ended = s.searchOutcome(sc.versions, now)
 		if canon == "RssSync" {
@@ -397,6 +400,7 @@ func (s *Service) loadCommands(ctx context.Context, where string, args ...any) (
 		_ = json.Unmarshal([]byte(body), &refs)
 		x.jobs = refs.Jobs
 		delete(c.Body, "_mmJobs")
+		delete(c.Body, "_mmScope")
 		c.Body["sendUpdatesToClient"] = true
 		c.Body["updateScheduledTask"] = true
 		c.Body["requiresDiskAccess"] = false

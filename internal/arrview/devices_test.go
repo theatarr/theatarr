@@ -250,3 +250,29 @@ func TestEditorRefusesMoveFiles(t *testing.T) {
 		e.exec(`DELETE FROM arrview_title`)
 	}
 }
+
+// Retries of the same film in two libraries through one view are two searches, one per library; an ordinary search
+// of the film sent while they are queued is a search of its own, not one of those narrow retries.
+func TestRetriesKeepTheirOwnCommands(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	fs := &selSearcher{}
+	e.searcher = fs
+	e.start()
+	at := ms(testNow.Add(-time.Hour))
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, episodes,
+		source, created_at, updated_at, added_at) VALUES
+		(31, 1, 1, 'movie-remux', ?, 'Alpha.Remux', 'dmm', 'downloading', '[]', 'rss', ?, ?, ?),
+		(32, 1, 2, 'movie-web', ?, 'Alpha.WEB', 'dmm', 'downloading', '[]', 'rss', ?, ?, ?)`,
+		strings.Repeat("5", 40), at, at, at, strings.Repeat("6", 40), at, at, at)
+	e.call("DELETE", "/radarr/api/v3/queue/31?blocklist=true", nil, 200, nil)
+	e.call("DELETE", "/radarr/api/v3/queue/32?blocklist=true", nil, 200, nil)
+	e.call("POST", "/radarr/api/v3/command", map[string]any{"name": "MoviesSearch", "movieIds": []int{IDBase + 1}}, 201, nil)
+	var got []string
+	for _, s := range fs.sels {
+		got = append(got, fmt.Sprintf("%v/%v", s.Versions, s.NoJoin))
+	}
+	if want := "[movie-remux]/true [movie-web]/true [movie-remux movie-web]/false"; strings.Join(got, " ") != want {
+		t.Errorf("searches %v, want %s", got, want)
+	}
+}
