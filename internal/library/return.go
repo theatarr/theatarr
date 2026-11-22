@@ -238,11 +238,11 @@ func (l *Library) UndoOffers(ctx context.Context, ids []int64) (map[int64]string
 	}
 	idj, _ := json.Marshal(ids)
 	type offer struct {
-		id                                             int64
-		version, target, release, succPath, succTarget string
+		id                                                   int64
+		version, path, target, release, succPath, succTarget string
 	}
 	var offers []offer
-	if err := scanRows(ctx, l.st.Reader(), `SELECT la.id, r.version_key, r.target,
+	if err := scanRows(ctx, l.st.Reader(), `SELECT la.id, r.version_key, r.path, r.target,
 		json_extract(r.snapshot, '$.successor.path'), json_extract(r.snapshot, '$.successor.target'),
 		COALESCE((SELECT release_title FROM download WHERE id = json_extract(r.snapshot, '$.successor.download_id')),
 			(SELECT release_title FROM link WHERE id = json_extract(r.snapshot, '$.successor.link_id')), '')
@@ -254,14 +254,14 @@ func (l *Library) UndoOffers(ctx context.Context, ids []int64) (map[int64]string
 		AND `+slotHeldSQL+` AND NOT `+othersHoldSQL+` AND NOT `+importingSQL, []any{store.HistoryDeadLower, string(idj)},
 		func(rs *sql.Rows) error {
 			var o offer
-			err := rs.Scan(&o.id, &o.version, &o.target, &o.succPath, &o.succTarget, &o.release)
+			err := rs.Scan(&o.id, &o.version, &o.path, &o.target, &o.succPath, &o.succTarget, &o.release)
 			offers = append(offers, o)
 			return err
 		}); err != nil {
 		return nil, err
 	}
 	for _, o := range offers {
-		if l.pol.Versions[o.version] == nil || !l.gate.Active(o.version) {
+		if l.pol.Versions[o.version] == nil || l.gateRefuses(o.version, o.path, o.succPath) != nil {
 			continue
 		}
 		// The successor's symlink, read bounded: a share that does not answer leaves the offer out, never holds History.
@@ -308,8 +308,8 @@ func (l *Library) undoUpgrade(ctx context.Context, actionID int64, by string) (*
 	if l.pol.Versions[e.version] == nil {
 		return nil, &ReturnRefused{Sentence: returnChanged}
 	}
-	// The library's write gate, in its own words.
-	if err := l.gate.CheckVersion(e.version); err != nil {
+	// The library's write gate, about both paths, in its own words.
+	if err := l.gateRefuses(e.version, e.path, e.snap.Successor.Path); err != nil {
 		var ref *Refused
 		if errors.As(err, &ref) {
 			return nil, &ReturnRefused{Sentence: "The library does not write now: " + ref.Detail}
@@ -343,6 +343,15 @@ func (l *Library) undoUpgrade(ctx context.Context, actionID int64, by string) (*
 // UndoBlockSource is the blocklist source of an Undo's block: undo:<who> (Activity › Blocklist: "Upgrade undone by
 // <who>").
 func UndoBlockSource(by string) string { return "undo:" + orSomeone(by) }
+
+// gateRefuses is the write gate's answer for a return of version: the earlier file's path and the successor's (nil:
+// both may be written).
+func (l *Library) gateRefuses(version, path, successor string) error {
+	if err := l.gate.CheckPath(version, path); err != nil {
+		return err
+	}
+	return l.gate.CheckPath(version, successor)
+}
 
 func orSomeone(by string) string {
 	if by == "" {

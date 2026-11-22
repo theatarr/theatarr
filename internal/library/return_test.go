@@ -654,3 +654,19 @@ func TestUndoOffersBoundedRead(t *testing.T) {
 		t.Errorf("offered: %v", offers)
 	}
 }
+
+// A library whose root moved since offers no Undo for paths under the former root, and the POST gives the gate's
+// reason.
+func TestUndoAsksTheGateAboutPaths(t *testing.T) {
+	t.Parallel()
+	e, _, _, action := adoptedFilm(t)
+	e.lib.gate.versions["movie-remux"] = gateVersion{known: true, roots: []string{e.outside}}
+	if offers, _ := e.lib.UndoOffers(e.ctx, []int64{action}); len(offers) != 0 {
+		t.Errorf("offered: %v", offers)
+	}
+	var rr *ReturnRefused
+	if _, err := e.lib.UndoUpgrade(e.ctx, action, ""); !errors.As(err, &rr) ||
+		!strings.HasPrefix(rr.Sentence, "The library does not write now: ") {
+		t.Errorf("undo: %v", err)
+	}
+}
