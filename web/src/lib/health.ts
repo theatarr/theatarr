@@ -94,8 +94,8 @@ function inWords(ms: number): string {
  * ad, tb: useProviderCode); null when the check's detail names no account that needs attention.
  */
 export function accountNotice(c: HealthCheck, code: (key: string) => string = (k) => k, now: Date = new Date()): { effect: string; next: string } | null {
-  // advice: the health check's own sentence for an account it could not read (network, VPN or key), so Needs
-  // attention and the Checks list agree; without it the key advice stands.
+  // advice: ProviderAccountCheck's own sentence for an account it could not read (internal/health, detail[k].advice:
+  // network, VPN or key), so Needs attention and the Checks list agree; without it the key advice stands.
   const detail = (c.detail ?? {}) as Record<string, { expires?: string; premium?: boolean; error?: string; refused?: boolean; advice?: string } | undefined>;
   const lines: string[] = [];
   const renew: string[] = [];
