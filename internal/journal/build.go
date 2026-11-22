@@ -652,15 +652,22 @@ func (b *builder) libraryImport(e *Entry, d *dlRow) error {
 					e.f.fileWidth, e.f.fileHeight = v.Width, v.Height
 				}
 			}
-			var langs []string
+			var langs, tracks []string
 			for _, a := range f.Probe.Audio {
 				if a.Language != "" && !slices.Contains(langs, a.Language) {
 					langs = append(langs, a.Language)
 				}
+				// The check reads each track as the import's wrong-audio rule does: a Matroska eng without the
+				// stored tag fact is Matroska's default (or an older probe), so unknown.
+				if !a.Tagged && f.Probe.Container == "matroska" && strings.EqualFold(a.Language, "eng") {
+					tracks = append(tracks, "")
+				} else {
+					tracks = append(tracks, a.Language)
+				}
 			}
 			file.AudioLanguages = strings.Join(langs, "/")
 			if e.f.fileRuntime == 0 {
-				e.f.fileRuntime, e.f.fileAudio = file.RuntimeSeconds, langs
+				e.f.fileRuntime, e.f.fileAudio = file.RuntimeSeconds, tracks
 			}
 		}
 		im.Files = append(im.Files, file)

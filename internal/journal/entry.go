@@ -228,7 +228,7 @@ type facts struct {
 	fileRuntime   int
 	fileWidth     int
 	fileHeight    int
-	fileAudio     []string
+	fileAudio     []string // the file's audio tracks' languages, "" for one the check reads as unknown
 	failureCount  int
 	failuresAfter int
 	importRejects []string // the guard's refusals (reason and episodes), not-upgrade skips left out

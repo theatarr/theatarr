@@ -27,8 +27,14 @@ func IsAudioRefusal(s string) bool {
 // Bokmål and Nynorsk (nb, nn, nob, nno) are Norwegian.
 func AudioLanguage(tag string) (string, bool) {
 	tag = strings.ToLower(strings.TrimSpace(tag))
+	if l, ok := languageAlias(tag); ok {
+		return canonicalCode(l, "")
+	}
 	if i := strings.IndexAny(tag, "-_"); i >= 0 {
 		tag = tag[:i]
+	}
+	if l, ok := languageAlias(tag); ok {
+		return canonicalCode(l, "")
 	}
 	switch tag {
 	case "nn", "nno":
@@ -62,10 +68,20 @@ func LanguageCode(s string) (string, bool) {
 	if iso := radarr.FindIsoLanguageByName(s); iso != nil {
 		return canonicalCode(iso.Language, iso.TwoLetterCode)
 	}
-	if strings.EqualFold(s, "cn") {
-		return canonicalCode(radarr.LanguageChinese, "zh")
-	}
 	return AudioLanguage(s)
+}
+
+// languageAlias reads the codes the metadata sources use that the table lacks or reads otherwise, from the alias
+// tables the original language goes through (movieLanguageAliases, metadataLanguageAliases): yue is Chinese, iw
+// Hebrew, in Indonesian, cn Chinese.
+func languageAlias(code string) (radarr.Language, bool) {
+	if l, ok := movieLanguageAliases[code]; ok {
+		return l, true
+	}
+	if l, ok := metadataLanguageAliases[code]; ok {
+		return radarr.LanguageByName(l.Name)
+	}
+	return radarr.Language{}, false
 }
 
 // LanguageName is the table's name of a code LanguageCode or AudioLanguage gave ("fra": French); the code itself

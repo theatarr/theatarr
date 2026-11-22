@@ -34,3 +34,25 @@ func TestLanguageCode(t *testing.T) {
 		t.Errorf("LanguageName(nor) = %q", n)
 	}
 }
+
+// Every alias the original language goes through reads as its language in the shared mapping (a yue, iw or in
+// title must not fall to English alone).
+func TestLanguageAliasesShared(t *testing.T) {
+	for code, l := range movieLanguageAliases {
+		want, _ := LanguageCode(l.Name)
+		if got, ok := LanguageCode(code); !ok || got != want {
+			t.Errorf("movie alias %q: %q %v, want %q (%s)", code, got, ok, want, l.Name)
+		}
+	}
+	for code, l := range metadataLanguageAliases {
+		want, _ := LanguageCode(l.Name)
+		if got, ok := LanguageCode(code); !ok || got != want {
+			t.Errorf("metadata alias %q: %q %v, want %q (%s)", code, got, ok, want, l.Name)
+		}
+	}
+	for in, want := range map[string]string{"yue": "zho", "iw": "heb", "in": "ind", "chi": "zho", "heb": "heb", "ind": "ind"} {
+		if got, ok := AudioLanguage(in); !ok || got != want {
+			t.Errorf("AudioLanguage(%q) = %q %v, want %q", in, got, ok, want)
+		}
+	}
+}

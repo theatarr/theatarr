@@ -179,3 +179,28 @@ func TestImportAudioNamedOriginal(t *testing.T) {
 		}
 	}
 }
+
+// The file audio check reads an untagged Matroska track (eng without the stored tag fact) as unknown, as the import
+// does: no "the file's audio is English" under a French profile. The entry's audio list still shows eng.
+func TestImportAudioUntaggedTrack(t *testing.T) {
+	for _, tc := range []struct{ profile, audio, shown string }{
+		{"French", `[{"codec":"ac3","language":"eng"}]`, "eng"},
+		{"English", `[{"codec":"ac3","language":"eng"},{"codec":"ac3","language":"fre","tagged":true}]`, "eng/fre"},
+	} {
+		e := newEnv(t)
+		e.seedRoute()
+		e.pol.Profiles[e.pol.Versions["movie-remux"].Profile].Language = tc.profile
+		e.exec(`INSERT INTO library_import (download_id, state, mount_folder, last_error, plan, created_at, updated_at)
+			VALUES (1, 'linked', '/m/Alpha', NULL, ?, ?, ?)`, `{"files":[{"path":"/m/Alpha/a.mkv","size":30000000000,
+			"probe":{"container":"matroska","runtime_seconds":7200,"audio":`+tc.audio+`}}]}`, msOf(testNow), msOf(testNow))
+		g := e.get("dl:1:import")
+		for _, f := range g.Flags {
+			if f.Code == CheckFileAudio {
+				t.Errorf("%s profile: flagged %s", tc.profile, f.Reason)
+			}
+		}
+		if g.Import == nil || len(g.Import.Files) != 1 || g.Import.Files[0].AudioLanguages != tc.shown {
+			t.Errorf("%s profile: shown audio %+v", tc.profile, g.Import)
+		}
+	}
+}

@@ -546,7 +546,7 @@ func (b *builder) checkFile(e *Entry, ti *titleInfo) {
 		for _, a := range e.f.fileAudio {
 			a, ok := decide.AudioLanguage(a)
 			if !ok {
-				continue
+				return // one track of unknown language: no verdict, as the import's wrong-audio rule
 			}
 			if slices.Contains(codes, a) {
 				return

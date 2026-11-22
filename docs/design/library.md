@@ -351,7 +351,10 @@ mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
      element reads `eng` but is not tagged; MP4 `und` is no tag) and is in the language
      table. One untagged track, or `und`, `zxx`, `mul`, `mis`, a private code or any code the table lacks (`myn`):
      no verdict. Tags read through `decide.AudioLanguage`, the one mapping the journal's `file_audio_language` check
-     uses too: region subtags are cut (`ja-JP`), `fre`/`fra` are French, `nob`/`nb`/`nn` Norwegian.
+     uses too: region subtags are cut (`ja-JP`), `fre`/`fra` are French, `nob`/`nb`/`nn` Norwegian, and every alias the
+     original language goes through (`movieLanguageAliases`, `metadataLanguageAliases`: `yue` and `cn` Chinese, `iw`
+     Hebrew, `in` Indonesian) reads as its language. The journal's check reads a stored Matroska `eng` without
+     `tagged` as unknown too, and one unknown track gives no warning; the entry's audio list still shows it.
    - *Wanted*: a film profile's named language; a film profile set to `original`, and every series library, the
      title's original language **or** English (the original read by name or code, `ko` is Korean; one the table
      lacks gives English alone). No rule for profile `any`, nor when nothing stores the title's original language
@@ -393,6 +396,7 @@ mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
    `TestAudioRuleNoOriginalLanguage`, `TestAudioRuleEachDisplacedFile`, `TestAudioRuleSeriesUnknownOriginal`,
    `TestAudioRulePathImportNotRefused`, `TestAudioRulePreviewKeepsAssignments`, `TestAudioRuleStoredTagFact`,
    `TestAudioRuleTagFactStored`, `TestAudioRuleFilmEmptyDetailsLanguage`, `journal.TestImportAudioNotes`,
+   `TestAudioRuleSeriesYue`, `journal.TestImportAudioUntaggedTrack`, `decide.TestLanguageAliasesShared`,
    `decide.TestAudioLanguage`,
    `decide.TestLanguageCode`, `journal.TestFileAudioWordsAndRefusalWhole`, `web.TestShortReason`.
 5. **What each file is** (`decide.AggregateSeriesFile`, `AggregateMovieFile`, `library/facts.go`): the

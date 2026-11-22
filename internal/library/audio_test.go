@@ -177,6 +177,10 @@ func TestAudioRuleUnknownImports(t *testing.T) {
 		{"ko title, Korean file", "ko", tracks("kor"), true},
 		{"original outside the table, English file", "Flemish", tracks("eng"), true},
 		{"original outside the table, Japanese file", "Flemish", tracks("jpn"), false},
+		{"yue film, chi file", "yue", tracks("chi"), true},
+		{"yue film, zho file", "yue", tracks("zho"), true},
+		{"iw film, heb file", "iw", tracks("heb"), true},
+		{"in film, ind file", "in", tracks("ind"), true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -694,5 +698,24 @@ func TestAudioRuleManualImportPartner(t *testing.T) {
 	if got := e.one(`SELECT COUNT(*) || '|' || COALESCE(group_concat((download_id IS NULL) || '|' || (researched_at IS NOT NULL)), '')
 		FROM router_blocklist WHERE version_key = 'movie-web'`); got != "1|1|1" {
 		t.Errorf("movie-web blocklist %s", got)
+	}
+}
+
+// A series whose metadata names Cantonese by TMDb's yue takes a Chinese file (chi or zho).
+func TestAudioRuleSeriesYue(t *testing.T) {
+	t.Parallel()
+	for _, tag := range []string{"chi", "zho"} {
+		e := newEnv(t, true)
+		e.exec(`INSERT INTO series_meta (title_id, original_language) VALUES (2, 'yue')`)
+		const pack = "Show.S01.2160p.WEB-DL.DDP5.1.H.265-ONE"
+		e.release(pack, map[string]float64{"Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-ONE.mkv": 2700})
+		e.audio(pack, tracks(tag))
+		e.seriesDownload(1, 2, 20, hashA, pack, "[201]", nil)
+		if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+			t.Fatal(err)
+		}
+		if e.state(1) != "imported" {
+			t.Errorf("%s: %s: %s", tag, e.state(1), e.one(`SELECT COALESCE(error, '') FROM download WHERE id = 1`))
+		}
 	}
 }
