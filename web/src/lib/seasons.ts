@@ -8,7 +8,7 @@ import { downloadReason, downloadSettings } from "@/lib/version-grab";
 import type { Episode, EpisodeList } from "@/api/library";
 import type { VersionControl } from "@/api/manage";
 import { fmtNumber } from "./format";
-import { entryDay } from "./calendar";
+import { entryDay, ymd } from "./calendar";
 import { availableIn, BETTER_PACK, upgradeFoundWord } from "./upgrade";
 
 export type Cell = Episode["versions"][string];
@@ -57,6 +57,14 @@ export function statusWords(s: Status, seeFiles: boolean): { label: string; tone
  *  (entryDay); "" when it has neither. */
 export function episodeDay(e: Pick<Episode, "air_date" | "air_at">): string {
   return e.air_at || e.air_date ? entryDay({ date: e.air_date ?? "", at: e.air_at }) : "";
+}
+
+/** "Aired" or "Airs" for an episode's day: by its instant (the server's aired flag) when it has one; by a date alone
+ *  against today in this browser, since the stored flag may come from a placeholder midnight in another zone. Counts
+ *  and controls keep the stored flag (aired). */
+export function airWord(e: Pick<Episode, "air_date" | "air_at" | "aired">, now: Date = new Date()): "Aired" | "Airs" {
+  if (e.air_at || !e.air_date) return e.aired ? "Aired" : "Airs";
+  return e.air_date.slice(0, 10) <= ymd(now) ? "Aired" : "Airs";
 }
 
 /** Whether an episode has aired: the server's flag (its air instant has passed; the day of air_date only when it has no instant), never worked out here. */

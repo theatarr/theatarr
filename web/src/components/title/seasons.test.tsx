@@ -962,4 +962,18 @@ describe("Episode window air day (F02)", () => {
     };
     expect(await show({ ...episodes.episodes[1], air_date: undefined, air_at: at, aired: false })).toContain(`Airs ${fmtDay(ymd(new Date(at)))}`);
   });
+
+  it("says Airs or Aired by a lone date against today here, not by a placeholder instant (fix round 2)", async () => {
+    const show = async (ep: object) => {
+      mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: { ...episodes, episodes: [episodes.episodes[0], ep, episodes.episodes[2]] } }, { method: "GET", path: "/titles/1/episodes/102", reply: { ...detail, episode: ep } }]);
+      const v = renderPage(<Seasons id="1" anime />, "/title/1?episode=102");
+      const text = (await screen.findByTestId("episode-meta")).textContent;
+      v.unmount();
+      return text;
+    };
+    // A date alone: the stored aired flag may come from a placeholder instant in another zone; the label goes by the
+    // date against today in this browser.
+    expect(await show({ ...episodes.episodes[1], air_date: "2099-01-01", air_at: undefined, aired: true })).toContain("Airs Jan 1, 2099");
+    expect(await show({ ...episodes.episodes[1], air_date: "2001-01-01", air_at: undefined, aired: false })).toContain("Aired Jan 1, 2001");
+  });
 });

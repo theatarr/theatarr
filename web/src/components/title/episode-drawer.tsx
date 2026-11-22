@@ -44,7 +44,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fmtAgo, fmtBytes, fmtNumber } from "@/lib/format";
 import { fmtDay, fmtRuntime } from "@/lib/library";
 import { MediaGroup } from "@/components/title/media-group";
-import { cellStatus, episodeDay, episodeNumber, mergedStatus, offCopies, plainAvailable, statusWords } from "@/lib/seasons";
+import { airWord, cellStatus, episodeDay, episodeNumber, mergedStatus, offCopies, plainAvailable, statusWords } from "@/lib/seasons";
 import { activityHref, stageTone, stageWords } from "@/lib/copies";
 import { cn } from "@/lib/utils";
 import { libraryOffWords, missingLine } from "@/lib/title-facts";
@@ -371,7 +371,7 @@ export function EpisodeOverview({
         {e && d && perms.seeFiles && d.versions.length > 0 ? <EpisodeStatusLine e={e} versions={d.versions} /> : null}
         {e ? (
           <p className="mt-1 text-xs text-muted-foreground" data-testid="episode-meta">
-            {[episodeDay(e) ? `${aired ? "Aired" : "Airs"} ${fmtDay(episodeDay(e))}` : "No air date", runtime, anime && e.absolute ? episodeNumber(e, true) : ""].filter(Boolean).join(" · ")}
+            {[episodeDay(e) ? `${airWord(e)} ${fmtDay(episodeDay(e))}` : "No air date", runtime, anime && e.absolute ? episodeNumber(e, true) : ""].filter(Boolean).join(" · ")}
           </p>
         ) : null}
         {d?.overview ? (

@@ -660,6 +660,21 @@ func TestAiredByInstant(t *testing.T) {
 	if !found {
 		t.Errorf("Home upcoming: no S01E03 in %+v", dv.Upcoming.Items)
 	}
+	// A placeholder already passed (Kiritimati's midnight of Oct 27 is 10:00 UTC on Oct 26, before now): the stored
+	// instant says aired, no instant is given out, and the page labels the date by its own today (fix round 2).
+	e.exec(`UPDATE series_meta SET time_zone = 'Pacific/Kiritimati' WHERE title_id = 4`)
+	e.exec(`UPDATE episode SET air_date = '2026-10-27', air_date_utc_at = ? WHERE id = 43`,
+		store.Millis(time.Date(2026, 10, 26, 10, 0, 0, 0, time.UTC)))
+	l = EpisodeList{}
+	e.getKey(APIBase+"/titles/4/episodes", key, &l)
+	for _, ep := range l.Episodes {
+		if ep.ID == 43 && (ep.AirAt != nil || !ep.Aired || ep.AirDate != "2026-10-27") {
+			t.Errorf("passed placeholder: %+v", ep)
+		}
+	}
+	e.exec(`UPDATE series_meta SET time_zone = 'Asia/Tokyo' WHERE title_id = 4`)
+	e.exec(`UPDATE episode SET air_date = '2026-10-28', air_date_utc_at = ? WHERE id = 43`,
+		store.Millis(time.Date(2026, 10, 27, 15, 0, 0, 0, time.UTC)))
 	// A known air time of midnight is real, not a placeholder: the instant is given out (fix round 2).
 	e.exec(`UPDATE series_meta SET air_time = '00:00' WHERE title_id = 4`)
 	l = EpisodeList{}
