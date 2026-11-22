@@ -41,7 +41,11 @@ import (
 // entry was a new one of ours (download.own_add) and still finds it so. Real-Debrid makes a new torrent for every
 // add, so an entry of ours stays ours. The router's stall timeout uses it on Real-Debrid only.
 //
-// The third case is [UserDeleter.DeleteUserChosen], on all three providers: the torrent
+// The third case is [TooLargeDeleter.DeleteOwnTooLargeAdd], on AllDebrid only: an add of ours that AllDebrid then
+// refuses as too big (statusCode 8) is deleted when the router recorded at the add that the entry was a new one of
+// ours (download.own_add), it was not reused and router.alldebrid_delete_uncached is on.
+//
+// The fourth case is [UserDeleter.DeleteUserChosen], on all three providers: the torrent
 // manager (internal/torrents, docs/design/torrents.md) deletes torrents a person picked and confirmed, Theatarr's or not, after
 // a fresh list, a fresh usage check and a backup that can put them back. Its fence is a [UserChoice], which only
 // [ChooseForDelete] makes and only with the backup id and the confirmation digest; boundary_test.go keeps every
