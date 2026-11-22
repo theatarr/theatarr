@@ -718,7 +718,7 @@ func runServe(args []string) error {
 		Ops: serveOps{av}, OnRequest: requestNotify, OnProblem: problemNotify, LogLevel: logLevel, LogDir: *logDir, ReloadSettings: runtimeManager.Reload,
 		CaptureRuntime: captureRuntime, SettingsTests: newSettingsTestLimits(), SettingsLookup: os.LookupEnv, TrashRoot: os.Getenv("THEATARR_TRASH"),
 		Torrents: torrentSvc, Background: ctx, NowPlaying: nowPlayingSnapshot, ArrImport: serveArrImport{manager: runtimeManager, st: st, log: log},
-		RcloneTestGateway: rcloneTestGateway(runtimeManager, gw, log), NotifyTest: nt.SendTest,
+		RcloneTestGateway: rcloneTestGateway(runtimeManager, gw, log), PlexItems: plexItems(runtimeManager), NotifyTest: nt.SendTest,
 		AnimeBuilds: func(ctx context.Context) web.AnimeBuilder {
 			if _, s := currentAnime(ctx); s != nil {
 				return s

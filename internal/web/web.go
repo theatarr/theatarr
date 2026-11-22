@@ -155,6 +155,8 @@ type Config struct {
 	// NowPlaying is the now playing tracker's state (docs/design/now-playing.md); nil, or a nil answer, shows it off.
 	NowPlaying        NowPlayingSource
 	RcloneTestGateway RcloneTestGateway
+	// PlexItems gives a Plex client of the settings in force for "Watch in Plex" (plexlink.go); nil: no Plex.
+	PlexItems PlexItemsSource
 	// AnimeBuilds is the request's anime franchise builder (animebuild.go); nil, or a nil answer, answers the build
 	// endpoints 503.
 	AnimeBuilds func(context.Context) AnimeBuilder
@@ -223,6 +225,7 @@ type Web struct {
 	cleanups          sync.WaitGroup // removals' debrid clean-ups still running (StartCleanup)
 	nowPlaying        NowPlayingSource
 	rcloneTestGateway RcloneTestGateway
+	plexItems         PlexItemsSource
 	animeBuilds       func(context.Context) AnimeBuilder
 	notifyTest        func(ctx context.Context, target string) error
 	arrImport         ArrImporter
@@ -280,7 +283,7 @@ func New(cfg Config) (*Web, error) {
 		logLevel: cfg.LogLevel, logDir: cfg.LogDir, reloadSettings: cfg.ReloadSettings,
 		captureRuntime: cfg.CaptureRuntime, settings: cfg.Settings, settingsTester: cfg.SettingsTester, qualitySync: cfg.QualitySync, trashRoot: cfg.TrashRoot,
 		settingsTests: cfg.SettingsTests, settingsLookup: cfg.SettingsLookup, cardigann: cfg.Cardigann, preflight: cfg.Preflight,
-		backups: cfg.Backups, restart: cfg.Restart, torrents: cfg.Torrents, background: cfg.Background, nowPlaying: cfg.NowPlaying, rcloneTestGateway: cfg.RcloneTestGateway, animeBuilds: cfg.AnimeBuilds,
+		backups: cfg.Backups, restart: cfg.Restart, torrents: cfg.Torrents, background: cfg.Background, nowPlaying: cfg.NowPlaying, rcloneTestGateway: cfg.RcloneTestGateway, plexItems: cfg.PlexItems, animeBuilds: cfg.AnimeBuilds,
 		notifyTest: cfg.NotifyTest, arrImport: cfg.ArrImport}, nil
 }
 

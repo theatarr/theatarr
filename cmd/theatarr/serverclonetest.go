@@ -7,6 +7,7 @@ import (
 
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/nowplaying"
+	"github.com/theatarr/theatarr/internal/plex"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/settings"
 	"github.com/theatarr/theatarr/internal/web"
@@ -37,4 +38,25 @@ type pinnedGateway struct {
 
 func (p pinnedGateway) Do(ctx context.Context, t gateway.Target, req *http.Request) (*http.Response, error) {
 	return p.gw.Do(settings.WithRuntime(ctx, p.rt), t, req)
+}
+
+// plexItems builds the Plex client of the settings generation in force for "Watch in Plex", through that generation's
+// gateway; nil, nil without Plex or its token.
+func plexItems(manager *settings.RuntimeCoordinator) web.PlexItemsSource {
+	return func(ctx context.Context) (web.PlexItems, *policy.Policy, error) {
+		rt, err := runtimeForSearch(ctx, manager)
+		if err != nil || rt.Gateway == nil || rt.Policy == nil || rt.Policy.Library == nil || rt.Policy.Library.Plex == nil {
+			return nil, nil, err
+		}
+		p := rt.Policy.Library.Plex
+		tok := rt.Policy.Getenv(p.TokenEnv)
+		if tok == "" {
+			return nil, nil, nil
+		}
+		c, err := plex.New(rt.Gateway, p.URL, tok)
+		if err != nil {
+			return nil, nil, err
+		}
+		return c, rt.Policy, nil
+	}
 }

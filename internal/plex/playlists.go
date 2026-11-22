@@ -36,6 +36,8 @@ type PlaylistItem struct {
 type FileItem struct {
 	RatingKey string
 	Title     string
+	// ShowKey is an episode's show (grandparentRatingKey); "" for a movie.
+	ShowKey string
 }
 
 type container struct {
@@ -228,6 +230,7 @@ func (c *Client) SectionFiles(ctx context.Context, section, typ int) (map[string
 		var it struct {
 			RatingKey flexString `json:"ratingKey"`
 			Title     string     `json:"title"`
+			ShowKey   flexString `json:"grandparentRatingKey"`
 			Media     []struct {
 				Part []struct {
 					File string `json:"file"`
@@ -240,7 +243,7 @@ func (c *Client) SectionFiles(ctx context.Context, section, typ int) (map[string
 		for _, md := range it.Media {
 			for _, p := range md.Part {
 				if p.File != "" {
-					files[p.File] = FileItem{RatingKey: string(it.RatingKey), Title: it.Title}
+					files[p.File] = FileItem{RatingKey: string(it.RatingKey), Title: it.Title, ShowKey: string(it.ShowKey)}
 				}
 			}
 		}

@@ -31,6 +31,7 @@ func (w *Web) mountAPI(mux *http.ServeMux) {
 	w.handle(mux, "GET "+b+"/health/dangling", SignedIn, auth.PermAdmin, w.apiHealthDangling)
 	w.handle(mux, "GET "+b+"/titles", SignedIn, auth.PermBrowse, w.apiTitles)
 	w.handle(mux, "GET "+b+"/titles/{id}", SignedIn, auth.PermBrowse, w.apiTitle)
+	w.handle(mux, "GET "+b+"/titles/{id}/plex", SignedIn, auth.PermBrowse, w.apiPlexLink)
 	w.handle(mux, "GET "+b+"/versions", SignedIn, auth.PermBrowse, w.apiVersions)
 	w.handle(mux, "GET "+b+"/versions/{id}", SignedIn, auth.PermBrowse, w.apiVersion)
 	w.handle(mux, "GET "+b+"/gateway", SignedIn, auth.PermAdmin, w.apiGateway)
