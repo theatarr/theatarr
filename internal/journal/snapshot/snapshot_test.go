@@ -140,7 +140,7 @@ func TestChosenLine(t *testing.T) {
 	// A pack taken for only some of its episodes (the others were covered already) is not chosen over a release of
 	// none of them.
 	pack := []Candidate{{Accepted: true, InfoHash: "h1", Episodes: []string{"S01E01", "S01E02"},
-		Over: &Over{Release: "A.S01E01-ONE", Reason: "a pack"}},
+		Over: &Over{Release: "A.S01E01-ONE", Reason: "a pack", Episodes: []string{"S01E01"}}},
 		{Accepted: true, InfoHash: "h2", Release: "A.S01E01-ONE", Episodes: []string{"S01E01"}}}
 	if got := ChosenLine(pack, "h1", []string{"S01E02"}); got != "" {
 		t.Errorf("runner-up of none of the taken episodes: %q", got)
@@ -149,6 +149,17 @@ func TestChosenLine(t *testing.T) {
 		if got := ChosenLine(pack, "h1", eps); got != "Chosen over A.S01E01-ONE: a pack" {
 			t.Errorf("runner-up of a taken episode (%v): %q", eps, got)
 		}
+	}
+	// A search stored before the runner-up's episodes were recorded: for an episode download nothing says the
+	// runner-up covers one of them, so no line (the candidate of that name is not looked up); a film keeps it.
+	legacy := []Candidate{{Accepted: true, InfoHash: "h1", Episodes: []string{"S01E01", "S01E02"},
+		Over: &Over{Release: "A.S01E01-ONE", Reason: "a pack"}},
+		{Accepted: true, InfoHash: "h2", Release: "A.S01E01-ONE", Episodes: []string{"S01E01", "S01E02"}}}
+	if got := ChosenLine(legacy, "h1", []string{"S01E02"}); got != "" {
+		t.Errorf("runner-up of unknown episodes: %q", got)
+	}
+	if got := ChosenLine(legacy, "h1", nil); got != "Chosen over A.S01E01-ONE: a pack" {
+		t.Errorf("film: %q", got)
 	}
 	// The three steps that say nothing about the release give no line.
 	for _, why := range []string{"its age", "its size", "the episode count"} {

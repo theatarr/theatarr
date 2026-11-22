@@ -97,8 +97,8 @@ type Candidate struct {
 type Over struct {
 	Release string `json:"release"`
 	Reason  string `json:"reason"`
-	// Episodes are that release's episodes (none for a film; not recorded before phase AF: then the candidate of
-	// that name says them).
+	// Episodes are that release's episodes (none for a film; not recorded before phase AF: then an episode download
+	// gets no line).
 	Episodes []string `json:"episodes,omitempty"`
 }
 
@@ -300,7 +300,7 @@ func Record(ctx context.Context, db Execer, s Search) error {
 // ChosenLine is the one explanation of a stored search's choice, for the release its route took (Last search, the
 // journal's grab entry; the caller checks it was taken): "Chosen over <next>: <reason>", the reason recorded when
 // the search was ranked. It says nothing about releases ranked above it. "" when nothing was ranked after it, or when
-// that release covers none of episodes, the episodes the download was taken for (DownloadEpisodes; nil: any), or
+// that release is not known to cover one of episodes, the episodes the download was taken for (nil for a film), or
 // when the deciding step says nothing a person can act on (silentReasons).
 func ChosenLine(cands []Candidate, taken string, episodes []string) string {
 	i := slices.IndexFunc(cands, func(c Candidate) bool { return c.Accepted && taken != "" && strings.EqualFold(c.InfoHash, taken) })
@@ -308,11 +308,9 @@ func ChosenLine(cands []Candidate, taken string, episodes []string) string {
 		return ""
 	}
 	over := cands[i].Over
-	its := over.Episodes
-	if j := slices.IndexFunc(cands, func(c Candidate) bool { return c.Accepted && c.Release == over.Release }); its == nil && j >= 0 {
-		its = cands[j].Episodes
-	}
-	if len(episodes) > 0 && len(its) > 0 && !slices.ContainsFunc(its, func(e string) bool { return slices.Contains(episodes, e) }) {
+	// An episode download: the runner-up must be known to cover one of its episodes (a search stored before
+	// Over.Episodes was recorded says nothing, so no line).
+	if len(episodes) > 0 && !slices.ContainsFunc(over.Episodes, func(e string) bool { return slices.Contains(episodes, e) }) {
 		return ""
 	}
 	return "Chosen over " + over.Release + ": " + over.Reason
