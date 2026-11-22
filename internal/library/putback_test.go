@@ -132,6 +132,11 @@ func TestPutBack(t *testing.T) {
 		c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
 		wait(t, c, func() { c.playing = []int64{2} }, func() { c.playing = nil })
 	})
+	t.Run("search open", func(t *testing.T) {
+		c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
+		wait(t, c, func() { c.exec(`UPDATE playing_break SET searched = 1, reported = '' WHERE id = ?`, c.id) },
+			func() { c.exec(`UPDATE playing_break SET reported = 'replaced' WHERE id = ?`, c.id) })
+	})
 	t.Run("unclear session", func(t *testing.T) {
 		c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
 		wait(t, c, func() { c.unclear = []int64{1} }, func() { c.unclear = []int64{2} })

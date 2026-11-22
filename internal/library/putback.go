@@ -46,7 +46,7 @@ func (l *Library) putBackOrAside(ctx context.Context, r returned, target string)
 	if err != nil || !aside {
 		return err
 	}
-	return l.settleAside(ctx, r, asideWords)
+	return l.settleAsideNow(ctx, r, asideWords)
 }
 
 // putBackCopy puts the row's copy back in place of the one file of its version that holds its film or episodes now,
@@ -58,14 +58,18 @@ func (l *Library) putBackOrAside(ctx context.Context, r returned, target string)
 // The facts are the row's own; the return's checks still apply (a refusal keeps it aside). aside: it is kept aside
 // (settleAside); else it was put back or waits.
 func (l *Library) putBackCopy(ctx context.Context, r returned, target string) (aside bool, err error) {
-	vp := l.pol.Versions[r.version]
-	if vp == nil || vp.PreferSeaDex || l.engine == nil {
-		return true, nil
-	}
 	if !l.writableNow(r.version) {
 		return false, nil
 	}
 	db := l.st.Reader()
+	// The incident's search still open: a later sweep, put back or aside alike (settleAsideNow does not ask again).
+	if open, err := l.searchOpen(ctx, r); err != nil || open {
+		return false, err
+	}
+	vp := l.pol.Versions[r.version]
+	if vp == nil || vp.PreferSeaDex || l.engine == nil {
+		return true, nil
+	}
 	// The row's copy as it was.
 	e := &undoEntry{version: r.version, path: r.path, target: target}
 	s := &e.snap
@@ -152,12 +156,6 @@ func (l *Library) putBackCopy(ctx context.Context, r returned, target string) (a
 				return true, nil
 			}
 		}
-	}
-	// The incident's search still open: a later sweep (settleAside waits for it too).
-	var open bool
-	if err := db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM playing_break pb WHERE pb.id = ? AND `+
-		playingSearchOpenSQL+`)`, r.incident).Scan(&open); err != nil || open {
-		return false, err
 	}
 	// Nobody plays the file it would displace, and Plex says so.
 	if l.playingNow == nil {

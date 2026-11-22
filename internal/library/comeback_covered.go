@@ -102,10 +102,24 @@ func (l *Library) settleAside(ctx context.Context, r returned, words string) err
 	}
 	// The incident's search still open (the settle pass has not reported it, or a sibling's search is not queued
 	// yet): settling now would end its route and strand that search and its outcome. A later sweep.
-	var open bool
-	if err := l.st.Reader().QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM playing_break pb WHERE pb.id = ? AND `+
-		playingSearchOpenSQL+`)`, r.incident).Scan(&open); err != nil || open {
+	if open, err := l.searchOpen(ctx, r); err != nil || open {
 		return err
+	}
+	return l.settleAsideNow(ctx, r, words)
+}
+
+// searchOpen says whether the row's incident search is still open (playingSearchOpenSQL).
+func (l *Library) searchOpen(ctx context.Context, r returned) (bool, error) {
+	var open bool
+	err := l.st.Reader().QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM playing_break pb WHERE pb.id = ? AND `+
+		playingSearchOpenSQL+`)`, r.incident).Scan(&open)
+	return open, err
+}
+
+// settleAsideNow is settleAside once the incident's search is known to have ended.
+func (l *Library) settleAsideNow(ctx context.Context, r returned, words string) error {
+	if !l.writableNow(r.version) {
+		return nil
 	}
 	now := store.Millis(l.now())
 	// The incident's title: the link id may be the replacement's now.
