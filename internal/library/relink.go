@@ -1243,20 +1243,30 @@ func (l *Library) retireDead(ctx context.Context, sc *LinkScan, version, root st
 	if sc.DryRun {
 		return nil
 	}
+	return l.moveDeadAside(ctx, version, root, ml, id, func(tp string) action {
+		return action{Kind: "replace", Version: version, LinkID: id, Path: ml.path, Target: ml.target,
+			Detail: "dead link moved aside to " + tp + ": its file is back, but another file holds its title or episodes"}
+	}, nil)
+}
+
+// moveDeadAside is retireDead's move: the dead link's symlink to the trash and its row unlinked, the action done
+// (made from the trash path) recorded with also in the same transaction, and Plex scanned. A symlink that changed
+// since is left; a move that failed is recorded as such. The caller holds the path's link lease.
+func (l *Library) moveDeadAside(ctx context.Context, version, root string, ml mountLink, id int64,
+	done func(trashPath string) action, also func(tx *sql.Tx) error) error {
 	if err := jobs.Fence(ctx); err != nil {
 		return err
 	}
 	if !linkPointsAt(ml.path, ml.target) {
 		return nil // changed since the walk
 	}
-	a := action{Kind: "replace", Version: version, LinkID: id, Path: ml.path, Target: ml.target}
 	tp, _, err := l.w.copyToTrash(version, root, ml.path)
 	if err == nil {
 		err = l.w.removeLink(version, ml.path)
 	}
 	if err != nil {
-		a.Mode, a.Detail = modeOf(err), "dead link not moved aside: "+err.Error()
-		return l.record(ctx, nil, a)
+		return l.record(ctx, nil, action{Kind: "replace", Mode: modeOf(err), Version: version, LinkID: id,
+			Path: ml.path, Target: ml.target, Detail: "dead link not moved aside: " + err.Error()})
 	}
 	now := store.Millis(l.now())
 	if err := l.st.WriteTx(ctx, func(tx *sql.Tx) error {
@@ -1271,8 +1281,15 @@ func (l *Library) retireDead(ctx context.Context, sc *LinkScan, version, root st
 			moved_at) VALUES (?, ?, ?, ?, ?, ?, ?)`, id, version, ml.path, tp, ml.target, "dead, replaced", now); err != nil {
 			return err
 		}
-		a.Mode, a.Detail = "applied", "dead link moved aside to "+tp+": its file is back, but another file holds its title or episodes"
-		return l.record(ctx, tx, a)
+		a := done(tp)
+		a.Mode = "applied"
+		if err := l.record(ctx, tx, a); err != nil {
+			return err
+		}
+		if also != nil {
+			return also(tx)
+		}
+		return nil
 	}); err != nil {
 		return err
 	}
