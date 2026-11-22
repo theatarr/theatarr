@@ -135,15 +135,10 @@ func TestComeBackRevivesUncoveredCopy(t *testing.T) {
 	}
 }
 
-// A returned copy whose film another file holds now is the later comparison's: left unsettled and dead. So is one
-// while paused, or of a version no longer monitored.
-func TestComeBackLeavesCoveredOrStoppedCopy(t *testing.T) {
+// A returned copy nothing else holds is left unsettled and dead while paused, or when its version is no longer
+// monitored (a covered one is kept aside: comeback_covered_test.go).
+func TestComeBackLeavesStoppedCopy(t *testing.T) {
 	for name, change := range map[string]func(e *env){
-		"covered": func(e *env) {
-			e.exec(`INSERT INTO link (id, path, target, title_id, state, created_at, updated_at)
-				VALUES (2, '/media/movies/new.mkv', '/x/new.mkv', 1, 'active', 0, 0)`)
-			e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (2, 10)`)
-		},
 		"paused":      func(e *env) { e.pol.Router.Enabled = false },
 		"unmonitored": func(e *env) { e.exec(`UPDATE version SET monitored = 0 WHERE id = 10`) },
 	} {

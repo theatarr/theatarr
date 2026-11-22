@@ -16,8 +16,8 @@ import (
 // broke while playing"). While its incident is open the hourly sweep leaves its dead link alone (playingHeld): it comes
 // back only through a read. After each sweep now playing's worker calls ComeBack, which reads each open row's own file
 // at its saved range: a file that reads on two sweeps at least deadConfirm apart, whose film or episodes no other file
-// holds, is revived as the sweep would revive it. A file another file now holds (in part or whole) is the later
-// comparison's (put back or kept aside); it is left as it is.
+// holds, is revived as the sweep would revive it. A file other files now hold (in part or whole), or that an import
+// replaced, is kept aside (comeback_covered.go).
 
 // PlayingPiece is how much a check of a file reads, PlayingPieceLimit its time limit (now playing's check and
 // ComeBack).
@@ -53,27 +53,47 @@ func (l *Library) LastSweep() time.Time {
 	return time.Time{}
 }
 
-// returned is an open row whose link is still the dead old copy.
+// returned is an open row whose old copy is not in place: its link still the dead old copy, or replaced (at the same
+// path or another one).
 type returned struct {
 	id, linkID, titleID int64
 	version, path, old  string
 	hash, inner         string
 	offset              int64
 	backSince           sql.NullInt64
+	// dead: the link at the row's path is still the dead old copy.
+	dead bool
 }
 
-// ComeBack reads the old copy of each open incident row whose link is still dead at its old target: listed (at its
-// old target, or by its saved hash's recorded folder and inner file name when the folder was renamed) and read at its
-// saved range. A read starts or continues its streak (back_since), an unlisted file or a failed read ends it; a read
-// at least deadConfirm after the streak began decides: reviveReturned. A mount that does not answer ends the pass.
+// replacedAside is how long a replaced row is read: older, it is settled aside unread.
+const replacedAside = 30 * 24 * time.Hour
+
+// ComeBack reads the old copy of each open incident row whose copy is not in place (its link still dead at the old
+// target, or replaced, or other active files hold its film or some of its saved episodes): listed where the sweep's
+// own folder choice puts it and read at its saved range. A read starts or continues its streak (back_since), an
+// unlisted file or a failed read ends it; a read at least deadConfirm after the streak began decides: reviveReturned
+// for a dead link nothing else covers, returnCovered (kept aside) for the rest. A replaced row older than 30 days is
+// settled aside unread. A mount that does not answer ends the pass.
 func (l *Library) ComeBack(ctx context.Context) error {
 	if l.mount == nil {
 		return nil
 	}
+	if err := l.asideOldReplaced(ctx); err != nil {
+		return err
+	}
 	rows, err := l.st.Reader().QueryContext(ctx, `SELECT pb.id, pb.link_id, pb.title_id, pb.version_key, pb.path,
-		pb.old_target, pb.info_hash, pb.inner_file, pb.read_offset, pb.back_since FROM playing_break pb
-		JOIN link l ON l.id = pb.link_id AND l.path = pb.path AND l.target = pb.old_target AND l.state = 'dead'
-		WHERE pb.settled = '' ORDER BY pb.id`)
+		pb.old_target, pb.info_hash, pb.inner_file, pb.read_offset, pb.back_since,
+		EXISTS (SELECT 1 FROM link l WHERE l.id = pb.link_id AND l.path = pb.path AND l.target = pb.old_target
+			AND l.state = 'dead') FROM playing_break pb
+		WHERE pb.settled = '' AND NOT EXISTS (SELECT 1 FROM link l WHERE l.path = pb.path AND l.target = pb.old_target
+			AND l.state = 'active') AND (pb.fixed_by = 'replaced' OR EXISTS (SELECT 1 FROM link l WHERE l.id = pb.link_id
+			AND l.path = pb.path AND l.target = pb.old_target AND l.state = 'dead') OR EXISTS (
+			-- what is active now for its film or saved episodes (a partial import may have moved its link aside)
+			SELECT 1 FROM link o JOIN link_version ov ON ov.link_id = o.id
+			JOIN version v ON v.id = ov.version_id AND v.title_id = pb.title_id AND v.policy_key = pb.version_key
+			JOIN title t ON t.id = v.title_id WHERE o.state = 'active' AND (t.kind <> 'series' OR EXISTS (
+				SELECT 1 FROM link_episode oe WHERE oe.link_id = o.id
+				AND oe.episode_id IN (SELECT value FROM json_each(pb.episodes)))))) ORDER BY pb.id`)
 	if err != nil {
 		return err
 	}
@@ -81,7 +101,7 @@ func (l *Library) ComeBack(ctx context.Context) error {
 	for rows.Next() {
 		var r returned
 		if err := rows.Scan(&r.id, &r.linkID, &r.titleID, &r.version, &r.path, &r.old, &r.hash, &r.inner, &r.offset,
-			&r.backSince); err != nil {
+			&r.backSince, &r.dead); err != nil {
 			rows.Close()
 			return err
 		}
@@ -155,6 +175,12 @@ func (l *Library) ComeBack(ctx context.Context) error {
 		case l.now().Sub(time.UnixMilli(r.backSince.Int64)) < deadConfirm:
 			continue
 		}
+		if !r.dead {
+			if err := l.returnCovered(ctx, r); err != nil {
+				return err
+			}
+			continue
+		}
 		if err := l.reviveReturned(ctx, r, target, newFolder); err != nil {
 			return err
 		}
@@ -176,7 +202,7 @@ func (l *Library) setBack(ctx context.Context, id int64, back bool) error {
 }
 
 // reviveReturned brings back an old copy that read on two sweeps, when nothing else holds any of its film or
-// episodes (a file held in part or whole by another is the later comparison's: left as it is), and only with Pause off,
+// episodes (a file held in part or whole by another is kept aside: returnCovered), and only with Pause off,
 // the version's library writing, and its title and version still there and monitored (a deliberate removal stays
 // removed). In place it is the sweep's revive: active again, its items filled, Plex scanned, the row settled revived,
 // and the release's router:playing miss lifted. In a renamed folder it is the sweep's repoint (repointReturned).
@@ -185,6 +211,11 @@ func (l *Library) reviveReturned(ctx context.Context, r returned, target, newFol
 		return nil
 	}
 	db := l.st.Reader()
+	if held, err := partlyCovered(ctx, db, r.linkID); err != nil {
+		return err
+	} else if held {
+		return l.returnCovered(ctx, r)
+	}
 	var kept bool
 	err := db.QueryRowContext(ctx, `SELECT t.monitored = 1 AND v.monitored = 1
 		AND NOT EXISTS (SELECT 1 FROM arrview_removed_version rv WHERE rv.version_id = v.id)
@@ -194,9 +225,6 @@ func (l *Library) reviveReturned(ctx context.Context, r returned, target, newFol
 		return nil
 	}
 	if err != nil {
-		return err
-	}
-	if held, err := partlyCovered(ctx, db, r.linkID); err != nil || held {
 		return err
 	}
 	if newFolder != "" {
@@ -252,8 +280,13 @@ func (l *Library) reviveReturned(ctx context.Context, r returned, target, newFol
 
 // settleRevivedTx settles a row revived and lifts its release's router:playing miss.
 func settleRevivedTx(ctx context.Context, tx *sql.Tx, id int64, hash string, now int64) error {
-	if _, err := tx.ExecContext(ctx, `UPDATE playing_break SET settled = 'revived', updated_at = ? WHERE id = ?`,
-		now, id); err != nil {
+	return settleReturnTx(ctx, tx, id, hash, "revived", now)
+}
+
+// settleReturnTx settles an open row (revived or aside) and lifts its release's router:playing miss.
+func settleReturnTx(ctx context.Context, tx *sql.Tx, id int64, hash, settled string, now int64) error {
+	if _, err := tx.ExecContext(ctx, `UPDATE playing_break SET settled = ?, updated_at = ? WHERE id = ? AND settled = ''`,
+		settled, now, id); err != nil {
 		return err
 	}
 	if hash == "" {

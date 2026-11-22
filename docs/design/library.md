@@ -840,7 +840,9 @@ state and Cutoff unmet are its own. The journal records an `edit_file` action (m
     aside or repoint by a listing (`TestSweepLeavesUnsettledDeadLink`, `TestSweepDoesNotRepointUnsettledDeadLink`). A
     replacement at the same path (a new target) is an ordinary link (`TestSweepTreatsSamePathReplacementAsActive`).
   - **It comes back only through a read.** After each hourly sweep that ended without error (`LastSweep`; not one a
-    zurg rename started) now playing's worker calls `ComeBack`. Before any read it asks the sweep's own folder choice
+    zurg rename started) now playing's worker calls `ComeBack` for each open row whose old copy is not in place: its
+    link still dead at the old target, replaced by an import, or moved aside by a partial import while other files
+    hold some of its episodes. Before any read it asks the sweep's own folder choice
     (`pickFolder`, with the incident's saved hash: a hash-suffixed folder over a reused bare name, decypharr's current
     name, zurg's and decypharr's confirmation; one listing and one cache of decypharr's file lists per pass) where each
     open row's file is now, and reads only there, at its saved range (`TestComeBackSkipsReusedBareName`,
@@ -851,9 +853,17 @@ state and Cutoff unmet are its own. The journal records an `edit_file` action (m
     its episodes. In place: revived as the sweep revives one (action `relink`, "revived: the copy that broke while
     playing reads again"). In a renamed folder: the sweep's repoint, run by the come-back. Only once the link points
     there and is active is the row settled `revived` and the release's `router:playing` miss lifted
-    (`TestComeBackRevivesUncoveredCopy`, `TestComeBackRenamedFolder`). A copy another file now holds, in part or whole,
-    is left for the comparison that puts it back or keeps it aside; so is one while paused or of a version no longer
-    monitored (`TestComeBackLeavesCoveredOrStoppedCopy`).
+    (`TestComeBackRevivesUncoveredCopy`, `TestComeBackRenamedFolder`). While paused, or for a version no longer
+    monitored, it stays as it is (`TestComeBackLeavesStoppedCopy`).
+  - **Kept aside.** A copy that works again while other files hold its film or some of its episodes, or that an
+    import replaced (also when that replacement was removed later), is kept aside once Pause is off and its library
+    writes: nothing in the library is swapped or compared and nothing is asked of Plex, the release's miss on the
+    failed account is lifted so later searches and upgrades may use it again, and a dead symlink of it still in the
+    library goes to the trash as the sweep moves any covered dead link aside, so no later sweep brings it back beside
+    the files that hold its place. One library action records it, "the earlier copy works again; kept aside"; it is
+    no removal by a person, so History shows no row for it. A replaced row older than 30 days is kept aside without a
+    read, in the words "not checked again after 30 days; kept aside". Putting a better old copy back in place
+    automatically is not built yet. Nothing is deleted on any account.
 - **An implausible listing is a mount that is down** (`Mount.checkListing`). `Healthy` only stats
   `__all__`, and a zurg that restarted can serve it present but empty or half-loaded. So relink, the dangling report,
   and `Verify` refuse with `ErrMountDown` (nothing marked dead or missing, no title flipped to
