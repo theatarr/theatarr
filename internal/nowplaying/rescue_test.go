@@ -1334,3 +1334,43 @@ func TestRescuePauseDuringStepOneWait(t *testing.T) {
 		t.Errorf("%s rows, outcomes %q", got, e.kinds())
 	}
 }
+
+// A message that came due while the worker was busy is judged again at every sample: after a pause, playing samples
+// that advance make it not due, and nothing is stopped.
+func TestRescueOwedMessageDueIsNotSticky(t *testing.T) {
+	e := newRescueEnv(t, false, true)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.play(2, "playing")
+	e.zurg.stats.BlockedReads = []library.ZurgBlockedRead{{Filename: "S01E02.mkv", Reason: "broken"}}
+	e.tr.sleep = func(ctx context.Context, d time.Duration) error {
+		e.advance(d)
+		e.plex.mu.Lock()
+		e.plex.ss[0].ViewOffset += d.Milliseconds()
+		e.plex.mu.Unlock()
+		return ctx.Err()
+	}
+	e.poll() // the message is owed
+	sample := func(state string, move int64) {
+		e.plex.mu.Lock()
+		e.plex.ss[0].State = state
+		e.plex.ss[0].ViewOffset += move
+		e.plex.mu.Unlock()
+		e.advance(10 * time.Second)
+		e.tr.poll(e.ctx)
+	}
+	e.tr.mu.Lock()
+	e.tr.rescuing = true // the worker is busy with something else
+	e.tr.mu.Unlock()
+	sample("buffering", 0) // due now, but not delivered
+	sample("paused", 0)
+	sample("playing", 10_000)
+	sample("playing", 10_000)
+	e.tr.mu.Lock()
+	e.tr.rescuing = false
+	e.tr.mu.Unlock()
+	sample("playing", 10_000)
+	e.waitIdle()
+	if got := e.stop.stopped(); len(got) != 0 {
+		t.Errorf("an advancing stream was stopped: %q", got)
+	}
+}

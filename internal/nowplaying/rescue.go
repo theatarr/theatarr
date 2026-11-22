@@ -133,6 +133,7 @@ func (t *Tracker) liveSigns(now time.Time) {
 		// has stayed the same over playing samples for stillFor (a change either way, a rewind too, is movement, and a
 		// pause starts the count again); never on a remembered verdict or an old zurg line.
 		if p := t.pending[se.s.SessionKey]; p != nil && se.s.File == p.j.s.File && se.s.RatingKey == p.j.s.RatingKey {
+			p.due = false // judged afresh at every sample
 			switch se.s.State {
 			case "buffering":
 				p.due = true
