@@ -183,10 +183,11 @@ export function nextSearchOf(v: Pick<Version, "control">): { at: string; why?: s
   return { at: c.next_search_at, why: typeof c.next_search_why === "string" && c.next_search_why ? c.next_search_why : undefined };
 }
 
-const WHY: Record<string, string> = { new: "new release", asked: "Search now", added: "Added by a list", playing: "after it stopped working while playing" };
+const WHY: Record<string, string> = { new: "new release", asked: "Search now", added: "Added by a list", playing: "after a file stopped working while playing" };
 
 /** Why a search is early, in the words the title page and Wanted share: "new release", "Search now", "Added by a
- *  list", "after it stopped working while playing" (a file that broke while someone played it), "after a failed
+ *  list", "after a file stopped working while playing" (the search of a file that broke while someone played it; the
+ *  row shown may be another episode of its season), "after a failed
  *  download"; "" on the regular schedule. */
 export function nextSearchWhy(why: string | undefined | null): string {
   return why ? WHY[why] ?? "after a failed download" : "";

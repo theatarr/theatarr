@@ -610,8 +610,9 @@ func scanRunDownload(r *sql.Rows, d *runDownload) error {
 }
 
 // sourceWord names what a stored decision came from, after "From": "RSS", "a search", "a search for S01".
-// storedSearchWhy says why a stored search's run started, when the words for it are more than "a search": " after it
-// stopped working while playing" for the search of a file that broke while someone played it; "" for any other.
+// storedSearchWhy says why a stored search's run started, when the words for it are more than "a search": " after a
+// file stopped working while playing" for the search of a file that broke while someone played it (which file is not
+// said: the episode shown may be another the search covered); "" for any other.
 func storedSearchWhy(ctx context.Context, db *sql.DB, run sql.NullInt64) string {
 	if !run.Valid {
 		return ""
@@ -619,7 +620,7 @@ func storedSearchWhy(ctx context.Context, db *sql.DB, run sql.NullInt64) string 
 	var research string
 	_ = db.QueryRowContext(ctx, `SELECT COALESCE(research, '') FROM acquire_run WHERE id = ?`, run.Int64).Scan(&research)
 	if research == router.ReasonPlaying {
-		return " after it stopped working while playing"
+		return " after a file stopped working while playing"
 	}
 	return ""
 }

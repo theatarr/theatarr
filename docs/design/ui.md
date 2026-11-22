@@ -556,8 +556,9 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
   reason, the same sentence as History ("Last upgrade attempt Nov 13: not cached on RD and TB").
 - **Next search:** a movie's Libraries table can show a **Next search** column, and a series season with
   one library in view adds "Next search: in 3 h (new release)" to its facts. Both read the same time as the Wanted
-  page: "now" when due, else the time, with why it is early ("new release", "Search now", "after it stopped
-  working while playing" for the search of a file that broke while someone played it, "after a failed download"). Nothing is shown when the item has no time there: not monitored, at its cutoff, not
+  page: "now" when due, else the time, with why it is early ("new release", "Search now", "after a file
+  stopped working while playing" for the search of a file that broke while someone played it, whichever row of its
+  season is shown, "after a failed download"). Nothing is shown when the item has no time there: not monitored, at its cutoff, not
   scheduled, a download in flight, or paused. Schedules are per season, so an episode has no time of its own.
 - **Tabs:** Episodes (series and anime, the default) / Watch order (anime with a franchise) / About (overview when
   long, the fact table, outside links; admins also identifiers, release dates, files and registry) / History ("see

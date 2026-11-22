@@ -154,7 +154,7 @@ func TestGrabWords(t *testing.T) {
 		{"acquire:4", run(runOrigin{source: "wanted"}), "automatic search"},
 		{"acquire:4", run(runOrigin{source: "wanted", reason: "cutoff"}), "automatic upgrade search"},
 		{"acquire:4", run(runOrigin{source: "wanted", research: "download_failed"}), "search again after a failure"},
-		{"acquire:4", run(runOrigin{source: "wanted", research: "playing"}), "search after it stopped working while playing"},
+		{"acquire:4", run(runOrigin{source: "wanted", research: "playing"}), "search after a file stopped working while playing"},
 		{"acquire:4", run(runOrigin{source: "wanted", research: "asked"}), "Search now"},
 		{"acquire:4", run(runOrigin{source: "wanted", research: "added"}), "added by a list"},
 		{"acquire:4", run(runOrigin{source: "wanted", research: "new", reason: "missing"}), "retry of a new release"},
@@ -1154,7 +1154,25 @@ func TestStoredPlayingSearchWords(t *testing.T) {
 	if code := e.getKey(APIBase+"/titles/1/releases?version=movie-web", e.apiKey(), &r); code != 200 {
 		t.Fatalf("releases %d", code)
 	}
-	if r.Message != "From a search after it stopped working while playing" {
+	if r.Message != "From a search after a file stopped working while playing" {
+		t.Errorf("message %q", r.Message)
+	}
+}
+
+// A season search started because one episode's file stopped working while playing says so for the search, not for the
+// episode shown: another episode's window names the cause apart from what the search covered.
+func TestStoredPlayingSearchWordsInAnotherEpisode(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	now := store.Millis(addNow)
+	e.exec(`INSERT INTO acquire_run (id, source, title_id, version_id, version_key, target, state, results, accepted,
+		message, research, created_at, updated_at) VALUES (60, 'wanted', 10, 10, 'tv-2160p', 's01', 'nothing', 2, 0,
+		'', 'playing', ?, ?)`, now-5000, now-5000)
+	e.exec(`INSERT INTO journal_decision (id, source, run_id, title_id, version_key, target, results, accepted,
+		candidates, created_at) VALUES (97, 'acquire:60', 60, 10, 'tv-2160p', 's01', 2, 0, '[]', ?)`, now-5000)
+	var r Releases
+	e.call("GET", APIBase+"/titles/10/episodes/102/releases", nil, 200, &r)
+	if r.Message != "From a search for S01 after a file stopped working while playing, which covered S01E02" {
 		t.Errorf("message %q", r.Message)
 	}
 }

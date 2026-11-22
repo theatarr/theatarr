@@ -1275,11 +1275,11 @@ func (w *Web) storedEpisodeReleases(ctx context.Context, out *Releases, it evIte
 		out.Rejections = best.rejections
 	}
 	if out.Message == "" {
-		out.Message = "From " + sourceWord(best.target)
+		// Why the search ran is the search's, not the episode's: it comes before what it covered.
+		out.Message = "From " + sourceWord(best.target) + storedSearchWhy(ctx, db, best.run)
 		if !strings.EqualFold(best.target, it.code()) {
 			out.Message += ", which covered " + it.code()
 		}
-		out.Message += storedSearchWhy(ctx, db, best.run)
 	}
 	// A wider search's result count is the whole search's, not this episode's candidates: storedGrabbed says so.
 	scope := ""
