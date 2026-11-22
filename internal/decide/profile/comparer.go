@@ -20,23 +20,60 @@ import (
 
 // Compare is DownloadDecisionComparer.Compare: > 0 when x is preferred over y.
 func (e *Engine) Compare(x, y *Subject) int {
+	c, _ := e.compareStep(x, y)
+	return c
+}
+
+// The comparer's steps, as FirstDifference names them.
+const (
+	StepSeaDex          = "seadex"
+	StepQuality         = "quality" // the quality, or with an equal quality its revision (a proper or repack)
+	StepScore           = "score"
+	StepCached          = "cached"
+	StepProtocol        = "protocol"
+	StepEpisodeCount    = "episode_count"
+	StepEpisodeNumber   = "episode_number"
+	StepIndexerPriority = "indexer_priority"
+	StepIndexerFlags    = "indexer_flags"
+	StepPeers           = "peers"
+	StepAge             = "age"
+	StepSize            = "size"
+)
+
+// FirstDifference is the comparer's own first step that tells x and y apart (Compare's order; Step*), and which one
+// it prefers (> 0: x); "" and 0 when they tie.
+func (e *Engine) FirstDifference(x, y *Subject) (step string, order int) {
+	order, step = e.compareStep(x, y)
+	return step, order
+}
+
+type compareFunc struct {
+	step string
+	cmp  func(x, y *Subject) int
+}
+
+func (e *Engine) compareStep(x, y *Subject) (int, string) {
 	if c, ok := SeaDexOrder(e.Config.PreferSeaDex, x.Release.Quality.SeaDexPreference, y.Release.Quality.SeaDexPreference); ok {
-		return c
+		return c, StepSeaDex
 	}
-	var cmps []func(x, y *Subject) int
+	var cmps []compareFunc
 	if e.Flavour == format.Sonarr {
-		cmps = []func(x, y *Subject) int{e.compareQuality, compareFormatScore, e.compareProtocol, compareEpisodeCount,
-			compareEpisodeNumber, compareCached, compareIndexerPriority, e.comparePeers, e.compareAge, e.compareSize}
+		cmps = []compareFunc{{StepQuality, e.compareQuality}, {StepScore, compareFormatScore}, {StepProtocol, e.compareProtocol},
+			{StepEpisodeCount, compareEpisodeCount}, {StepEpisodeNumber, compareEpisodeNumber}, {StepCached, compareCached},
+			{StepIndexerPriority, compareIndexerPriority}, {StepPeers, e.comparePeers}, {StepAge, e.compareAge},
+			{StepSize, e.compareSize}}
 	} else {
-		cmps = []func(x, y *Subject) int{e.compareQuality, compareFormatScore, compareCached, e.compareProtocol,
-			compareIndexerPriority, e.compareIndexerFlags, e.comparePeers, e.compareAge, e.compareSize}
+		cmps = []compareFunc{{StepQuality, e.compareQuality}, {StepScore, compareFormatScore}, {StepCached, compareCached},
+			{StepProtocol, e.compareProtocol}, {StepIndexerPriority, compareIndexerPriority},
+			{StepIndexerFlags, e.compareIndexerFlags}, {StepPeers, e.comparePeers}, {StepAge, e.compareAge},
+			{StepSize, e.compareSize}}
 	}
 	for _, c := range cmps {
-		if r := c(x, y); r != 0 {
-			return r
+		if r := c.cmp(x, y); r != 0 {
+			return r, c.step
 		}
 	}
-	return 0
+	return 0, ""
 }
 
 // compareMerged is Compare for the releases of a merged search of several seasons (Theatarr): quality, format score

@@ -180,7 +180,9 @@ export function whyLines(u: UpgradeInfo, score: number | undefined | null, cutof
   // have (the reason's numbers are about that file).
   const r = u.replaces;
   const have = r ? haveLine(r.quality, r.score).replace(/^You have:/, `${r.episode} has:`) : haveLine(u.quality, score);
-  return [have, stopLine(cutoff), third].filter(Boolean);
+  // Why the release found ranked before the next one of its search (its recorded comparer step).
+  const over = u.next?.chosen_over ? `${u.next.chosen_over.replace(/([^.!?])$/, "$1.")}` : "";
+  return [have, stopLine(cutoff), third, over].filter(Boolean);
 }
 
 /** For people without "see files": one sentence with no release names or scores. */

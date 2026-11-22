@@ -112,6 +112,8 @@ export function Summary({ r, reason, onReason, episode = false }: { r: Releases;
       </div>
       {r.message ? <p className="text-xs text-[var(--ink-3)]" data-testid="releases-message">{r.message}</p> : null}
       {r.grabbed ? <p className="text-sm font-medium text-[var(--ink)]" data-testid="releases-grabbed">{r.grabbed}</p> : null}
+      {/* Why the release taken beat the next accepted one, as the search recorded it: whole, it wraps on a phone. */}
+      {r.chosen ? <p className="text-sm text-[var(--ink-2)] [overflow-wrap:anywhere]" data-testid="releases-chosen">{r.chosen}</p> : null}
       {rej.length > 0 ? (
         <div className="flex flex-wrap gap-1.5">
           {rej.map(([k, n]) => {

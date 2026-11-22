@@ -634,3 +634,19 @@ func TestUpgradeWhyPairsTheEpisode(t *testing.T) {
 		t.Errorf("season 1 Why: %+v", l.Seasons)
 	}
 }
+
+// TestUpgradeWhyChosenOver: Why?'s release found says why its search ranked it before the next accepted one.
+func TestUpgradeWhyChosenOver(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	e.exec(`UPDATE journal_decision SET candidates = '[{"release":"Alpha.2020.2160p.BluRay.REMUX-BEST","accepted":true,
+		"upgrade":true,"quality":"Remux-2160p","score":3500,"upgrade_reason":"better quality: Remux-2160p over WEBDL-2160p",
+		"over":{"release":"Alpha.2020.2160p.WEB-DL-NEXT","step":"quality","quality":"WEBDL-2160p","score":3400}}]'
+		WHERE title_id = 1`)
+	var d TitleDetail
+	e.call("GET", APIBase+"/titles/1", nil, 200, &d)
+	if n := d.Versions[0].Upgrade.Next; n == nil ||
+		n.ChosenOver != "Chosen over Alpha.2020.2160p.WEB-DL-NEXT: higher quality (Remux-2160p over WEBDL-2160p)" {
+		t.Fatalf("next %+v", n)
+	}
+}

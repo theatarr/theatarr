@@ -71,3 +71,16 @@ func (d *Decision) SeaDexPreference() int {
 	}
 	return d.subject.Release.Quality.SeaDexPreference
 }
+
+// FirstDifference is the first step of the comparer that ranks a over b (profile.Engine.FirstDifference: Step*),
+// "" when they tie or either was not parsed. Rank's order for one search: a ranked before b says why.
+func FirstDifference(a, b *Decision) string {
+	if a == nil || b == nil || a.subject == nil || b.subject == nil || a.engine == nil {
+		return ""
+	}
+	step, order := a.engine.FirstDifference(a.subject, b.subject)
+	if order <= 0 {
+		return ""
+	}
+	return step
+}

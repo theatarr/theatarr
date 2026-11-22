@@ -113,3 +113,40 @@ func TestDropPublicVolumeFlags(t *testing.T) {
 		t.Errorf("flags: %v %v", cs[0].Flags, cs[1].Flags)
 	}
 }
+
+// TestCandidatesOver: each kept accepted release records why it ranks before the next accepted torrent (the
+// comparer's step and that release's facts), skipping another indexer's copy of itself; none for the last one or a
+// rejected one.
+func TestCandidatesOver(t *testing.T) {
+	steps := map[[2]string]string{}
+	saved := firstDifference
+	firstDifference = func(a, b *decide.Decision) string { return steps[[2]string{a.Release, b.Release}] }
+	t.Cleanup(func() { firstDifference = saved })
+	remux := &decide.Decision{Release: "A.2160p.REMUX-X", Accepted: true, Quality: "Remux-2160p", Score: 900}
+	copyOf := &decide.Decision{Release: "A.2160p.REMUX-X", Accepted: true, Quality: "Remux-2160p", Score: 900}
+	web := &decide.Decision{Release: "A.2160p.WEB-Y", Accepted: true, Quality: "WEBDL-2160p", Score: 450,
+		Formats: []decide.FormatScore{{Name: "DV", Score: 100}}}
+	bad := &decide.Decision{Release: "A.CAM-Z", Accepted: false}
+	steps[[2]string{remux.Release, web.Release}] = "quality"
+	rels := map[*decide.Decision]indexer.Release{remux: {InfoHash: "AA"}, copyOf: {InfoHash: "aa", Indexer: "other"},
+		web: {InfoHash: "bb", Seeders: 30, Size: 9, CachedOn: []string{"rd"}}, bad: {InfoHash: "cc"}}
+	got, _ := Candidates([]*decide.Decision{remux, copyOf, web, bad}, rels)
+	o := got[0].Over
+	if o == nil || o.Release != web.Release || o.Step != "quality" || o.Quality != "WEBDL-2160p" || o.Score != 450 ||
+		!slices.Equal(o.Formats, []string{"DV"}) || o.Seeders != 30 || !slices.Equal(o.CachedOn, []string{"rd"}) {
+		t.Fatalf("over %+v", o)
+	}
+	if got[2].Over != nil || got[3].Over != nil {
+		t.Errorf("the last accepted one and a rejected one: %+v %+v", got[2].Over, got[3].Over)
+	}
+	// A season's search: another episode's release is no alternative.
+	e1 := &decide.Decision{Release: "S.S01E01.WEB-X", Accepted: true, Episodes: []string{"S01E01"}}
+	e2 := &decide.Decision{Release: "S.S01E02.WEB-X", Accepted: true, Episodes: []string{"S01E02"}}
+	e1b := &decide.Decision{Release: "S.S01E01.HDTV-Y", Accepted: true, Episodes: []string{"S01E01"}}
+	steps[[2]string{e1.Release, e2.Release}] = "episode_number"
+	steps[[2]string{e1.Release, e1b.Release}] = "quality"
+	got, _ = Candidates([]*decide.Decision{e1, e2, e1b}, map[*decide.Decision]indexer.Release{e1: {InfoHash: "e1"}, e2: {InfoHash: "e2"}, e1b: {InfoHash: "e3"}})
+	if o := got[0].Over; o == nil || o.Release != e1b.Release || o.Step != "quality" {
+		t.Errorf("season search over %+v", o)
+	}
+}

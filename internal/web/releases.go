@@ -52,6 +52,10 @@ type Releases struct {
 	Outcomes map[string]ReleaseOutcome `json:"outcomes"`
 	// Grabbed says in one line what the stored decision's search grabbed (searchSummary); empty for a live answer.
 	Grabbed string `json:"grabbed,omitempty"`
+	// Chosen says why the release the search took beat the next accepted one (chosenLine): "2 better releases were
+	// not cached. Chosen over <release>: higher quality (Remux-2160p over WEBDL-2160p)"; empty when nothing was
+	// ranked after it, nothing was taken, or for a live answer.
+	Chosen string `json:"chosen,omitempty"`
 	// Current is the file the requested film or episode holds in this library now (interactive search's "Current
 	// file" line); absent for a season or a whole series.
 	Current *HeldFile `json:"current,omitempty"`
@@ -586,8 +590,11 @@ func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt6
 			}
 		}
 	}
-	out.Grabbed = searchSummary(dls, pickDownload(dls, current), current, candidatesOf(out.Candidates), oc, state, message,
-		w.providerTag)
+	pick := pickDownload(dls, current)
+	out.Grabbed = searchSummary(dls, pick, current, candidatesOf(out.Candidates), oc, state, message, w.providerTag)
+	if len(dls) > 0 {
+		out.Chosen = chosenLine(candidatesOf(out.Candidates), dls[pick].hash, oc)
+	}
 	return nil
 }
 

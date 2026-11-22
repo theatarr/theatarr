@@ -455,6 +455,32 @@ func TestRank(t *testing.T) {
 	}
 }
 
+// TestFirstDifference: the comparer's own first step between two ranked releases (D4): FraMeSToR over GRP by score,
+// GRP's remux over FLUX's WEB by quality; none for a pair in the other order or a tie.
+func TestFirstDifference(t *testing.T) {
+	t.Parallel()
+	e := testEngine(t)
+	ctx := context.Background()
+	decide := func(name string) *Decision {
+		d, err := e.Decide(ctx, rel(name, "public", 60*gb), dune, Version{Key: "movie-remux"}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return d
+	}
+	fra := decide("Dune.Part.Two.2024.2160p.UHD.BluRay.REMUX.HDR.HEVC.TrueHD.Atmos.7.1-FraMeSToR")
+	grp := decide("Dune.Part.Two.2024.2160p.UHD.BluRay.REMUX.HDR.HEVC-GRP")
+	flux := decide("Dune.Part.Two.2024.2160p.MA.WEB-DL.DDP5.1-FLUX")
+	for _, c := range []struct {
+		a, b *Decision
+		want string
+	}{{fra, grp, "score"}, {grp, flux, "quality"}, {flux, grp, ""}, {grp, grp, ""}} {
+		if got := FirstDifference(c.a, c.b); got != c.want {
+			t.Errorf("%s over %s: %q, want %q", c.a.Release, c.b.Release, got, c.want)
+		}
+	}
+}
+
 func TestIndexerFlags(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct {

@@ -122,10 +122,12 @@ type Evidence struct {
 // Reasoning is why the release was chosen: the chosen candidate with its score and formats, the runners-up with
 // theirs and their rejections, and the counts of every rejection reason.
 type Reasoning struct {
-	Basis      string               `json:"basis"`
-	Results    int                  `json:"results,omitempty"`
-	Accepted   int                  `json:"accepted,omitempty"`
-	Chosen     *snapshot.Candidate  `json:"chosen,omitempty"`
+	Basis    string              `json:"basis"`
+	Results  int                 `json:"results,omitempty"`
+	Accepted int                 `json:"accepted,omitempty"`
+	Chosen   *snapshot.Candidate `json:"chosen,omitempty"`
+	// ChosenOver says why the search ranked Chosen before the next accepted release (snapshot.ChosenOver).
+	ChosenOver string               `json:"chosen_over,omitempty"`
 	RunnersUp  []snapshot.Candidate `json:"runners_up,omitempty"`
 	Rejections map[string]int       `json:"rejection_counts,omitempty"`
 	Existing   *decide.Existing     `json:"existing,omitempty"`

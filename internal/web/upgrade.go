@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/activity"
+	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/indexer"
+	"github.com/theatarr/theatarr/internal/journal/snapshot"
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -76,6 +78,9 @@ type UpgradeNext struct {
 	// "Tried …") but is not found: the state stays below_cutoff. Why? renders this decision, not its own guess.
 	Tried   bool       `json:"tried,omitempty"`
 	TriedAt *time.Time `json:"tried_at,omitempty"`
+	// ChosenOver says why its search ranked it before the next accepted release: "Chosen over <release>:
+	// higher score (+450: DV)" (snapshot.ChosenOver); absent when nothing was ranked after it or the search predates the record.
+	ChosenOver string `json:"chosen_over,omitempty"`
 }
 
 // UpgradeInfo explains a version's (or one episode's) state against its cutoff.
@@ -138,6 +143,11 @@ type evCand struct {
 	// Published is the listing's publication time; CachedOn the cache codes (rd, ad, tb) it was listed cached on.
 	Published *time.Time `json:"published"`
 	CachedOn  []string   `json:"cached_on"`
+	// What snapshot.ChosenOver reads: the release's revision, formats and seeders, and its search's Over.
+	Revision int                  `json:"revision"`
+	Formats  []decide.FormatScore `json:"formats"`
+	Seeders  int                  `json:"seeders"`
+	Over     *snapshot.Over       `json:"over"`
 }
 
 // evRecord is one stored decision about a title's version.
@@ -263,7 +273,9 @@ func judgeUpgrade(it evItem, recs []evRecord, failed map[string]failedTry, cache
 				(best.Tried == tried && (c.Score > best.Score || (c.Score == best.Score && r.at > best.SeenAt.UnixMilli())))
 			if better {
 				best = &UpgradeNext{Release: c.Release, Indexer: c.Indexer, Quality: c.Quality, Score: c.Score,
-					Reason: c.UpgradeWhy, Source: r.source, SeenAt: ts(r.at), Episodes: c.Episodes, Tried: tried}
+					Reason: c.UpgradeWhy, Source: r.source, SeenAt: ts(r.at), Episodes: c.Episodes, Tried: tried,
+					ChosenOver: snapshot.ChosenOver(snapshot.Candidate{Quality: c.Quality, Revision: c.Revision, Score: c.Score,
+						Formats: c.Formats, CachedOn: c.CachedOn, Seeders: c.Seeders, Episodes: c.Episodes, Over: c.Over})}
 				if tried {
 					at := ts(f.at)
 					best.TriedAt = &at

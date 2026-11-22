@@ -1334,3 +1334,14 @@ func TestJournalKeptAside(t *testing.T) {
 		}
 	}
 }
+
+// TestChosenOver: a grab entry says why its search ranked the chosen release before the next accepted one (the
+// search's recorded snapshot.Over).
+func TestChosenOver(t *testing.T) {
+	r := &Reasoning{RunnersUp: []snapshot.Candidate{{Release: "A", InfoHash: "aa", Accepted: true, Quality: "Remux-2160p",
+		Over: &snapshot.Over{Release: "B", Step: "quality", Quality: "WEBDL-2160p"}}, {Release: "B", InfoHash: "bb", Accepted: true}}}
+	r.pickChosen("AA", "")
+	if r.ChosenOver != "Chosen over B: higher quality (Remux-2160p over WEBDL-2160p)" {
+		t.Errorf("chosen over %q", r.ChosenOver)
+	}
+}

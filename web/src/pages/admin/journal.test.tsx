@@ -55,6 +55,17 @@ it("numbers a runner-up from its place when the entry records no rank", async ()
   expect(screen.queryByText(/^#0 /)).toBeNull();
 });
 
+it("says why the search ranked the chosen release before the next", async () => {
+  const over = "Chosen over Bees.2024.1080p-TWO: higher score (+200: DV)";
+  mockFetch([
+    { method: "GET", path: "/journal/dl%3A12", reply: { id: "dl:12", kind: "grab", reasoning: { basis: "search", results: 2, accepted: 2, chosen_over: over,
+      chosen: { rank: 1, release: "Bees.2024.1080p-ONE", quality: "WEBDL-1080p", score: 900, accepted: true } } } },
+    { method: "GET", path: "/status", reply: {} },
+  ]);
+  renderPage(<Routes><Route path="/admin/system/journal/:id" element={<JournalEntryPage />} /></Routes>, "/admin/system/journal/dl:12");
+  expect((await screen.findByTestId("journal-chosen-over")).textContent).toBe(over);
+});
+
 it("says how entries appear when the journal is empty, and keeps the short text under a filter", async () => {
   mockFetch([
     { method: "GET", path: "/journal", reply: { items: [] } },

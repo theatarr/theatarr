@@ -118,11 +118,16 @@ it("says what the shown search did and picks out the followed release", async ()
       title_id: 7, version: "movie-web", versions: ["movie-web"], live_allowed: false, source: "journal", results: 12, accepted: 2,
       candidates: [cand(1, "aaa"), cand(2, "bbb")], rejections: {}, outcomes: { aaa: { outcome: "failed", provider: "rd", reason: "RD status error" }, bbb: { outcome: "current", provider: "rd" } },
       grabbed: "Grabbed #2 via rd → imported (the current file)", grab: false,
+      chosen: "1 better release was not cached. Chosen over Alpha.2020.2160p.WEB-3: higher quality (Remux-2160p over WEBDL-2160p)",
       notes: "seadex: dropped 1 entries: private tracker; dropped 1 single-file entries; dropped 1 recent entries not filed under one of our titles; dropped 2 entries with an excluded tag",
     } },
   ]);
   renderPage(<LibraryNamesProvider keys><ShowReleases titleId={7} defaultOpen initialVersion="movie-web" focus="BBB" labels={{ "movie-web": "Movies WEB" }} /></LibraryNamesProvider>);
   expect((await screen.findByTestId("releases-grabbed")).textContent).toBe("Grabbed #2 via rd → imported (the current file)");
+  // Why the release taken beat the next: whole, wrapping on a phone.
+  const chosen = screen.getByTestId("releases-chosen");
+  expect(chosen.textContent).toBe("1 better release was not cached. Chosen over Alpha.2020.2160p.WEB-3: higher quality (Remux-2160p over WEBDL-2160p)");
+  expect(chosen.className).not.toMatch(/truncate|line-clamp/);
   const tab = screen.getByRole("tab", { name: "Movies WEB" });
   expect(tab.querySelector("[data-vkey]")?.getAttribute("title")).toBe("movie-web");
   const rows = within(screen.getByTestId("releases-table")).getAllByRole("row").filter((r) => r.dataset.releaseHash);

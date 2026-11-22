@@ -243,6 +243,7 @@ export function JournalEntryPage() {
           <Card className="space-y-2 text-sm">
             {r.basis ? <div><span className="text-muted-foreground">Basis </span>{r.basis}</div> : null}
             {r.chosen ? <div><span className="text-muted-foreground">Chosen </span><span className="break-words">{r.chosen.release}</span> · {r.chosen.quality} · score {fmtNumber(r.chosen.score)}</div> : null}
+            {r.chosen_over ? <div className="[overflow-wrap:anywhere]" data-testid="journal-chosen-over">{r.chosen_over}</div> : null}
             {(r.runners_up ?? []).slice(0, 5).map((c, i) => (
               <div key={i} className="break-words text-muted-foreground">#{c.rank || i + 2} {c.release} · score {fmtNumber(c.score)}{c.accepted ? "" : " · rejected"}</div>
             ))}

@@ -11,6 +11,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"sort"
 	"strconv"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/decide"
+	"github.com/theatarr/theatarr/internal/decide/profile"
 	"github.com/theatarr/theatarr/internal/indexer"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
@@ -85,6 +87,63 @@ type Candidate struct {
 	Flags []string `json:"flags,omitempty"`
 	// QualityRank is Decision.ProfileRank: 1 is the profile's best quality, 0 not allowed by the profile.
 	QualityRank int `json:"quality_rank,omitempty"`
+	// Over (an accepted release with another accepted torrent ranked after it): why the comparer put this one first,
+	// recorded when the search decides, since the stored sample lacks SeaDex preference and indexer priority.
+	Over *Over `json:"over,omitempty"`
+}
+
+// Over is the comparer's own first difference between an accepted release and the next accepted torrent after it
+// (decide.FirstDifference), with what the words need of that next one.
+type Over struct {
+	Release string `json:"release"`
+	// Step is the comparer's step (profile.Step*: quality, score, cached, peers, ...).
+	Step     string   `json:"step"`
+	Quality  string   `json:"quality,omitempty"`
+	Revision int      `json:"revision,omitempty"`
+	Score    int      `json:"score"`
+	Formats  []string `json:"formats,omitempty"`
+	CachedOn []string `json:"cached_on,omitempty"`
+	Seeders  int      `json:"seeders,omitempty"`
+	Size     int64    `json:"size,omitempty"`
+	Episodes int      `json:"episodes,omitempty"`
+}
+
+// firstDifference is decide.FirstDifference (a test replaces it: its decisions have no engine).
+var firstDifference = decide.FirstDifference
+
+// over is why d ranks before the next accepted torrent after it in ranked (from index i), nil when none is after it
+// or the comparer ties them.
+func over(ranked []*decide.Decision, i int, rels map[*decide.Decision]indexer.Release) *Over {
+	d := ranked[i]
+	hash := strings.ToLower(rels[d].InfoHash)
+	for _, n := range ranked[i+1:] {
+		if n == nil || !n.Accepted || n.Version != d.Version {
+			continue
+		}
+		r := rels[n]
+		if hash != "" && strings.EqualFold(r.InfoHash, hash) {
+			continue // the same torrent from another indexer
+		}
+		if len(d.Episodes) > 0 && len(n.Episodes) > 0 && !slices.ContainsFunc(n.Episodes, func(e string) bool {
+			return slices.Contains(d.Episodes, e)
+		}) {
+			continue // another episode's release in a season's search: not an alternative to this one
+		}
+		step := firstDifference(d, n)
+		if step == "" {
+			return nil
+		}
+		o := &Over{Release: n.Release, Step: step, Quality: n.Quality, Revision: n.Revision.Version, Score: n.Score,
+			CachedOn: r.CachedList(), Seeders: r.Seeders, Size: r.Size, Episodes: len(n.Episodes)}
+		if o.Release == "" {
+			o.Release = r.Title
+		}
+		for _, f := range n.Formats {
+			o.Formats = append(o.Formats, f.Name)
+		}
+		return o
+	}
+	return nil
 }
 
 // Search is one decided search.
@@ -129,6 +188,7 @@ func Candidates(ranked []*decide.Decision, rels map[*decide.Decision]indexer.Rel
 		c := summarize(i+1, d, rels[d])
 		if d.Accepted {
 			if len(out) < KeepAccepted {
+				c.Over = over(ranked, i, rels)
 				out = append(out, c)
 			}
 			continue
@@ -277,4 +337,90 @@ func Record(ctx context.Context, db Execer, s Search) error {
 		s.Source, run, s.TitleID, s.Version, s.Target, len(s.Ranked), accepted, string(cj), string(rj),
 		strings.Join(s.Notes, "; "), rev, store.Millis(at))
 	return err
+}
+
+// ChosenOver says why c ranks before the next accepted torrent: "Chosen over <release>: higher quality (Remux-2160p
+// over WEBDL-2160p)", "…: higher score (+450: DV, TrueHD Atmos)", "…: cached on Real-Debrid", "…: more seeders (120
+// over 30)"; "" when nothing was ranked after it (a run with one candidate, or one stored before it was recorded).
+func ChosenOver(c Candidate) string {
+	o := c.Over
+	if o == nil {
+		return ""
+	}
+	return "Chosen over " + o.Release + ": " + overWords(c, o)
+}
+
+func overWords(c Candidate, o *Over) string {
+	switch o.Step {
+	case profile.StepSeaDex:
+		return "SeaDex ranks it higher"
+	case profile.StepQuality:
+		if c.Quality == o.Quality && c.Revision != o.Revision {
+			return fmt.Sprintf("a newer revision (v%d over v%d)", c.Revision, o.Revision)
+		}
+		return "higher quality (" + c.Quality + " over " + o.Quality + ")"
+	case profile.StepScore:
+		var more []string
+		for _, f := range c.Formats {
+			if f.Score > 0 && !slices.Contains(o.Formats, f.Name) {
+				more = append(more, f.Name)
+			}
+		}
+		s := fmt.Sprintf("higher score (+%d", c.Score-o.Score)
+		if len(more) > 0 {
+			s += ": " + strings.Join(more, ", ")
+		}
+		return s + ")"
+	case profile.StepCached:
+		if len(c.CachedOn) == 0 {
+			return "cached"
+		}
+		names := make([]string, len(c.CachedOn))
+		for i, code := range c.CachedOn {
+			names[i] = providerName(code)
+		}
+		if len(o.CachedOn) > 0 && len(c.CachedOn) > len(o.CachedOn) {
+			return "cached on more providers (" + strings.Join(names, ", ") + ")"
+		}
+		return "cached on " + names[0]
+	case profile.StepProtocol:
+		return "the preferred protocol"
+	case profile.StepEpisodeCount:
+		if n := len(c.Episodes); n != o.Episodes {
+			if n > o.Episodes {
+				return fmt.Sprintf("more episodes (%d over %d)", n, o.Episodes)
+			}
+			return fmt.Sprintf("fewer episodes (%d over %d)", n, o.Episodes)
+		}
+		return "a season pack"
+	case profile.StepEpisodeNumber:
+		return "an earlier first episode"
+	case profile.StepIndexerPriority:
+		return "a higher indexer priority"
+	case profile.StepIndexerFlags:
+		return "better indexer flags"
+	case profile.StepPeers:
+		if c.Seeders != o.Seeders {
+			return fmt.Sprintf("more seeders (%d over %d)", c.Seeders, o.Seeders)
+		}
+		return "more peers"
+	case profile.StepAge:
+		return "published more recently"
+	case profile.StepSize:
+		return "a size closer to the profile's"
+	}
+	return "ranked higher"
+}
+
+// providerName names a cache code (rd, ad, tb) for people.
+func providerName(code string) string {
+	switch strings.ToLower(code) {
+	case "rd":
+		return "Real-Debrid"
+	case "ad":
+		return "AllDebrid"
+	case "tb":
+		return "TorBox"
+	}
+	return strings.ToUpper(code)
 }

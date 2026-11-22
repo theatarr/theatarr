@@ -442,7 +442,7 @@ func (r *Reasoning) pickChosen(hash, release string) {
 		return
 	}
 	c := r.RunnersUp[idx]
-	r.Chosen = &c
+	r.Chosen, r.ChosenOver = &c, snapshot.ChosenOver(c)
 	r.RunnersUp = slices.Delete(slices.Clone(r.RunnersUp), idx, idx+1)
 	r.Existing = c.Existing
 }
