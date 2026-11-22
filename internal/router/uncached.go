@@ -306,6 +306,9 @@ func (r *Router) settle(ctx context.Context, s *routeState, pv *policy.Provider,
 	if cv == cvNameRefused {
 		return r.settleNameRefused(ctx, s, pv, pk, hash, ad, a, g, t, why)
 	}
+	if t != nil && t.TooLarge {
+		return r.settleTooLarge(ctx, s, pk, hash, a)
+	}
 	apply := func() error {
 		if t == nil {
 			return nil
@@ -491,6 +494,30 @@ func (r *Router) settleNameRefused(ctx context.Context, s *routeState, pv *polic
 	s.res.TorrentID = ""
 	return vContent, time.Time{}, Step{Outcome: "refused", Code: codeNameRefused,
 		Message: why + "; our add " + a.ID + " was " + done}, nil
+}
+
+// codeTooLarge: the provider refuses the release as too big for it after the add (provider.Torrent.TooLarge).
+const codeTooLarge = "too_large"
+
+// settleTooLarge ends our add that the first read already shows too big for pk (AllDebrid statusCode 8), as the
+// poller does (pollTooLarge): a miss on pk for the content's miss TTL and the next provider; nothing blocklisted or
+// deleted (the errored magnet stays listed on Torrents).
+func (r *Router) settleTooLarge(ctx context.Context, s *routeState, pk, hash string, a *adder.Added) (verdict, time.Time,
+	Step, error) {
+	rctx := context.WithoutCancel(ctx)
+	now := r.now()
+	why := "too big for " + pk + " (File too big.)"
+	r.log.Warn(why+"; a miss on "+pk+", trying the next provider", "provider", pk, "hash", hash, "torrent", a.ID,
+		"download", s.dlID)
+	if err := r.setCache(rctx, hash, pk, "miss", "too_large", now.Add(r.verdictTTL(rctx, s, now)), now); err != nil {
+		return 0, time.Time{}, Step{}, err
+	}
+	if err := r.unmarkAdded(rctx, s.dlID, pk, a.ID, why); err != nil {
+		return 0, time.Time{}, Step{}, err
+	}
+	s.res.TorrentID = ""
+	return vContent, time.Time{}, Step{Outcome: "refused", Code: codeTooLarge, Message: why + "; magnet " + a.ID +
+		" stays on the account"}, nil
 }
 
 // altKey names a release on a provider in routeState.alt.

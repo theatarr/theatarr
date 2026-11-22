@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -576,5 +578,40 @@ func TestAllDebridTooBigTriesNextProvider(t *testing.T) {
 	res2, err := e.r.Route(e.ctx, p.Request)
 	if err != nil || res2.Provider != "tb" || len(e.ad["ad"].adds) != 1 {
 		t.Fatalf("again: %+v %v, AllDebrid adds %d: %s", res2, err, len(e.ad["ad"].adds), steps(res2))
+	}
+}
+
+// With cached-only routing the first read after the add can already show AllDebrid's "File too big.": the same
+// miss on AllDebrid and the next provider within the route, nothing blocklisted.
+func TestAllDebridTooBigAtSettle(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	on := true
+	e.pol.Router.CachedOnly = &on
+	adders, provs := map[string]adder.Adder{}, map[string]provider.Provider{}
+	for k := range e.ad {
+		adders[k], provs[k] = e.ad[k], e.pr[k]
+	}
+	var err error
+	if e.r, err = New(Config{Store: e.st, Policy: e.pol, Adders: adders, Providers: provs,
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: func() time.Time { return e.clock }}); err != nil {
+		t.Fatal(err)
+	}
+	e.r.sleep = func(context.Context, time.Duration) error { return nil }
+	e.ad["rd"].add = func(adder.Magnet, adder.AddOptions) (*adder.Added, error) {
+		return nil, &adder.Error{Provider: "rd", Code: adder.CodeBlocked, ProviderCode: "29"}
+	}
+	e.pr["ad"].set("ad-"+h("a")[:4], provider.Torrent{Hash: h("a"), Status: "File too big.", State: provider.StateError,
+		TooLarge: true})
+	e.pr["tb"].set("tb-"+h("a")[:4], provider.Torrent{Hash: h("a"), Status: "cached", State: provider.StateDownloaded})
+	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
+	if err != nil || res.Provider != "tb" {
+		t.Fatalf("route: %+v %v: %s", res, err, steps(res))
+	}
+	if n := e.count(`SELECT COUNT(*) FROM router_blocklist`); n != 0 {
+		t.Errorf("%d blocklist rows", n)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM provider_cache WHERE provider = 'ad' AND state = 'miss'`); n != 1 {
+		t.Errorf("no miss on ad: %d", n)
 	}
 }
