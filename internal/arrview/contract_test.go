@@ -639,6 +639,18 @@ func TestPausedAddKeepsItsSearch(t *testing.T) {
 	if len(cmds) != 0 || len(rs.resumed) != 1 || !strings.HasPrefix(rs.resumed[0], fmt.Sprintf("%d:", tid)) {
 		t.Fatalf("paused add: commands %v, kept %v", cmds, rs.resumed)
 	}
+	// The scope the search would have had: every library of the view (a copy already there keeps its search too).
+	var view *View
+	for _, v := range e.svc.views {
+		if v.Key == "radarr" {
+			view = v
+		}
+	}
+	for _, k := range view.Versions {
+		if !strings.Contains(rs.resumed[0], k) {
+			t.Errorf("paused add kept %s without %s", rs.resumed[0], k)
+		}
+	}
 	opts["tmdbId"], opts["title"] = 121, "Lambda"
 	seerrAddMovie(t, c, opts, false)
 	if len(rs.resumed) != 1 {

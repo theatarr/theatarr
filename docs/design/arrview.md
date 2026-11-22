@@ -397,7 +397,7 @@ stay the view's.
     (`TestSeriesTypeLookupOutsideView`).
   - `addOptions.searchForMovie` / `searchForMissingEpisodes` record a `MoviesSearch` / `MissingEpisodeSearch`
     command (below); while Pause is on none is recorded and no indexer is asked, as on the native add, and the
-    search is kept for when Pause is off: the title's missing items in the libraries the add turned on (its sync partners too) go on the search schedule
+    search is kept for when Pause is off: the title's missing items in the view's libraries and the sync partners the add turned on go on the search schedule
     (`SearchOnResume`), which the first round after Pause searches (`TestSearchOnAddPaused`).
   - Sonarr's `addOptions.monitor` (Ruddarr, LunaSea; a name or MonitorTypes index) is applied after the body's seasons
     to the view's versions (`catalog.ApplyMonitor`, Sonarr's EpisodeMonitoredService): on a series whose episodes

@@ -847,12 +847,13 @@ func (s *Service) addTitle(w http.ResponseWriter, r *request) {
 		}
 	}
 	// The add's own search runs only while Pause is off, as the native add's (catalog.Searchable). While Pause is on
-	// it is kept for when Pause is off (SearchOnResume: the libraries the add turned on, its sync partners too, as
-	// the search would reach them; missing items), as an approved request's first search is.
+	// it is kept for when Pause is off (SearchOnResume: the view's libraries, as the search would reach them, and the
+	// sync partners the add turned on; missing items), as an approved request's first search is.
 	if in.AddOptions != nil && (in.AddOptions.SearchForMovie || in.AddOptions.SearchForMissingEpisodes) {
 		if !s.pol.RouterSettings().Enabled {
 			if sr, ok := s.searcher.(searchOnResume); ok {
-				if _, err := sr.SearchOnResume(context.WithoutCancel(ctx), titleID, turnedOn, nil); err != nil {
+				if _, err := sr.SearchOnResume(context.WithoutCancel(ctx), titleID,
+					slices.Compact(slices.Sorted(slices.Values(append(slices.Clone(v.Versions), turnedOn...)))), nil); err != nil {
 					s.log.Warn("add: first search not kept for after Pause", "title", titleID, "err", err)
 				}
 			}
