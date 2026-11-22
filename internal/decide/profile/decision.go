@@ -256,6 +256,9 @@ type Release struct {
 	// Seasons is the span of a multi-season or complete-series pack the mapping read (every season it holds), nil
 	// for any other release; a multi-season release without one stays rejected.
 	Seasons []int
+	// SourceNamed is ours: the parser read the quality's source from the name (SourceDetectionSource Name), not a
+	// fallback for a name without a source tag.
+	SourceNamed bool
 	// SeasonSearchMaximumSingleEpisodeAge is the indexer's setting (days, 0 off).
 	SeasonSearchMaximumSingleEpisodeAge int
 }
@@ -280,6 +283,8 @@ type Subject struct {
 	Search *Search
 	// SceneMapping is the scene mapping the release was mapped through, nil when none (Sonarr).
 	SceneMapping *SceneMapping
+	// OnDisk is ours: the release is a file already on disk (Manual import, reuse for another library).
+	OnDisk bool
 	// Cached is Theatarr's cache standing of the release for the version (not an arr field), filled where the release
 	// is decided; the comparer's tie-break after the format score reads it.
 	Cached CacheStanding

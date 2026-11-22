@@ -3,8 +3,10 @@ package router
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -485,6 +487,7 @@ func TestKeptByRuleEpisodesLeftOut(t *testing.T) {
 // passes the route, also when it was deferred and resumes, in an ordinary library and in one that prefers SeaDex.
 func TestHandGrabOfUnairedTVCapturePassesRoute(t *testing.T) {
 	t.Parallel()
+	var engines sync.Map // *env -> *decide.Engine
 	setup := func(t *testing.T, preferSeaDex bool) *env {
 		t.Helper()
 		e := newEnv(t, true)
@@ -501,6 +504,7 @@ func TestHandGrabOfUnairedTVCapturePassesRoute(t *testing.T) {
 		}
 		e.r.SetProfiles(eng.Profile)
 		e.r.SetDecider(eng.Decide, eng.DecideSearch)
+		engines.Store(e, eng)
 		return e
 	}
 	hdtv := func(c string) Candidate {
@@ -550,4 +554,83 @@ func TestHandGrabOfUnairedTVCapturePassesRoute(t *testing.T) {
 			t.Errorf("rejection = %q", m)
 		}
 	})
+
+	// Only a television source the name states is held, and never a file already on disk (Manual import, reuse).
+	t.Run("named_source_and_on_disk", func(t *testing.T) {
+		t.Parallel()
+		e := setup(t, false)
+		v, _ := engines.Load(e)
+		eng := v.(*decide.Engine)
+		title, err := decide.LoadTitle(e.ctx, e.st.Reader(), 2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ver, err := decide.LoadVersion(e.ctx, e.st.Reader(), e.pol, 2, "series")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := decide.LoadSeriesVersion(e.ctx, e.st.Reader(), &title, ver.ID); err != nil {
+			t.Fatal(err)
+		}
+		held := func(ctx context.Context, name string) bool {
+			d, err := eng.Decide(ctx, decide.Release{Release: indexer.Release{Indexer: "pub", Title: name, InfoHash: h("f"),
+				Size: 1 << 30, Seeders: 10, Peers: 5}}, title, ver, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return slices.ContainsFunc(d.Rejections, func(r decide.Rejection) bool { return r.Reason == "NotAiredYet" })
+		}
+		for _, name := range []string{"Show.S01E01.2160p.x265-GRP", "Show.S01E01.1080p.x264-GRP"} {
+			if held(e.ctx, name) {
+				t.Errorf("%s (no source in the name) held", name)
+			}
+		}
+		if !held(e.ctx, "Show.S01E01.720p.HDTV.x264-GRP") {
+			t.Error("named HDTV not held")
+		}
+		if held(decide.WithOnDisk(e.ctx), "Show.S01E01.720p.HDTV.x264-GRP") {
+			t.Error("a file on disk held")
+		}
+	})
+
+	// A queued automatic route whose episode moved beyond 36 hours while it waited for a provider closes without a
+	// failure: no failed download, History or blocklist row (an ordinary library re-maps it, a prefer-SeaDex one
+	// decides it again).
+	for _, prefer := range []bool{false, true} {
+		t.Run(fmt.Sprintf("postponed_prefer_%v", prefer), func(t *testing.T) {
+			t.Parallel()
+			e := setup(t, prefer)
+			e.exec(`UPDATE episode SET air_date_utc_at = ? WHERE id = 101`, e.clock.Add(time.Hour).UnixMilli())
+			for _, k := range []string{"rd", "ad", "tb"} {
+				e.exec(`INSERT INTO router_pacing (provider, backoff_until, failures, reason, updated_at)
+					VALUES (?, ?, 1, 'x', 0)`, k, e.clock.Add(time.Minute).UnixMilli())
+			}
+			c := hdtv("c")
+			c.Origin = OriginRSS
+			res, err := e.r.Route(e.ctx, Request{TitleID: 2, VersionID: 20, Version: "series", Source: "rss",
+				Candidates: []Candidate{c}})
+			if err != nil || res.Outcome != OutcomeDeferred {
+				t.Fatalf("defer: %+v %v steps=%s", res, err, steps(res))
+			}
+			req, err := DownloadRequest(e.ctx, e.st.Reader(), e.pol, res.DownloadID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			e.exec(`UPDATE episode SET air_date_utc_at = ? WHERE id = 101`, e.clock.Add(5*24*time.Hour).UnixMilli())
+			e.clock = e.clock.Add(2 * time.Minute)
+			res, err = e.r.Route(e.ctx, *req)
+			if err != nil || res.Outcome != OutcomeCancelled || !strings.Contains(steps(res), "not_aired") {
+				t.Fatalf("resume: %+v %v steps=%s", res, err, steps(res))
+			}
+			if n := e.count(`SELECT COUNT(*) FROM download`); n != 0 {
+				t.Errorf("%d download rows left", n)
+			}
+			if n := e.count(`SELECT COUNT(*) FROM history`); n != 0 {
+				t.Errorf("%d History rows", n)
+			}
+			if n := e.count(`SELECT COUNT(*) FROM router_blocklist`); n != 0 {
+				t.Errorf("%d blocklist rows", n)
+			}
+		})
+	}
 }

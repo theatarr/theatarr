@@ -523,21 +523,48 @@ func TestNotAiredSpecification(t *testing.T) {
 		{"a pack", "HDTV-720p", true, []*Episode{ep(2, 1, hours(-48)), ep(2, 2, hours(120))}, true},
 		{"two episodes by the first", "HDTV-720p", false, []*Episode{ep(2, 1, hours(2)), ep(2, 2, hours(120))}, true},
 		{"two episodes, the first ahead", "HDTV-720p", false, []*Episode{ep(2, 1, hours(40)), ep(2, 2, hours(41))}, false},
-		{"a range by its last", "HDTV-720p", false, []*Episode{ep(2, 1, hours(-48)), ep(2, 2, hours(-24)),
-			ep(2, 3, hours(120))}, false},
 	}
+	// A ten-episode range is decided by its last: E01-E09 aired, E10 airs in five days.
+	var ten []*Episode
+	for n := 10; n >= 1; n-- { // out of order: the rule finds the last itself
+		at := hours(-48)
+		if n == 10 {
+			at = hours(120)
+		}
+		ten = append(ten, ep(2, n, at))
+	}
+	cases = append(cases, struct {
+		name    string
+		quality string
+		full    bool
+		eps     []*Episode
+		accept  bool
+	}{"a ten-episode range by its last", "HDTV-720p", false, ten, false})
 	for _, c := range cases {
-		s := &Subject{Release: &Release{FullSeason: c.full,
+		s := &Subject{Release: &Release{FullSeason: c.full, SourceNamed: true,
 			Quality: NewQualityModel(MustQuality(format.Sonarr, c.quality))}, Episodes: c.eps}
 		if got := run(t, "NotAired", s); got.Accepted != c.accept {
 			t.Errorf("%s: %+v", c.name, got)
 		}
 	}
 
+	// HDTV only as the parser's fallback for a name without a source: never delayed.
+	s := &Subject{Release: &Release{Quality: NewQualityModel(MustQuality(format.Sonarr, "HDTV-2160p"))},
+		Episodes: []*Episode{ep(2, 5, hours(120))}}
+	if got := run(t, "NotAired", s); !got.Accepted {
+		t.Errorf("HDTV fallback: %+v", got)
+	}
+	// A file already on disk (Manual import, reuse for another library): never delayed.
+	s = &Subject{Release: &Release{SourceNamed: true, Quality: NewQualityModel(MustQuality(format.Sonarr, "HDTV-720p"))},
+		Episodes: []*Episode{ep(2, 5, hours(120))}, OnDisk: true}
+	if got := run(t, "NotAired", s); !got.Accepted {
+		t.Errorf("file on disk: %+v", got)
+	}
+
 	// An upgrade of an episode that already has a file is never delayed.
 	held := ep(2, 5, hours(120))
 	held.File = &File{}
-	s := &Subject{Release: &Release{Quality: NewQualityModel(MustQuality(format.Sonarr, "HDTV-720p"))},
+	s = &Subject{Release: &Release{SourceNamed: true, Quality: NewQualityModel(MustQuality(format.Sonarr, "HDTV-720p"))},
 		Episodes: []*Episode{held}}
 	if got := run(t, "NotAired", s); !got.Accepted {
 		t.Errorf("upgrade of a held episode: %+v", got)
@@ -551,14 +578,14 @@ func TestNotAiredSpecification(t *testing.T) {
 	e := &Engine{Flavour: format.Sonarr, Now: func() time.Time { return seriesNow.In(ny) }}
 	sp, _ := e.Spec("NotAired")
 	at := time.Date(2026, 10, 29, 21, 0, 0, 0, ny)
-	s = &Subject{Release: &Release{Quality: NewQualityModel(MustQuality(format.Sonarr, "HDTV-720p"))},
+	s = &Subject{Release: &Release{SourceNamed: true, Quality: NewQualityModel(MustQuality(format.Sonarr, "HDTV-720p"))},
 		Episodes: []*Episode{ep(2, 5, &at)}}
-	want := "Not aired yet: S02E05 airs Thu 29 Oct, 9 pm; a TV recording cannot exist before then."
+	want := "Not aired yet: S02E05 airs Thu 29 Oct, 9 pm EDT; a TV recording cannot exist before then."
 	if got := e.Run(sp, s); got.Accepted || got.Reason != ReasonNotAiredYet || got.Message != want {
 		t.Errorf("words: %+v, want %q", got, want)
 	}
 	at = time.Date(2026, 10, 29, 21, 30, 0, 0, ny)
-	if got := e.Run(sp, s); !strings.Contains(got.Message, "airs Thu 29 Oct, 9:30 pm;") {
+	if got := e.Run(sp, s); !strings.Contains(got.Message, "airs Thu 29 Oct, 9:30 pm EDT;") {
 		t.Errorf("words with minutes: %q", got.Message)
 	}
 	s.Episodes[0].AirDay = "2026-10-29"

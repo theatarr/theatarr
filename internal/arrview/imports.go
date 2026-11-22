@@ -735,8 +735,8 @@ func (s *Service) decideFile(ctx context.Context, v *View, p, folder, name strin
 		if len(overrides) > 0 {
 			manual = overrides[0]
 		}
-		d, err := s.decider.Decide(ctx, decide.Release{Release: indexer.Release{Title: rel, Size: size, Seeders: -1,
-			Peers: -1, Indexer: "import", Privacy: "public"}, Manual: manual}, e.id, e.versions[0].key)
+		d, err := s.decider.Decide(decide.WithOnDisk(ctx), decide.Release{Release: indexer.Release{Title: rel, Size: size,
+			Seeders: -1, Peers: -1, Indexer: "import", Privacy: "public"}, Manual: manual}, e.id, e.versions[0].key)
 		if err != nil {
 			return m, err
 		}

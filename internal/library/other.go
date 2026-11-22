@@ -137,7 +137,7 @@ func (l *Library) tryOther(ctx context.Context, d *importDownload, t decide.Titl
 	} else if existing, err = decide.LoadExisting(ctx, db, v.ID); err != nil {
 		return 0, "", err
 	}
-	dctx := decide.WithSeaDexTitle(decide.WithSeaDexPolicy(ctx, l.pol, vp), titleID)
+	dctx := decide.WithOnDisk(decide.WithSeaDexTitle(decide.WithSeaDexPolicy(ctx, l.pol, vp), titleID))
 	c, why, err := router.DecideOther(dctx, l.pol, l.engine, rel, t, v, existing, l.now())
 	if err != nil || c == nil {
 		return 0, why, err

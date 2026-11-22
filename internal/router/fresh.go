@@ -292,6 +292,7 @@ func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate)
 	var unproven []int64
 	anyUnproven := false
 	anyAllKept := false
+	held := 0 // candidates refused only because their episode has not aired yet
 	byDecision := map[*decide.Decision]Candidate{}
 	for i, c := range cands {
 		queued := c.Release
@@ -347,6 +348,9 @@ func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate)
 				why = append(why, rj.String())
 			}
 			r.skipFresh(s, c, "rejected_now", "rejected under the current policy: "+strings.Join(why, "; "))
+			if notAiredOnly(d) {
+				held++
+			}
 			continue
 		}
 		c.Quality, c.Score, c.Formats = d.Quality, d.Score, append([]decide.FormatScore{}, d.Formats...)
@@ -363,6 +367,9 @@ func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate)
 		r.research(ctx, s.req.TitleID, s.req.VersionID, s.req.Version, unproven, "legacy_criteria", s.req.DownloadID)
 	}
 	if len(decisions) == 0 {
+		if !anyAllKept && !anyUnproven && held == len(cands) {
+			return r.closeNotAired(ctx, s)
+		}
 		msg := "no release is accepted under the current policy"
 		if anyAllKept {
 			msg = "no release is still wanted by this version"
@@ -397,6 +404,7 @@ func (r *Router) remapResumed(ctx context.Context, s *routeState, cands []Candid
 	var v decide.Version
 	out := make([]Candidate, 0, len(cands))
 	allKept := false
+	held := 0 // candidates refused only because their episode has not aired yet
 	for _, c := range cands {
 		search := c.Origin == OriginSearch
 		if search && len(c.Criteria) == 0 {
@@ -433,6 +441,9 @@ func (r *Router) remapResumed(ctx context.Context, s *routeState, cands []Candid
 				why = append(why, rj.String())
 			}
 			r.skipFresh(s, c, "rejected_now", "rejected under the current policy: "+strings.Join(why, "; "))
+			if notAiredOnly(d) {
+				held++
+			}
 			continue
 		}
 		if d.Accepted && !r.applyDecisionEpisodes(s, &c, d) {
@@ -440,6 +451,9 @@ func (r *Router) remapResumed(ctx context.Context, s *routeState, cands []Candid
 			continue
 		}
 		out = append(out, c)
+	}
+	if len(out) == 0 && held == len(cands) {
+		return r.closeNotAired(ctx, s)
 	}
 	if len(out) == 0 {
 		msg := "no release is still wanted by this version"
@@ -511,6 +525,32 @@ func (r *Router) finishFresh(ctx context.Context, s *routeState, message string)
 	if s.req.DownloadID != 0 {
 		if err := r.failDownload(ctx, s.req.DownloadID, "route cancelled: "+message, StateQueued); err != nil {
 			return nil, err
+		}
+	}
+	return nil, nil
+}
+
+// notAiredOnly reports whether d refuses its release only because the episode has not aired yet (NotAiredYet).
+func notAiredOnly(d *decide.Decision) bool {
+	for _, rj := range d.Rejections {
+		if rj.Reason != string(profile.ReasonNotAiredYet) {
+			return false
+		}
+	}
+	return len(d.Rejections) > 0
+}
+
+// closeNotAired ends a route whose every candidate waits for its episode to air: a hold, not a failure. The queued
+// download it resumes, never added, is removed, so no History or blocklist row is left; a later sighting is decided
+// again.
+func (r *Router) closeNotAired(ctx context.Context, s *routeState) ([]Candidate, error) {
+	const msg = "not aired yet: the release is decided again when it is seen later"
+	s.res.Outcome = OutcomeCancelled
+	s.res.Steps = append(s.res.Steps, Step{Outcome: "cancelled", Code: "not_aired", Message: msg})
+	if s.req.DownloadID != 0 {
+		if _, err := r.st.Writer().ExecContext(ctx, `DELETE FROM download WHERE id = ? AND state = ? AND added_at IS NULL`,
+			s.req.DownloadID, StateQueued); err != nil {
+			return nil, fmt.Errorf("router: close not aired: %w", err)
 		}
 	}
 	return nil, nil

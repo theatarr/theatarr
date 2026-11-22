@@ -13,6 +13,14 @@ import (
 
 type searchContextKey struct{}
 
+type onDiskContextKey struct{}
+
+// WithOnDisk marks decisions about a file already on disk (Manual import, reuse of another library's import): rules
+// about whether a release can exist yet (NotAired) do not apply to it.
+func WithOnDisk(ctx context.Context) context.Context {
+	return context.WithValue(ctx, onDiskContextKey{}, true)
+}
+
 // WithSearch marks movie search decisions (including automatic searches), so RSS-only specs are skipped.
 // Series decisions carry their criteria in SeriesSearch instead.
 func WithSearch(ctx context.Context) context.Context {

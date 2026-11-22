@@ -282,8 +282,7 @@ func loadEpisodes(ctx context.Context, db *sql.DB, tvs []titleVersion, history b
 	}
 	list, _ := json.Marshal(pairs)
 	rows, err := db.QueryContext(ctx, `SELECT p.key, e.id, e.season, e.number, e.name, COALESCE(e.air_date, ''),
-		e.air_date_utc_at, COALESCE((SELECT sm.air_time = '' FROM series_meta sm WHERE sm.title_id = e.title_id), 0),
-		COALESCE(e.runtime_minutes, 0), COALESCE(s.monitored, e.monitored)
+		e.air_date_utc_at, COALESCE(e.runtime_minutes, 0), COALESCE(s.monitored, e.monitored)
 		FROM json_each(?) p JOIN episode e ON e.title_id = json_extract(p.value, '$[0]')
 		LEFT JOIN episode_version_state s ON s.episode_id = e.id AND s.version_id = json_extract(p.value, '$[1]')
 		WHERE e.removed_at IS NULL ORDER BY p.key, e.season, e.number`, string(list))
@@ -299,7 +298,7 @@ func loadEpisodes(ctx context.Context, db *sql.DB, tvs []titleVersion, history b
 		var i int
 		var e Episode
 		var at sql.NullInt64
-		if err := rows.Scan(&i, &e.ID, &e.Season, &e.Number, &e.Title, &e.AirDate, &at, &e.AirTimeUnknown, &e.Runtime, &e.Monitored); err != nil {
+		if err := rows.Scan(&i, &e.ID, &e.Season, &e.Number, &e.Title, &e.AirDate, &at, &e.Runtime, &e.Monitored); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -315,6 +314,28 @@ func loadEpisodes(ctx context.Context, db *sql.DB, tvs []titleVersion, history b
 		return nil, err
 	}
 	tl, _ := json.Marshal(titles)
+	// A series whose listing gives days without a time (series_meta.air_time empty): its air instants are made up.
+	mrows, err := db.QueryContext(ctx, `SELECT title_id FROM series_meta WHERE air_time = ''
+		AND title_id IN (SELECT value FROM json_each(?))`, string(tl))
+	if err != nil {
+		return nil, err
+	}
+	for mrows.Next() {
+		var title int64
+		if err := mrows.Scan(&title); err != nil {
+			mrows.Close()
+			return nil, err
+		}
+		for _, ti := range byTitle[title] {
+			for i := range out[ti] {
+				out[ti][i].AirTimeUnknown = true
+			}
+		}
+	}
+	mrows.Close()
+	if err := mrows.Err(); err != nil {
+		return nil, err
+	}
 	nrows, err := db.QueryContext(ctx, `SELECT n.title_id, n.episode_id, n.scheme, n.season, n.number FROM episode_number n
 		WHERE n.title_id IN (SELECT value FROM json_each(?)) AND n.scheme IN ('absolute_tvdb', 'scene', 'scene_absolute')
 		ORDER BY n.title_id, n.source, n.id`, string(tl))

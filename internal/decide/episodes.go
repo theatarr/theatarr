@@ -186,7 +186,7 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 		IndexerPriority: prio, IndexerFlags: flags, PublishDate: rel.PublishDate, Protocol: profile.ProtocolTorrent,
 		FullSeason: parsed.FullSeason, Special: parsed.Special, SeasonNumber: parsed.SeasonNumber,
 		EpisodeNumbers: parsed.EpisodeNumbers, MultiSeason: parsed.IsMultiSeason, SplitEpisode: parsed.IsSplitEpisode,
-		Seasons: r.seasons}
+		Seasons: r.seasons, SourceNamed: parsed.Quality.SourceDetectionSource == sonarr.DetectionName}
 	if parsed.ReleaseGroup != nil {
 		pr.ReleaseGroup = *parsed.ReleaseGroup
 	}
@@ -203,7 +203,7 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 		}
 	}
 	subj := &profile.Subject{Profile: p.Profile, Media: media, Release: pr, Episodes: episodes,
-		Cached: e.cacheStanding(v.Policy, &rel.Release)}
+		Cached: e.cacheStanding(v.Policy, &rel.Release), OnDisk: ctx.Value(onDiskContextKey{}) != nil}
 	if search != nil {
 		subj.Search = profileSearch(search, s)
 	}
