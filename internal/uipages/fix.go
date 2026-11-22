@@ -82,10 +82,9 @@ func Fix(kind, name, at, class string) string {
 			return name + " refused the key: check it under " + Metadata
 		case FailCredential:
 			return "No " + name + " key is set: add one under " + Metadata
-		case FailConnectivity, FailTimeout:
-			return name + " is not answering: try again later"
-		case FailHTTP:
-			return name + " answered with errors: check its key under " + Metadata + ", or try again later"
+		case FailConnectivity:
+			// A count of failures with no known cause: the neutral advice.
+			return name + " could not be read: check this server's network, or try again later"
 		}
 	}
 	return ""

@@ -249,7 +249,7 @@ func Metadata(st *store.Store, o MetadataOptions) Func {
 		}
 		if failed >= 3 && failed*2 >= tried {
 			raise(Warning, fmt.Sprintf("%d of %d TMDb refreshes in the last day failed: %s", failed, tried,
-				uipages.Fix(uipages.FixMetadata, "TMDb", "", uipages.FailHTTP)))
+				uipages.Fix(uipages.FixMetadata, "TMDb", "", uipages.FailConnectivity)))
 		}
 		if o.TVDB {
 			var runAt sql.NullInt64

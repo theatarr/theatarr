@@ -146,8 +146,10 @@ func TestMetadata(t *testing.T) {
 		store.Millis(t0.Add(-time.Minute)), store.Millis(t0.Add(time.Hour)))
 	exec(t, st, `INSERT INTO tvdb_sync (id, since_at, run_at) VALUES (1, 0, ?)`, store.Millis(t0.Add(-24*time.Hour)))
 	r = Metadata(st, MetadataOptions{TMDb: true, TVDB: true, Now: now})(ctx)
-	if r.Type != Warning || !strings.Contains(r.Message, "3 of 3 TMDb refreshes in the last day failed: "+
-		uipages.Fix(uipages.FixMetadata, "TMDb", "", uipages.FailHTTP)) || !strings.Contains(r.Message, "TVDB") {
+	// The count says nothing about the cause (here 503s): neutral advice, no key named.
+	if r.Type != Warning || !strings.Contains(r.Message, "3 of 3 TMDb refreshes in the last day failed: TMDb could "+
+		"not be read: check this server's network, or try again later") || strings.Contains(r.Message, "key") ||
+		!strings.Contains(r.Message, "TVDB") {
 		t.Errorf("failing: %+v", r)
 	}
 	// Overdue rows and no good fetch for days; the removed title's old row is not refreshed again, so not counted.
