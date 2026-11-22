@@ -182,6 +182,17 @@ describe("Series page copies", () => {
     expect(screen.getByTestId("season-facts").textContent).toBe("Next search: in 3 h (new release)");
   });
 
+  it("lets the facts wrap on a phone, the search after a broken file in full", async () => {
+    const at = new Date(Date.now() + 3 * 3600_000).toISOString();
+    const timed = { ...episodes, seasons: [{ ...episodes.seasons[0], versions: { ...episodes.seasons[0].versions, "anime-web": { ...episodes.seasons[0].versions["anime-web"], next_search_at: at, next_search_why: "playing" } } }] };
+    mockFetch([routes[0], { method: "GET", path: "/titles/1/episodes", reply: timed }]);
+    renderPage(<Seasons id="1" anime />, "/title/1");
+    await userEvent.setup().click(await screen.findByRole("radio", { name: "Anime WEB" }));
+    const facts = screen.getByTestId("season-facts");
+    expect(facts.textContent).toBe("Next search: in 3 h (after a file stopped working while playing)");
+    expect(facts.className).not.toMatch(/truncate|text-ellipsis|line-clamp|whitespace-nowrap/);
+  });
+
   it("shows the per-library badges only to accounts that see files; others keep the season summary", async () => {
     mockFetch(routes);
     const first = renderPage(<Seasons id="1" anime />, "/title/1");

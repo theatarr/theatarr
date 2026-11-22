@@ -703,7 +703,7 @@ function OneLibraryFacts({ season, v, seeFiles, history, releases }: { season: S
   ].filter(Boolean);
   return (
     <>
-      {facts.length ? <span className="min-w-0 truncate text-xs text-muted-foreground" data-testid="season-facts">{facts.join(" · ")}</span> : null}
+      {facts.length ? <span className="min-w-0 text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="season-facts">{facts.join(" · ")}</span> : null}
       {quality && c ? (
         <span onClick={(e) => e.stopPropagation()} className="contents">
           <UpgradeStatus u={c.upgrade} what={`Season ${season.season} · ${v.label}`} score={c.score} cutoff={v.cutoff} history={history} releases={releases} />
