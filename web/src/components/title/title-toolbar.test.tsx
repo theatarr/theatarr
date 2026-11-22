@@ -3,7 +3,7 @@
 // managers when a library searches live, and the rename preview. Invented keys.
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { SearchProvider } from "@/components/search/search-context";
 import { Toaster } from "@/components/toaster";
 import { mockFetch, renderPage } from "@/test/page";
@@ -252,4 +252,20 @@ describe("Search series' answer (F8.1, F8.3)", () => {
     await user.click(button);
     expect((await screen.findByTestId("title-search-error")).textContent).toContain("Search series failed: database is locked");
   });
+});
+
+it("runs More › History after the menu gives focus back, so its scroll is not undone", async () => {
+  mockFetch([{ method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["browse", "see_files"] } }, options([])]);
+  // A phone: the extra actions are under More.
+  const mm = window.matchMedia;
+  window.matchMedia = ((q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} })) as never;
+  onTestFinished(() => { window.matchMedia = mm; });
+  let focused: Element | null = null;
+  const onHistory = () => { focused = document.activeElement; };
+  renderPage(<SearchProvider><TitleToolbar titleId={7} name="Alpha" kind="movie" versions={[{ id: 1, key: "movie-web", label: "WEB" }] as never} onHistory={onHistory} /></SearchProvider>);
+  const user = userEvent.setup();
+  const more = await screen.findByTestId("title-more");
+  await user.click(more);
+  await user.click(await screen.findByTestId("title-history"));
+  await waitFor(() => expect(focused).toBe(more));
 });

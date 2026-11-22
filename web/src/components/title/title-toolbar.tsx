@@ -8,7 +8,7 @@
 // search: a monitored library while router.enabled is true (the add options say which); otherwise managers see it
 // disabled with the reason as its tooltip. Nothing here changes what is searched: the same routes as before.
 import { AlertTriangle, History as HistoryIcon, Loader2, MoreHorizontal, PencilLine, Plus, RefreshCw, RotateCcw, Search, Trash2, UserSearch } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useAddOptions, useSearchNow, type AddOptions, type AddTarget, type SearchOutcome } from "@/api/add";
 import { ApiError } from "@/api/client";
 import { usePerms, useRefreshTitle, type Version } from "@/api/library";
@@ -165,12 +165,15 @@ export function TitleToolbar({ titleId, name, year, kind, poster, anime, version
   const labels = Object.fromEntries([...versions, ...removed].flatMap((v) => (v.key ? [[v.key, v.label ?? v.key]] : [])));
   const searchTip = kind === "series" ? "Search every monitored episode now, in every library (missing episodes and upgrades)" : "Search every monitored library now";
 
-  const more: { id: string; label: string; icon: typeof Search; run: () => void; disabled?: boolean; tip?: string }[] = [];
+  // afterFocus: run once the menu has given focus back to More (History scrolls the page, which that focus would undo).
+  const more: { id: string; label: string; icon: typeof Search; run: () => void; disabled?: boolean; tip?: string; afterFocus?: boolean }[] = [];
+  const moreButton = useRef<HTMLButtonElement>(null);
+  const afterClose = useRef<() => void>(undefined);
   if (titlePage) {
     // Only with a file to rename: a current library's, or a leftover link of a removed one.
     const files = versions.some((v) => v.has_file) || removed.some((v) => (v.links ?? []).some((l) => l.state === "active"));
     if (perms.admin && files) more.push({ id: "title-rename", label: "Rename files", icon: PencilLine, run: () => setDialog("rename"), tip: "Show what would be renamed" });
-    if (perms.seeFiles && onHistory) more.push({ id: "title-history", label: "History", icon: HistoryIcon, run: onHistory });
+    if (perms.seeFiles && onHistory) more.push({ id: "title-history", label: "History", icon: HistoryIcon, run: onHistory, afterFocus: true });
     if (perms.manage) more.push({ id: "title-refresh", label: refresh.isSuccess ? "Queued" : "Refresh metadata", icon: RefreshCw, run: () => refresh.mutate(), disabled: refresh.isPending, tip: "Fetch the TMDb metadata and art again" });
     if (perms.manage && versions.length > 0) more.push({ id: "title-remove", label: "Remove title", icon: Trash2, run: () => setDialog("remove") });
   }
@@ -205,13 +208,20 @@ export function TitleToolbar({ titleId, name, year, kind, poster, anime, version
         {more.length && !wide ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline" className="h-9" data-testid="title-more">
+              <Button ref={moreButton} size="sm" variant="outline" className="h-9" data-testid="title-more">
                 <MoreHorizontal /> More
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" onCloseAutoFocus={(e) => {
+              const run = afterClose.current;
+              if (!run) return;
+              afterClose.current = undefined;
+              e.preventDefault();
+              moreButton.current?.focus({ preventScroll: true });
+              run();
+            }}>
               {more.map((m) => (
-                <DropdownMenuItem key={m.id} onSelect={m.run} disabled={m.disabled} data-testid={m.id}>
+                <DropdownMenuItem key={m.id} onSelect={() => { if (m.afterFocus) afterClose.current = m.run; else m.run(); }} disabled={m.disabled} data-testid={m.id}>
                   <m.icon /> {m.label}
                 </DropdownMenuItem>
               ))}
