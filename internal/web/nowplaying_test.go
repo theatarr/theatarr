@@ -148,3 +148,25 @@ func TestPlayingHistoryRows(t *testing.T) {
 		t.Errorf("household filter by playing: %d", code)
 	}
 }
+
+// A taken-over link with no release name keeps its quality on its playing row, and one Theatarr never scored shows no
+// score (as History's adopted rows), not 0.
+func TestPlayingHistoryRowOfAdoptedFile(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	e.exec(`INSERT INTO title (id, kind, name, year, tmdb_id, created_at, updated_at) VALUES (9, 'movie', 'Alpha', 2020,
+		909, 1, 1)`)
+	e.exec(`INSERT INTO playing_break (id, incident, watched, link_id, title_id, version_key, path, old_target,
+		release_title, quality, score, file_metadata, adopted, episodes, broken_at, updated_at)
+		VALUES (1, 1, 1, 11, 9, 'movie-web', '/media/Alpha.mkv', '/mnt/old/Alpha.mkv', NULL, 'WEBDL-1080p', 0, '{}', 1,
+		'[]', 1, 1)`)
+	store.HistoryPlaying(context.Background(), e.st.Writer(), 1, outcome.Unavailable, 2000)
+	var hist ActivityPage
+	if code := e.getKey(APIBase+"/activity?state=history&title_id=9&events=playing", e.apiKey(), &hist); code != 200 ||
+		len(hist.History) != 1 {
+		t.Fatalf("history: %d %+v", code, hist.History)
+	}
+	if h := hist.History[0]; h.Quality != "WEBDL-1080p" || h.Score != nil {
+		t.Errorf("adopted row: quality %q score %v", h.Quality, h.Score)
+	}
+}
