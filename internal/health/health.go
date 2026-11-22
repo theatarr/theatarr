@@ -59,11 +59,9 @@ type Result struct {
 	// Hidden leaves the result out of Results: the check has nothing to say on this install.
 	Hidden bool `json:"-"`
 	// Runs is how many completed runs in a row (this one included) failed (warning or error), or, for an ok or a
-	// notice, gave this type; a cached read is no new run.
+	// notice, gave this type; a cached read is no new run. A check that counts its own runs (Accounts, per account)
+	// sets it, and the Checker keeps it.
 	Runs int `json:"-"`
-	// Replayed: the result rests only on evidence an earlier run already counted (a failed read the check replays
-	// from its own cache); the streak does not advance on it.
-	Replayed bool `json:"-"`
 }
 
 // Func runs one check. It sets Type, Message and Detail; the Checker fills the rest. A check that cannot read what
@@ -148,6 +146,10 @@ func (c *Checker) Results(ctx context.Context) []Result {
 	if ctx.Err() == nil {
 		next := make(map[string]Result, len(out))
 		for i := range out {
+			if out[i].Runs > 0 {
+				next[out[i].Source] = out[i]
+				continue
+			}
 			out[i].Runs = 1
 			// Failing runs (warning or error) count on across a change of level; other runs (ok, notice) count
 			// among themselves at one type.
@@ -155,9 +157,6 @@ func (c *Checker) Results(ctx context.Context) []Result {
 			if p, ok := c.streak[out[i].Source]; ok && failing(p.Type) == failing(out[i].Type) &&
 				(failing(p.Type) || p.Type == out[i].Type) {
 				out[i].Runs = p.Runs + 1
-				if out[i].Replayed {
-					out[i].Runs = p.Runs
-				}
 			}
 			next[out[i].Source] = out[i]
 		}

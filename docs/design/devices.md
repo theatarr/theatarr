@@ -158,8 +158,12 @@ SignalR, Sonarr v5, `downloadclient`.
   - Health changes compare each check's source and level, ignoring moving counts/ages in messages. A check turning
     bad is announced only once it failed (a warning or an error; a notice is no failed run) on two completed check runs in a row, at the latest run's
     level; a later change of level is announced at once. The count is kept where a run completes
-    (`health.Result.Runs`; a cached read is no new run, nor is a failed provider read the account check replays),
-    so it does not depend on how often the notifier looks; one failed run followed by a pass sends nothing. The
+    (`health.Result.Runs`; a cached read is no new run). The debrid account check counts per account: a failed
+    read is read again at the next check run, and the count is that account's failed reads in a row (a replayed
+    one is no new run; once two failed it is read every 30 minutes), so a provider that stays down is announced at
+    the second check run; another account's standing warning (premium ending) or its own single failure neither
+    adds to nor resets it (`health.TestAccountsFailureConfirmedAtNextRun`, `health.TestAccountsRunsPerAccount`).
+    The count does not depend on how often the notifier looks; one failed run followed by a pass sends nothing. The
     router-disabled item (Pause), from no check run, counts the notifier's scans instead, two in a row (`notify_state` `health_scans`), so a brief Pause sends nothing. Easing and recovery go out at once, and only for a
     level that was announced (`notify_state` `health_checks`); while notifications are off nothing is marked
     announced (`notify.TestHealthAlertAfterTwoRuns`, `health.TestCheckerCountsRuns`). The daily digest is unchanged. Installed

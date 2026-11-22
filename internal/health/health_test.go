@@ -567,22 +567,22 @@ func TestAccountsCache(t *testing.T) {
 	f := Accounts(func(context.Context) map[string]AccountSource { return sources(clients, keys) },
 		AccountOptions{Interval: 6 * time.Hour, Retry: 30 * time.Minute, Now: func() time.Time { return now }})
 	ctx := context.Background()
-	if r := f(ctx); r.Type != Warning || !strings.Contains(r.Message, "TorBox cannot be reached") || r.Replayed {
+	if r := f(ctx); r.Type != Warning || !strings.Contains(r.Message, "TorBox cannot be reached") || r.Runs != 1 {
 		t.Fatalf("first: %+v", r)
 	}
+	// The failure is read again once; confirmed, it is replayed from the cache, which is no new run.
 	for range 5 {
-		// The failed read replayed from the cache is no new evidence: the streak does not advance on it.
-		if r := f(ctx); !r.Replayed {
+		if r := f(ctx); r.Runs != 2 {
 			t.Fatalf("a replayed failure counts as fresh: %+v", r)
 		}
 	}
-	if acct.reads.Load() != 1 || down.reads.Load() != 1 {
+	if acct.reads.Load() != 1 || down.reads.Load() != 2 {
 		t.Fatalf("polls read again: %d %d", acct.reads.Load(), down.reads.Load())
 	}
 	now = t0.Add(31 * time.Minute)
 	down.err = nil
 	down.account = &provider.Account{Premium: true}
-	if r := f(ctx); r.Type != OK || acct.reads.Load() != 1 || down.reads.Load() != 2 {
+	if r := f(ctx); r.Type != OK || acct.reads.Load() != 1 || down.reads.Load() != 3 {
 		t.Fatalf("retry: %+v, reads %d %d", r, acct.reads.Load(), down.reads.Load())
 	}
 	// Four hours on, the cached expiry is inside the window: a warning without a new read.
@@ -726,25 +726,21 @@ func TestCheckerCountsRuns(t *testing.T) {
 	}
 }
 
-// A run that only replays evidence an earlier run counted (Result.Replayed) leaves the streak where it was.
-func TestCheckerReplayedRunNotCounted(t *testing.T) {
+// A check that counts its own runs (Result.Runs set) keeps its count: a replayed failure leaves it where it was.
+func TestCheckerKeepsCheckRuns(t *testing.T) {
 	now := t0
 	c := New(Options{TTL: time.Minute, Now: func() time.Time { return now }})
-	replayed := false
+	runs := 1
 	c.Add("AccountCheck", "Accounts", func(ctx context.Context) Result {
-		return Result{Type: Warning, Message: "m", Replayed: replayed}
+		return Result{Type: Warning, Message: "m", Runs: runs}
 	})
-	if rs := c.Results(context.Background()); rs[0].Runs != 1 {
-		t.Fatalf("first %d", rs[0].Runs)
-	}
-	replayed = true
 	for range 3 {
 		now = now.Add(2 * time.Minute)
 		if rs := c.Results(context.Background()); rs[0].Runs != 1 {
 			t.Fatalf("a replayed run counted: %d", rs[0].Runs)
 		}
 	}
-	replayed = false
+	runs = 2
 	now = now.Add(2 * time.Minute)
 	if rs := c.Results(context.Background()); rs[0].Runs != 2 {
 		t.Fatalf("a fresh failed run %d", rs[0].Runs)
@@ -758,3 +754,90 @@ type kindAccount struct {
 }
 
 func (k kindAccount) Kind() string { return k.kind }
+
+// A failed account read is read again at the next check run, so a provider that stays down reaches the alert's two
+// runs minutes after the first failure; after that it is read at the retry pace. One failure followed by a good read
+// says nothing more.
+func TestAccountsFailureConfirmedAtNextRun(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		acct *fakeAccount
+		typ  string
+	}{
+		{"refused", &fakeAccount{err: fmt.Errorf("realdebrid: %w", provider.ErrAuth)}, Error},
+		{"timeout", &fakeAccount{block: true}, Warning},
+	} {
+		now := t0
+		c := New(Options{TTL: time.Minute, Now: func() time.Time { return now }})
+		c.Add("ProviderAccountCheck", "Debrid accounts", Accounts(func(context.Context) map[string]AccountSource {
+			return sources(map[string]AccountReader{"rd": tc.acct}, nil)
+		}, AccountOptions{Timeout: 20 * time.Millisecond, Now: func() time.Time { return now }}))
+		run := func() Result { now = now.Add(2 * time.Minute); return c.Results(context.Background())[0] }
+		if r := run(); r.Type != tc.typ || r.Runs != 1 {
+			t.Fatalf("%s first: %s runs %d", tc.name, r.Type, r.Runs)
+		}
+		if r := run(); r.Type != tc.typ || r.Runs != 2 || tc.acct.reads.Load() != 2 {
+			t.Fatalf("%s second run: %s runs %d, reads %d", tc.name, r.Type, r.Runs, tc.acct.reads.Load())
+		}
+		for range 3 {
+			if r := run(); r.Type != tc.typ || r.Runs != 2 || tc.acct.reads.Load() != 2 {
+				t.Fatalf("%s after the alert: %s runs %d, reads %d", tc.name, r.Type, r.Runs, tc.acct.reads.Load())
+			}
+		}
+	}
+	// One isolated failure followed by a good read.
+	now := t0
+	flaky := &fakeAccount{err: errors.New("dial tcp: connection refused")}
+	c := New(Options{TTL: time.Minute, Now: func() time.Time { return now }})
+	c.Add("ProviderAccountCheck", "Debrid accounts", Accounts(func(context.Context) map[string]AccountSource {
+		return sources(map[string]AccountReader{"rd": flaky}, nil)
+	}, AccountOptions{Now: func() time.Time { return now }}))
+	if r := c.Results(context.Background())[0]; r.Type != Warning || r.Runs != 1 {
+		t.Fatalf("flaky first: %s runs %d", r.Type, r.Runs)
+	}
+	flaky.err, flaky.account = nil, &provider.Account{Premium: true}
+	now = now.Add(2 * time.Minute)
+	if r := c.Results(context.Background())[0]; r.Type != OK {
+		t.Fatalf("flaky recovered: %s %q", r.Type, r.Message)
+	}
+}
+
+// The failing runs count per account: another account's standing expiry warning, or its own single failure, does not
+// carry one account's single failure to the alert's two runs.
+func TestAccountsRunsPerAccount(t *testing.T) {
+	now := t0
+	rd := &fakeAccount{account: &provider.Account{Premium: true}}
+	tb := &fakeAccount{account: &provider.Account{Premium: true, Expires: t0.Add(3 * 24 * time.Hour)}}
+	c := New(Options{TTL: time.Minute, Now: func() time.Time { return now }})
+	c.Add("ProviderAccountCheck", "Debrid accounts", Accounts(func(context.Context) map[string]AccountSource {
+		return sources(map[string]AccountReader{"rd": rd, "tb": tb}, nil)
+	}, AccountOptions{Interval: time.Minute, Now: func() time.Time { return now }}))
+	run := func() Result { now = now.Add(2 * time.Minute); return c.Results(context.Background())[0] }
+	for range 3 {
+		if r := run(); r.Type != Warning {
+			t.Fatalf("expiry warning: %s %q", r.Type, r.Message)
+		}
+	}
+	// A cached TorBox expiry warning, then one Real-Debrid refusal: one run of the error.
+	rd.account, rd.err = nil, fmt.Errorf("realdebrid: %w", provider.ErrAuth)
+	if r := run(); r.Type != Error || r.Runs != 1 {
+		t.Fatalf("one refusal beside a warning: %s runs %d", r.Type, r.Runs)
+	}
+
+	// One Real-Debrid failure, then (Real-Debrid fine again) one TorBox failure: one run each.
+	now = t0
+	rd2 := &fakeAccount{err: errors.New("dial tcp: connection refused")}
+	tb2 := &fakeAccount{account: &provider.Account{Premium: true}}
+	c = New(Options{TTL: time.Minute, Now: func() time.Time { return now }})
+	c.Add("ProviderAccountCheck", "Debrid accounts", Accounts(func(context.Context) map[string]AccountSource {
+		return sources(map[string]AccountReader{"rd": rd2, "tb": tb2}, nil)
+	}, AccountOptions{Interval: time.Minute, Now: func() time.Time { return now }}))
+	if r := run(); r.Type != Warning || r.Runs != 1 {
+		t.Fatalf("rd fails: %s runs %d", r.Type, r.Runs)
+	}
+	rd2.err, rd2.account = nil, &provider.Account{Premium: true}
+	tb2.account, tb2.err = nil, errors.New("dial tcp: connection refused")
+	if r := run(); r.Type != Warning || r.Runs != 1 || !strings.Contains(r.Message, "TorBox") || strings.Contains(r.Message, "Real-Debrid") {
+		t.Fatalf("tb fails after rd recovered: %s runs %d %q", r.Type, r.Runs, r.Message)
+	}
+}

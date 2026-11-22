@@ -740,7 +740,8 @@ const AccountWarnWithin = 7 * 24 * time.Hour
 type AccountOptions struct {
 	// Interval is how long a good read is reused. Default 6h.
 	Interval time.Duration
-	// Retry is how long a failed read is reused. Default 30m.
+	// Retry is how long a failed read is reused once a second fresh read in a row confirmed it (the first failure is
+	// read again at the next run). Default 30m.
 	Retry time.Duration
 	// Timeout bounds each read, inside the check's own. Default 8s.
 	Timeout time.Duration
@@ -751,15 +752,20 @@ type accountRead struct {
 	at      time.Time
 	account *provider.Account
 	err     error
-	fresh   bool // read in this run, not replayed from the cache
+	fails   int    // fresh failed reads in a row, this one included
+	typ     string // this account's type at the last run
+	runs    int    // runs in a row this account had typ (a failed read counts only when read fresh)
 }
 
 // Accounts checks each enabled debrid account's plan (providers.<key>, with a key set): an error when it is not
 // premium, its premium has ended or the provider refuses the key; a warning when premium ends within
 // AccountWarnWithin, or when a provider does not answer. accounts gives the running clients, so reads go through the
-// gateway and the provider's pacing. A read is reused for Interval (a failed one for Retry), keyed on the provider
-// and its credential's fingerprint: a settings save rebuilds the clients but keeps an unchanged account's read, and a
-// changed key is read at once. The expiry is judged against the clock at every run.
+// gateway and the provider's pacing. A read is reused for Interval, keyed on the provider and its credential's
+// fingerprint: a settings save rebuilds the clients but keeps an unchanged account's read, and a changed key is read
+// at once. A failed read is read again at the next run; once two in a row failed, it is reused for Retry. The expiry
+// is judged against the clock at every run. The check counts its own runs (Result.Runs) per account: an account's
+// failed reads in a row, or its runs at a standing type from a good read (premium ending); the result's count is the
+// highest among the accounts at its type, so one account's single failure is one run whatever the others show.
 func Accounts(accounts func(ctx context.Context) map[string]AccountSource, o AccountOptions) Func {
 	if o.Interval <= 0 {
 		o.Interval = 6 * time.Hour
@@ -784,13 +790,13 @@ func Accounts(accounts func(ctx context.Context) map[string]AccountSource, o Acc
 		keys := slices.Sorted(maps.Keys(clients))
 		mu.Lock()
 		defer mu.Unlock()
-		reads := make([]accountRead, len(keys))
+		reads, prev := make([]accountRead, len(keys)), make([]accountRead, len(keys))
 		var wg sync.WaitGroup
 		for i, k := range keys {
 			c := clients[k].Reader
 			r, ok := cache[cacheKey{k, clients[k].Fingerprint}]
-			if ok && (r.err == nil && o.Now().Sub(r.at) < o.Interval || r.err != nil && o.Now().Sub(r.at) < o.Retry) {
-				r.fresh = false
+			prev[i] = r
+			if ok && (r.err == nil && o.Now().Sub(r.at) < o.Interval || r.err != nil && r.fails >= 2 && o.Now().Sub(r.at) < o.Retry) {
 				reads[i] = r
 				continue
 			}
@@ -803,23 +809,19 @@ func Accounts(accounts func(ctx context.Context) map[string]AccountSource, o Acc
 				if err == nil && a == nil {
 					err = errors.New("no account in the answer")
 				}
-				reads[i] = accountRead{at: o.Now(), account: a, err: err, fresh: true}
+				reads[i] = accountRead{at: o.Now(), account: a, err: err}
+				if err != nil {
+					reads[i].fails = 1
+					if prev[i].err != nil {
+						reads[i].fails = prev[i].fails + 1
+					}
+				}
 			}()
 		}
 		wg.Wait()
-		// A caller that gave up cut the reads short: keep them out of the cache. Providers removed or with a changed
-		// key are dropped.
-		if ctx.Err() == nil {
-			next := map[cacheKey]accountRead{}
-			for i, k := range keys {
-				next[cacheKey{k, clients[k].Fingerprint}] = reads[i]
-			}
-			cache = next
-		}
 		now := o.Now()
 		typ := OK
 		var issues, fine []string
-		replayed := true // every issue is a failed read replayed from the cache
 		detail := map[string]any{}
 		for i, k := range keys {
 			r := reads[i]
@@ -869,23 +871,44 @@ func Accounts(accounts func(ctx context.Context) map[string]AccountSource, o Acc
 					d["expires"] = r.account.Expires.UTC()
 				}
 			}
+			reads[i].typ, reads[i].runs = t, 0
+			switch {
+			case r.err != nil:
+				reads[i].runs = r.fails
+			case t != OK && prev[i].typ == t && prev[i].err == nil:
+				reads[i].runs = prev[i].runs + 1
+			case t != OK:
+				reads[i].runs = 1
+			}
 			if t == OK {
 				fine = append(fine, line)
 				continue
 			}
 			issues = append(issues, line)
-			if r.err == nil || r.fresh {
-				replayed = false
-			}
 			if Rank(t) > Rank(typ) {
 				typ = t
 			}
 		}
+		// A caller that gave up cut the reads short: keep them out of the cache. Providers removed or with a changed
+		// key are dropped.
+		if ctx.Err() == nil {
+			next := map[cacheKey]accountRead{}
+			for i, k := range keys {
+				next[cacheKey{k, clients[k].Fingerprint}] = reads[i]
+			}
+			cache = next
+		}
 		if typ == OK {
 			return Result{Type: OK, Detail: detail, Message: "Debrid accounts: " + strings.Join(fine, "; ")}
 		}
+		runs := 0
+		for _, r := range reads {
+			if r.typ == typ {
+				runs = max(runs, r.runs)
+			}
+		}
 		return Result{Type: typ, Detail: detail, Message: "Debrid account needs attention: " + strings.Join(issues, "; "),
-			Replayed: replayed}
+			Runs: runs}
 	}
 }
 
