@@ -65,7 +65,7 @@ it("words each Next search state; no time is promised for a due row or while pau
   renderPage(<WantedPage />, "/wanted");
   const rows = await screen.findAllByTestId("wanted-row");
   const next = rows.map(r => r.querySelector('[data-column="next"]')?.textContent);
-  expect(next).toEqual(["Now", "Now (Search now)", "in 3 h", "in 2 h (new release) · try 3", "in 5 h (after a failed download)", "Downloading", "Not scheduled", "Now (Added by a list)"]);
+  expect(next).toEqual(["Now", "Now (Search now)", "in 3 h", "in 2 h (new release) · try 3", "in 5 h (after a failed download)", "Downloading", "Not scheduled", "Now (after an add or approval)"]);
   // The exact time is the tooltip of a scheduled row.
   expect(within(rows[2]).getByText("in 3 h").getAttribute("title")).toMatch(/^\w{3} \d+ \d\d:\d\d( [AP]M)?$/);
   // A row asked for already cannot be asked again.
@@ -110,6 +110,9 @@ it("formats search outcomes and targets", () => {
   expect(searchResult({ ...run, state: "failed", message: "VPN unavailable" })).toBe("Failed: VPN unavailable");
   expect(searchResult({ ...run, state: "routed", accepted: 1 })).toBe("Sent to download");
   expect(searchResult({ ...run, state: "routed", downloaded: true })).toBe("Grabbed");
+  // Every candidate missed every provider's cache: nothing was grabbed, and the run says so.
+  expect(searchResult({ ...run, state: "missed", results: 4, accepted: 2, message: "No release was cached" })).toBe("No release was cached");
+  expect(searchResult({ ...run, state: "missed", results: 4, accepted: 2, message: "" })).toBe("No release was cached");
   expect(targetWords(["s01", "s02e03"])).toBe("S01, S02E03");
   expect(targetWords(["s01e04", "s01e02", "s01e03", "s01e06"])).toBe("S01E02-E04, S01E06");
   // A whole season says how many episodes it stands for; single episodes and films do not.

@@ -101,7 +101,7 @@ returned and why each release was accepted or rejected) and **System › Status*
   links to **Wanted**.
 - **A list added it.** Titles a list sync adds (timed or **Sync now**), and movies a timed collection refresh
   adds, are not searched at once: with the list's **Search on add** they become due on the same automatic search,
-  under its hourly limit, and **Wanted** says "Added by a list". **Sync now** is refused while **Pause** is on.
+  under its hourly limit, and **Wanted** says "after an add or approval". **Sync now** is refused while **Pause** is on.
   Adding or refreshing one collection yourself with **Search on add** still searches at once.
 - **The movie is not available yet.** A movie is searched automatically only once it has reached its **Minimum
   availability**: Released (the default: a digital or physical release date has passed, or 90 days since the

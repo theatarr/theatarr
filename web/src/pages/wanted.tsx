@@ -52,6 +52,8 @@ export function searchResult(run: WantedRow["last_run"]): string {
   if (run.state === "failed") return `Failed: ${run.message}`;
   if (run.state === "queued") return "Queued";
   if (run.state === "searching") return "Searching";
+  // Every candidate missed every provider's cache before any took it: nothing was grabbed (no Activity link).
+  if (run.state === "missed") return run.message || "No release was cached";
   if (run.downloaded) {
     const stage = IN_FLIGHT[run.download_state ?? ""];
     return stage ? `Grabbed · ${stage}` : run.download_state === "failed" ? "Grabbed, not imported" : "Grabbed";
