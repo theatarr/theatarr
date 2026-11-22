@@ -741,6 +741,9 @@ func TestUndoSettlesThePlayingIncident(t *testing.T) {
 	e.exec(`INSERT INTO playing_break (id, incident, watched, link_id, title_id, version_key, path, old_target, broken_at,
 		searched, fixed_by, new_release, reported, updated_at) VALUES (51, 51, 1, 1, 1, 'movie-remux', ?, ?, ?, 1, 'replaced',
 		'Amelie.2001.1080p.WEB-OTHER', 'replaced', ?)`, old, target, at+1, at)
+	// Another broken file of the incident whose search is not queued yet (a pack's other episode).
+	e.exec(`INSERT INTO playing_break (id, incident, watched, link_id, title_id, version_key, path, old_target, broken_at,
+		updated_at) VALUES (52, 50, 0, 1, 1, 'movie-remux', ?, ?, ?, ?)`, old+".other", target+".other", at, at)
 	const others = `SELECT COUNT(*) FROM history WHERE event NOT IN ('undone', 'blocked')`
 	history := e.one(others)
 	if _, err := e.lib.UndoUpgrade(e.ctx, action, "ann"); err != nil {
@@ -751,6 +754,16 @@ func TestUndoSettlesThePlayingIncident(t *testing.T) {
 	}
 	if got := e.one(`SELECT settled FROM playing_break WHERE id = 51`); got != "" {
 		t.Errorf("the other replacement's incident %q", got)
+	}
+	// The settle pass still queues the other broken file's search, and reports nothing for the settled incident.
+	if err := e.lib.SettlePlayingRuns(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.one(`SELECT searched FROM playing_break WHERE id = 52`); got != "1" {
+		t.Errorf("the other file's search was not queued: searched %s", got)
+	}
+	if got := e.one(`SELECT reported FROM playing_break WHERE id = 50`); got != "replaced" {
+		t.Errorf("reported %s", got)
 	}
 	if got := e.one(others); got != history {
 		t.Errorf("history rows %s, before %s", got, history)

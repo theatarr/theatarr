@@ -874,7 +874,8 @@ before 00152 has no snapshot and gets no Undo; nor does one whose trash copy was
   made the replacement (an open row whose copy, by its target, is the file put back, replaced by the release undone,
   its `new_release`), the same transaction settles
   that row `restored` quietly: its miss lifted, no outcome sent, no History row of its own, so no sweep keeps aside a
-  copy that is in place. Torrents and Sources are
+  copy that is in place. Its other broken files (a pack's other episode) whose search was not queued yet are still
+  searched: the settle pass keeps such a restored incident for that step only (`playingSearchOpenSQL`). Torrents and Sources are
   worked out again at once. While the replacing download is still being imported in that library (a partial import
   waiting for its retry) Undo is not offered and refused ("That download is still being imported; try again when it
   has finished"); a put-back waits for a later sweep. Its actions' details start "upgrade undone by <who>": History shows one "Upgrade undone" row

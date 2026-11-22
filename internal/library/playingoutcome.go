@@ -153,10 +153,14 @@ func playingFixedTx(ctx context.Context, tx *sql.Tx, titleID, versionID int64, v
 // playingSearchOpenSQL is an incident's search still open, on its watched row pb: marked dead and searched, not
 // settled (or revived by the come-back while its search was open, or removed from the library: settleUnreadSet), and
 // its outcome not sent yet or its other broken files' search not queued yet. The settle pass works on these; a copy is not kept aside while its incident's is.
-const playingSearchOpenSQL = `pb.watched = 1 AND (pb.settled IN ('', 'revived') OR pb.reported = '` + playingRemoved + `')
-	AND pb.searched = 1
-	AND (pb.reported = '' OR EXISTS (SELECT 1 FROM playing_break s WHERE s.incident = pb.id AND s.settled = ''
-		AND s.searched = 0))`
+const playingSearchOpenSQL = `pb.watched = 1 AND pb.searched = 1
+	AND ((pb.settled IN ('', 'revived') OR pb.reported = '` + playingRemoved + `') AND (pb.reported = '' OR ` +
+	playingSiblingsWaitSQL + `) OR pb.settled = 'restored' AND ` + playingSiblingsWaitSQL + `)`
+
+// playingSiblingsWaitSQL: other broken files of the incident pb wait for their search. An incident an Undo settled
+// restored stays open for that step only (no outcome is sent for it).
+const playingSiblingsWaitSQL = `EXISTS (SELECT 1 FROM playing_break s WHERE s.incident = pb.id AND s.settled = ''
+	AND s.searched = 0)`
 
 // SettlePlayingRuns looks at each incident whose watched file was marked dead and whose outcome is not sent yet (or
 // whose other broken files wait for their search), also one the come-back revived meanwhile (readable again): once nothing of its search is pending (no search job, due search
@@ -198,7 +202,7 @@ func (l *Library) SettlePlayingRuns(ctx context.Context) error {
 		if pending {
 			continue
 		}
-		if o.reported == "" {
+		if o.reported == "" && o.settled != "restored" {
 			kind := outcome.Unavailable
 			switch {
 			case o.fixed == "replaced":
