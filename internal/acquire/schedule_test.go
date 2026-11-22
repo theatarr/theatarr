@@ -553,3 +553,25 @@ func TestEpisodeSearchKeepsAddedSeasonRow(t *testing.T) {
 		t.Fatalf("season 2 searched again: %s", e.runs())
 	}
 }
+
+// A target with a regular row already due (why NULL; dormant while the missing backlog search is off) is the one a
+// paused approval keeps: the row becomes the approval's (why added), and the first round after Pause searches it
+// once instead of dropping it.
+func TestSearchOnResumeTakesDormantRow(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true, &policy.Wanted{Missing: new(false), CutoffUnmet: policy.CutoffOff})
+	e.accept = false
+	e.pol.Router.Enabled = false
+	e.row(1, "movie", OnlyMissing, -1, t0.Add(-time.Hour), "", 0)
+	if n, err := e.a.SearchOnResume(e.ctx, 1, []string{"movie"}, nil); err != nil || n != 1 {
+		t.Fatalf("kept %d, %v", n, err)
+	}
+	if _, _, why := e.rowOf(1, "movie", OnlyMissing, -1); why != whyAdded {
+		t.Fatalf("the dormant row stayed %q", why)
+	}
+	e.pol.Router.Enabled = true
+	e.round()
+	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_id = 101 AND research = 'added'`); n != 1 {
+		t.Fatalf("searches after Pause: %s", e.runs())
+	}
+}

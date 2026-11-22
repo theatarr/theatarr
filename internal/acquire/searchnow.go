@@ -149,8 +149,9 @@ func (a *Acquirer) askSearch(ctx context.Context, reqs []searchRequest, out *Sea
 }
 
 // markDue makes the requested rows due now with why, skipping those a loop search is queued or running for, and
-// returns their titles. Asked rewrites any row but one already asked and due; added only a row that is not due yet
-// (a due row keeps its why: an asked one stays first).
+// returns their titles. Asked rewrites any row but one already asked and due; added a row that is not due yet, or a
+// regular one (why NULL, which a round drops while its backlog switch is off); a due asked or new row keeps its why
+// (an asked one stays first).
 func (a *Acquirer) markDue(ctx context.Context, reqs []searchRequest, why string, out *SearchNowResult) ([]int64, error) {
 	running, err := a.busySet(ctx)
 	if err != nil {
@@ -169,7 +170,8 @@ func (a *Acquirer) markDue(ctx context.Context, reqs []searchRequest, why string
 	}
 	cond := `NOT (search_request.why IS excluded.why AND search_request.next_at <= excluded.next_at)`
 	if why == whyAdded {
-		cond = `search_request.next_at > excluded.next_at`
+		// A regular row (why NULL) is taken over even when due: with its backlog switch off a round would drop it.
+		cond = `(search_request.next_at > excluded.next_at OR search_request.why IS NULL)`
 	}
 	var titles []int64
 	now := store.Millis(a.now())
