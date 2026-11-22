@@ -99,6 +99,15 @@ func TestPutBack(t *testing.T) {
 			WHERE id = 1`)
 		aside(t, c)
 	})
+	t.Run("audio inconclusive", func(t *testing.T) {
+		// As at import: an untagged track makes the rule say nothing, so the better copy comes back.
+		c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
+		c.pol.Profiles["movie-state"].Language = "English"
+		c.exec(`UPDATE content_file SET probe = '{"container":"matroska","audio":[{"codec":"aac","language":"fre","tagged":true},
+			{"codec":"aac","language":"und"}]}' WHERE id = 1`)
+		c.twoReads()
+		c.restored(t)
+	})
 	wait := func(t *testing.T, c *coveredEnv, stop func(), go_ func()) {
 		t.Helper()
 		stop()

@@ -141,19 +141,22 @@ func (l *Library) putBackCopy(ctx context.Context, r returned, target string) (d
 	if !l.profileAllows(t, dv, kind, oldF) {
 		return false, false, nil
 	}
-	// The wrong-audio rule, the old file over the current one (audio.go): its known languages share none with what
-	// the library wants and none with the current file's.
+	// The wrong-audio rule, the old file over the current one, as an import judges it (audio.go): the returning
+	// copy's saved probe read as a fresh one (fileAudio: an untagged track says nothing), the held file's stored audio.
 	var oldProbe sql.NullString
 	if s.ContentFileID != nil {
 		_ = db.QueryRowContext(ctx, `SELECT probe FROM content_file WHERE id = ?`, *s.ContentFileID).Scan(&oldProbe)
 	}
-	if langs := storedAudio(oldProbe, sql.NullString{String: deref(s.AdoptedMedia), Valid: s.AdoptedMedia != nil}, s.Adopted); len(langs) > 0 {
-		want, err := l.audioWanted(ctx, &importDownload{Version: *v})
-		if err != nil {
-			return false, false, err
-		}
-		if want != nil && !sharesLanguage(langs, want) && !sharesLanguage(langs, storedAudio(cur.probe, cur.media, cur.adopted)) {
-			return false, false, nil
+	if pr, err := parseProbe(oldProbe); err == nil {
+		if langs, ok := fileAudio(pr); ok {
+			want, err := l.audioWanted(ctx, &importDownload{Version: *v})
+			if err != nil {
+				return false, false, err
+			}
+			if want != nil && !sharesLanguage(langs, want) &&
+				!sharesLanguage(langs, storedAudio(cur.probe, cur.media, cur.adopted)) {
+				return false, false, nil
+			}
 		}
 	}
 	// Nobody plays the file it would displace, and Plex says so.
