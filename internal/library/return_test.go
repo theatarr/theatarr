@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/decide"
+	"github.com/theatarr/theatarr/internal/rootprobe/probetest"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -630,5 +631,26 @@ func TestMoveStrayInReturnWords(t *testing.T) {
 	}
 	if got := e.one(`SELECT detail FROM library_action ORDER BY id DESC LIMIT 1`); !strings.HasPrefix(got, undoPrefix) {
 		t.Errorf("detail %q", got)
+	}
+}
+
+// A library share that stops answering never holds History: the successor's symlink is read bounded, and a row whose
+// read does not answer offers no Undo.
+func TestUndoOffersBoundedRead(t *testing.T) {
+	e, _, _, action := adoptedFilm(t)
+	newPath := e.one(`SELECT path FROM link WHERE download_id = 1`)
+	probetest.Mounts(t, e.movies, e.shows, e.trash, filepath.Dir(newPath))
+	hangRootRead(t, &rootLstat, func(orig func(string) (os.FileInfo, error), block func(string)) func(string) (os.FileInfo, error) {
+		return func(p string) (os.FileInfo, error) { block(p); return orig(p) }
+	}, newPath)
+	offers := within(t, 3*time.Second, func() map[int64]string {
+		o, err := e.lib.UndoOffers(e.ctx, []int64{action})
+		if err != nil {
+			t.Error(err)
+		}
+		return o
+	})
+	if len(offers) != 0 {
+		t.Errorf("offered: %v", offers)
 	}
 }

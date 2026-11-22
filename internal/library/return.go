@@ -264,8 +264,10 @@ func (l *Library) UndoOffers(ctx context.Context, ids []int64) (map[int64]string
 		if l.pol.Versions[o.version] == nil || !l.gate.Active(o.version) {
 			continue
 		}
-		if cur, err := os.Readlink(o.succPath); err != nil || cur != o.succTarget {
-			continue // the successor's symlink is gone or changed
+		// The successor's symlink, read bounded: a share that does not answer leaves the offer out, never holds History.
+		if lr, err := readLinkBounded(ctx, o.succPath); err != nil || lr.lerr != nil || lr.rerr != nil ||
+			lr.target != o.succTarget {
+			continue // gone, changed, or not answering
 		}
 		p, ok := l.mount.FromLink(o.target)
 		if !ok {
