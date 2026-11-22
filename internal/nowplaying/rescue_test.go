@@ -1155,6 +1155,8 @@ func TestRescueSameReleaseAccountEvidence(t *testing.T) {
 	for _, c := range []struct{ line, want string }{
 		{"INFO Large transfer: 512 MiB of __all__/Rel/S01E02.mkv from rd for 30s", "rd"},
 		{"INFO Large transfer: 512 MiB of __all__/Another.Show/S01E02.mkv from tb for 30s", ""},
+		{"INFO Large transfer: 512 MiB of __all__/Other/Rel/S01E02.mkv from tb for 30s", ""},
+		{"INFO Large transfer: 512 MiB of Rel/S01E02.mkv from rd for 30s", "rd"},
 	} {
 		e := newRescueEnv(t, false, true)
 		e.lib.setBroken("S01E02.mkv", 4) // reads 1-3 and the first re-read; the next passes
