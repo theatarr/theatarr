@@ -872,7 +872,9 @@ state and Cutoff unmet are its own. The journal records an `edit_file` action (m
     release's other broken files (`TestComeBackRevivedWatchedIsReportedAndKeepsMiss`). While paused it stays as it is
     (`TestComeBackLeavesStoppedCopy`). A row that would never be read again (its title or version gone or removed from
     the arr view, its link removed by hand with nothing else holding its film or episodes, or its dead link's
-    symlink deleted from the library folder: `TestComeBackSettlesRemovedSymlinkUnread`) is settled aside at the
+    symlink deleted from the library folder, which counts only when the library root answers and is listable and the
+    path's bounded check says it is missing; a share that is away leaves the row for the next pass:
+    `TestComeBackSettlesRemovedSymlinkUnread`, `TestComeBackLeavesRowOpenWhileRootAway`) is settled aside at the
     start of the pass without a read, an action or a lifted miss, and a symlink the removal kept is left where it is
     (`TestComeBackSettlesRemovedRowsUnread`). A watched row so settled before its outcome was sent is noted removed
     from the library (Now playing says so; no outcome, no History row), and the settle pass still queues the search of

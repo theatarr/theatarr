@@ -529,3 +529,31 @@ func TestComeBackWatchedRemovedStillSearchesSiblings(t *testing.T) {
 		t.Errorf("outcomes %+v", got)
 	}
 }
+
+// A library share that is away is not a deliberate removal: with the root missing during a pass, the dead row stays
+// open (not removed), and once the share is back the sweep does not revive the link from its listing; only the
+// come-back's own reads can.
+func TestComeBackLeavesRowOpenWhileRootAway(t *testing.T) {
+	e, id := brokenWhilePlaying(t)
+	away := e.movies + ".away"
+	if err := os.Rename(e.movies, away); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.lib.ComeBack(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.one(`SELECT settled || '/' || reported FROM playing_break WHERE id = ?`, id); got != "/" {
+		t.Fatalf("with the root away: %q", got)
+	}
+	if err := os.Rename(away, e.movies); err != nil {
+		t.Fatal(err)
+	}
+	e.now = e.now.Add(time.Hour)
+	if err := e.lib.ComeBack(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	e.sweep()
+	if got := e.one(`SELECT state FROM link WHERE id = 1`) + " " + e.one(`SELECT settled FROM playing_break WHERE id = ?`, id); got != "dead " {
+		t.Errorf("after the share came back: %s", got)
+	}
+}

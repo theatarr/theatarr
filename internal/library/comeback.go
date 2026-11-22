@@ -4,8 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"io/fs"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -139,14 +137,21 @@ func (l *Library) ComeBack(ctx context.Context) error {
 		return nil // a mount that does not list: no verdict this pass
 	}
 	db, lists := l.st.Reader(), relinkLists{}
+	rootUp := map[string]bool{} // a library root answers and can tell a missing link (rootUnavailable), this pass
 	for _, r := range todo {
-		if _, err := os.Lstat(r.path); r.dead && errors.Is(err, fs.ErrNotExist) {
-			// Its symlink was removed from the library by hand: never read again (a link without a library path
-			// does not come back).
-			if err := l.settleUnread(ctx, r.id); err != nil {
-				return err
+		if r.dead {
+			// Its symlink removed from the library by hand: never read again (a link without a library path does not
+			// come back). Only a root that answers can say so; a share that is away leaves the row for the next pass.
+			gone, ok := l.symlinkGone(ctx, r, rootUp)
+			if !ok {
+				continue
 			}
-			continue
+			if gone {
+				if err := l.settleUnread(ctx, r.id); err != nil {
+					return err
+				}
+				continue
+			}
 		}
 		read, ok := l.mount.FromLink(r.old)
 		if !ok {
@@ -214,6 +219,35 @@ func (l *Library) ComeBack(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// symlinkGone reports whether a dead row's library symlink is confirmed missing: its library root answers and is
+// listable (as the sweep requires before it trusts a root), and the path's bounded lstat says it does not exist. ok
+// false: nothing can be said now (the root away, empty or not answering; no root of its version holds the path).
+func (l *Library) symlinkGone(ctx context.Context, r returned, rootUp map[string]bool) (gone, ok bool) {
+	root := ""
+	for _, rt := range l.gate.Roots(r.version) {
+		if p := filepath.Clean(rt) + string(filepath.Separator); strings.HasPrefix(r.path, p) {
+			root = rt
+		}
+	}
+	if root == "" {
+		return false, false
+	}
+	up, seen := rootUp[root]
+	if !seen {
+		why, err := rootUnavailable(ctx, root)
+		up = err == nil && why == ""
+		rootUp[root] = up
+	}
+	if !up {
+		return false, false
+	}
+	missing, err := missingPaths(ctx, []string{r.path})
+	if err != nil {
+		return false, false
+	}
+	return missing[0], true
 }
 
 // setBack starts (back) or ends a row's streak of reads, and stamps the row checked now (updated_at: a pass reads the
