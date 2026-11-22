@@ -113,7 +113,8 @@ func (a *Acquirer) ReleaseWaiting(ctx context.Context, titleID int64) error {
 	}
 	for _, h := range hs {
 		if h.sel.Later {
-			if _, err := a.scheduleAdded(ctx, h.sel.Selection); err != nil {
+			// A series held for its metadata has no rows of its own yet: nothing to take over.
+			if _, err := a.scheduleAdded(ctx, h.sel.Selection, false); err != nil {
 				return err
 			}
 			if _, err := a.st.Writer().ExecContext(ctx, `DELETE FROM series_search_wait WHERE id = ?`, h.id); err != nil {

@@ -130,7 +130,7 @@ func (a *Acquirer) RequestSearchNowAll(ctx context.Context, q WantedQuery) (*Sea
 
 // askSearch makes the requested rows due now with why asked and runs a round of their titles.
 func (a *Acquirer) askSearch(ctx context.Context, reqs []searchRequest, out *SearchNowResult) (*SearchNowResult, error) {
-	titles, err := a.markDue(ctx, reqs, whyAsked, out)
+	titles, err := a.markDue(ctx, reqs, whyAsked, false, out)
 	if err != nil {
 		return nil, err
 	}
@@ -149,10 +149,10 @@ func (a *Acquirer) askSearch(ctx context.Context, reqs []searchRequest, out *Sea
 }
 
 // markDue makes the requested rows due now with why, skipping those a loop search is queued or running for, and
-// returns their titles. Asked rewrites any row but one already asked and due; added a row that is not due yet, or a
-// regular one (why NULL, which a round drops while its backlog switch is off); a due asked or new row keeps its why
-// (an asked one stays first).
-func (a *Acquirer) markDue(ctx context.Context, reqs []searchRequest, why string, out *SearchNowResult) ([]int64, error) {
+// returns their titles. Asked rewrites any row but one already asked and due; added only a row that is not due yet
+// (a due row keeps its why: an asked one stays first), and with takeOver (SearchOnResume) a regular one too (why
+// NULL, which a round drops while its backlog switch is off).
+func (a *Acquirer) markDue(ctx context.Context, reqs []searchRequest, why string, takeOver bool, out *SearchNowResult) ([]int64, error) {
 	running, err := a.busySet(ctx)
 	if err != nil {
 		return nil, err
@@ -170,8 +170,11 @@ func (a *Acquirer) markDue(ctx context.Context, reqs []searchRequest, why string
 	}
 	cond := `NOT (search_request.why IS excluded.why AND search_request.next_at <= excluded.next_at)`
 	if why == whyAdded {
-		// A regular row (why NULL) is taken over even when due: with its backlog switch off a round would drop it.
-		cond = `(search_request.next_at > excluded.next_at OR search_request.why IS NULL)`
+		cond = `search_request.next_at > excluded.next_at`
+		if takeOver {
+			// A regular row (why NULL) is taken over even when due: with its backlog switch off a round would drop it.
+			cond = `(search_request.next_at > excluded.next_at OR search_request.why IS NULL)`
+		}
 	}
 	var titles []int64
 	now := store.Millis(a.now())
@@ -202,7 +205,7 @@ func (a *Acquirer) RequestSearchLater(ctx context.Context, titleID int64, versio
 	if !a.pol.RouterSettings().Enabled {
 		return nil
 	}
-	_, err := a.searchLater(ctx, titleID, versions, nil)
+	_, err := a.searchLater(ctx, titleID, versions, nil, false)
 	return err
 }
 
@@ -212,10 +215,10 @@ func (a *Acquirer) RequestSearchLater(ctx context.Context, titleID int64, versio
 // how many it kept (rows on the schedule, and a series held for its metadata): 0 when nothing is to be searched yet
 // (a film before its minimum availability, nothing missing).
 func (a *Acquirer) SearchOnResume(ctx context.Context, titleID int64, versions []string, seasons []int) (int, error) {
-	return a.searchLater(a.captureRuntime(ctx), titleID, versions, seasons)
+	return a.searchLater(a.captureRuntime(ctx), titleID, versions, seasons, true)
 }
 
-func (a *Acquirer) searchLater(ctx context.Context, titleID int64, versions []string, seasons []int) (int, error) {
+func (a *Acquirer) searchLater(ctx context.Context, titleID int64, versions []string, seasons []int, takeOver bool) (int, error) {
 	keys := a.Active(versions)
 	if len(keys) == 0 {
 		return 0, nil
@@ -225,13 +228,13 @@ func (a *Acquirer) searchLater(ctx context.Context, titleID int64, versions []st
 	if err != nil || len(sel.TitleIDs) == 0 {
 		return held, err
 	}
-	n, err := a.scheduleAdded(ctx, sel)
+	n, err := a.scheduleAdded(ctx, sel, takeOver)
 	return held + n, err
 }
 
 // scheduleAdded makes the rows of sel's missing targets due now with why added (one per library and film or season),
 // leaving out targets with a download in flight. It returns how many rows are due for sel (made due now, or already).
-func (a *Acquirer) scheduleAdded(ctx context.Context, sel Selection) (int, error) {
+func (a *Acquirer) scheduleAdded(ctx context.Context, sel Selection, takeOver bool) (int, error) {
 	ts, err := a.targets(ctx, sel)
 	if err != nil {
 		return 0, err
@@ -254,7 +257,7 @@ func (a *Acquirer) scheduleAdded(ctx context.Context, sel Selection) (int, error
 		reqs = append(reqs, searchRequest{titleID: t.titleID, key: t.key, reason: t.reason, season: seasonOf(t.season)})
 	}
 	out := &SearchNowResult{}
-	if _, err := a.markDue(ctx, reqs, whyAdded, out); err != nil {
+	if _, err := a.markDue(ctx, reqs, whyAdded, takeOver, out); err != nil {
 		return 0, err
 	}
 	if out.Queued > 0 {

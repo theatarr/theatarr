@@ -570,6 +570,14 @@ func TestSearchOnResumeTakesDormantRow(t *testing.T) {
 		t.Fatalf("the dormant row stayed %q", why)
 	}
 	e.pol.Router.Enabled = true
+	// A list's search later (RequestSearchLater) orders as before: a due regular row keeps its place.
+	e.row(2, "movie", OnlyMissing, -1, t0.Add(-time.Hour), "", 0)
+	if err := e.a.RequestSearchLater(e.ctx, 2, []string{"movie"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, why := e.rowOf(2, "movie", OnlyMissing, -1); why != "" {
+		t.Fatalf("a list's search took over the regular row: %q", why)
+	}
 	e.round()
 	if n := e.count(`SELECT COUNT(*) FROM acquire_run WHERE version_id = 101 AND research = 'added'`); n != 1 {
 		t.Fatalf("searches after Pause: %s", e.runs())
