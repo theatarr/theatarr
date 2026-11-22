@@ -377,7 +377,6 @@ func TestSettlePlayingWaitsForTheSiblingPass(t *testing.T) {
 		t.Fatalf("the siblings' search queued while the pass holds the incident: %+v", jobs)
 	}
 	release()
-	release() // a second call does nothing
 	if err := e.lib.SettlePlayingRuns(e.ctx); err != nil {
 		t.Fatal(err)
 	}

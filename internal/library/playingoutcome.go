@@ -270,23 +270,17 @@ func (l *Library) playingPending(ctx context.Context, titleID int64, version str
 }
 
 // HoldPlayingSiblings notes that now playing's pass over an incident's other files is running: until release is
-// called, the settle pass does not queue those files' search. In memory only; release may be called more than once.
-// The hold is the process's, by store and incident: a settings save builds a new library on the same store, and the
-// settle pass of either sees the other's holds.
+// called (once, when the pass ends), the settle pass does not queue those files' search. In memory only, shared by
+// every library on the same store (a settings save builds a new one).
 func (l *Library) HoldPlayingSiblings(incident int64) (release func()) {
 	k := siblingHold{l.st, incident}
 	siblingHolds.Lock()
-	siblingHolds.m[k]++
+	siblingHolds.m[k] = struct{}{}
 	siblingHolds.Unlock()
-	var once sync.Once
 	return func() {
-		once.Do(func() {
-			siblingHolds.Lock()
-			defer siblingHolds.Unlock()
-			if siblingHolds.m[k]--; siblingHolds.m[k] <= 0 {
-				delete(siblingHolds.m, k)
-			}
-		})
+		siblingHolds.Lock()
+		delete(siblingHolds.m, k)
+		siblingHolds.Unlock()
 	}
 }
 
@@ -297,12 +291,13 @@ type siblingHold struct {
 
 var siblingHolds = struct {
 	sync.Mutex
-	m map[siblingHold]int
-}{m: map[siblingHold]int{}}
+	m map[siblingHold]struct{}
+}{m: map[siblingHold]struct{}{}}
 
 // siblingsHeld reports whether an incident's sibling pass holds it (HoldPlayingSiblings).
 func (l *Library) siblingsHeld(incident int64) bool {
 	siblingHolds.Lock()
 	defer siblingHolds.Unlock()
-	return siblingHolds.m[siblingHold{l.st, incident}] > 0
+	_, held := siblingHolds.m[siblingHold{l.st, incident}]
+	return held
 }
