@@ -486,3 +486,10 @@ func (l *Library) PlayingRoute(version string) (client string, providers []strin
 	}
 	return "", slices.Clone(vp.Providers)
 }
+
+// PlayingMessage keeps on an incident what the viewer was told, or why Plex refused (Now playing shows it).
+func (l *Library) PlayingMessage(ctx context.Context, incident int64, note string) error {
+	_, err := l.st.Writer().ExecContext(ctx, `UPDATE playing_break SET message = ?, updated_at = ? WHERE id = ?`, note,
+		store.Millis(l.now()), incident)
+	return err
+}

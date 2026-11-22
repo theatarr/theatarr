@@ -44,7 +44,7 @@ func TestSessions(t *testing.T) {
 		t.Fatalf("%v %+v", err, ss)
 	}
 	s := ss[0]
-	if s.SessionKey != "12" || s.RatingKey != "345" || s.UserID != "7" || s.UserName != "alice" || s.Player != "Living Room" ||
+	if s.SessionKey != "12" || s.ID != "s" || s.RatingKey != "345" || s.UserID != "7" || s.UserName != "alice" || s.Player != "Living Room" ||
 		s.State != "buffering" || s.Local || !s.Relayed || s.Location != "wan" || s.Bitrate != 91555 ||
 		s.File != "/media/tv/Show/S01E03.mkv" || s.Decision != "transcode" || s.Transcode == nil ||
 		s.Transcode.Speed != 0.7 || s.ParentIndex != 1 || s.Index != 3 || s.ViewOffset != 61000 {
@@ -137,5 +137,33 @@ func TestSessionFileFromMetadata(t *testing.T) {
 	}
 	if ss[0].File != "/right.mkv" || ss[0].Size != 2 {
 		t.Errorf("file %q size %d, want /right.mkv 2", ss[0].File, ss[0].Size)
+	}
+}
+
+// Terminate asks GET /status/sessions/terminate with the session id and the reason, the token in the header only.
+func TestTerminate(t *testing.T) {
+	var got *http.Request
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r
+		if r.URL.Query().Get("sessionId") == "refuse" {
+			http.Error(w, "no", http.StatusUnauthorized)
+		}
+	}))
+	defer srv.Close()
+	c, _ := New(&httpDoer{}, srv.URL, "tok-1")
+	msg := "This file stopped working. Try again later."
+	if err := c.Terminate(context.Background(), "abc123", msg); err != nil {
+		t.Fatal(err)
+	}
+	if got.Method != http.MethodGet || got.URL.Path != "/status/sessions/terminate" ||
+		got.URL.Query().Get("sessionId") != "abc123" || got.URL.Query().Get("reason") != msg ||
+		got.Header.Get("X-Plex-Token") != "tok-1" || strings.Contains(got.URL.RawQuery, "tok-1") {
+		t.Errorf("request %s %s token %q", got.Method, got.URL, got.Header.Get("X-Plex-Token"))
+	}
+	if err := c.Terminate(context.Background(), "refuse", msg); err == nil {
+		t.Error("a refusal is not an error")
+	}
+	if err := c.Terminate(context.Background(), "", msg); err == nil {
+		t.Error("no session id: no error")
 	}
 }

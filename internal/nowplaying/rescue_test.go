@@ -91,8 +91,30 @@ func (l *testLib) readsOf(name string) int {
 	return n
 }
 
+// stoppingPlex is the fake Plex with the terminate call: it records each stop (session id and reason).
+type stoppingPlex struct {
+	*fakePlex
+	mu    sync.Mutex
+	stops []string
+	err   error
+}
+
+func (p *stoppingPlex) Terminate(_ context.Context, id, reason string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.stops = append(p.stops, id+": "+reason)
+	return p.err
+}
+
+func (p *stoppingPlex) stopped() []string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]string(nil), p.stops...)
+}
+
 type rescueEnv struct {
 	t     *testing.T
+	stop  *stoppingPlex
 	ctx   context.Context
 	st    *store.Store
 	lib   *testLib
@@ -212,7 +234,8 @@ func newRescueEnv(t *testing.T, client, zurg bool) *rescueEnv {
 	})
 	e.lib = &testLib{Library: lib, broken: map[string]int{}}
 	e.plex = &fakePlex{}
-	o := Options{Plex: e.plex, Store: st, Mount: func() Mount { return e.lib }, LinkPath: e.mount, MountPath: e.mount,
+	e.stop = &stoppingPlex{fakePlex: e.plex}
+	o := Options{Plex: e.stop, Store: st, Mount: func() Mount { return e.lib }, LinkPath: e.mount, MountPath: e.mount,
 		Now: e.now, Readlink: func(p string) (string, error) { // Theatarr's links point into Rel
 			if strings.HasPrefix(p, shows+"/") {
 				return filepath.Join(e.mount, "__all__", "Rel", filepath.Base(p)), nil
@@ -276,7 +299,7 @@ func (e *rescueEnv) one(q string, args ...any) string {
 func (e *rescueEnv) play(ep int, state string) {
 	e.plex.mu.Lock()
 	defer e.plex.mu.Unlock()
-	e.plex.ss = []plex.Session{{SessionKey: "s1", RatingKey: fmt.Sprint(ep), Type: "episode", Title: "Ep",
+	e.plex.ss = []plex.Session{{SessionKey: "s1", ID: "pid1", UserID: "7", RatingKey: fmt.Sprint(ep), Type: "episode", Title: "Ep",
 		GrandparentTitle: "Show", ParentIndex: 1, Index: ep, File: e.linkPath(ep), Size: fileSize,
 		Duration: 3_000_000, ViewOffset: 600_000, State: state, UserName: "ann", Player: "TV"}}
 }
@@ -672,5 +695,174 @@ func TestRescueComeBackAfterSweep(t *testing.T) {
 	}
 	if got := e.one(`SELECT state FROM link WHERE id = 11`) + " " + e.one(`SELECT settled FROM playing_break WHERE link_id = 11`); got != "active revived" {
 		t.Errorf("after two sweeps: %s", got)
+	}
+}
+
+// GOAL i: with the session open, the player is stopped once the break is confirmed, with the message that promises
+// nothing, and the incident keeps what was said.
+func TestRescueStopsTheStreamWithAMessage(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.play(2, "buffering")
+	e.poll()
+	if got := e.stop.stopped(); len(got) != 1 || got[0] != "pid1: "+msgLooking {
+		t.Errorf("stops %q", got)
+	}
+	if got := e.one(`SELECT message FROM playing_break WHERE link_id = 11`); got != "the player was stopped with the message: "+msgLooking {
+		t.Errorf("incident message %q", got)
+	}
+}
+
+// Step 1 with a candidate is tried for 30 s before the message: a file that reads again within it gets no message at
+// all; one still failing then gets the message once.
+func TestRescueMessageWaitsForStepOne(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.lib.setBroken("S01E02.mkv", 3)
+	e.copyOK["ad"] = true
+	e.play(2, "buffering")
+	e.poll()
+	if got := e.stop.stopped(); len(got) != 0 {
+		t.Errorf("readable again after the copy, yet stopped: %q", got)
+	}
+	e2 := newRescueEnv(t, false, false)
+	e2.lib.setBroken("S01E02.mkv", -1)
+	e2.copyOK["ad"] = true
+	e2.play(2, "buffering")
+	e2.poll()
+	if got := e2.stop.stopped(); len(got) != 1 || got[0] != "pid1: "+msgLooking {
+		t.Errorf("stops %q", got)
+	}
+	if got := e2.one(`SELECT state FROM link WHERE id = 11`); got != "dead" {
+		t.Errorf("link %s after step 1 failed", got)
+	}
+}
+
+// The setting off: nothing is ever sent to Plex. No session left (an early stop): nothing is sent either. A paused
+// playback is never stopped.
+func TestRescueMessageSettingAndSession(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.tr.o.StopWithMessage = func() bool { return false }
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.play(2, "buffering")
+	e.poll()
+	if got := e.stop.stopped(); len(got) != 0 || e.one(`SELECT state FROM link WHERE id = 11`) != "dead" {
+		t.Errorf("setting off: stops %q", got)
+	}
+	e2 := newRescueEnv(t, false, false)
+	e2.lib.setBroken("S01E03.mkv", -1)
+	e2.play(3, "playing")
+	e2.poll()
+	e2.stopPlaying()
+	e2.poll()
+	if got := e2.stop.stopped(); len(got) != 0 || e2.one(`SELECT state FROM link WHERE id = 12`) != "dead" {
+		t.Errorf("no session: stops %q", got)
+	}
+	e3 := newRescueEnv(t, false, false)
+	e3.lib.setBroken("S01E02.mkv", -1)
+	e3.play(2, "buffering")
+	e3.tr.sleep = func(ctx context.Context, d time.Duration) error { // paused while the check reads
+		e3.advance(d)
+		e3.plex.mu.Lock()
+		e3.plex.ss[0].State = "paused"
+		e3.plex.mu.Unlock()
+		return ctx.Err()
+	}
+	e3.poll()
+	if got := e3.stop.stopped(); len(got) != 0 {
+		t.Errorf("paused: stops %q", got)
+	}
+}
+
+// A playback still advancing when the message is due (what it cached plays on) is told at its next sign.
+func TestRescueMessageAtNextSign(t *testing.T) {
+	e := newRescueEnv(t, false, true)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.play(2, "playing")
+	e.zurg.stats.BlockedReads = []library.ZurgBlockedRead{{Filename: "S01E02.mkv", Reason: "broken"}}
+	e.tr.sleep = func(ctx context.Context, d time.Duration) error {
+		e.advance(d)
+		e.plex.mu.Lock()
+		e.plex.ss[0].ViewOffset += d.Milliseconds()
+		e.plex.mu.Unlock()
+		return ctx.Err()
+	}
+	e.poll()
+	if got := e.stop.stopped(); len(got) != 0 {
+		t.Fatalf("stopped while advancing: %q", got)
+	}
+	e.plex.mu.Lock()
+	e.plex.ss[0].State = "buffering"
+	e.plex.mu.Unlock()
+	e.poll()
+	if got := e.stop.stopped(); len(got) != 1 || got[0] != "pid1: "+msgLooking {
+		t.Errorf("at the next sign: stops %q", got)
+	}
+}
+
+// When nothing will be done (the day's bound reached) the message says to try later; a refusal by Plex is kept on the
+// incident; nothing is sent when the mount is the problem or the file reads.
+func TestRescueMessageLaterAndRefusal(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.stop.err = errors.New("plex: GET /status/sessions/terminate: HTTP 401")
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.play(2, "buffering")
+	e.poll()
+	if got := e.one(`SELECT message FROM playing_break WHERE link_id = 11`); !strings.HasPrefix(got, "Plex refused to stop the player: ") {
+		t.Errorf("incident message %q", got)
+	}
+	e.stop.err = nil
+	e.exec(`DELETE FROM playing_break WHERE link_id = 12`)
+	e.exec(`UPDATE link SET state = 'active' WHERE id = 12`)
+	e.tr.mu.Lock()
+	delete(e.tr.quiet, 12)
+	e.tr.mu.Unlock()
+	e.lib.setBroken("S01E03.mkv", -1)
+	e.advance(time.Hour)
+	e.play(3, "buffering")
+	e.poll()
+	if got := e.stop.stopped(); len(got) != 2 || got[1] != "pid1: "+msgLater {
+		t.Errorf("bound reached: stops %q", got)
+	}
+	e2 := newRescueEnv(t, false, false)
+	e2.lib.setBroken("S01E02.mkv", -1)
+	e2.lib.listed = library.ErrMountDown
+	e2.play(2, "buffering")
+	e2.poll()
+	e3 := newRescueEnv(t, false, false)
+	e3.play(2, "buffering")
+	e3.poll()
+	if len(e2.stop.stopped())+len(e3.stop.stopped()) != 0 {
+		t.Errorf("mount down %q, file reads %q", e2.stop.stopped(), e3.stop.stopped())
+	}
+}
+
+// Now playing lists the last day's incidents with what came of them.
+func TestIncidents(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.lib.setBroken("S01E03.mkv", -1)
+	e.play(2, "buffering")
+	e.poll()
+	in := e.tr.Incidents()
+	if len(in) != 1 || in[0].Title != "Show (2020)" || fmt.Sprint(in[0].Episodes) != "[S01E02]" || in[0].Files != 2 ||
+		in[0].Status != "Looking for another copy" || in[0].Viewer != "ann" || in[0].Player != "TV" ||
+		in[0].OldRelease != "Show.S01.1080p.WEB-DL-GRP" || in[0].Message == "" {
+		t.Fatalf("incidents %+v", in)
+	}
+	e.exec(`UPDATE playing_break SET fixed_by = 'replaced', new_release = 'Show.S01E02.2160p' WHERE link_id = 11`)
+	if in := e.tr.Incidents(); in[0].Status != "Replaced" || in[0].NewRelease != "Show.S01E02.2160p" {
+		t.Errorf("replaced %+v", in[0])
+	}
+	e.advance(25 * time.Hour)
+	if in := e.tr.Incidents(); len(in) != 0 {
+		t.Errorf("a day later %+v", in)
+	}
+	for _, c := range []struct{ settled, fixed, reported, want string }{
+		{"copy", "copy", "same_release", "Readable again"}, {"none", "", "unavailable", "No other copy"},
+		{"", "", "unavailable", "No other copy"}, {"restored", "replaced", "restored", "Earlier copy put back"},
+	} {
+		if _, got := incidentState(c.settled, c.fixed, c.reported); got != c.want {
+			t.Errorf("%+v: %s", c, got)
+		}
 	}
 }

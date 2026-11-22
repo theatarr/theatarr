@@ -22,6 +22,7 @@ import (
 // Session is one playback as /status/sessions reports it, with the selected media and part.
 type Session struct {
 	SessionKey       string
+	ID               string // the nested Session.id: what status/sessions/terminate takes (not SessionKey)
 	RatingKey        string
 	Type             string // movie, episode, track...
 	Title            string
@@ -81,8 +82,9 @@ type sessionJSON struct {
 		Relayed  bool   `json:"relayed"`
 	} `json:"Player"`
 	Session struct {
-		Bandwidth int64  `json:"bandwidth"`
-		Location  string `json:"location"`
+		ID        flexString `json:"id"`
+		Bandwidth int64      `json:"bandwidth"`
+		Location  string     `json:"location"`
 	} `json:"Session"`
 	Media []struct {
 		ID              flexString `json:"id"`
@@ -113,7 +115,8 @@ func (c *Client) Sessions(ctx context.Context) ([]Session, error) {
 		if err := json.Unmarshal(m, &j); err != nil {
 			return nil, fmt.Errorf("plex: /status/sessions: %w", err)
 		}
-		s := Session{SessionKey: string(j.SessionKey), RatingKey: string(j.RatingKey), Type: j.Type, Title: j.Title,
+		s := Session{SessionKey: string(j.SessionKey), ID: string(j.Session.ID), RatingKey: string(j.RatingKey),
+			Type: j.Type, Title: j.Title,
 			GrandparentTitle: j.GrandparentTitle, ParentIndex: j.ParentIndex, Index: j.Index, ViewOffset: j.ViewOffset,
 			Duration: j.Duration, UserID: string(j.User.ID), UserName: j.User.Title, Player: j.Player.Title,
 			Product: j.Player.Product, Platform: j.Player.Platform, State: j.Player.State, Local: j.Player.Local,
@@ -138,6 +141,18 @@ func (c *Client) Sessions(ctx context.Context) ([]Session, error) {
 		ss = append(ss, s)
 	}
 	return ss, nil
+}
+
+// Terminate stops a playback with a reason its player shows: GET /status/sessions/terminate?sessionId=…&reason=…,
+// the token in the header, through the gateway (docs/design/now-playing.md "Telling the viewer"). id is the session's
+// ID (Session.ID). Whether the server allows it (Plex Pass, the token's rights) and which players show the reason is
+// the server's.
+func (c *Client) Terminate(ctx context.Context, id, reason string) error {
+	if id == "" {
+		return fmt.Errorf("plex: terminate: no session id")
+	}
+	return c.call(ctx, http.MethodGet, "/status/sessions/terminate", url.Values{"sessionId": {id}, "reason": {reason}},
+		nil)
 }
 
 // partFile looks up a part's file (and size, when size is 0) in /library/metadata/<ratingKey>, by its media and part

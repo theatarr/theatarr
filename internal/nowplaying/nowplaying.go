@@ -94,6 +94,9 @@ type Options struct {
 	// reports whether the account now has it: added, or there complete (internal/torrents Manager.Copy). It is step 1
 	// of the repair of a file that broke while playing (rescue.go). nil: no step 1.
 	Copy func(ctx context.Context, hash, provider string) (bool, error)
+	// StopWithMessage says whether a playback of a confirmed broken file is stopped with a message its player shows
+	// (Plex's terminate; the Plex client must be a PlexStopper). nil: on. Off: nothing is ever sent to Plex.
+	StopWithMessage func() bool
 }
 
 // Tracker holds the current playbacks.
@@ -122,6 +125,10 @@ type Tracker struct {
 	settledAt time.Time
 	// comeBackAt is the sweep after which the old copies were last read (the worker's own).
 	comeBackAt time.Time
+	// pending are the messages owed to playbacks still advancing, by session key; refusedOnce: Plex's first refusal
+	// was logged.
+	pending     map[string]*pendingTell
+	refusedOnce bool
 	// sleep waits between the check's reads (tests make it advance a fake clock).
 	sleep func(ctx context.Context, d time.Duration) error
 }
@@ -255,7 +262,7 @@ func New(o Options) *Tracker {
 		o.PrewarmMaxSize = policy.DefaultPrewarmMaxSize
 	}
 	return &Tracker{o: o, wake: make(chan struct{}, 1), sess: map[string]*session{}, warmed: map[string]bool{},
-		cached: map[string]bool{}, quiet: map[int64]time.Time{}, sleep: realSleep}
+		cached: map[string]bool{}, quiet: map[int64]time.Time{}, pending: map[string]*pendingTell{}, sleep: realSleep}
 }
 
 // Run polls until ctx ends, and follows the notification websocket meanwhile.

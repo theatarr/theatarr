@@ -62,6 +62,7 @@ type Rescuer interface {
 	ReportPlaying(ctx context.Context, incident int64, kind string) error
 	SettlePlayingRuns(ctx context.Context) error
 	ForgetRelease(ctx context.Context, target string) error
+	PlayingMessage(ctx context.Context, incident int64, note string) error
 	LastSweep() time.Time
 	ComeBack(ctx context.Context) error
 }
@@ -84,6 +85,7 @@ type sign struct {
 type rescueStart struct {
 	check  *sign
 	settle bool
+	tell   *pendingTell
 }
 
 // eligible reports whether a playing file may be checked: a certain Theatarr symlink into the mount (Source.certain).
@@ -116,7 +118,17 @@ func (t *Tracker) noteSign(se *session, live bool, why string, now time.Time) {
 // liveSigns notes the signs of the open sessions (t.mu held): Plex's buffering verdict, and with zurg a blocked read
 // of the file in /stats or a broken-file or broken-link line about it in its log.
 func (t *Tracker) liveSigns(now time.Time) {
+	for k, p := range t.pending {
+		if se := t.sess[k]; se == nil || se.s.ID != p.j.s.ID {
+			delete(t.pending, k) // the playback ended: its message goes nowhere
+		}
+	}
 	for _, se := range t.sess {
+		if p := t.pending[se.s.SessionKey]; p != nil && (se.health.Verdict == "buffering" || t.blockedRead(se) ||
+			t.zurgBroken(se)) {
+			p.due = true // its next sign: the message it is owed, judged from here
+			p.j.s.ViewOffset = se.s.ViewOffset
+		}
 		switch {
 		case se.health.Verdict == "buffering":
 			t.noteSign(se, true, "buffering", now)
@@ -167,6 +179,13 @@ func (t *Tracker) nextRescue(now time.Time) *rescueStart {
 	if t.rescuing || t.rescuer() == nil {
 		return nil
 	}
+	for k, p := range t.pending {
+		if p.due {
+			delete(t.pending, k)
+			t.rescuing = true
+			return &rescueStart{tell: p}
+		}
+	}
 	i := slices.IndexFunc(t.signs, func(s sign) bool { return s.live })
 	if i < 0 && len(t.signs) > 0 {
 		i = 0
@@ -202,6 +221,10 @@ func (t *Tracker) runRescue(ctx context.Context, j *rescueStart) {
 	}()
 	lib := t.rescuer()
 	if lib == nil {
+		return
+	}
+	if j.tell != nil {
+		t.tell(ctx, &j.tell.j, j.tell.msg, j.tell.incident)
 		return
 	}
 	if j.settle {
@@ -447,7 +470,7 @@ func (t *Tracker) repair(ctx context.Context, lib Rescuer, j *sign, hash string,
 		return
 	} else if hit {
 		log.Info("nowplaying: a playing file stopped working; one was replaced for this title today already: left to the hourly sweep")
-		t.tell(ctx, j, msgLater)
+		t.tell(ctx, j, msgLater, 0)
 		return
 	}
 	if !lib.PlayingWritable(src.version) {
@@ -476,7 +499,7 @@ func (t *Tracker) repair(ctx context.Context, lib Rescuer, j *sign, hash string,
 		// The account is out and no other can be chosen (a client picks its own account): nothing is replaced.
 		log.Info("nowplaying: its account is out and the library has no other: nothing replaced")
 		t.settleNone(ctx, lib, id)
-		t.tell(ctx, j, msgLater)
+		t.tell(ctx, j, msgLater, id)
 		return
 	}
 	told := false
@@ -497,7 +520,7 @@ func (t *Tracker) repair(ctx context.Context, lib Rescuer, j *sign, hash string,
 		}
 	}
 	if !told {
-		t.tell(ctx, j, msgLooking)
+		t.tell(ctx, j, msgLooking, id)
 	}
 	n, err := lib.MarkBrokenPlaying(ctx, id, []library.PlayingFile{{LinkID: src.LinkID, Offset: off}}, true, failed)
 	if err != nil || n == 0 {
@@ -555,7 +578,7 @@ func (t *Tracker) sameRelease(ctx context.Context, lib Rescuer, j *sign, id int6
 			}
 			if !*told && t.o.Now().Sub(start) >= copyQuiet {
 				*told = true
-				t.tell(ctx, j, msgLooking)
+				t.tell(ctx, j, msgLooking, id)
 			}
 		}
 		if err := lib.PlayingMiss(ctx, id, []string{acct}); err != nil {
@@ -622,9 +645,75 @@ const (
 	msgLater   = "This file stopped working. Try again later."
 )
 
-// tell is the viewer's message (step 5).
-func (t *Tracker) tell(_ context.Context, j *sign, msg string) {
-	t.o.Logger.Debug("nowplaying: viewer message", "session", j.key, "message", msg)
+// PlexStopper is Plex's terminate call (plex.Client.Terminate): a playback stopped with a reason its player shows.
+type PlexStopper interface {
+	Terminate(ctx context.Context, id, reason string) error
+}
+
+// pendingTell is a message for a playback still advancing when it was due: it goes at the playback's next sign.
+type pendingTell struct {
+	j        sign
+	msg      string
+	incident int64
+	due      bool
+}
+
+// tell stops the playback of a confirmed broken file with msg (Options.StopWithMessage on, the default): only the same
+// playback (session id, viewer, item and part), read from Plex right before the call, and only when it is buffering or
+// its position has not moved since the sign, never when it is paused. One still advancing gets it at its next sign. No
+// session left: nothing is sent; Now playing and History show the incident. A refusal by Plex is logged once and kept
+// on the incident.
+func (t *Tracker) tell(ctx context.Context, j *sign, msg string, incident int64) {
+	if t.o.StopWithMessage != nil && !t.o.StopWithMessage() {
+		return
+	}
+	stopper, ok := t.o.Plex.(PlexStopper)
+	if !ok || j.s.ID == "" {
+		return
+	}
+	ss, err := t.o.Plex.Sessions(ctx)
+	if err != nil {
+		t.o.Logger.Info("nowplaying: Plex did not answer; the viewer is not told", "err", err)
+		return
+	}
+	var now *plex.Session
+	for i, s := range ss {
+		if s.SessionKey == j.key && s.ID == j.s.ID && s.UserID == j.s.UserID && s.RatingKey == j.s.RatingKey &&
+			s.File == j.s.File {
+			now = &ss[i]
+		}
+	}
+	switch {
+	case now == nil, now.State == "paused":
+		return
+	case now.State != "buffering" && now.ViewOffset > j.s.ViewOffset:
+		// Still advancing (what it has cached plays on): told at its next sign.
+		t.mu.Lock()
+		t.pending[j.key] = &pendingTell{j: *j, msg: msg, incident: incident}
+		t.mu.Unlock()
+		return
+	}
+	note := "the player was stopped with the message: " + msg
+	if err := stopper.Terminate(ctx, j.s.ID, msg); err != nil {
+		note = "Plex refused to stop the player: " + err.Error()
+		t.mu.Lock()
+		first := !t.refusedOnce
+		t.refusedOnce = true
+		t.mu.Unlock()
+		if first {
+			t.o.Logger.Warn("nowplaying: Plex refused to stop a broken stream with a message", "err", err)
+		} else {
+			t.o.Logger.Debug("nowplaying: Plex refused to stop a broken stream with a message", "err", err)
+		}
+	} else {
+		t.o.Logger.Info("nowplaying: a broken stream was stopped with a message", "user", j.s.UserName,
+			"player", j.s.Player, "message", msg)
+	}
+	if lib := t.rescuer(); lib != nil && incident != 0 {
+		if err := lib.PlayingMessage(ctx, incident, note); err != nil {
+			t.o.Logger.Debug("nowplaying: incident message not kept", "err", err)
+		}
+	}
 }
 
 // realSleep waits d or until ctx ends.
