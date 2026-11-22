@@ -78,8 +78,6 @@ func Fix(kind, name, at, class string) string {
 		}
 	case FixMetadata:
 		switch class {
-		case FailAuth:
-			return name + " refused the key: check it under " + Metadata
 		case FailCredential:
 			return "No " + name + " key is set: add one under " + Metadata
 		case FailConnectivity:

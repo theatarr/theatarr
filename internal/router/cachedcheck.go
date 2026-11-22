@@ -216,8 +216,8 @@ func (r *Router) pollNameRefused(ctx context.Context, x pollRow, t *provider.Tor
 	}
 	r.log.Warn(nr.Error()+"; a miss on "+x.pk+", the release is routed again", "download", x.id, "provider", x.pk,
 		"torrent", x.tid, "our_add", done)
-	queued, err := r.requeue(rctx, x, 0, nr.Error()+"; our add was "+done,
-		nr.Error()+"; our add was "+done+"; not blocklisted (no route queue)")
+	queued, err := r.requeue(rctx, x, nr.Error()+"; our add was "+done,
+		nr.Error()+"; our add was "+done+"; not blocklisted (no route queue)", true)
 	if err == nil && !queued {
 		sum.Failed++
 	}
@@ -238,8 +238,7 @@ func (r *Router) pollTooLarge(ctx context.Context, x pollRow, t *provider.Torren
 	why := "too big for " + x.pk + " (File too big.)"
 	r.log.Warn(why+"; a miss on "+x.pk+", the release is routed again", "download", x.id, "provider", x.pk, "torrent", x.tid)
 	// The magnet stays on the account, and its registry row with it: Torrents lists it until the owner clears it.
-	queued, err := r.requeueWith(rctx, x, x.reused, why+"; the release is routed again", why+"; not blocklisted (no route queue)",
-		false)
+	queued, err := r.requeue(rctx, x, why+"; the release is routed again", why+"; not blocklisted (no route queue)", false)
 	if err == nil && !queued {
 		sum.Failed++
 	}
@@ -259,8 +258,8 @@ func (r *Router) owedDeleted(ctx context.Context, x pollRow, now time.Time, sum 
 	}
 	r.log.Info("cached-only: uncached add deleted; the release is routed again, nothing blocklisted",
 		"download", x.id, "provider", x.pk, "torrent", x.tid)
-	queued, err := r.requeue(rctx, x, 0, "uncached on "+x.pk+"; our add was deleted and the release is routed again",
-		"uncached on "+x.pk+"; our add was deleted; not blocklisted (no route queue)")
+	queued, err := r.requeue(rctx, x, "uncached on "+x.pk+"; our add was deleted and the release is routed again",
+		"uncached on "+x.pk+"; our add was deleted; not blocklisted (no route queue)", true)
 	if err == nil && !queued {
 		sum.Failed++
 	}

@@ -20,8 +20,8 @@ import (
 // provider, its registry row is marked absent, and a route job resumes it with its own release (a fresh add, or a
 // reuse of another entry that holds the hash now). Without a job queue (a CLI poll) it fails, still unblocklisted.
 func (r *Router) requeueReused(ctx context.Context, x pollRow) error {
-	queued, err := r.requeue(ctx, x, 1, "the reused torrent "+x.tid+" left "+x.pk+"; the release is routed again",
-		"the reused torrent "+x.tid+" left "+x.pk+"; not blocklisted")
+	queued, err := r.requeue(ctx, x, "the reused torrent "+x.tid+" left "+x.pk+"; the release is routed again",
+		"the reused torrent "+x.tid+" left "+x.pk+"; not blocklisted", true)
 	if err != nil {
 		return err
 	}
@@ -35,15 +35,10 @@ func (r *Router) requeueReused(ctx context.Context, x pollRow) error {
 	return nil
 }
 
-// requeue puts download x, still on torrent x.tid and with download.reused as given, back to queued with no provider (why on the row), marks the
-// torrent's registry row absent, and queues a route job that resumes it with its own release; nothing is blocklisted.
+// requeue puts download x, still on torrent x.tid (and as reused as x says), back to queued with no provider (why on
+// the row), drops the torrent's registry row when drop is set (kept when the entry stays on the account), and queues a route job that resumes it with its own release; nothing is blocklisted.
 // Without a job queue (a CLI poll) it fails with failWhy, still unblocklisted, and reports false.
-func (r *Router) requeue(ctx context.Context, x pollRow, reused int, why, failWhy string) (bool, error) {
-	return r.requeueWith(ctx, x, reused, why, failWhy, true)
-}
-
-// requeueWith is requeue; with drop false the torrent's registry row is kept (the entry is still on the account).
-func (r *Router) requeueWith(ctx context.Context, x pollRow, reused int, why, failWhy string, drop bool) (bool, error) {
+func (r *Router) requeue(ctx context.Context, x pollRow, why, failWhy string, drop bool) (bool, error) {
 	req, err := r.requestOf(ctx, x.id)
 	if err != nil {
 		return false, err
@@ -58,7 +53,7 @@ func (r *Router) requeueWith(ctx context.Context, x pollRow, reused int, why, fa
 			files_selected = 0, selected_at = NULL, reused = 0, own_add = NULL, added_at = NULL, cached_check = NULL,
 			missing_polls = 0, missing_since = NULL, poll_errors = 0, poll_error_since = NULL, poll_outage_since = NULL,
 			stall_offset = 0, error = ?, updated_at = ? WHERE id = ? AND reused = ? AND state IN ('added', 'downloading')
-			AND provider = ? AND provider_torrent_id = ?`, why, now, x.id, reused, x.pk, x.tid)
+			AND provider = ? AND provider_torrent_id = ?`, why, now, x.id, x.reused, x.pk, x.tid)
 		if err != nil {
 			return err
 		}

@@ -716,3 +716,26 @@ func TestSettingsNotifyAuthHeaderEnvNotStored(t *testing.T) {
 		t.Errorf("stored header changed: %+v", h)
 	}
 }
+
+// The record-owned *_env fields (indexers[*].api_key_env, providers[*].api_key_env, views[*].api_key_env) are not
+// section fields: a record's config or a view's body refuses them whole, and a value pasted there is never echoed.
+func TestSettingsRecordEnvFieldsRefused(t *testing.T) {
+	t.Parallel()
+	const pasted = "PastedRecordKey0123456789"
+	se := seededSectionsEnvBase(t, nil)
+	for _, c := range []struct{ method, path string }{{"POST", "/indexers"}, {"POST", "/providers"}} {
+		got := se.call(c.method, c.path, map[string]any{"generation": se.generation(), "key": "pasted", "enabled": false,
+			"config": map[string]any{"kind": "torznab", "url": "https://example.invalid/api", "api_key_env": pasted}})
+		if got.Code < 400 || got.Code >= 500 || strings.Contains(got.Body.String(), "PastedRecord") {
+			t.Errorf("%s %s: %d %s", c.method, c.path, got.Code, got.Body)
+		}
+	}
+	got := se.call("POST", "/view-bindings", map[string]any{"generation": se.generation(), "key": "pasted", "flavour": "radarr",
+		"path": "/pasted", "api_key": "abc", "api_key_env": pasted})
+	if got.Code < 400 || got.Code >= 500 || strings.Contains(got.Body.String(), "PastedRecord") {
+		t.Errorf("view: %d %s", got.Code, got.Body)
+	}
+	if strings.Contains(se.logs.String(), "PastedRecord") {
+		t.Error("log shows the pasted value")
+	}
+}
