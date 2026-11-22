@@ -8,7 +8,7 @@ import schema from "@/components/settings/testdata/schema.json";
 import { TorrentsPage } from "./torrents";
 import { SettingsPage } from "./settings/pages";
 import { overview } from "@/components/settings/fixtures";
-import { fmtTime } from "@/lib/format";
+import { fmtAgo, fmtTime } from "@/lib/format";
 
 function Where() { return <output data-testid="where">{useLocation().search}</output>; }
 const h1 = "1".repeat(40);
@@ -233,6 +233,42 @@ describe("torrents page", () => {
     fireEvent.click(screen.getByTestId("group-several_accounts"));
     expect(screen.getAllByTestId("torrent-row")).toHaveLength(1);
     expect(screen.getByText("Dup.ad.13")).toBeTruthy();
+  });
+
+  it("on a phone gives a row its state, progress and age, which hide with their columns (F14)", async () => {
+    const stalled = torrent("3", "3".repeat(40), "South.Park.S27E01", "unused", { state: "downloading", status: "queued", progress: 0, added: "2026-11-01T00:00:00Z" });
+    mockFetch([
+      { method: "GET", path: "/torrents/report", reply: { ...report, providers: [{ ...report.providers[0], torrents: [stalled] }] } },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [] } },
+      { method: "GET", path: "/status", reply: { versions: [] } },
+    ]);
+    renderPage(<TorrentsPage />);
+    const row = (await screen.findByText("South.Park.S27E01")).closest("tr") as HTMLElement;
+    const state = within(row).getByTestId("torrent-phone-state");
+    expect(state.textContent).toContain("Downloading 0%");
+    expect(state.className.split(/\s+/)).toContain("md:hidden");
+    const age = within(row).getByTestId("torrent-phone-added");
+    expect(age.textContent).toContain(`added ${fmtAgo("2026-11-01T00:00:00Z")}`);
+    expect(age.className.split(/\s+/)).toContain("sm:hidden");
+  });
+
+  it("on a phone puts a journal row's time and outcome above its full-width release and detail (F15)", async () => {
+    mockFetch([
+      { method: "GET", path: "/torrents/report", reply: report },
+      { method: "GET", path: "/torrents/journal", reply: { entries: [
+        { id: 3, action: "copy", outcome: "not_cached", provider: "ad", name: "House.of.the.Dragon.S02.2160p.WEB-DL", detail: "not cached on AllDebrid", by: "admin", at: "2026-10-29T12:00:00Z" },
+      ] } },
+    ]);
+    renderPage(<TorrentsPage />);
+    const row = (await screen.findByText("House.of.the.Dragon.S02.2160p.WEB-DL")).closest("tr") as HTMLElement;
+    const cells = within(row).getAllByRole("cell");
+    // Time and outcome have their own columns from 640 px only; below, they head the release's cell.
+    for (const c of cells.slice(0, 2)) expect(c.className.split(/\s+/)).toContain("hidden");
+    const head = within(row).getByTestId("torrent-journal-phone-head");
+    expect(head.className.split(/\s+/)).toContain("sm:hidden");
+    expect(head.textContent).toContain(fmtTime("2026-10-29T12:00:00Z"));
+    expect(head.textContent).toContain("Not cached");
+    expect(head.closest("td")?.textContent).toContain("House.of.the.Dragon.S02.2160p.WEB-DL");
   });
 
   it("names an API key in the journal as one, and counts torrents with their plural", async () => {

@@ -437,8 +437,11 @@ function TorrentRow({ t, checked, onToggle, code }: { t: Torrent; checked: boole
           {/* From 640 px two lines at most: a parsed list of 291 episodes would make the row a page tall; the whole is the
               tooltip. On a phone (no hover) name and line wrap in full, with the whole hash, so two copies differ. */}
           <div className="text-xs text-muted-foreground [overflow-wrap:anywhere] sm:line-clamp-2" title={t.parsed || undefined} data-testid="torrent-second-line">
-            {/* Below 640 px the size sits here, not in its column, so the table fits a phone. */}
+            {/* Below 640 px the size and age sit here, not in their columns, so the table fits a phone; below 768 px the
+                state too (its Status column is hidden), so a stalled torrent can be judged before acting on it. */}
             <span className="sm:hidden">{fmtBytes(t.bytes)} · </span>
+            {t.added ? <span className="sm:hidden" data-testid="torrent-phone-added">added {fmtAgo(t.added)} · </span> : null}
+            <span className="md:hidden" data-testid="torrent-phone-state">{torrentStateWords(t.state, t.progress)} · </span>
             {t.parsed ? `${t.parsed}${t.quality ? ` · ${t.quality}` : ""} · ` : ""}<span className="font-mono text-[12.5px] break-all sm:hidden" data-testid="torrent-hash-full">{t.hash}</span><span className="hidden font-mono text-[12.5px] sm:inline" title={t.hash} data-testid="torrent-hash">{t.hash.slice(0, 12)}</span>
             {t.files >= 0 ? ` · ${t.files} file${t.files === 1 ? "" : "s"}` : ""}
             {t.added_by_theatarr ? " · added by Theatarr" : ""}
@@ -481,6 +484,10 @@ function TorrentRow({ t, checked, onToggle, code }: { t: Torrent; checked: boole
       ) : null}
     </>
   );
+}
+
+function JournalOutcome({ e }: { e: { action: string; outcome: string } }) {
+  return <Badge tone={e.outcome === "failed" ? "negative" : "neutral"} title={`${e.action} ${e.outcome}`}>{torrentJournalWords(e.action, e.outcome)}</Badge>;
 }
 
 /** Each account's part of the record: its counts with their units and the time it was read ("as of"), "Not read yet"
@@ -554,9 +561,11 @@ function JournalSection() {
               <TableBody>
                 {(q.data?.entries ?? []).map((e) => (
                   <TableRow key={e.id}>
-                    <TableCell className="whitespace-nowrap">{fmtTime(e.at)}</TableCell>
-                    <TableCell><Badge tone={e.outcome === "failed" ? "negative" : "neutral"} title={`${e.action} ${e.outcome}`}>{torrentJournalWords(e.action, e.outcome)}</Badge></TableCell>
-                    <TableCell className="text-[13px] [overflow-wrap:anywhere]">{e.provider ? <ProviderTag account={e.provider} className="mr-1 font-medium" /> : null}{e.name || e.hash || (e.backup_id ? <span title={e.backup_id}>Backup</span> : null)}{e.detail ? <div className="text-xs text-muted-foreground">{torrentJournalDetail(e.detail)}</div> : null}</TableCell>
+                    <TableCell className="hidden whitespace-nowrap sm:table-cell">{fmtTime(e.at)}</TableCell>
+                    <TableCell className="hidden sm:table-cell"><JournalOutcome e={e} /></TableCell>
+                    {/* On a phone the time and outcome head the release's cell, so the release and detail get the row's
+                        width (as History's cards). */}
+                    <TableCell className="text-[13px] [overflow-wrap:anywhere]"><div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1 sm:hidden" data-testid="torrent-journal-phone-head"><span className="whitespace-nowrap text-xs text-muted-foreground">{fmtTime(e.at)}</span><JournalOutcome e={e} /></div>{e.provider ? <ProviderTag account={e.provider} className="mr-1 font-medium" /> : null}{e.name || e.hash || (e.backup_id ? <span title={e.backup_id}>Backup</span> : null)}{e.detail ? <div className="text-xs text-muted-foreground">{torrentJournalDetail(e.detail)}</div> : null}</TableCell>
                     <TableCell className="hidden whitespace-nowrap md:table-cell">{torrentJournalBy(e.by)}</TableCell>
                   </TableRow>
                 ))}
