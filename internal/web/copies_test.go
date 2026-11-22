@@ -336,6 +336,16 @@ func TestBulkMonitor(t *testing.T) {
 	if out.Changed != 1 || out.Message != "Monitored 1 copy in 1 library" {
 		t.Errorf("monitor one: %+v", out)
 	}
+	// A film row of Wanted unmonitors its own library's copy only (the row's Unmonitor): the other library keeps
+	// wanting the film.
+	e.exec(`UPDATE version SET monitored = 1 WHERE id = 2`)
+	e.call("POST", APIBase+"/titles/monitor", BulkMonitorRequest{TitleIDs: []int64{1}, Versions: []string{"movie-remux"},
+		Monitored: &f}, 200, &out)
+	e.st.Reader().QueryRow(`SELECT (SELECT monitored FROM version WHERE id = 1), (SELECT monitored FROM version WHERE id = 2),
+		(SELECT monitored FROM title WHERE id = 1)`).Scan(&remux, &web, &alpha)
+	if out.Changed != 1 || remux != 0 || web != 1 || alpha != 1 {
+		t.Errorf("unmonitor one copy: %+v, remux %d web %d title %d", out, remux, web, alpha)
+	}
 
 	for _, body := range []any{
 		map[string]any{"title_ids": []int64{1}},
