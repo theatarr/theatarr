@@ -839,27 +839,34 @@ the new link overwrites anything): content file, download, file facts, the adopt
 release, quality, score, and the link that took its place (link id, path, target, download). A replacement made
 before 00152 has no snapshot and gets no Undo; nor does one whose trash copy was purged.
 
-- **Offered** (History's `undo`, managers only) when the snapshot exists, the recorded successor still holds the
-  slot (its row active at its path and target, and no active link at the earlier path), and the earlier file is on
-  the mount (a stat). No quality comparison and no wrong-audio check (the owner's choice, as Manual import); it does
+- **Offered** (History's `undo`, managers only; one query for a page's replaced files) when the snapshot exists, the
+  recorded successor still holds the slot (the same row at its path and target, holding the same download's file, in
+  the same library, active or dead: a dead one still owns the slot, and Undo helps most then; no active link at the
+  earlier path), no other active file of the library holds the film or an episode of the earlier file (more than one
+  file took its place: a one-file Undo would leave two files on one episode), and the earlier file is on the mount (a
+  stat, its size not zero). No quality comparison and no wrong-audio check (the owner's choice, as Manual import); it does
   not wait for a player.
 - **A return** builds a plan of one link (the earlier path, mount target and episodes; no download row) and writes it
   through `installLinks`; no other library, no blocklist from a failure, no retry, no search. Under the leases it
   checks, else refuses with one sentence and changes nothing: the successor still holds the slot ("The library
-  changed since; nothing was undone"); no other library shares either path ("That library path is shared with
+  changed since; nothing was undone"); it alone took the earlier file's place ("More than one file took the earlier
+  file's place; nothing was undone"); no other library shares either path ("That library path is shared with
   another copy"); the successor holds no episode the earlier file does not ("The current file also holds episode 4;
   the earlier file holds only episode 3"); one piece of the earlier file reads through the mount ("The earlier file
   is no longer available"). The row is restored exactly from the snapshot (an adopted film keeps its row and every
-  adoption fact); the successor moves to the trash as an upgrade's file would. Any failure, in a link step or the
-  commit, takes back every symlink change and the trash copies it made, and leaves no row (`TestUndoFailedWriteRollsBack`).
-- After it, the undone release is blocked in that library (`router_blocklist`, source library) and marked researched,
-  so no search starts. Its actions' details start "upgrade undone by <who>": History shows one "Upgrade undone" row
+  adoption fact); the successor moves to the trash as an upgrade's file would. Any failure, in a link step, the commit
+  or a cancelled request, takes back every symlink change and the trash copies it made, and leaves no row
+  (`TestUndoFailedWriteRollsBack`, `TestUndoFailureLeavesNothing`).
+- After it, the undone release is blocked in that library (`router_blocklist`, source `undo:<who>`: Activity ›
+  Blocklist says "Upgrade undone by <who>") and marked researched, so no search starts; a pending import of its
+  download in that library (a partial one waiting for its retry) ends as imported, so no retry links it again (what it
+  did not link is wanted and searched the ordinary way). Torrents and Sources are worked out again at once. Its actions' details start "upgrade undone by <who>": History shows one "Upgrade undone" row
   (event `undone`) with the undone release, never "Removed"; the journal labels both actions "Upgrade undone".
 - A replacement of a gone (dead) file by a lower quality is no upgrade: its replace action's detail ends "its file
   was gone, and a lower quality took its place", History says "Replaced" and the journal "Replaced", and the journal
   kind is `grab`. The journal's `upgrade` kind is a download whose import replaced any other file (an adopted file's
-  replacement too), or, before its import replaced anything, one with an earlier import of its episodes
-  (`store.HistoryGrabKindSQL`).
+  replacement too), or one still on its way (not imported, not failed) with an earlier import of its episodes; a
+  failed grab is never one (`store.HistoryGrabKindSQL`).
 
 ## Relink and verify
 
@@ -992,13 +999,16 @@ before 00152 has no snapshot and gets no Undo; nor does one whose trash copy was
     (its own aged out long ago). Nothing is deleted on any account.
   - **Put back.** A replaced copy that read twice is instead put back in place of the one file of its library that
     holds its film or episodes now (`putback.go`, through the same return as Undo: "Undo an upgrade"), with its row's
-    own saved facts, when all hold: the library does not prefer SeaDex; it wins strictly under today's profile
-    (`ImportUpgrade` accepts it over the current file and refuses the current file over it; a tie, an unknown quality
-    or any error keeps it aside); today's profile still allows its quality and its format score reaches the minimum;
-    the wrong-audio rule would not refuse it over the current file; and the return's own checks pass. It waits for a
-    later sweep, settling nothing, while Pause is on or the library does not write, while the incident's search is
-    open, while the replacement is being played (a session's link or target) or while Plex has not answered lately
-    (the now playing tracker off, or its last poll failed or is over two minutes old). Then the row is settled
+    own saved facts, when all hold: the library does not prefer SeaDex; neither file's quality is unknown (none, or
+    Unknown); it wins strictly under today's profile (`ImportUpgrade` accepts it over the current file and refuses the
+    current file over it; a tie or any error keeps it aside); today's profile still allows its quality and its format
+    score reaches the minimum; the wrong-audio rule, as an import applies it (its saved probe read as a fresh one, an
+    untagged track saying nothing; the held file's stored audio), would not refuse it over the current file; and the
+    return's own checks pass. It waits for a later sweep, settling nothing, while Pause is on or the library does not
+    write, while the incident's search is open, while the replacement is being played (a session's link or target),
+    while a session of the title does not say which file it plays (Plex lists several media or parts, or the file is
+    not Theatarr's for certain), or while Plex has not answered lately (the now playing tracker off, or its last poll
+    failed or is over two minutes old; `Tracker.Playing`). Then the row is settled
     `restored`, the miss lifted, and the outcome `restored` ("Earlier copy put back") is sent once by its own
     transition (ReportPlaying would send nothing after "replaced"). Its actions' details start "earlier copy put
     back": the journal says so, and History has the playing row only, no "Removed". No blocklist, no search, no

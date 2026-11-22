@@ -179,7 +179,8 @@ broke while playing is searched at once").
   ended, the old copy read again) is the library's own maintenance (`docs/design/library.md`), never this worker's,
   so it goes on with now playing off or Plex not answering, and no check or message waits behind it. The one
   exception: an old copy that wins over its replacement is put back only while the tracker's last poll of Plex
-  answered within two minutes and no session plays the replacement (its link or target); else a later sweep
+  answered within two minutes, no session plays the replacement (its link or target) and no session of the title
+  leaves its file unsaid (`Tracker.Playing`, which does not speed up the poll); else a later sweep
   (`docs/design/library.md` "Put back"). Its outcome is `restored`: "Earlier copy put back".
 - **The reads** (`Library.ReadPiece`): 256 KiB through the mount, never from a provider, at the play position plus
   64 MiB but never into the second half of what is left (players read the tail on open, so it is cached), with a 15 s
