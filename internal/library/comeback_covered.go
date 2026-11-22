@@ -72,7 +72,9 @@ func (l *Library) settleAside(ctx context.Context, r returned, words string) err
 		return err
 	}
 	now := store.Millis(l.now())
-	relink := action{Kind: "relink", Version: r.version, LinkID: r.linkID, Path: r.path, Target: r.old, Detail: words}
+	// The incident's title: the link id may be the replacement's now.
+	relink := action{Kind: "relink", Version: r.version, LinkID: r.linkID, Path: r.path, Target: r.old, Detail: words,
+		Rel: relFacts{TitleID: r.titleID}}
 	settle := func(tx *sql.Tx) error { return settleReturnTx(ctx, tx, r.id, r.hash, "aside", now) }
 	var dead bool
 	if err := l.st.Reader().QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM link WHERE id = ? AND path = ?

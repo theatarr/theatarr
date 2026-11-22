@@ -1293,3 +1293,25 @@ func TestJournalPlayingSearchLabel(t *testing.T) {
 		t.Errorf("playing search: %q %q", g.Label, g.Summary)
 	}
 }
+
+// The Decision Journal calls a copy that broke while playing and was kept aside "Kept aside", with the reason only:
+// the trash path stays in the detail.
+func TestJournalKeptAside(t *testing.T) {
+	e := newEnv(t)
+	e.seedRoute()
+	at := time.Date(2026, 11, 21, 20, 0, 0, 0, time.UTC)
+	e.exec(`INSERT INTO library_action (id, at, kind, mode, version_key, link_id, path, target, detail, title_id) VALUES
+		(1, ?, 'relink', 'applied', 'movie-remux', 7, '/movies/Alpha (2020)/Alpha.mkv', '/zurg/__all__/A/a.mkv',
+			'the earlier copy works again; kept aside; its dead link moved to the trash at /trash/Alpha.mkv', 1),
+		(2, ?, 'relink', 'applied', 'movie-remux', 7, '/movies/Alpha (2020)/Alpha.mkv', '/zurg/__all__/A/a.mkv',
+			'not checked again after 30 days; kept aside', 1)`, msOf(at), msOf(at.Add(time.Hour)))
+	for id, want := range map[string]string{
+		"lib:1": "Kept aside Alpha.mkv · the earlier copy works again",
+		"lib:2": "Kept aside Alpha.mkv · not checked again after 30 days",
+	} {
+		g := e.get(id)
+		if g.Label != "Kept aside" || g.Summary != want || g.Title.ID != 1 {
+			t.Errorf("%s: %q %q (title %d)", id, g.Label, g.Summary, g.Title.ID)
+		}
+	}
+}

@@ -897,6 +897,11 @@ func (b *builder) libWords(e *Entry, id int64, kind, mode, path, detail string, 
 			e.Summary = join("Removed "+name, b.plain(detail))
 		}
 		return b.unlinkAction(e, path)
+	case kind == "relink" && strings.Contains(detail, "; kept aside"):
+		// A copy that broke while playing, kept aside (library ComeBack): the reason only; a trash path stays in the
+		// detail.
+		why, _, _ := strings.Cut(detail, "; kept aside")
+		e.Label, e.Summary = "Kept aside", join("Kept aside "+name, b.plain(why))
 	case kind == "relink":
 		e.Label, e.Summary = "Relinked", join("Relinked "+name, b.plain(detail))
 	case kind == "dead":

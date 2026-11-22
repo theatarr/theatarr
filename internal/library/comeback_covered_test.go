@@ -127,6 +127,9 @@ func TestComeBackKeepsReplacedCopyAside(t *testing.T) {
 				if got := c.one(`SELECT COUNT(*) FROM history WHERE event = 'removed'`); got != "0" {
 					t.Errorf("same path %v, %s: %s removed rows", samePath, name, got)
 				}
+				if got := c.one(`SELECT COALESCE(title_id, 0) FROM library_action ORDER BY id DESC LIMIT 1`); got != "1" {
+					t.Errorf("same path %v, %s: the action names title %s", samePath, name, got)
+				}
 				if len(c.kinds()) != 0 {
 					t.Errorf("same path %v, %s: outcomes %v", samePath, name, c.kinds())
 				}
