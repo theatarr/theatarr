@@ -829,6 +829,10 @@ func Accounts(accounts func(ctx context.Context) map[string]AccountSource, o Acc
 			switch a := r.account; {
 			case errors.Is(r.err, provider.ErrAuth):
 				t, line = Error, uipages.Fix(uipages.FixProvider, uipages.ProviderName(k), "", uipages.FailAuth)
+				d["advice"] = line
+			case heldBack(r.err):
+				// Theatarr's own gateway did not send the read (a request budget, a back-off): no network fault.
+				t, line = Warning, name+": account not readable ("+short(r.err.Error())+")"
 			case r.err != nil:
 				class := uipages.FailConnectivity
 				if errors.Is(r.err, context.DeadlineExceeded) {
@@ -837,6 +841,7 @@ func Accounts(accounts func(ctx context.Context) map[string]AccountSource, o Acc
 					class = uipages.FailHTTP
 				}
 				t, line = Warning, uipages.Fix(uipages.FixProvider, uipages.ProviderName(k), "", class)
+				d["advice"] = line // Status' Needs attention shows the same sentence
 			case !a.Expires.IsZero() && !a.Expires.After(now):
 				t, line = Error, name+": premium ended "+day(a.Expires, now)
 			case !a.Premium:
@@ -877,6 +882,13 @@ func Accounts(accounts func(ctx context.Context) map[string]AccountSource, o Acc
 		return Result{Type: typ, Detail: detail, Message: "Debrid account needs attention: " + strings.Join(issues, "; "),
 			Replayed: replayed}
 	}
+}
+
+// heldBack reports whether err is Theatarr's own gateway refusing to send a request (a budget, a back-off, the VPN
+// guard), not an answer or a network failure.
+func heldBack(err error) bool {
+	refused := (*gateway.Refused)(nil)
+	return errors.As(err, &refused) && !refused.Sent && refused.Reason != gateway.ReasonTooLarge
 }
 
 // Indexers checks the gateway's view of the policy's indexers (the arrs' IndexerStatusCheck): indexers in a back-off

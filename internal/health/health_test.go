@@ -516,6 +516,18 @@ func TestAccounts(t *testing.T) {
 			t.Errorf("%s: %s %q, want %s %q", tc.name, r.Type, r.Message, tc.typ, tc.msg)
 		}
 	}
+	// A read held back by Theatarr's own request budget is no network fault: its earlier words, no network advice.
+	held := &fakeAccount{err: &gateway.Refused{Reason: gateway.ReasonBudget, Target: "provider:tb", Detail: "hourly cap"}}
+	if r := run(map[string]AccountReader{"tb": held}); r.Type != Warning ||
+		!strings.HasPrefix(r.Message, "Debrid account needs attention: TB: account not readable (gateway: budget exhausted") ||
+		strings.Contains(r.Message, "network") {
+		t.Errorf("budget hold: %q", r.Message)
+	}
+	// Status' Needs attention reads the same sentence as the check (detail advice).
+	if r := run(map[string]AccountReader{"tb": down}); r.Detail.(map[string]any)["tb"].(map[string]any)["advice"] !=
+		"TorBox cannot be reached: check this server's network and VPN" {
+		t.Errorf("down advice: %+v", r.Detail)
+	}
 	// The detail says which account refused its key (Status keeps the advice to check the key for it only).
 	r := run(map[string]AccountReader{"rd": refused, "tb": down})
 	d, _ := r.Detail.(map[string]any)
