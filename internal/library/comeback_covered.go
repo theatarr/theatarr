@@ -59,7 +59,7 @@ func (l *Library) asideOldReplaced(ctx context.Context) error {
 // symlink was deleted by hand is found by ComeBack before its read: settleUnread.) The release's miss
 // stays (nothing was read); no action is recorded (the removal is the person's own).
 func (l *Library) settleGone(ctx context.Context) error {
-	_, err := l.st.Writer().ExecContext(ctx, `UPDATE playing_break SET settled = 'aside', updated_at = ?
+	_, err := l.st.Writer().ExecContext(ctx, `UPDATE playing_break SET `+settleUnreadSet+`
 		WHERE settled = '' AND (NOT EXISTS (SELECT 1 FROM version v WHERE v.title_id = playing_break.title_id
 			AND v.policy_key = playing_break.version_key
 			AND NOT EXISTS (SELECT 1 FROM arrview_removed_version rv WHERE rv.version_id = v.id))
@@ -76,10 +76,19 @@ func (l *Library) settleGone(ctx context.Context) error {
 
 // settleUnread settles one open row aside, unread and with nothing else done (settleGone's end for one row).
 func (l *Library) settleUnread(ctx context.Context, id int64) error {
-	_, err := l.st.Writer().ExecContext(ctx, `UPDATE playing_break SET settled = 'aside', updated_at = ?
+	_, err := l.st.Writer().ExecContext(ctx, `UPDATE playing_break SET `+settleUnreadSet+`
 		WHERE id = ? AND settled = ''`, store.Millis(l.now()), id)
 	return err
 }
+
+// settleUnreadSet settles a row aside unread; a watched row whose outcome was not sent yet is noted removed from the
+// library (reported "removed": no outcome is sent, and Now playing says so), and the settle pass still queues its
+// release's other files' search.
+const settleUnreadSet = `settled = 'aside', updated_at = ?,
+	reported = CASE WHEN watched = 1 AND reported = '' THEN '` + playingRemoved + `' ELSE reported END`
+
+// playingRemoved is the reported value of a watched row settled unread because it left the library.
+const playingRemoved = "removed"
 
 // settleAside settles a row aside with one action, a relink in the words given, and lifts the release's miss (none
 // for a row without a hash, as an expired row is given). A dead

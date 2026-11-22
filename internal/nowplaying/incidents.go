@@ -27,7 +27,7 @@ type Incident struct {
 	Files    int      `json:"files,omitempty"`
 	Viewer   string   `json:"viewer,omitempty"`
 	Player   string   `json:"player,omitempty"`
-	// State is looking, replaced, readable, unavailable or restored; Status says it in words.
+	// State is looking, replaced, readable, unavailable, removed or restored; Status says it in words.
 	State      string `json:"state"`
 	Status     string `json:"status"`
 	OldRelease string `json:"old_release,omitempty"`
@@ -42,6 +42,8 @@ func incidentState(settled, fixed, reported string) (string, string) {
 	switch {
 	case settled == "restored":
 		return "restored", "Earlier copy put back"
+	case reported == "removed": // removed from the library before its search ended: nothing more is done for it
+		return "removed", "Removed from the library"
 	case settled == "copy" || settled == "revived":
 		return "readable", "Readable again"
 	case fixed == "replaced":

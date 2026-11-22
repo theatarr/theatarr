@@ -151,9 +151,10 @@ func playingFixedTx(ctx context.Context, tx *sql.Tx, titleID, versionID int64, v
 }
 
 // playingSearchOpenSQL is an incident's search still open, on its watched row pb: marked dead and searched, not
-// settled (or revived by the come-back while its search was open), and its outcome not sent yet or its other broken
-// files' search not queued yet. The settle pass works on these; a copy is not kept aside while its incident's is.
-const playingSearchOpenSQL = `pb.watched = 1 AND pb.settled IN ('', 'revived') AND pb.searched = 1
+// settled (or revived by the come-back while its search was open, or removed from the library: settleUnreadSet), and
+// its outcome not sent yet or its other broken files' search not queued yet. The settle pass works on these; a copy is not kept aside while its incident's is.
+const playingSearchOpenSQL = `pb.watched = 1 AND (pb.settled IN ('', 'revived') OR pb.reported = '` + playingRemoved + `')
+	AND pb.searched = 1
 	AND (pb.reported = '' OR EXISTS (SELECT 1 FROM playing_break s WHERE s.incident = pb.id AND s.settled = ''
 		AND s.searched = 0))`
 

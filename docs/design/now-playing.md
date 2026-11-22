@@ -233,7 +233,8 @@ broke while playing is searched at once").
 - **Incidents.** `Tracker.Incidents` lists the last 24 hours' incidents (title, episodes, how many files, viewer,
   player, the old and new release, what the player was told) as "Looking for another copy", "Replaced with another
   release", "Readable again" or "No other copy yet" (with ": the debrid account did not answer" when its account was
-  found out; no account named, as History says it). `GET /nowplaying` carries them as
+  found out; no account named, as History says it), or "Removed from the library" when the watched copy was removed
+  before its search ended (no outcome is sent for it). `GET /nowplaying` carries them as
   `incidents` (absent when none; see "Who sees what"), and the page lists them under "Files that stopped working".
 - **Where the outcome goes** (`cmd/theatarr/serveplaying.go`). Serve sets one `OnPlayingOutcome` hook on the startup
   library (its fallback copy for imports keeps it through `WithPolicy`) and on each settings generation's library: it writes the title's

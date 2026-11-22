@@ -1493,3 +1493,10 @@ func TestIncidentsOutage(t *testing.T) {
 		t.Errorf("incidents %+v", in)
 	}
 }
+
+// A watched copy removed from the library before its search ended has its own plain state.
+func TestIncidentStateRemoved(t *testing.T) {
+	if state, words := incidentState("aside", "", "removed"); state != "removed" || words != "Removed from the library" {
+		t.Errorf("%s %s", state, words)
+	}
+}

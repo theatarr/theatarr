@@ -494,3 +494,38 @@ func TestComeBackSettlesRemovedSymlinkUnread(t *testing.T) {
 		t.Errorf("got %s", got)
 	}
 }
+
+// The watched copy removed by hand before its search ended: its row is settled unread as removed from the library
+// (no outcome, no History row), and the settle pass still queues the search of its release's other broken file.
+func TestComeBackWatchedRemovedStillSearchesSiblings(t *testing.T) {
+	e := playingEnv(t)
+	var got []outcome.Outcome
+	e.lib.OnPlayingOutcome(func(o outcome.Outcome) { got = append(got, o) })
+	id, err := e.lib.OpenPlayingIncident(e.ctx, PlayingIncident{TitleID: 2, Version: "tv"}, PlayingFile{LinkID: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := e.lib.MarkBrokenPlaying(e.ctx, id, PlayingFile{LinkID: 1, Target: e.linkTarget(1)}, true, nil); err != nil || !ok {
+		t.Fatalf("marked %v: %v", ok, err)
+	}
+	if ok, err := e.lib.MarkBrokenPlaying(e.ctx, id, PlayingFile{LinkID: 2, Target: e.linkTarget(2)}, false, nil); err != nil || !ok {
+		t.Fatalf("sibling %v: %v", ok, err)
+	}
+	e.exec(`UPDATE link SET state = 'unlinked' WHERE id = 1`) // removed with its files kept
+	if err := e.lib.ComeBack(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.one(`SELECT settled || ' ' || reported FROM playing_break WHERE id = ?`, id); got != "aside removed" {
+		t.Fatalf("watched row %s", got)
+	}
+	e.exec(`UPDATE job SET state = 'done'`)
+	if err := e.lib.SettlePlayingRuns(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if jobs := e.playingJobs(); len(jobs) != 2 || fmt.Sprint(jobs[1].Episodes) != "[202]" {
+		t.Errorf("searches %+v", jobs)
+	}
+	if len(got) != 0 {
+		t.Errorf("outcomes %+v", got)
+	}
+}
