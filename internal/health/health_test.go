@@ -267,10 +267,15 @@ func TestProviders(t *testing.T) {
 	now := func() time.Time { return t0 }
 	f := Providers(st, ProviderOptions{Providers: []string{"rd", "tb"}, Interval: time.Hour, Now: now})
 	// The check reads the sync's log and asks no provider: it says what the sync did, never "reachable".
-	if r := f(ctx); r.Type != OK || r.Message != "Last sync worked: RD, TB" {
+	if r := f(ctx); r.Type != OK || r.Message != "No sync recorded yet: RD, TB" {
 		t.Errorf("never synced: %+v", r)
 	}
 	at := store.Millis(t0.Add(-10 * time.Minute))
+	exec(t, st, `INSERT INTO provider_sync_run (provider, started_at, finished_at, ok, error) VALUES ('rd', ?, ?, 1, NULL)`, at, at)
+	if r := f(ctx); r.Type != OK || r.Message != "Last sync worked: RD; no sync recorded yet: TB" {
+		t.Errorf("one synced: %+v", r)
+	}
+	exec(t, st, `DELETE FROM provider_sync_run`)
 	exec(t, st, `INSERT INTO provider_sync_run (provider, started_at, finished_at, ok, error) VALUES
 		('rd', ?, ?, 1, NULL), ('tb', ?, ?, 0, 'tb: 401 unauthorized')`, at, at, at, at)
 	if r := f(ctx); r.Type != Warning || r.Message != "Debrid provider sync failing: TB: 401 unauthorized" {

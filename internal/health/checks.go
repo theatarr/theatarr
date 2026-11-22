@@ -618,7 +618,7 @@ func Providers(st *store.Store, o ProviderOptions) Func {
 			return Result{Type: OK, Message: "No debrid provider keys set; nothing to sync"}
 		}
 		now := o.Now()
-		var bad []string
+		var bad, synced, unsynced []string
 		detail := map[string]any{}
 		for _, p := range o.Providers {
 			var ok int
@@ -628,6 +628,7 @@ func Providers(st *store.Store, o ProviderOptions) Func {
 				WHERE provider = ? ORDER BY finished_at DESC, id DESC LIMIT 1`, p).Scan(&ok, &finished, &errText)
 			if errors.Is(err, sql.ErrNoRows) {
 				detail[p] = map[string]any{"synced": false}
+				unsynced = append(unsynced, p)
 				continue
 			}
 			if err != nil {
@@ -647,6 +648,8 @@ func Providers(st *store.Store, o ProviderOptions) Func {
 				bad = append(bad, providerLabel(p)+": "+strings.TrimPrefix(short(errText), p+": "))
 			case now.Sub(store.NullMillis(lastOK)) > 3*o.Interval:
 				bad = append(bad, providerLabel(p)+": no complete sync in "+age(now.Sub(store.NullMillis(lastOK))))
+			default:
+				synced = append(synced, p)
 			}
 		}
 		switch {
@@ -655,7 +658,15 @@ func Providers(st *store.Store, o ProviderOptions) Func {
 		case len(bad) > 0:
 			return Result{Type: Warning, Detail: detail, Message: "Debrid provider sync failing: " + strings.Join(bad, "; ")}
 		}
-		return Result{Type: OK, Detail: detail, Message: "Last sync worked: " + strings.Join(providerLabels(o.Providers), ", ")}
+		// Only a recorded success is named as one; a provider with no sync yet is said apart.
+		msg := "Last sync worked: " + strings.Join(providerLabels(synced), ", ")
+		switch {
+		case len(synced) == 0:
+			msg = "No sync recorded yet: " + strings.Join(providerLabels(unsynced), ", ")
+		case len(unsynced) > 0:
+			msg += "; no sync recorded yet: " + strings.Join(providerLabels(unsynced), ", ")
+		}
+		return Result{Type: OK, Detail: detail, Message: msg}
 	}
 }
 
