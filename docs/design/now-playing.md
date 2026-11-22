@@ -237,7 +237,8 @@ broke while playing is searched at once").
   not moved since the sign; one still advancing gets it at the next fresh Plex sample of it that is buffering, or
   whose position has stayed the same over playing samples for 15 s (Plex reports it about every 10 s; a rewind is
   movement too, and a pause starts the count again) (never on a remembered verdict or an old zurg line), and only
-  when one read of the file its link points at now, at the player's position, still fails (it reads: the message is
+  when one read of the file at the playback's path now (the tracked symlink there), at the player's position (from
+  its start when the file is gone from a mount that still lists; not listing: nothing is judged), still fails (it reads: the message is
   dropped, "the file read again"); a paused one never; no session left: nothing
   is sent. Never when the mount is the problem, never after a read that passed. `Options.StopWithMessage` switches it
   (on when unset; serve passes `library.plex.stop_with_message` of the settings in force); off, nothing is ever sent

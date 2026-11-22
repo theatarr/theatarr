@@ -1005,20 +1005,26 @@ func (t *Tracker) tell(ctx context.Context, j *sign, msg string, incident int64)
 // path leads to now (the tracked symlink at that path, the active one first: a same-path import may have put another
 // file there, under a new link row too) at the player's current position, inside that file's mounted size. It reads:
 // the message is dropped and the incident notes the file read again. No verdict: dropped, nothing noted. Only a fresh
-// failure goes on to tell, whose fresh look at the session comes right before the stop.
+// failure goes on to tell, whose fresh look at the session comes right before the stop. A file gone from a mount that
+// still lists is read once from its start; with the mount not listing, nothing is judged.
 func (t *Tracker) tellOwed(ctx context.Context, lib Rescuer, p *pendingTell) {
 	var target string
 	if err := t.o.Store.Reader().QueryRowContext(ctx, `SELECT target FROM link WHERE path = ? AND kind = 'symlink'
 		ORDER BY state = 'active' DESC, id DESC LIMIT 1`, p.j.s.File).Scan(&target); err != nil {
 		return
 	}
-	size, err := lib.MountFileSize(ctx, target)
-	if err != nil || size < 2*pieceSize {
+	var off int64 // a file gone from a mount that still lists is read from its start: it fails, or it is back
+	switch size, err := lib.MountFileSize(ctx, target); {
+	case errors.Is(err, fs.ErrNotExist):
+		if lib.MountListed(ctx) != nil {
+			return
+		}
+	case err != nil || size < 2*pieceSize:
 		return
-	}
-	off := pieceOffset(p.j.s.ViewOffset, p.j.s.Duration, size)
-	if off >= size {
-		return
+	default:
+		if off = pieceOffset(p.j.s.ViewOffset, p.j.s.Duration, size); off >= size {
+			return
+		}
 	}
 	switch t.read(ctx, lib, target, off) {
 	case readOK:

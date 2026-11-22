@@ -1894,3 +1894,40 @@ func TestRescueSizeLookupErrorNoVerdict(t *testing.T) {
 		t.Errorf("%d reads, want 1", n)
 	}
 }
+
+// The file of an owed stop is gone from a mount that still lists: one read from its start fails, and the player is
+// stopped. With the mount not listing, nothing is judged: no stop.
+func TestRescueOwedStopFileGone(t *testing.T) {
+	for _, listed := range []bool{true, false} {
+		e := newRescueEnv(t, false, true)
+		e.lib.setBroken("S01E02.mkv", -1)
+		e.play(2, "playing")
+		e.zurg.stats.BlockedReads = []library.ZurgBlockedRead{{Filename: "S01E02.mkv", Reason: "broken"}}
+		e.tr.sleep = func(ctx context.Context, d time.Duration) error {
+			e.advance(d)
+			e.plex.mu.Lock()
+			e.plex.ss[0].ViewOffset += d.Milliseconds()
+			e.plex.mu.Unlock()
+			return ctx.Err()
+		}
+		e.poll() // the message is owed
+		if err := os.Remove(filepath.Join(e.mount, "__all__", "Rel", "S01E02.mkv")); err != nil {
+			t.Fatal(err)
+		}
+		if !listed {
+			e.lib.listed = library.ErrMountDown
+		}
+		reads := e.lib.readsOf("S01E02.mkv")
+		e.plex.mu.Lock()
+		e.plex.ss[0].State = "buffering"
+		e.plex.mu.Unlock()
+		e.poll()
+		want := map[bool]int{true: 1, false: 0}[listed]
+		if got := e.stop.stopped(); len(got) != want {
+			t.Errorf("listed %v: stops %q", listed, got)
+		}
+		if n := e.lib.readsOf("S01E02.mkv") - reads; n != want {
+			t.Errorf("listed %v: %d reads before the stop, want %d", listed, n, want)
+		}
+	}
+}
