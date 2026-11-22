@@ -21,7 +21,8 @@ status word (Available, Partly available: docs/design/ui.md, Status words), neve
 | target unmet, no replacement found (`below_cutoff`) | Preferred quality not met; no better copy found | Preferred quality not met |
 
 - The quality word (`upgradeBadge`, `qualityWord`) says what a person can act on. **Upgrade found** only when a
-  better release was actually found. **Preferred quality not met**: the copy holds a file below its profile's cutoff
+  better release was actually found; a release on the library's blocklist (any source: an undone upgrade, a refused
+  import) is never taken, so the badge and Why? leave it out (`dropBlocked`). **Preferred quality not met**: the copy holds a file below its profile's cutoff
   and nothing better has been found (a movie with Remux-1080p whose profile prefers WEBDL-2160p, after a search that
   found nothing better); it is neutral, never a warning. **Preferred quality met** at the preferred quality.
 - The quality word opens **Why?**, headed by that same word, in three plain lines (docs/design/ui.md, Status

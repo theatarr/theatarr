@@ -46,6 +46,7 @@ import (
 //     file (a feed lists the same release again and again), unless the listing is newer than the failure: published
 //     after it, or, after a cache miss, now listed as cached on a provider the library uses for that release's
 //     indexer (ReleaseProviders);
+//   - a release on the library's blocklist (any source, an Undo's included) is never taken, so it does not count;
 //   - the best counted release (highest score, then newest) is what Theatarr would take next, with the engine's reason.
 
 // Cutoff is what a version's file is measured against: the profile that decides its state.
@@ -332,6 +333,46 @@ func loadFailedHashes(ctx context.Context, db *sql.DB, titleIDs []int64) (map[ti
 	return out, err
 }
 
+// dropBlocked leaves out of the evidence every candidate on its library's blocklist (any source: an Undo, a
+// refused import, a person), by the key the router honours (router.BlocklistKey): a blocked release is never taken,
+// so it is no upgrade found and Why does not name it. A record keeps its scope and time.
+func dropBlocked(ctx context.Context, db *sql.DB, ev map[titleKey][]evRecord) error {
+	keys := map[string][]string{}
+	for k, recs := range ev {
+		for _, r := range recs {
+			for _, c := range r.cands {
+				if bk := router.BlocklistKey(c.InfoHash, c.Release); bk != "" {
+					keys[k.key] = append(keys[k.key], bk)
+				}
+			}
+		}
+	}
+	blocked := map[[2]string]bool{}
+	for library, list := range keys {
+		lj, _ := json.Marshal(list)
+		if err := scanAll(ctx, db, `SELECT info_hash FROM router_blocklist WHERE version_key = ?
+			AND info_hash IN (SELECT value FROM json_each(?))`, []any{library, string(lj)}, func(r *sql.Rows) error {
+			var h string
+			err := r.Scan(&h)
+			blocked[[2]string{library, h}] = true
+			return err
+		}); err != nil {
+			return err
+		}
+	}
+	if len(blocked) == 0 {
+		return nil
+	}
+	for k, recs := range ev {
+		for i := range recs {
+			recs[i].cands = slices.DeleteFunc(recs[i].cands, func(c evCand) bool {
+				return blocked[[2]string{k.key, router.BlocklistKey(c.InfoHash, c.Release)}]
+			})
+		}
+	}
+	return nil
+}
+
 type titleKey struct {
 	titleID int64
 	key     string
@@ -561,6 +602,9 @@ func (w *Web) upgradesWith(ctx context.Context, db *sql.DB, vs []upgradeVersion,
 		}
 	}
 	if s.evidence, err = loadEvidence(ctx, db, titles, items); err != nil {
+		return nil, err
+	}
+	if err := dropBlocked(ctx, db, s.evidence); err != nil {
 		return nil, err
 	}
 	// Failed tries matter only to titles with stored sightings to judge.

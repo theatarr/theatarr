@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -420,5 +421,40 @@ func TestUpgradeSkipsAKeptEpisode(t *testing.T) {
 		r.Results != 1 || r.Accepted != 1 {
 		t.Fatalf("kept episode's stored releases: source %q, %d rows, results %d, accepted %d", r.Source,
 			len(r.Candidates), r.Results, r.Accepted)
+	}
+}
+
+// A release on the library's blocklist (an Undo's, or any other source; by hash, else by its name's key) is no upgrade
+// found and Why does not name it: the next one is. Another library's block does not count.
+func TestUpgradeLeavesOutABlockedRelease(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	e.exec(`INSERT INTO journal_decision (source,title_id,version_key,target,created_at,candidates) VALUES
+		('search',1,'movie-remux','movie',2500,'[{"release":"Best","info_hash":"AAAA","accepted":true,"upgrade":true,"score":9000},
+		  {"release":"Second","accepted":true,"upgrade":true,"score":5000}]')`)
+	v := upgradeVersion{id: 1, titleID: 1, key: "movie-remux", kind: "movie", state: "filled"}
+	explain := func() *UpgradeInfo {
+		t.Helper()
+		s, err := e.web.loadUpgrades(context.Background(), e.st.Reader(), []upgradeVersion{v}, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s.explain(v, 0)
+	}
+	block := func(library, key string) {
+		e.exec(`INSERT INTO router_blocklist (version_key, info_hash, title_id, reason, source, created_at)
+			VALUES (?, ?, 1, 'the upgrade was undone by ann', 'undo:ann', 3000)`, library, key)
+	}
+	block("movie-web", "aaaa")
+	if u := explain(); u.State != "upgrade_available" || u.Next.Release != "Best" {
+		t.Fatalf("another library's block: %+v", u)
+	}
+	block("movie-remux", "aaaa")
+	if u := explain(); u.State != "upgrade_available" || u.Next.Release != "Second" {
+		t.Fatalf("one blocked: %+v", u)
+	}
+	block("movie-remux", router.BlocklistKey("", "Second"))
+	if u := explain(); u.State != "below_cutoff" || u.Next != nil {
+		t.Fatalf("both blocked: %+v", u)
 	}
 }
