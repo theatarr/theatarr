@@ -14,6 +14,7 @@ import (
 	"github.com/theatarr/theatarr/internal/outcome"
 	"github.com/theatarr/theatarr/internal/plex"
 	"github.com/theatarr/theatarr/internal/router"
+	"github.com/theatarr/theatarr/internal/store"
 )
 
 // A file that stops working while it plays (docs/design/now-playing.md). A sign of trouble on a file someone plays
@@ -125,7 +126,8 @@ func (t *Tracker) noteSign(se *session, live bool, why string, now time.Time) {
 func (t *Tracker) liveSigns(now time.Time) {
 	for k, p := range t.pending {
 		if se := t.sess[k]; se == nil || se.s.ID != p.j.s.ID {
-			delete(t.pending, k) // the playback ended: its message goes nowhere
+			delete(t.pending, k) // the playback ended: its message goes nowhere, and the incident says so
+			go t.notStopped(context.Background(), p.incident, notStoppedEnded)
 		}
 	}
 	for _, se := range t.sess {
@@ -313,12 +315,17 @@ func copyKey(id int64, target string) string { return fmt.Sprintf("%d\x00%s", id
 
 // clearPending drops the messages still owed to playbacks of a link: its file reads again.
 func (t *Tracker) clearPending(id int64) {
+	var incidents []int64
 	t.mu.Lock()
-	defer t.mu.Unlock()
 	for k, p := range t.pending {
 		if p.j.src.LinkID == id {
 			delete(t.pending, k)
+			incidents = append(incidents, p.incident)
 		}
+	}
+	t.mu.Unlock()
+	for _, inc := range incidents {
+		t.notStopped(context.Background(), inc, notStoppedRead)
 	}
 }
 
@@ -603,6 +610,7 @@ func (t *Tracker) repair(ctx context.Context, lib Rescuer, j *sign, hash string,
 			return
 		case copyReadable:
 			t.clearPending(src.LinkID)
+			t.notStopped(ctx, id, notStoppedRead)
 			if err := lib.SettlePlayingIncident(ctx, id, "copy", acct); err != nil {
 				log.Warn("nowplaying: incident not settled", "err", err)
 			}
@@ -845,6 +853,19 @@ const (
 	notStoppedRead   = "the file read again"
 )
 
+// notStopped keeps on an incident why its player was not stopped (NotStoppedNote and why), unless what was done is
+// kept there already: a stop with a message, or Plex's refusal.
+func (t *Tracker) notStopped(ctx context.Context, incident int64, why string) {
+	if incident == 0 {
+		return
+	}
+	if _, err := t.o.Store.Writer().ExecContext(ctx, `UPDATE playing_break SET message = ?, updated_at = ?
+		WHERE id = ? AND (message = '' OR message LIKE ?)`, NotStoppedNote+why, store.Millis(t.o.Now()), incident,
+		NotStoppedNote+"%"); err != nil {
+		t.o.Logger.Debug("nowplaying: incident message not kept", "err", err)
+	}
+}
+
 // tell stops the playback of a confirmed broken file with msg (Options.StopWithMessage on, the default): only the same
 // playback (session id, viewer, item and part), read from Plex right before the call, and only when it is buffering or
 // its position has not moved since the sign, never when it is paused. One still advancing gets it at its next sign. No
@@ -853,13 +874,7 @@ const (
 // paused, the file read again).
 func (t *Tracker) tell(ctx context.Context, j *sign, msg string, incident int64) {
 	// note keeps on the incident why nothing was sent (Now playing says it).
-	note := func(why string) {
-		if lib := t.rescuer(); lib != nil && incident != 0 {
-			if err := lib.PlayingMessage(ctx, incident, NotStoppedNote+why); err != nil {
-				t.o.Logger.Debug("nowplaying: incident message not kept", "err", err)
-			}
-		}
-	}
+	note := func(why string) { t.notStopped(ctx, incident, why) }
 	if t.live(j.src.version) == nil {
 		return
 	}

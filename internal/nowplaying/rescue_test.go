@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -716,6 +717,12 @@ func TestRescueStopsTheStreamWithAMessage(t *testing.T) {
 	if got := e.one(`SELECT message FROM playing_break WHERE link_id = 11`); got != "the player was stopped with the message: "+msgLooking {
 		t.Errorf("incident message %q", got)
 	}
+	// A reason for not stopping never replaces what was done.
+	id, _ := strconv.ParseInt(e.one(`SELECT id FROM playing_break WHERE link_id = 11`), 10, 64)
+	e.tr.notStopped(context.Background(), id, notStoppedEnded)
+	if got := e.one(`SELECT message FROM playing_break WHERE link_id = 11`); got != StoppedNote+msgLooking {
+		t.Errorf("stop result overwritten: %q", got)
+	}
 }
 
 // Step 1 with a candidate is tried for 30 s before the message: a file that reads again within it gets no message at
@@ -728,6 +735,9 @@ func TestRescueMessageWaitsForStepOne(t *testing.T) {
 	e.poll()
 	if got := e.stop.stopped(); len(got) != 0 {
 		t.Errorf("readable again after the copy, yet stopped: %q", got)
+	}
+	if got := e.one(`SELECT message FROM playing_break WHERE link_id = 11`); got != NotStoppedNote+notStoppedRead {
+		t.Errorf("readable again: note %q", got)
 	}
 	e2 := newRescueEnv(t, false, false)
 	e2.lib.setBroken("S01E02.mkv", -1)
@@ -784,6 +794,41 @@ func TestRescueMessageSettingAndSession(t *testing.T) {
 	}
 	if got := e3.one(`SELECT message FROM playing_break WHERE link_id = 11`); got != NotStoppedNote+notStoppedPaused {
 		t.Errorf("paused: note %q", got)
+	}
+}
+
+// A playback that ends while its message is owed is not stopped, and the incident says why.
+func TestRescueOwedMessagePlaybackEnds(t *testing.T) {
+	e := newRescueEnv(t, false, true)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.play(2, "playing")
+	e.zurg.stats.BlockedReads = []library.ZurgBlockedRead{{Filename: "S01E02.mkv", Reason: "broken"}}
+	e.tr.sleep = func(ctx context.Context, d time.Duration) error {
+		e.advance(d)
+		e.plex.mu.Lock()
+		e.plex.ss[0].ViewOffset += d.Milliseconds()
+		e.plex.mu.Unlock()
+		return ctx.Err()
+	}
+	e.poll() // the message is owed
+	if got := e.one(`SELECT message FROM playing_break WHERE link_id = 11`); got != "" {
+		t.Fatalf("owed message already noted: %q", got)
+	}
+	e.stopPlaying()
+	e.poll()
+	if got := e.stop.stopped(); len(got) != 0 {
+		t.Errorf("stopped %q", got)
+	}
+	// The note is written beside the poll, not under its lock.
+	got := ""
+	for range 100 {
+		if got = e.one(`SELECT message FROM playing_break WHERE link_id = 11`); got != "" {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if got != NotStoppedNote+notStoppedEnded {
+		t.Errorf("ended: note %q", got)
 	}
 }
 

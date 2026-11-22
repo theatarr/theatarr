@@ -21,7 +21,8 @@ func (w *Web) mountNowPlayingAPI(mux *http.ServeMux) {
 // Managers and admins (SeeFiles) see every playback with its source, fetch, pre-warm and the cause detail, and every
 // incident with its releases; anyone else sees only their own playbacks (their Plex account), without file detail, and
 // only the incidents of their own playbacks, without the release names, the library and the file count, and with the
-// message only when their player was stopped with one.
+// message only when it is one of Theatarr's fixed sentences (what their player was told, or why it was not stopped),
+// never Plex's refusal.
 func (w *Web) apiNowPlaying(rw http.ResponseWriter, r *http.Request) {
 	var snap *nowplaying.Snapshot
 	if w.nowPlaying != nil {
@@ -56,8 +57,8 @@ func (w *Web) apiNowPlaying(rw http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		in.OldRelease, in.NewRelease, in.Version, in.Files = "", "", "", 0
-		if !strings.HasPrefix(in.Message, nowplaying.StoppedNote) {
-			in.Message = "" // why Plex refused is file detail
+		if !strings.HasPrefix(in.Message, nowplaying.StoppedNote) && !strings.HasPrefix(in.Message, nowplaying.NotStoppedNote) {
+			in.Message = "" // why Plex refused is file detail; the other messages are Theatarr's own fixed sentences
 		}
 		out.Incidents = append(out.Incidents, in)
 	}

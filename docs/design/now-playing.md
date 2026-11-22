@@ -222,7 +222,9 @@ broke while playing is searched at once").
   (on when unset; serve passes `library.plex.stop_with_message` of the settings in force); off, nothing is ever sent
   to Plex. A refusal by Plex is logged once and kept on the incident. When nothing is sent, why is kept there instead
   ("the player was not stopped: " and stopping a broken stream is off in the settings, the playback had already
-  ended, the playback was paused, or the file read again); users see only "The player was not stopped.".
+  ended, the playback was paused, or the file read again), also when a message still owed is dropped because the
+  playback ended or the file read again; it never replaces a stop or a refusal already kept. Users see these fixed
+  sentences for their own incidents, not Plex's refusal.
 - **Incidents.** `Tracker.Incidents` lists the last 24 hours' incidents (title, episodes, how many files, viewer,
   player, the old and new release, what the player was told) as "Looking for another copy", "Replaced with another
   release", "Readable again", "No other copy yet" or "Earlier copy put back". `GET /nowplaying` carries them as

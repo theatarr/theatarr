@@ -71,14 +71,15 @@ func TestNowPlayingAPI(t *testing.T) {
 	}
 	for _, m := range []string{"someone-else", "Alpha", hashA, "Secret.Release", "rd-main", "S01E03", "10.1.2.3",
 		"realdebrid", "/media/", "/mnt/", "fetch", "prewarm", "Old.Broken-GRP", "New.Fine-GRP", "Omega", "Kitchen",
-		"HTTP 401", "tv-secret-lib", `"files"`, `"version"`, "was paused"} {
+		"HTTP 401", "tv-secret-lib", `"files"`, `"version"`} {
 		if strings.Contains(user, m) {
 			t.Errorf("user sees %q: %s", m, user)
 		}
 	}
 	// Their own incidents, with what came of them, their player and the message it showed.
 	for _, m := range []string{`"title":"Gamma (2020)"`, `"status":"Replaced with another release"`, "Den TV",
-		"This file stopped working.", `"title":"Delta (2019)"`, `"status":"No other copy yet"`} {
+		"This file stopped working.", `"title":"Delta (2019)"`, `"status":"No other copy yet"`,
+		"the player was not stopped: the playback was paused"} {
 		if !strings.Contains(user, m) {
 			t.Errorf("user does not see %q: %s", m, user)
 		}
