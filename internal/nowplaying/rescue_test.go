@@ -965,3 +965,22 @@ func TestRescueReplacementBreaksSameDay(t *testing.T) {
 		t.Errorf("second break: %s", got)
 	}
 }
+
+// A path inside the library's root that is not Theatarr's tracked link (an arr's or an untracked symlink to the same
+// file) is never checked: a match by target alone does not start the fast path.
+func TestRescueUntrackedSymlinkInRoot(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.lib.setBroken("S01E02.mkv", -1)
+	extra := filepath.Join(filepath.Dir(e.linkPath(2)), "Show - S01E02 (arr).mkv")
+	if err := os.Symlink(filepath.Join(e.mount, "__all__", "Rel", "S01E02.mkv"), extra); err != nil {
+		t.Fatal(err)
+	}
+	e.play(2, "buffering")
+	e.plex.mu.Lock()
+	e.plex.ss[0].File = extra
+	e.plex.mu.Unlock()
+	e.poll()
+	if n := e.lib.readsOf("S01E02.mkv"); n != 0 || e.one(`SELECT state FROM link WHERE id = 11`) != "active" {
+		t.Errorf("an untracked symlink was checked: %d reads", n)
+	}
+}

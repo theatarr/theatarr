@@ -157,9 +157,10 @@ leaving it to the hourly sweep's two misses and zurg's repair grace (`internal/n
 `docs/design/library.md` "A file that broke while someone played it"; the search: `docs/design/router.md` "A file that
 broke while playing is searched at once").
 
-- **Which file.** Only a file that is certain: Plex's path is an active Theatarr symlink into the mount, and its library
-  is decided (Plex's path is the link's own, or lies in exactly one library's roots). A regular file, an arr's own
-  symlink or a target several libraries share with no deciding path is never checked. The hash it is copied and its
+- **Which file.** Only a file that is certain: Plex's own path is an active, tracked Theatarr symlink into the mount,
+  and its library is decided (the link's only library, or the one whose roots hold the path). A regular file, an arr's
+  or any untracked symlink (even one in a library root pointing at a Theatarr link's file) or a link whose libraries
+  the path does not decide is never checked. The hash it is copied and its
   siblings found by is the one the link has stored (an adopted link's source included), else the one release the
   registry records in its folder; one only guessed from a folder name gives no copy and no sibling check.
 - **The signs.** Plex says buffering; the playback ends below 90 % of its duration (seen where a poll drops the

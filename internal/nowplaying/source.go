@@ -37,9 +37,9 @@ type Source struct {
 	versionIDs []int64
 	episodes   []int64
 	rel        string // the path under the release root: <folder>/<file>
-	// version and versionID are the library playing, when the file is certain (certain): Plex's path is a Theatarr
-	// symlink into the mount whose library is decided (Plex's path is the link's, or lies in exactly one library's
-	// roots). Only such a file is checked when it seems broken (rescue.go).
+	// version and versionID are the library playing, when the file is certain (certain): Plex's path is an active
+	// Theatarr symlink into the mount, and its library is decided (the link's only one, or the one whose roots hold the
+	// path). Only such a file is checked when it seems broken (rescue.go).
 	certain   bool
 	version   string
 	versionID int64
@@ -151,8 +151,10 @@ func (t *Tracker) resolve(ctx context.Context, file string) *Source {
 			}
 		}
 		src.episodes = t.ints(ctx, `SELECT episode_id FROM link_episode WHERE link_id = ? ORDER BY episode_id`, src.LinkID)
-		if len(chosen) == 1 && c.kind == "symlink" && src.rel != "" {
-			src.version, src.versionID = t.playingVersion(c.versions, c.versionIDs, file, c.path == file)
+		// Certain only when Plex's own path is this active tracked symlink: a match by target alone (an arr's or an
+		// untracked symlink to the same file) is not.
+		if c.kind == "symlink" && c.path == file && src.rel != "" {
+			src.version, src.versionID = t.playingVersion(c.versions, c.versionIDs, file)
 			src.certain = src.version != ""
 		}
 		if c.contentFile.Valid {
@@ -185,10 +187,10 @@ func (t *Tracker) resolve(ctx context.Context, file string) *Source {
 	return src
 }
 
-// playingVersion is the library playing a certain file: the link's only version when Plex's path is the link's own,
-// else the one version whose roots hold Plex's path. "" when that is not decided.
-func (t *Tracker) playingVersion(keys []string, ids []int64, file string, exact bool) (string, int64) {
-	if exact && len(keys) == 1 {
+// playingVersion is the library playing a certain file (Plex's path is the link's own): the link's only version, else
+// the one version whose roots hold the path. "" when that is not decided.
+func (t *Tracker) playingVersion(keys []string, ids []int64, file string) (string, int64) {
+	if len(keys) == 1 {
 		return keys[0], ids[0]
 	}
 	if t.o.Roots == nil {
