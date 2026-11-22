@@ -40,3 +40,17 @@ it("says the server's sentence in place when Plex has not got it", async () => {
   expect((await screen.findByTestId("watch-in-plex-message")).textContent).toBe("Not found in Plex yet");
   expect(open).not.toHaveBeenCalled();
 });
+
+it("shows Open in Plex in place when the browser refuses the new tab", async () => {
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["browse"] } },
+    { method: "GET", path: "/titles/7/plex", reply: { found: true, web_url: "https://app.plex.tv/desktop/#!/x", app_url: "plex://preplay/?x" } },
+  ]);
+  vi.spyOn(window, "open").mockImplementation(() => null);
+  renderPage(<WatchInPlex titleId={7} versions={[versions[0]] as never} />);
+  await userEvent.setup().click(await screen.findByRole("button", { name: "Watch in Plex" }));
+  const link = await screen.findByRole("link", { name: "Open in Plex" });
+  expect(link.getAttribute("href")).toBe("https://app.plex.tv/desktop/#!/x");
+  expect(link.getAttribute("target")).toBe("_blank");
+});
+

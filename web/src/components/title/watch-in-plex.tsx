@@ -3,6 +3,7 @@
 // found item opens in the Plex app on iOS (app_url) and in Plex Web everywhere else (web_url, a new tab); otherwise the
 // server's sentence ("Not found in Plex yet", or what to fix) shows in place.
 import { useMutation } from "@tanstack/react-query";
+import { useState } from "react";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { api, qs, type Schemas } from "@/api/client";
 import type { Version } from "@/api/library";
@@ -17,12 +18,15 @@ function isIOS(): boolean {
 }
 
 function PlexButton({ titleId, v, named }: { titleId: number; v: Version; named: boolean }) {
+  // A link the browser would not open by itself (a new tab refused after a slow lookup): shown for a second tap.
+  const [refused, setRefused] = useState<string>();
   const look = useMutation({
     mutationFn: () => api<PlexLink>(`/titles/${titleId}/plex` + qs({ version: v.key })),
+    onMutate: () => setRefused(undefined),
     onSuccess: (r) => {
       if (!r.found) return;
       if (isIOS() && r.app_url) window.location.assign(r.app_url);
-      else if (r.web_url) window.open(r.web_url, "_blank", "noopener");
+      else if (r.web_url && !window.open(r.web_url, "_blank", "noopener")) setRefused(r.web_url);
     },
   });
   const message = look.data && !look.data.found ? look.data.message || "Not found in Plex yet" : look.error ? (look.error as Error).message : "";
@@ -33,6 +37,7 @@ function PlexButton({ titleId, v, named }: { titleId: number; v: Version; named:
         {named ? `Watch in Plex · ${v.label || v.key}` : "Watch in Plex"}
       </Button>
       {message ? <p className="text-xs text-[var(--ink-3)] [overflow-wrap:anywhere]" role="status" data-testid="watch-in-plex-message">{message}</p> : null}
+      {refused ? <a href={refused} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-primary hover:underline">Open in Plex</a> : null}
     </div>
   );
 }
