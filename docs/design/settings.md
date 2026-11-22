@@ -143,7 +143,8 @@ once. `section-panel.test.tsx` exercises partial writes, credentials, 422, 409, 
   typed value that is not a size (a decimal comma is read as a point) stays shown with an error and blocks saving.
   The raw "Size limits" JSON field stays in the raw profile editor (`?raw=1`).
 - **Custom formats:** one list of definitions. Standalone formats have Edit definition and Export arr JSON in their
-  row; Standalone formats below keeps Add format and lists only a stored definition the merged list leaves out (two
+  row, and one of ours is listed and found by the Format name it was saved with, its key shown beside it (the filter
+  matches either); Standalone formats below keeps Add format and lists only a stored definition the merged list leaves out (two
   sharing a TRaSH ID and flavour merge into one row carrying the last one's key), so every definition keeps Edit,
   Export and Delete; the page filter applies to those rows too. Each score chip links to its profile (`/admin/settings/profiles?edit=`), and a profile's score
   rows link to `/admin/settings/formats?filter=<key>`; the filter matches names and profiles by every word typed, in any order, and a TRaSH ID or

@@ -26,6 +26,7 @@ function FormatRow({ f, onEdit }: { f: FormatSummary; onEdit?: () => void }) {
       <div className="text-sm font-medium [overflow-wrap:anywhere]">{f.name}</div>
       <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
         <Badge tone={d.tone} title={d.help}>{d.label}</Badge><span>{f.flavour}</span>
+        {f.key && f.key !== f.name ? <span className="font-mono [overflow-wrap:anywhere]" data-testid="format-key">{f.key}</span> : null}
         {other.length ? <span className="[overflow-wrap:anywhere]">also named {other.join(", ")}</span> : null}
         {onEdit ? <button type="button" className="text-[var(--accent-ink)] underline" onClick={onEdit} aria-label={`Edit definition ${f.key}`}>Edit definition</button> : null}
         {onEdit && f.id ? <a className="text-[var(--accent-ink)] underline" href={`${API_BASE}/settings/formats/${f.id}/export`} download={`${f.key}.json`}>Export arr JSON</a> : null}
@@ -49,7 +50,7 @@ export function FormatsPage({ compact = false }: { compact?: boolean }) {
     const m = new Map<string, FormatSummary[]>();
     for (const f of overview.data?.formats ?? []) {
       // A profile's scores may be keyed by TRaSH ID or format key, so those match exactly too.
-      if (!match(...f.names, ...f.scored_by.map((u) => u.profile)) && f.trash_id?.toLowerCase() !== q && f.key?.toLowerCase() !== q) continue;
+      if (!match(...f.names, ...(f.key ? [f.key] : []), ...f.scored_by.map((u) => u.profile)) && f.trash_id?.toLowerCase() !== q && f.key?.toLowerCase() !== q) continue;
       m.set(f.group, [...(m.get(f.group) ?? []), f]);
     }
     return [...m.entries()];

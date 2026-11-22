@@ -268,9 +268,18 @@ func QualityOverviewOf(in OverviewInput) QualityOverview {
 		t := in.Trash[flavour]
 		id, def := identity(t, name, ref)
 		k := formatKey(flavour, id, name)
+		// One of ours is shown and found by the name it was saved with; its key stays in Key for editing and
+		// references.
+		label := name
+		if def == DefinitionOurs && ref != nil && len(ref.Specification) > 0 {
+			var j format.FormatJSON
+			if json.Unmarshal(ref.Specification, &j) == nil && strings.TrimSpace(j.Name) != "" {
+				label = j.Name
+			}
+		}
 		f := formats[k]
 		if f == nil {
-			f = &FormatSummary{Name: name, Names: []string{}, Flavour: flavour, TrashID: id, Definition: def, Scopes: []string{}, ScoredBy: []FormatUse{}}
+			f = &FormatSummary{Name: label, Names: []string{}, Flavour: flavour, TrashID: id, Definition: def, Scopes: []string{}, ScoredBy: []FormatUse{}}
 			if def == DefinitionOurs {
 				f.Group = groupOurs
 			} else if g := groups[flavour][id]; g != "" {
@@ -290,8 +299,8 @@ func QualityOverviewOf(in OverviewInput) QualityOverview {
 		if def == DefinitionTrash {
 			f.Definition = DefinitionTrash
 		}
-		if !slices.Contains(f.Names, name) {
-			f.Names = append(f.Names, name)
+		if !slices.Contains(f.Names, label) {
+			f.Names = append(f.Names, label)
 		}
 		if !slices.Contains(f.Scopes, scope) {
 			f.Scopes = append(f.Scopes, scope)

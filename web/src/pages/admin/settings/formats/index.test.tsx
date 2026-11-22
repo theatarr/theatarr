@@ -63,6 +63,21 @@ describe("Custom formats page", () => {
     expect(await screen.findByRole("dialog")).toBeTruthy();
   });
 
+  it("lists a standalone format by its saved name, shows its key, and finds it by either (F11)", async () => {
+    const named = { name: "UI sweep 8 test format", names: ["UI sweep 8 test format"], flavour: "radarr", definition: "ours" as const, group: "Our formats", scopes: [], id: 13, key: "ui-sweep-eight", scored_by: [] };
+    mockFetch(routes(qualityOverview({ formats: [...qualityOverview().formats, named] })));
+    const user = userEvent.setup();
+    renderPage(<FormatsPage />);
+    const filter = await screen.findByRole("textbox", { name: "Filter formats" });
+    for (const q of ["sweep 8", "eight"]) {
+      await user.clear(filter);
+      await user.type(filter, q);
+      const row = screen.getByText("UI sweep 8 test format").closest("li")!;
+      expect(within(row).getByTestId("format-key").textContent).toBe("ui-sweep-eight");
+      expect(within(row).getByRole("button", { name: "Edit definition ui-sweep-eight" })).toBeTruthy();
+    }
+  });
+
   it("opens filtered to a format named in the link", async () => {
     mockFetch(routes());
     renderPage(<FormatsPage />, "/admin/settings/formats?filter=DD%2B");

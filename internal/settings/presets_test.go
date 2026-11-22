@@ -408,3 +408,21 @@ func TestProfileDefaultsStore(t *testing.T) {
 		t.Fatalf("clear %v %v", saved, err)
 	}
 }
+
+// A standalone format of ours is listed and found by the name it was saved with, its key kept for editing (F11).
+func TestFormatSummaryUsesSavedName(t *testing.T) {
+	t.Parallel()
+	p := &policy.Policy{Formats: map[string]*policy.FormatRef{
+		"ui-sweep-eight": {Flavour: "radarr", Specification: json.RawMessage(`{"name":"UI sweep 8 test format","specifications":[]}`)},
+		"plain":          {Flavour: "radarr", Specification: json.RawMessage(`{"name":"","specifications":[]}`)},
+	}}
+	ov := QualityOverviewOf(OverviewInput{Policy: p, Formats: []CustomFormat{{Record: Record{ID: 9, Key: "ui-sweep-eight"}}, {Record: Record{ID: 10, Key: "plain"}}}})
+	f := formatSummary(t, ov, "UI sweep 8 test format")
+	if f.Key != "ui-sweep-eight" || f.ID != 9 || !slices.Contains(f.Names, "UI sweep 8 test format") {
+		t.Fatalf("saved name: %+v", f)
+	}
+	// Without a saved name the key stays the label.
+	if f := formatSummary(t, ov, "plain"); f.Key != "plain" {
+		t.Fatalf("no saved name: %+v", f)
+	}
+}
