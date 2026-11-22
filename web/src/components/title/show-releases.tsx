@@ -13,6 +13,7 @@ import { VersionStatus } from "@/components/version-status";
 import { Empty, ErrorState, VersionTag } from "@/components/page";
 import { InteractiveSearchButton } from "@/components/title/interactive-search";
 import { AddByHash } from "@/components/title/release-grab";
+import { globalDownloadsOff } from "@/lib/version-grab";
 import { ReleaseGrid } from "@/components/title/release-grid";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -255,7 +256,7 @@ function Panel({ titleId, kind, initialVersion, focus, labels, season, run, vers
           ) : null) : <Empty>No releases to show for {labels?.[r.version] || nameOf(r.version)}.</Empty>) : <ReleaseGrid key={r.version} items={items} stored={storedSample(r, items.length)} kind={kind} outcomes={oc.data?.outcomes ?? r.outcomes} focus={shownFocus} />}
         </>
       ) : null}
-      {r && perms.admin ? <AddByHash key={r.version} titleId={titleId} version={r.version} label={labels?.[r.version]} /> : null}
+      {r && perms.admin ? <AddByHash key={r.version} titleId={titleId} version={r.version} label={labels?.[r.version]} paused={!!globalDownloadsOff([r.grab_state])} /> : null}
     </div>
   );
 }

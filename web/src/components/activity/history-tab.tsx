@@ -16,7 +16,7 @@ import { createContext, useContext, useState } from "react";
 import { Link } from "react-router";
 import { useActivityHistory, type ActivityEvent } from "@/api/activity";
 import { usePerms } from "@/api/library";
-import { HistoryRetry } from "@/components/activity/download-actions";
+import { HistoryRetry, RetryPaused } from "@/components/activity/download-actions";
 import { HistoryFilters, useHistoryFilters } from "@/components/activity/history-filters";
 import { Dash, episodesWords, FormatPills, Poster, StaleNotice, tight } from "@/components/activity/row-bits";
 import { Empty, ErrorState, Loading, VersionTag } from "@/components/page";
@@ -300,6 +300,7 @@ export function HistoryTab({ admin, as, titleId }: { admin: boolean; as?: "user"
     </Button>
   ) : undefined;
   return (
+    <RetryPaused.Provider value={!!q.data?.pages[0]?.paused}>
     <div>
       {titleId ? (columns ? <div className="mb-3 flex justify-end">{columns}</div> : null) : <HistoryFilters admin={admin} tools={columns} />}
       {q.isPending ? <Loading /> : failed ? <ErrorState error={q.error} /> : (
@@ -319,6 +320,7 @@ export function HistoryTab({ admin, as, titleId }: { admin: boolean; as?: "user"
         />
       ) : null}
     </div>
+    </RetryPaused.Provider>
   );
 }
 

@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { expect, it } from "vitest";
 import type { ActivityBlocked, ActivityDownload, ActivityEvent } from "@/api/activity";
 import { mockFetch, renderPage } from "@/test/page";
-import { DownloadActions, HistoryRetry, UnblockAction } from "./download-actions";
+import { DownloadActions, HistoryRetry, RetryPaused, UnblockAction } from "./download-actions";
 
 it("lets managers dismiss a failed download while keeping its history and provider torrent", async () => {
   const fetch = mockFetch([
@@ -43,6 +43,16 @@ it("a retry the server refuses for the library's blocklist asks once, then sends
   fireEvent.click(within(dialog).getByText("Retry anyway"));
   await screen.findByTestId("confirm-done");
   expect(api.calls("POST", "/activity/downloads/40/retry").map((c) => c.body)).toEqual([undefined, { unblock: true }]);
+});
+
+it("Retry says Pause is on and sends nothing while it is", async () => {
+  const api = mockFetch([ME]);
+  renderPage(<RetryPaused.Provider value><HistoryRetry e={failed} /></RetryPaused.Provider>);
+  fireEvent.click(await screen.findByTestId("history-retry"));
+  const dialog = await screen.findByTestId("retry-download-dialog");
+  expect(within(dialog).getByTestId("confirm-blocked").textContent).toBe("Downloads are paused: nothing is retried until Pause is off.");
+  expect((within(dialog).getByRole("button", { name: "Retry" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(api.calls("POST", "/activity/downloads/40/retry")).toHaveLength(0);
 });
 
 it("a household account sees no Retry", async () => {

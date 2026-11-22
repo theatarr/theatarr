@@ -272,6 +272,19 @@ it("a bare hash needs a release name before Add", async () => {
   ]);
 });
 
+it("Add by magnet or hash is off with the reason while Pause is on", async () => {
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: ADMIN_PERMS },
+    { method: "GET", path: "/titles/7/releases", reply: { ...stored([]), grab_state: { paused: true, pause_forced: false, will_grab: false } } },
+  ]);
+  renderPage(<ShowReleases titleId={7} defaultOpen initialVersion="movie-web" />);
+  const form = await screen.findByTestId("add-by-hash");
+  fireEvent.change(within(form).getByTestId("add-by-hash-link"), { target: { value: "A".repeat(40) } });
+  fireEvent.change(within(form).getByTestId("add-by-hash-name"), { target: { value: "Alpha.2020.2160p.WEB-DL-GRP" } });
+  expect((within(form).getByTestId("add-by-hash-add") as HTMLButtonElement).disabled).toBe(true);
+  expect(within(form).getByTestId("add-by-hash-paused").textContent).toBe("Downloads are paused: nothing is added until Pause is off.");
+});
+
 it("a refusal of Add anyway shows the server's reason and does not offer it again", async () => {
   const no = (error: string) => ({ status: 409, body: { error, detail: ["WEBDL-1080p is not wanted"] } });
   mockFetch([

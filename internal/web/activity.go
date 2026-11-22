@@ -277,6 +277,8 @@ type ActivityPage struct {
 	Blocked    []ActivityBlocked  `json:"blocked,omitempty"`
 	Total      int                `json:"total"`
 	NextCursor string             `json:"next_cursor,omitempty"`
+	// Paused: Pause is on (versionGrabState), so a Retry starts nothing; the rows offer it off, with the reason.
+	Paused bool `json:"paused,omitempty"`
 }
 
 // historyKinds are the journal kinds History's rows have (the kinds parameter; events is the finer filter).
@@ -324,7 +326,7 @@ func (w *Web) apiActivity(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	limit = min(max(limit, 1), 200)
-	page := ActivityPage{State: state, Admin: admin}
+	page := ActivityPage{State: state, Admin: admin, Paused: versionGrabState(w.pol, "").Paused}
 	ctx := r.Context()
 	switch state {
 	case "now":

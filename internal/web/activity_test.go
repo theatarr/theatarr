@@ -19,6 +19,7 @@ import (
 	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/journal"
+	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/router"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/store/storetest"
@@ -1645,5 +1646,25 @@ func TestActivityAttemptsWholeError(t *testing.T) {
 	e.exec(`DELETE FROM library_import`)
 	if e.getKey(APIBase+"/activity/downloads/1/attempts", key, &a); a.Message != long {
 		t.Errorf("failed %q", a.Message)
+	}
+}
+
+// TestActivityPaused: History and Queue say when Pause is on, so Retry is offered off with the reason rather than
+// refused after the confirm.
+func TestActivityPaused(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	key := e.apiKey()
+	for _, on := range []bool{false, true} {
+		e.web.pol.Router = &policy.Router{Enabled: on}
+		for _, state := range []string{"history", "now"} {
+			var p ActivityPage
+			if code := e.getKey(APIBase+"/activity?state="+state, key, &p); code != 200 {
+				t.Fatalf("%s: %d", state, code)
+			}
+			if p.Paused != !on {
+				t.Errorf("%s with the router on=%v: paused %v", state, on, p.Paused)
+			}
+		}
 	}
 }

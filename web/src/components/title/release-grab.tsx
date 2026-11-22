@@ -83,7 +83,7 @@ export function magnetName(m: string): string {
 
 /** "Add by magnet or hash" for one library of a title (admins): the link or hash, the release name (taken from the
  *  magnet's dn until typed), and Add. A rejection lists the reasons and offers "Add anyway". */
-export function AddByHash({ titleId, version, label }: { titleId: number; version: string; label?: string }) {
+export function AddByHash({ titleId, version, label, paused = false }: { titleId: number; version: string; label?: string; paused?: boolean }) {
   const nameOf = useLibraryName();
   const add = useAddRelease(titleId);
   const [link, setLink] = useState("");
@@ -131,10 +131,12 @@ export function AddByHash({ titleId, version, label }: { titleId: number; versio
           Release name
           <Input required value={name} disabled={add.isPending} placeholder="Title.2024.2160p.WEB-DL-GROUP" data-testid="add-by-hash-name" onChange={(e) => edit(() => { setName(e.target.value); setTyped(true); })} />
         </label>
-        <Button type="submit" size="sm" variant="outline" disabled={add.isPending || !source || !name.trim()} data-testid="add-by-hash-add">
+        <Button type="submit" size="sm" variant="outline" disabled={paused || add.isPending || !source || !name.trim()} data-testid="add-by-hash-add">
           {add.isPending ? <Loader2 className="animate-spin" /> : <Plus />} Add
         </Button>
       </div>
+      {/* Pause refuses every add: Add is off, as Interactive search's Grab is, with the reason. */}
+      {paused ? <p className="text-xs font-medium text-[var(--warn-ink)]" data-testid="add-by-hash-paused">Downloads are paused: nothing is added until Pause is off.</p> : null}
       {rejected ? (
         <div className="space-y-1.5 text-xs" role="alert" data-testid="add-by-hash-rejected">
           <p className="text-[var(--bad-ink)]">Theatarr rejects this release for {label || nameOf(version)}:</p>

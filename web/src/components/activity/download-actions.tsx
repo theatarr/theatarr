@@ -4,7 +4,7 @@
 // (optionally searching again). Removing ends Theatarr's record only: the torrent at the debrid provider is shared
 // and stays.
 import { RotateCcw, Undo2 } from "lucide-react";
-import { useState } from "react";
+import { createContext, useContext, useState } from "react";
 import type { ActivityBlocked, ActivityDownload, ActivityEvent } from "@/api/activity";
 import { usePerms } from "@/api/library";
 import { useRemoveDownload, useRetryDownload, useUnblock } from "@/api/ops";
@@ -15,6 +15,17 @@ import { useLibraryName } from "@/lib/library-names";
 
 type Open = "remove" | "retry" | null;
 
+/** Pause is on (GET /activity's paused): Retry starts nothing, so its confirmation is off with the reason. History
+ *  and Queue provide it. */
+export const RetryPaused = createContext(false);
+
+const PAUSED_RETRY = "Downloads are paused: nothing is retried until Pause is off.";
+
+/** Retry's scope, off with the reason under Pause (an import now is not a new download and stays). */
+function pausedScope(scope: ReturnType<typeof retryScope>, paused: boolean, kind: string | null) {
+  return paused && kind !== "import" && !scope.blocked ? { ...scope, blocked: PAUSED_RETRY } : scope;
+}
+
 /** A Queue row's actions after Details: Retry or Import now when it applies, and Remove (Dismiss for a failed one). */
 export function DownloadActions({ d }: { d: ActivityDownload }) {
   const perms = usePerms();
@@ -23,6 +34,7 @@ export function DownloadActions({ d }: { d: ActivityDownload }) {
   const remove = useRemoveDownload();
   const retry = useRetryDownload();
   const nameOf = useLibraryName();
+  const paused = useContext(RetryPaused);
   if (!perms.manage) return null;
   const close = () => {
     setOpen(null);
@@ -65,7 +77,7 @@ export function DownloadActions({ d }: { d: ActivityDownload }) {
       ) : null}
       {open === "retry" ? (
         <ConfirmDialog
-          scope={retryBlocked ? unblockGrabScope(retryBlocked, "Retry") : retryScope(d.state, nameOf(d.version))}
+          scope={retryBlocked ? unblockGrabScope(retryBlocked, "Retry") : pausedScope(retryScope(d.state, nameOf(d.version)), paused, kind)}
           subject={subject}
           danger={!!retryBlocked}
           busy={retry.isPending}
@@ -93,6 +105,7 @@ export function HistoryRetry({ e }: { e: ActivityEvent }) {
   const retry = useRetryDownload();
   const id = failedDownloadId(e.id);
   const nameOf = useLibraryName();
+  const paused = useContext(RetryPaused);
   if (!perms.manage || !id || endedByRemoval(e.reason)) return null;
   const copy = e.version ? nameOf(e.version) : "this";
   const blocked = blockedRelease(retry.error);
@@ -103,7 +116,7 @@ export function HistoryRetry({ e }: { e: ActivityEvent }) {
       </Button>
       {open ? (
         <ConfirmDialog
-          scope={blocked ? unblockGrabScope(blocked, "Retry") : retryScope("failed", copy)}
+          scope={blocked ? unblockGrabScope(blocked, "Retry") : pausedScope(retryScope("failed", copy), paused, "retry")}
           subject={<span className="font-mono">{e.release || e.title.name}</span>}
           danger={!!blocked}
           busy={retry.isPending}

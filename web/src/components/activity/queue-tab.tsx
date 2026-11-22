@@ -12,7 +12,7 @@ import { removeDownload, useActivityAttempts, useActivityNow, type ActivityDownl
 import { useAuth } from "@/api/auth";
 import { usePerms } from "@/api/library";
 import { BulkDialog, SelectionLine, useChosen } from "@/components/activity/bulk";
-import { DownloadActions } from "@/components/activity/download-actions";
+import { DownloadActions, RetryPaused } from "@/components/activity/download-actions";
 import { Dash, episodesWords, FormatPills, Poster, StaleNotice, tight, TitleLine } from "@/components/activity/row-bits";
 import { ProgressBar, StepTrack, toneOf } from "@/components/activity-bits";
 import { Empty, ErrorState, Loading, VersionTag } from "@/components/page";
@@ -529,6 +529,7 @@ export function QueueTab({ admin, as, show, onShow }: { admin: boolean; as?: "us
   const deep = admin ? openParam(sp) : 0;
   const deepWhere = !deep || items.some((d) => d.id === deep) ? "" : all.some((d) => d.id === deep) ? "hidden" : "gone";
   return (
+    <RetryPaused.Provider value={!!q.data.paused}>
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="flex flex-wrap gap-2" data-testid="counts" role="group" aria-label="Show">
@@ -630,5 +631,6 @@ export function QueueTab({ admin, as, show, onShow }: { admin: boolean; as?: "us
         </OptionsDialog>
       ) : null}
     </div>
+    </RetryPaused.Provider>
   );
 }
