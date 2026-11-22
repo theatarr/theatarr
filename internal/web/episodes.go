@@ -200,22 +200,23 @@ func (w *Web) titleEpisodes(ctx context.Context, id int64, season int, seeFiles 
 		`+activity.EpisodeMonitoredSQL+`, COALESCE(
 			(SELECT MIN(n.number) FROM episode_number n WHERE n.episode_id = e.id AND n.scheme = 'absolute_tvdb'),
 			(SELECT MIN(n.number) FROM episode_number n WHERE n.episode_id = e.id AND n.scheme = 'absolute')),
-		e.air_date_utc_at, e.removed_at IS NOT NULL, `+activity.SeriesZoneSQL+`, `+activity.DayFirstAirSQL+`
+		e.air_date_utc_at, e.removed_at IS NOT NULL, `+activity.SeriesZoneSQL+`, `+activity.SeriesAirTimeSQL+`,
+		`+activity.DayFirstAirSQL+`
 		FROM episode e JOIN title t ON t.id = e.title_id WHERE e.title_id = ? AND (e.removed_at IS NULL
 			OR e.id = ? OR EXISTS (SELECT 1 FROM link_episode le JOIN link l
 				ON l.id = le.link_id WHERE le.episode_id = e.id AND l.state = 'active'))
 		ORDER BY e.season, e.number`, []any{id, keep}, func(r *sql.Rows) error {
 		var e Episode
 		var rt, abs, airAt sql.NullInt64
-		var zone string
+		var zone, airTime string
 		var firstMs int64
 		if err := r.Scan(&e.ID, &e.Season, &e.Number, &e.Name, &e.AirDate, &rt, &e.Monitored, &abs, &airAt,
-			&e.Removed, &zone, &firstMs); err != nil {
+			&e.Removed, &zone, &airTime, &firstMs); err != nil {
 			return err
 		}
 		e.Aired = clock.aired(airAt, e.AirDate)
 		// A made-up midnight for a date without a time is not given out: the pages show the nominal date.
-		if airAt.Valid && !activity.MadeUpAir(e.AirDate, zone, firstMs) {
+		if airAt.Valid && !activity.MadeUpAir(e.AirDate, zone, airTime, firstMs) {
 			t := store.FromMillis(airAt.Int64)
 			e.AirAt = &t
 		}

@@ -660,6 +660,22 @@ func TestAiredByInstant(t *testing.T) {
 	if !found {
 		t.Errorf("Home upcoming: no S01E03 in %+v", dv.Upcoming.Items)
 	}
+	// A known air time of midnight is real, not a placeholder: the instant is given out (fix round 2).
+	e.exec(`UPDATE series_meta SET air_time = '00:00' WHERE title_id = 4`)
+	l = EpisodeList{}
+	e.getKey(APIBase+"/titles/4/episodes", key, &l)
+	for _, ep := range l.Episodes {
+		if ep.ID == 43 && (ep.AirAt == nil || !ep.AirAt.Equal(time.Date(2026, 10, 27, 15, 0, 0, 0, time.UTC))) {
+			t.Errorf("known midnight air time: air_at %v", ep.AirAt)
+		}
+	}
+	var cal CalendarPage
+	e.getKey(APIBase+"/calendar?from=2026-10-27&to=2026-10-29&unmonitored=true", key, &cal)
+	for _, it := range cal.Items {
+		if it.EpisodeID == 43 && it.At == nil {
+			t.Errorf("calendar: known midnight air time has no instant")
+		}
+	}
 }
 
 // An episode with an air date and no instant (an import can leave it so, and no refresh has filled it) is aired from
