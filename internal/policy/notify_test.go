@@ -208,7 +208,7 @@ func TestNotifyTelegramTokenNotEchoed(t *testing.T) {
 			p.Notify.Targets["tg"].URL = ""
 		}
 		got := fmt.Sprint(p.Validate())
-		if strings.Contains(got, token) || strings.Contains(got, "AAFake") || !strings.Contains(got, "targets[tg].bot_token_env: want the name of an environment variable") {
+		if strings.Contains(got, token) || strings.Contains(got, "AAFake") || !strings.Contains(got, "targets[tg].bot_token_env: "+EnvNameRefused) {
 			t.Errorf("%s: %s", format, got)
 		}
 	}

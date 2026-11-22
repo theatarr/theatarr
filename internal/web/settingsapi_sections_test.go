@@ -643,7 +643,7 @@ func TestSettingsNotifyBotTokenEnvNotStored(t *testing.T) {
 	value["targets"].(map[string]any)["tg"].(map[string]any)["bot_token_env"] = pasted
 	edited, _ := yaml.Marshal(value)
 	got := se.want(se.call("PUT", "/sections/notify", map[string]any{"generation": se.generation(), "yaml": string(edited)}), 422, "pasted token")
-	if b, _ := json.Marshal(got); !strings.Contains(string(b), "not the token itself") {
+	if b, _ := json.Marshal(got); !strings.Contains(string(b), policy.EnvNameRefused) {
 		t.Errorf("refusal %s", b)
 	}
 	se.want(se.call("GET", "/sections", nil), 200, "read after")
@@ -658,5 +658,52 @@ func TestSettingsNotifyBotTokenEnvNotStored(t *testing.T) {
 	var leaked int
 	if err := se.st.Reader().QueryRow(`SELECT COUNT(*) FROM settings_audit WHERE before LIKE '%AAFake%' OR after LIKE '%AAFake%'`).Scan(&leaked); err != nil || leaked != 0 {
 		t.Errorf("audit rows with the token: %d %v", leaked, err)
+	}
+}
+
+// A value pasted into auth_header_env while an Authorization header is stored is refused by the same check as
+// bot_token_env, before the stored credential's reference takes the field's place; it is in no answer, log or audit row.
+func TestSettingsNotifyAuthHeaderEnvNotStored(t *testing.T) {
+	t.Parallel()
+	const pasted = "Bearer PastedHeaderInvented0123456789"
+	se := seededSectionsEnvBase(t, func(p *policy.Policy) {
+		if p.Notify == nil {
+			p.Notify = &policy.Notify{}
+		}
+		p.Notify.Targets = map[string]*policy.NotifyTarget{"hook": {URL: "http://192.168.1.50:8080/hook", Native: true}}
+	})
+	config := findSection(t, se.want(se.call("GET", "/sections", nil), 200, "read"), "notify")["config"].(map[string]any)
+	se.want(se.call("PUT", "/sections/notify", map[string]any{"generation": se.generation(), "config": config,
+		"secrets": map[string]string{"targets.hook.auth_header": testSecret}}), 200, "stored header")
+	yamlText := findSection(t, se.want(se.call("GET", "/sections", nil), 200, "reread"), "notify")["yaml"].(string)
+	var value map[string]any
+	if err := yaml.Unmarshal([]byte(yamlText), &value); err != nil {
+		t.Fatal(err)
+	}
+	value["targets"].(map[string]any)["hook"].(map[string]any)["auth_header_env"] = pasted
+	edited, _ := yaml.Marshal(value)
+	got := se.want(se.call("PUT", "/sections/notify", map[string]any{"generation": se.generation(), "yaml": string(edited)}), 422, "pasted header")
+	if b, _ := json.Marshal(got); !strings.Contains(string(b), policy.EnvNameRefused) {
+		t.Errorf("refusal %s", b)
+	}
+	se.want(se.call("GET", "/sections", nil), 200, "read after")
+	for i, b := range se.bodies {
+		if strings.Contains(b, "PastedHeader") {
+			t.Errorf("response %d shows the pasted value: %s", i, b)
+		}
+	}
+	if strings.Contains(se.logs.String(), "PastedHeader") {
+		t.Errorf("log shows the pasted value")
+	}
+	var leaked int
+	if err := se.st.Reader().QueryRow(`SELECT COUNT(*) FROM settings_audit WHERE before LIKE '%PastedHeader%' OR after LIKE '%PastedHeader%'`).Scan(&leaked); err != nil || leaked != 0 {
+		t.Errorf("audit rows with the value: %d %v", leaked, err)
+	}
+	snap, err := se.coord.Snapshot(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h := snap.Policy.Notify.Targets["hook"]; h == nil || snap.Policy.Getenv(h.AuthHeaderEnv) != testSecret {
+		t.Errorf("stored header changed: %+v", h)
 	}
 }

@@ -87,7 +87,7 @@ func checkEnv(e *Errors, path, v string, required bool) {
 		return
 	}
 	if !envRE.MatchString(v) {
-		e.add(path, "%q is not an environment variable name (A-Z, 0-9, _); secrets are never inline", v)
+		e.add(path, EnvNameRefused) // never quoted: it may be the secret itself
 	}
 }
 

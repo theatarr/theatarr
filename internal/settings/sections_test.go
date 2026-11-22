@@ -698,3 +698,75 @@ func TestSyncGroupRecords(t *testing.T) {
 		t.Errorf("new group: %s", got)
 	}
 }
+
+// Every *_env field of every section refuses a pasted value with one fixed sentence that never quotes it, and takes
+// an environment variable name.
+func TestSectionEnvNamesEveryField(t *testing.T) {
+	t.Parallel()
+	const pasted = "Bearer pasted-secret-0123456789"
+	// paths lists, for each *_env string field under typ, the JSON that sets only that field to value.
+	var build func(typ reflect.Type, value string, seen map[reflect.Type]bool) []any
+	build = func(typ reflect.Type, value string, seen map[reflect.Type]bool) []any {
+		for typ.Kind() == reflect.Pointer {
+			typ = typ.Elem()
+		}
+		var out []any
+		switch typ.Kind() {
+		case reflect.Map:
+			for _, v := range build(typ.Elem(), value, seen) {
+				out = append(out, map[string]any{"x": v})
+			}
+		case reflect.Slice:
+			for _, v := range build(typ.Elem(), value, seen) {
+				out = append(out, []any{v})
+			}
+		case reflect.Struct:
+			if seen[typ] {
+				return nil
+			}
+			seen[typ] = true
+			defer delete(seen, typ)
+			for i := 0; i < typ.NumField(); i++ {
+				name := yamlName(typ.Field(i))
+				if name == "" {
+					continue
+				}
+				if strings.HasSuffix(name, "_env") && typ.Field(i).Type.Kind() == reflect.String {
+					out = append(out, map[string]any{name: value})
+					continue
+				}
+				for _, v := range build(typ.Field(i).Type, value, seen) {
+					out = append(out, map[string]any{name: v})
+				}
+			}
+		}
+		return out
+	}
+	fields := 0
+	for _, spec := range Sections {
+		f, ok := policyField(&policy.Policy{}, spec.Key)
+		if !ok {
+			t.Fatalf("section %s", spec.Key)
+		}
+		for _, config := range build(f.Type(), pasted, map[reflect.Type]bool{}) {
+			fields++
+			raw, _ := json.Marshal(config)
+			err := SectionEnvNames(spec.Key, raw)
+			var errs *policy.Errors
+			if !errors.As(err, &errs) || len(errs.List) != 1 || errs.List[0].Msg != policy.EnvNameRefused ||
+				!strings.HasSuffix(errs.List[0].Path, "_env") || strings.Contains(err.Error(), "pasted") {
+				t.Errorf("%s %s: %v", spec.Key, raw, err)
+			}
+		}
+		for _, config := range build(f.Type(), "THEATARR_SOME_KEY", map[reflect.Type]bool{}) {
+			raw, _ := json.Marshal(config)
+			if err := SectionEnvNames(spec.Key, raw); err != nil {
+				t.Errorf("%s %s: a variable name refused: %v", spec.Key, raw, err)
+			}
+		}
+	}
+	// plex token, rclone and decypharr credentials, notify auth header and bot token, cardigann's Prowlarr key, ...
+	if fields < 8 {
+		t.Fatalf("only %d *_env fields found", fields)
+	}
+}

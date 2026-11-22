@@ -279,25 +279,51 @@ func stripOwned(key string, m map[string]any) {
 	}
 }
 
-// SectionBotTokenEnvs refuses a notify target's bot_token_env that is not an environment variable name, as submitted:
-// before a stored credential's reference replaces the field (applySection), so a token pasted there is never saved or
-// shown, and the refusal does not quote it.
-func SectionBotTokenEnvs(key string, config json.RawMessage) error {
-	if key != "notify" {
-		return nil
-	}
-	var m struct {
-		Targets map[string]map[string]any `json:"targets"`
-	}
-	if json.Unmarshal(config, &m) != nil {
+// SectionEnvNames refuses every *_env field of a submitted section that is not an environment variable name, as
+// submitted: before a stored credential's reference replaces the field (applySection), so a value pasted there is
+// never saved or shown, and the refusal (policy.EnvNameRefused) does not quote it.
+func SectionEnvNames(key string, config json.RawMessage) error {
+	f, ok := policyField(&policy.Policy{}, key)
+	var value any
+	if !ok || json.Unmarshal(config, &value) != nil {
 		return nil
 	}
 	var list []policy.FieldError
-	for _, name := range sortedPolicyKeys(m.Targets) {
-		if s, ok := m.Targets[name]["bot_token_env"].(string); ok && s != "" && !policy.IsEnvName(s) {
-			list = append(list, policy.FieldError{Path: "notify.targets[" + name + "].bot_token_env", Msg: policy.BotTokenEnvRefused})
+	var walk func(path string, v any, t reflect.Type)
+	walk = func(path string, v any, t reflect.Type) {
+		for t.Kind() == reflect.Pointer {
+			t = t.Elem()
+		}
+		switch t.Kind() {
+		case reflect.Struct:
+			m, _ := v.(map[string]any)
+			for i := 0; i < t.NumField(); i++ {
+				name := yamlName(t.Field(i))
+				child, ok := m[name]
+				if name == "" || !ok {
+					continue
+				}
+				if s, isString := child.(string); isString && strings.HasSuffix(name, "_env") {
+					if s != "" && !policy.IsEnvName(s) {
+						list = append(list, policy.FieldError{Path: path + "." + name, Msg: policy.EnvNameRefused})
+					}
+					continue
+				}
+				walk(path+"."+name, child, t.Field(i).Type)
+			}
+		case reflect.Map:
+			m, _ := v.(map[string]any)
+			for _, k := range sortedPolicyKeys(m) {
+				walk(path+"["+k+"]", m[k], t.Elem())
+			}
+		case reflect.Slice:
+			items, _ := v.([]any)
+			for i, item := range items {
+				walk(fmt.Sprintf("%s[%d]", path, i), item, t.Elem())
+			}
 		}
 	}
+	walk(key, value, f.Type())
 	if len(list) > 0 {
 		return &policy.Errors{List: list}
 	}

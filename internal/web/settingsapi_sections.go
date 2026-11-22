@@ -197,7 +197,7 @@ func (w *Web) apiSettingsSectionWrite(rw http.ResponseWriter, r *http.Request) {
 		w.settingsError(rw, r, err, scrub)
 		return
 	}
-	if err := settings.SectionBotTokenEnvs(key, section.Config); err != nil {
+	if err := settings.SectionEnvNames(key, section.Config); err != nil {
 		w.settingsError(rw, r, err, scrub)
 		return
 	}

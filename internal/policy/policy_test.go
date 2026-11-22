@@ -186,7 +186,7 @@ func TestBadPolicies(t *testing.T) {
 		{
 			name: "secret env not a name",
 			file: "providers.yaml", old: "api_key_env: THEATARR_RD_KEY", new: "api_key_env: sk-123abc",
-			want: []string{`providers[rd].api_key_env: "sk-123abc" is not an environment variable name`},
+			want: []string{`providers[rd].api_key_env: ` + EnvNameRefused},
 		},
 		{
 			name: "two documents",
@@ -384,6 +384,10 @@ func TestBadPolicies(t *testing.T) {
 				if !strings.Contains(err.Error(), w) {
 					t.Errorf("missing %q in:\n%v", w, err)
 				}
+			}
+			// A value in an *_env field is never echoed: it may be the secret itself.
+			if strings.Contains(err.Error(), "sk-123abc") {
+				t.Errorf("the pasted value is echoed: %v", err)
 			}
 		})
 	}

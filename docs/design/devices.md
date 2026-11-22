@@ -278,7 +278,7 @@ SignalR, Sonarr v5, `downloadclient`.
     (`policy.TelegramAPI`), whose host joins the allowlist and the gateway's webhook class as `webhook:<key>`.
     Validation needs both the chat id and the bot token, and never quotes a value put in `bot_token_env` (a token
     pasted there instead of a variable name); a section save checks it as submitted, before a stored bot token's
-    reference takes the field's place (`settings.SectionBotTokenEnvs`), so a pasted token is never stored or shown. The bot token is trimmed of surrounding whitespace. The Destinations
+    reference takes the field's place (`settings.SectionEnvNames`, the check of every `*_env` field), so a pasted token is never stored or shown. The bot token is trimmed of surrounding whitespace. The Destinations
     form offers each destination what its format takes: views and Theatarr events only on a JSON destination,
     warnings only on a message one, the chat ID and bot token only on a Telegram one, which has no URL or
     Authorization header. Switching formats keeps the other fields until Save, which leaves out what the final

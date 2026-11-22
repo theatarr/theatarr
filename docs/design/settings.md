@@ -333,7 +333,12 @@ policy names them by an internal `THEATARR_SETTINGS_SECRET_*` name that only tha
 or falling back never changes what the generation in force resolves); it is never read from the process environment
 and never exported. A changed section or record whose `*_env` field names a `THEATARR_SETTINGS_SECRET_*` name is
 refused on save and preview: it could only point at another record's stored secret (a webhook header carrying the
-Plex token). A stored credential wins
+Plex token). An `*_env` field takes the NAME of an environment variable: a value that is not one (A-Z, 0-9, _) is
+refused with "This field takes the name of an environment variable, not the value itself" (`policy.EnvNameRefused`),
+which never quotes it, so a secret pasted there is in no error, log, row or answer. A section save checks every
+`*_env` field as submitted, before a stored credential's reference takes the field's place (`settings.SectionEnvNames`,
+one check for all of them; `TestSectionEnvNamesEveryField`, `TestSettingsNotifyAuthHeaderEnvNotStored`); YAML
+validation uses the same sentence. A stored credential wins
 over the environment variable the section names; clearing it falls back to that variable. Values never appear in
 responses, audit rows, confirmations, logs or exports; the export lists `sections/<key> <path> credential: set`.
 Notification target URLs (`notify.targets.<name>.url`) carry their webhook token in the path or query, so they are
