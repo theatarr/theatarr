@@ -220,7 +220,9 @@ broke while playing is searched at once").
   movement too, and a pause starts the count again) (never on a remembered verdict or an old zurg line); a paused one never; no session left: nothing
   is sent. Never when the mount is the problem, never after a read that passed. `Options.StopWithMessage` switches it
   (on when unset; serve passes `library.plex.stop_with_message` of the settings in force); off, nothing is ever sent
-  to Plex. A refusal by Plex is logged once and kept on the incident.
+  to Plex. A refusal by Plex is logged once and kept on the incident. When nothing is sent, why is kept there instead
+  ("the player was not stopped: " and stopping a broken stream is off in the settings, the playback had already
+  ended, the playback was paused, or the file read again); users see only "The player was not stopped.".
 - **Incidents.** `Tracker.Incidents` lists the last 24 hours' incidents (title, episodes, how many files, viewer,
   player, the old and new release, what the player was told) as "Looking for another copy", "Replaced with another
   release", "Readable again", "No other copy yet" or "Earlier copy put back". `GET /nowplaying` carries them as

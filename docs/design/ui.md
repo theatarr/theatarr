@@ -401,7 +401,7 @@ The remaining pages use the same tokens and primitives:
   dot ("Looking for another copy", "Replaced with another release", "Readable again", "No other copy yet",
   "Earlier copy put back"); the time and how long ago; who was watching on which player; how many files of the
   release stopped working when more than one; what the player was told ("The player was stopped with the message:
-  …"), why Plex refused, or "The player was not stopped." once settled without one; for accounts that see files the
+  …"), why Plex refused, or why it was not ("The player was not stopped: the playback had already ended.", the setting off, paused, or the file read again; users see only "The player was not stopped."); for accounts that see files the
   broken copy's release and the one that replaced it. Users see only their own playbacks' rows, without releases.
 
 ### Navigation

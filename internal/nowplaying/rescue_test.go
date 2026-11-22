@@ -753,6 +753,9 @@ func TestRescueMessageSettingAndSession(t *testing.T) {
 	if got := e.stop.stopped(); len(got) != 0 || e.one(`SELECT state FROM link WHERE id = 11`) != "dead" {
 		t.Errorf("setting off: stops %q", got)
 	}
+	if got := e.one(`SELECT message FROM playing_break WHERE link_id = 11`); got != NotStoppedNote+notStoppedOff {
+		t.Errorf("setting off: note %q", got)
+	}
 	e2 := newRescueEnv(t, false, false)
 	e2.lib.setBroken("S01E03.mkv", -1)
 	e2.play(3, "playing")
@@ -761,6 +764,9 @@ func TestRescueMessageSettingAndSession(t *testing.T) {
 	e2.poll()
 	if got := e2.stop.stopped(); len(got) != 0 || e2.one(`SELECT state FROM link WHERE id = 12`) != "dead" {
 		t.Errorf("no session: stops %q", got)
+	}
+	if got := e2.one(`SELECT message FROM playing_break WHERE link_id = 12`); got != NotStoppedNote+notStoppedEnded {
+		t.Errorf("no session: note %q", got)
 	}
 	e3 := newRescueEnv(t, false, false)
 	e3.lib.setBroken("S01E02.mkv", -1)
@@ -775,6 +781,9 @@ func TestRescueMessageSettingAndSession(t *testing.T) {
 	e3.poll()
 	if got := e3.stop.stopped(); len(got) != 0 {
 		t.Errorf("paused: stops %q", got)
+	}
+	if got := e3.one(`SELECT message FROM playing_break WHERE link_id = 11`); got != NotStoppedNote+notStoppedPaused {
+		t.Errorf("paused: note %q", got)
 	}
 }
 

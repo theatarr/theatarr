@@ -834,17 +834,37 @@ type pendingTell struct {
 	playing    bool
 }
 
-// StoppedNote starts an incident's message when its player was stopped with one; any other message says why Plex
-// refused.
-const StoppedNote = "the player was stopped with the message: "
+// StoppedNote starts an incident's message when its player was stopped with one; NotStoppedNote when nothing was sent
+// to Plex, with why (notStopped*); any other message says why Plex refused.
+const (
+	StoppedNote      = "the player was stopped with the message: "
+	NotStoppedNote   = "the player was not stopped: "
+	notStoppedOff    = "stopping a broken stream is off in the settings"
+	notStoppedEnded  = "the playback had already ended"
+	notStoppedPaused = "the playback was paused"
+	notStoppedRead   = "the file read again"
+)
 
 // tell stops the playback of a confirmed broken file with msg (Options.StopWithMessage on, the default): only the same
 // playback (session id, viewer, item and part), read from Plex right before the call, and only when it is buffering or
 // its position has not moved since the sign, never when it is paused. One still advancing gets it at its next sign. No
 // session left: nothing is sent; Now playing and History show the incident. A refusal by Plex is logged once and kept
-// on the incident.
+// on the incident; when nothing is sent, why is kept there (NotStoppedNote: the setting off, the playback ended or
+// paused, the file read again).
 func (t *Tracker) tell(ctx context.Context, j *sign, msg string, incident int64) {
-	if t.o.StopWithMessage != nil && !t.o.StopWithMessage() || t.live(j.src.version) == nil {
+	// note keeps on the incident why nothing was sent (Now playing says it).
+	note := func(why string) {
+		if lib := t.rescuer(); lib != nil && incident != 0 {
+			if err := lib.PlayingMessage(ctx, incident, NotStoppedNote+why); err != nil {
+				t.o.Logger.Debug("nowplaying: incident message not kept", "err", err)
+			}
+		}
+	}
+	if t.live(j.src.version) == nil {
+		return
+	}
+	if t.o.StopWithMessage != nil && !t.o.StopWithMessage() {
+		note(notStoppedOff)
 		return
 	}
 	stopper, ok := t.o.Plex.(PlexStopper)
@@ -864,7 +884,11 @@ func (t *Tracker) tell(ctx context.Context, j *sign, msg string, incident int64)
 		}
 	}
 	switch {
-	case now == nil, now.State == "paused":
+	case now == nil:
+		note(notStoppedEnded)
+		return
+	case now.State == "paused":
+		note(notStoppedPaused)
 		return
 	case now.State != "buffering" && now.ViewOffset != j.s.ViewOffset:
 		// Still advancing (what it has cached plays on): told at its next sign.
@@ -875,11 +899,12 @@ func (t *Tracker) tell(ctx context.Context, j *sign, msg string, incident int64)
 		return
 	}
 	if incident != 0 && t.incidentRecovered(ctx, incident) {
-		return // the file reads again (another account took it, or the old copy came back)
+		note(notStoppedRead) // the file reads again (another account took it, or the old copy came back)
+		return
 	}
-	note := StoppedNote + msg
+	kept := StoppedNote + msg
 	if err := stopper.Terminate(ctx, j.s.ID, msg); err != nil {
-		note = "Plex refused to stop the player: " + err.Error()
+		kept = "Plex refused to stop the player: " + err.Error()
 		t.mu.Lock()
 		first := !t.refusedOnce
 		t.refusedOnce = true
@@ -894,7 +919,7 @@ func (t *Tracker) tell(ctx context.Context, j *sign, msg string, incident int64)
 			"player", j.s.Player, "message", msg)
 	}
 	if lib := t.rescuer(); lib != nil && incident != 0 {
-		if err := lib.PlayingMessage(ctx, incident, note); err != nil {
+		if err := lib.PlayingMessage(ctx, incident, kept); err != nil {
 			t.o.Logger.Debug("nowplaying: incident message not kept", "err", err)
 		}
 	}

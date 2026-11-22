@@ -67,7 +67,7 @@ describe("Now playing's files that stopped working", () => {
     { id: 3, title_id: 7, title: "Show (2020)", version: "tv-web", episodes: ["S02E07"], files: 2, viewer: "ann", player: "Living room TV",
       state: "replaced", status: "Replaced with another release", old_release: "Show.S02.1080p.WEB-DL-OLD", new_release: "Show.S02E07.1080p.BluRay-NEW",
       message: "the player was stopped with the message: This file stopped working. Looking for another copy. Try again in a few minutes.", at },
-    { id: 2, title_id: 8, title: "Film (2019)", version: "movie-web", files: 1, state: "unavailable", status: "No other copy yet", at },
+    { id: 2, title_id: 8, title: "Film (2019)", version: "movie-web", files: 1, state: "unavailable", status: "No other copy yet", message: "the player was not stopped: the playback had already ended", at },
     { id: 1, title_id: 9, title: "Other (2018)", version: "movie-web", files: 1, state: "readable", status: "Readable again", message: "Plex refused to stop the player: status 401", at },
   ];
   it("lists each with the outcome, when, who watched, the message and a link to the title", async () => {
@@ -83,7 +83,7 @@ describe("Now playing's files that stopped working", () => {
     expect(rows[0].textContent).toContain("The player was stopped with the message: This file stopped working. Looking for another copy. Try again in a few minutes.");
     expect(rows[0].textContent).toContain("Broken copy: Show.S02.1080p.WEB-DL-OLD");
     expect(rows[0].textContent).toContain("Replaced by: Show.S02E07.1080p.BluRay-NEW");
-    expect(rows[1].textContent).toContain("The player was not stopped.");
+    expect(rows[1].textContent).toContain("The player was not stopped: the playback had already ended.");
     expect(rows[2].textContent).toContain("Plex refused to stop the player: status 401.");
     expect(screen.getByRole("link", { name: "Show (2020) · S02E07" }).getAttribute("href")).toBe("/title/7");
     expect(rows[0].innerHTML).not.toMatch(/truncate|text-ellipsis|line-clamp/);
@@ -99,6 +99,7 @@ describe("Now playing's files that stopped working", () => {
     const rows = await screen.findAllByTestId("now-playing-incident");
     expect(rows[0].querySelector("[data-vkey]")).toBeNull();
     expect(rows[0].textContent).not.toMatch(/files of the release|Broken copy|Replaced by/);
+    expect(rows[0].textContent).toContain("The player was not stopped.");
   });
   it("shows no list when there is none", async () => {
     show(["browse", "request"]);

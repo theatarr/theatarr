@@ -35,6 +35,8 @@ func TestNowPlayingAPI(t *testing.T) {
 			Message: nowplaying.StoppedNote + "This file stopped working."},
 		{ID: 6, TitleID: 4, Title: "Delta (2019)", Viewer: "usr-plex", State: "unavailable", Status: "No other copy yet",
 			Message: "Plex refused to stop the player: HTTP 401 from 10.1.2.3"},
+		{ID: 8, TitleID: 9, Title: "Epsilon (2018)", Viewer: "usr-plex", State: "unavailable", Status: "No other copy yet",
+			Message: nowplaying.NotStoppedNote + "the playback was paused"},
 		{ID: 7, TitleID: 8, Title: "Omega (2021)", Viewer: "someone-else", Player: "Kitchen", State: "looking",
 			Status: "Looking for another copy"},
 	}}
@@ -56,7 +58,8 @@ func TestNowPlayingAPI(t *testing.T) {
 	akey := e.apiKey()
 	admin := get(akey)
 	for _, m := range []string{"someone-else", hashA, "Secret.Release", "rd-main", "S01E03", "10.1.2.3", "realdebrid",
-		"Old.Broken-GRP", "New.Fine-GRP", "Omega", "Kitchen", "HTTP 401", `"version":"tv-secret-lib"`, `"files":3`} {
+		"Old.Broken-GRP", "New.Fine-GRP", "Omega", "Kitchen", "HTTP 401", `"version":"tv-secret-lib"`, `"files":3`,
+		"was paused"} {
 		if !strings.Contains(admin, m) {
 			t.Errorf("admin does not see %q: %s", m, admin)
 		}
@@ -68,7 +71,7 @@ func TestNowPlayingAPI(t *testing.T) {
 	}
 	for _, m := range []string{"someone-else", "Alpha", hashA, "Secret.Release", "rd-main", "S01E03", "10.1.2.3",
 		"realdebrid", "/media/", "/mnt/", "fetch", "prewarm", "Old.Broken-GRP", "New.Fine-GRP", "Omega", "Kitchen",
-		"HTTP 401", "tv-secret-lib", `"files"`, `"version"`} {
+		"HTTP 401", "tv-secret-lib", `"files"`, `"version"`, "was paused"} {
 		if strings.Contains(user, m) {
 			t.Errorf("user sees %q: %s", m, user)
 		}
