@@ -171,6 +171,27 @@ function appUse(path: string, message: string): string | undefined {
   return m[2] === "profiles" ? `${m[1]}: profile mapping "${m[3] ?? ""}"` : `${m[1]}: its library list`;
 }
 
+/** explainError for Stop managing library: a connected app that still maps or lists the library is named in words
+ *  ("radarr: profile mapping "WEB only""), with a link to Connected apps; every other error stays beside them as
+ *  explainError words it. Any other failure reads as explainError has it. */
+export function explainStopError(e: unknown, now = Date.now()): Explained {
+  const base = explainError(e, now);
+  if (!(e instanceof ApiError) || e.status !== 422) return base;
+  const fields = Array.isArray((e.body as { fields?: unknown } | undefined)?.fields) ? ((e.body as { fields: { path?: unknown; message?: unknown }[] }).fields) : [];
+  const lines = fields.map((f) => {
+    const path = String(f.path ?? ""), message = String(f.message ?? "");
+    return { app: appUse(path, message), line: `${fieldWords(path)}: ${message}` };
+  });
+  if (!lines.some((l) => l.app)) return base;
+  return {
+    kind: "validation",
+    title: "Connected apps still use this library",
+    message: "Nothing was saved. Take the library out of these settings first, then try again:",
+    detail: [...new Set(lines.map((l) => l.app ?? l.line))],
+    link: { to: "/admin/settings/apps", label: "Settings › Connected apps" },
+  };
+}
+
 export function explainError(e: unknown, now = Date.now()): Explained {
   if (!(e instanceof ApiError)) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -270,17 +291,6 @@ export function explainError(e: unknown, now = Date.now()): Explained {
         };
       }
       const fields = Array.isArray(body.fields) ? (body.fields as { path?: unknown; message?: unknown }[]) : [];
-      // A library that a connected app still maps or lists (stopping it, for one): name each app's mapping in words.
-      const apps = fields.map((f) => appUse(String(f.path ?? ""), String(f.message ?? "")));
-      if (apps.length && apps.every((a) => a !== undefined)) {
-        return {
-          kind: "validation",
-          title: "Connected apps still use this library",
-          message: "Nothing was saved. Take the library out of these app settings first, then try again:",
-          detail: [...new Set(apps as string[])],
-          link: { to: "/admin/settings/apps", label: "Settings › Connected apps" },
-        };
-      }
       if (fields.length) {
         const lines = fields.map((f) => `${fieldWords(String(f.path ?? ""))}: ${String(f.message ?? "")}`);
         return {

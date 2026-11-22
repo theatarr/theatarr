@@ -14,6 +14,7 @@ import {
   editorMismatch,
   editorReturn,
   explainError,
+  explainStopError,
   explainReloadError,
   explainSyncError,
   fieldWords,
@@ -101,6 +102,26 @@ describe("refusals explained", () => {
     ]));
     expect(e.kind).toBe("order");
     expect(e.message).toMatch(/Libraries editor/);
+  });
+  it("keeps a connected app's own errors as they are outside Stop managing, with the mistyped key (F31 review)", () => {
+    const fields = [{ path: "views[radarr].versions[0]", message: 'unknown library "movie-wbe"' }];
+    const e = explainError(new ApiError(422, `settings refused: ${fields[0].path}: ${fields[0].message}`, undefined, { fields }));
+    expect(e.title).toBe("Not saved");
+    expect(e.message).toContain('unknown library "movie-wbe"');
+    expect(e.link).toBeUndefined();
+  });
+  it("names the app settings that stop a library in words, and keeps the other errors beside them (F31 review)", () => {
+    const fields = [
+      { path: "views[radarr].profiles[WEB only]", message: 'library "movie-web" is not served by this view' },
+      { path: "notifications[ops].versions[0]", message: 'unknown library "movie-web"' },
+    ];
+    const e = explainStopError(new ApiError(422, "settings refused", undefined, { fields }));
+    expect(e.title).toBe("Connected apps still use this library");
+    expect(e.detail).toEqual(['radarr: profile mapping "WEB only"', 'notifications[ops].versions[0]: unknown library "movie-web"']);
+    expect(e.link).toEqual({ to: "/admin/settings/apps", label: "Settings › Connected apps" });
+    // Any other refusal reads as everywhere else.
+    const other = explainStopError(new ApiError(409, "stale", undefined, { generation: 5 }));
+    expect(other.kind).toBe("stale");
   });
   it("shows Retry-After on a cooldown (429)", () => {
     const e = explainError(new ApiError(429, "429 Too Many Requests", undefined, { key: "dmm", status: "cooldown", message: "tested recently" }, 17));

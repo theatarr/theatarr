@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetCancel, SheetLayout, useEditParam } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { explainError } from "@/lib/settings";
+import { explainError, explainStopError } from "@/lib/settings";
 import { sectionsQuery } from "@/api/settings";
 import { libraryLabel } from "@/lib/library-label";
 import { useLibraryName } from "@/lib/library-names";
@@ -185,6 +185,8 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
   const profiles = new Map((quality.data?.profiles ?? []).map((p) => [p.key, p]));
   const [session, setSession] = useState<Session>();
   const [error, setError] = useState<unknown>();
+  // The error came from Stop managing library: explainStopError words it.
+  const [stopFailed, setStopFailed] = useState(false);
   const [pending, setPending] = useState<Pending>();
   const profileConfirm = useWriteConfirmation();
   const [busy, setBusy] = useState(false);
@@ -248,6 +250,7 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
   async function apply(body: VersionBody, create: boolean, inSheet: boolean) {
     if (inSheet && !session) return;
     setBusy(true);
+    setStopFailed(!!body.delete);
     try {
       const result = await saveVersion(body, create);
       void qc.invalidateQueries({ queryKey: setupKey });
@@ -311,6 +314,7 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
     if (!session) return;
     setBusy(true);
     setError(undefined);
+    setStopFailed(deleting);
     try {
       const current = deleting ? session : await withPresetProfile(session, confirmed);
       if (!current) return;
@@ -362,7 +366,7 @@ export function VersionsPage({ embedded = false }: { embedded?: boolean }) {
           subtitle={session.create ? "Downloads once saved, while Pause is off." : `${KIND_WORD[session.record.config.kind] ?? session.record.config.kind}${session.record.config.anime ? " · anime" : ""}`}
           footer={<><Button onClick={() => void review()} disabled={readOnly || busy || newKeyProblem(session) !== undefined}>Save</Button><SheetCancel variant="outline" onClick={close}>Cancel</SheetCancel>{changes ? <><span className="text-[13px] font-medium text-[var(--ink)]" data-testid="unsaved-count" aria-live="polite">{changeCount(changes)}</span><Button variant="ghost" size="sm" disabled={busy} data-testid="version-discard" onClick={() => { setSession({ ...session, record: copy(session.saved) }); setError(undefined); setPending(undefined); setDiscards(discards + 1); }}>Discard</Button></> : null}<Link className="text-sm text-[var(--accent-ink)] underline" to="/admin/settings/libraries/naming">Edit naming</Link>{!session.create ? <Button className="ml-auto" variant="destructive" onClick={() => void review(true)} disabled={readOnly || busy}>Stop managing library</Button> : null}</>}>
           {made ? <p className="mb-4 rounded-md border border-[var(--line)] px-3 py-2 text-[13px]" role="status" data-testid="preset-profile-made">The profile <span className="font-mono">{made.key}</span> was created from the TRaSH default {made.name} and is selected. The library itself is saved when Save succeeds; the profile stays either way.</p> : null}
-          {error ? <div ref={errorBox} tabIndex={-1} className="mb-4"><ExplainBox error={explainError(error)} onReload={() => void reload(false)} onReloadKeep={() => void reload(true)} /></div> : null}
+          {error ? <div ref={errorBox} tabIndex={-1} className="mb-4"><ExplainBox error={stopFailed ? explainStopError(error) : explainError(error)} onReload={() => void reload(false)} onReloadKeep={() => void reload(true)} /></div> : null}
           <fieldset disabled={readOnly || busy}>
             <VersionForm key={discards} session={session} data={data} defaults={defaults} profiles={profiles} error={error} onChange={(record) => { setSession({ ...session, record }); setPending(undefined); }} />
           </fieldset>
