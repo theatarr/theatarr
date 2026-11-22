@@ -840,9 +840,11 @@ state and Cutoff unmet are its own. The journal records an `edit_file` action (m
     aside or repoint by a listing (`TestSweepLeavesUnsettledDeadLink`, `TestSweepDoesNotRepointUnsettledDeadLink`). A
     replacement at the same path (a new target) is an ordinary link (`TestSweepTreatsSamePathReplacementAsActive`).
   - **It comes back only through a read.** After each hourly sweep that ended without error (`LastSweep`; not one a
-    zurg rename started) now playing's worker calls `ComeBack`. It reads each open row's own file at its saved range:
-    at its old target, or, when its folder was renamed, where the sweep's own rename evidence finds it (`candidates`,
-    `identityFolders`, zurg's and decypharr's confirmation). A read starts the file's streak (`back_since`); an
+    zurg rename started) now playing's worker calls `ComeBack`. Before any read it asks the sweep's own folder choice
+    (`pickFolder`, with the incident's saved hash: a hash-suffixed folder over a reused bare name, decypharr's current
+    name, zurg's and decypharr's confirmation; one listing and one cache of decypharr's file lists per pass) where each
+    open row's file is now, and reads only there, at its saved range (`TestComeBackSkipsReusedBareName`,
+    `TestComeBackDecypharrRename`). A read starts the file's streak (`back_since`); an
     unlisted file or a failed read ends it.
   - **The revive.** A read at least 30 min (`deadConfirm`) after the streak began decides, with Pause off, the library
     writing, the title and version still there and monitored, and no other active file holding its film or any one of

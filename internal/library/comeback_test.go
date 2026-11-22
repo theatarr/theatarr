@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/library/decypharrtest"
 	"github.com/theatarr/theatarr/internal/policy"
 )
 
@@ -198,5 +199,61 @@ func TestComeBackRenamedFolder(t *testing.T) {
 	if got := e.one(`SELECT settled FROM playing_break WHERE id = ?`, id) + " " +
 		e.one(`SELECT COUNT(*) FROM provider_cache WHERE source = 'router:playing'`); got != "revived 0" {
 		t.Errorf("incident %q", got)
+	}
+}
+
+// zurg moved the old torrent to its hash-suffixed folder and another torrent took the bare name with the same file
+// name: the come-back reads only where the sweep's own selection puts this torrent (the suffixed folder), and revives
+// it there, never the other torrent's file at the bare path.
+func TestComeBackSkipsReusedBareName(t *testing.T) {
+	e, id := brokenWhilePlaying(t)
+	moved := "Name {" + hashA[:6] + "}"
+	if err := os.Rename(filepath.Join(e.mount, "__all__", "Name"), filepath.Join(e.mount, "__all__", moved)); err != nil {
+		t.Fatal(err)
+	}
+	// Another torrent now holds the bare folder, with a file of the same name (unreadable as this one: empty).
+	if err := os.MkdirAll(filepath.Join(e.mount, "__all__", "Name"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	other := filepath.Join(e.mount, "__all__", "Name", "episode.mkv")
+	if err := os.WriteFile(other, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Truncate(other, 4<<20); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if err := e.lib.ComeBack(e.ctx); err != nil {
+			t.Fatal(err)
+		}
+		e.now = e.now.Add(time.Hour)
+	}
+	want := filepath.Join(e.mount, "__all__", moved, "episode.mkv")
+	if got := e.one(`SELECT state || ' ' || target FROM link WHERE id = 1`); got != "active "+want {
+		t.Errorf("link %s, want active at %s", got, want)
+	}
+	if got := e.one(`SELECT settled FROM playing_break WHERE id = ?`, id); got != "revived" {
+		t.Errorf("incident %q", got)
+	}
+}
+
+// A rename only decypharr knows (no name in the registry leads to the new folder): the come-back finds it as the sweep
+// would, by decypharr's current name for the hash, and revives it there.
+func TestComeBackDecypharrRename(t *testing.T) {
+	e, id := brokenWhilePlaying(t)
+	if err := os.Rename(filepath.Join(e.mount, "__all__", "Name"), filepath.Join(e.mount, "__all__", decyFolder)); err != nil {
+		t.Fatal(err)
+	}
+	e.withDecypharr(decypharrtest.Torrent{Hash: hashA, Name: decyFolder, Provider: "realdebrid"})
+	for range 2 {
+		if err := e.lib.ComeBack(e.ctx); err != nil {
+			t.Fatal(err)
+		}
+		e.now = e.now.Add(time.Hour)
+	}
+	want := filepath.Join(e.mount, "__all__", decyFolder, "episode.mkv")
+	if got := e.one(`SELECT state || ' ' || target FROM link WHERE id = 1`) + " " +
+		e.one(`SELECT settled FROM playing_break WHERE id = ?`, id); got != "active "+want+" revived" {
+		t.Errorf("got %s", got)
 	}
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"io/fs"
 	"path/filepath"
 	"strings"
 	"time"
@@ -92,33 +91,50 @@ func (l *Library) ComeBack(ctx context.Context) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	var ix *mountIndex // the release root's listing, read once when a renamed folder is looked for
+	if len(todo) == 0 {
+		return nil
+	}
+	// Where each old copy is now is the sweep's own choice (pickFolder: its saved hash, the folder names, a reused bare
+	// name, decypharr's current name, zurg's and decypharr's confirmation), made before any read; only that place is
+	// read. One listing of the release root and one cache of decypharr's file lists serve the whole pass.
+	ix, err := l.newMountIndex(ctx)
+	if err != nil {
+		return nil // a mount that does not list: no verdict this pass
+	}
+	db, lists := l.st.Reader(), relinkLists{}
 	for _, r := range todo {
-		target, newFolder := r.old, ""
-		_, err := l.MountFileSize(ctx, target)
-		if errors.Is(err, fs.ErrNotExist) {
-			if ix == nil {
-				if ix, err = l.newMountIndex(ctx); err != nil {
-					return nil // a mount that does not list: no verdict this pass
-				}
-			}
-			alt, folder, perr := l.renamedPlace(ctx, ix, r)
-			if perr != nil {
-				return perr
-			}
-			if alt != "" {
-				target, newFolder = alt, folder
-				_, err = l.MountFileSize(ctx, target)
-			}
+		read, ok := l.mount.FromLink(r.old)
+		if !ok {
+			continue
 		}
-		if Unavailable(err) {
-			return nil
+		rel, err := filepath.Rel(l.mount.AllPath(), read)
+		if err != nil || escapes(rel) {
+			continue
+		}
+		folder, inner, _ := strings.Cut(rel, string(filepath.Separator))
+		ml := mountLink{path: r.path, target: r.old, folder: folder, inner: inner}
+		listed, err := ix.has(folder, inner)
+		if errors.Is(err, errFolderUnreadable) {
+			continue
 		}
 		if err != nil {
-			if err := l.setBack(ctx, r.id, false); err != nil {
+			return nil
+		}
+		target, newFolder := r.old, ""
+		if !listed || r.hash != "" {
+			_, nf, nt, err := l.pickFolder(ctx, db, ix, lists, ml, listed, false, "", r.hash)
+			if err != nil {
 				return err
 			}
-			continue
+			switch {
+			case nt != "" && nt != r.old:
+				target, newFolder = nt, nf
+			case !listed:
+				if err := l.setBack(ctx, r.id, false); err != nil { // not on the mount: the streak ends
+					return err
+				}
+				continue
+			}
 		}
 		_, err = l.ReadPiece(ctx, target, r.offset, PlayingPiece, PlayingPieceLimit)
 		switch {
@@ -155,57 +171,6 @@ func (l *Library) setBack(ctx context.Context, id int64, back bool) error {
 	}
 	_, err := l.st.Writer().ExecContext(ctx, q, args...)
 	return err
-}
-
-// renamedPlace is where a row's file is when its release folder was renamed, found as the sweep finds a renamed
-// folder (candidates, identityFolders, zurg's and decypharr's confirmation): the target there and the folder's name,
-// or "" when no such folder holds the file.
-func (l *Library) renamedPlace(ctx context.Context, ix *mountIndex, r returned) (string, string, error) {
-	read, ok := l.mount.FromLink(r.old)
-	if !ok {
-		return "", "", nil
-	}
-	rel, err := filepath.Rel(l.mount.AllPath(), read)
-	if err != nil || escapes(rel) {
-		return "", "", nil
-	}
-	folder, inner, _ := strings.Cut(rel, string(filepath.Separator))
-	ml := mountLink{path: r.path, target: r.old, folder: folder, inner: inner}
-	db := l.st.Reader()
-	hash, names, err := l.candidates(ctx, db, ml)
-	if err != nil {
-		return "", "", err
-	}
-	identity := hash
-	if m := hash6Suffix.FindStringSubmatch(folder); identity == "" && m != nil {
-		identity = m[2]
-	}
-	if identity == "" {
-		return "", "", nil
-	}
-	if names, err = identityFolders(ctx, db, ix, identity, append([]string{folder}, names...)); err != nil {
-		return "", "", err
-	}
-	lists := relinkLists{}
-	for _, n := range names {
-		if n == folder {
-			continue
-		}
-		found, err := ix.has(n, inner)
-		if errors.Is(err, errFolderUnreadable) || err == nil && !found {
-			continue
-		}
-		if err != nil {
-			return "", "", err
-		}
-		if len(hash) == 40 {
-			if _, ok := l.zurgConfirm(ctx, hash, n, inner); !ok || !l.relinkHolds(ctx, db, lists, ml, hash, n) {
-				continue
-			}
-		}
-		return l.mount.ToLink(filepath.Join(l.mount.AllPath(), n, inner)), n, nil
-	}
-	return "", "", nil
 }
 
 // reviveReturned brings back an old copy that read on two sweeps, when nothing else holds any of its film or

@@ -269,9 +269,18 @@ func linkHash(ctx context.Context, db *sql.DB, path string) (string, error) {
 
 // candidates finds the release's info hash and the folder names it may have now.
 func (l *Library) candidates(ctx context.Context, db *sql.DB, ml mountLink) (string, []string, error) {
-	hash, err := linkHash(ctx, db, ml.path)
-	if err != nil {
-		return "", nil, err
+	return l.candidatesFor(ctx, db, ml, "")
+}
+
+// candidatesFor is candidates with the hash already known (savedHash; "" looks it up as candidates does).
+func (l *Library) candidatesFor(ctx context.Context, db *sql.DB, ml mountLink, savedHash string) (string, []string,
+	error) {
+	hash := strings.ToLower(savedHash)
+	if hash == "" {
+		var err error
+		if hash, err = linkHash(ctx, db, ml.path); err != nil {
+			return "", nil, err
+		}
 	}
 	base, prefix := ml.folder, ""
 	if m := hash6Suffix.FindStringSubmatch(ml.folder); m != nil {
@@ -325,6 +334,79 @@ func (l *Library) candidates(ctx context.Context, db *sql.DB, ml mountLink) (str
 		}
 	}
 	return strings.ToLower(hash), out, nil
+}
+
+// pickFolder is the sweep's choice of the release folder a link's file is in now: by its hash (savedHash, else the
+// link's recorded identity) and the folder names it may have (candidates, identityFolders), an explicit rename hint,
+// decypharr's current name for the hash, and a candidate's confirmation by zurg and decypharr. ok says the link's own
+// folder holds the file: then only a hash-suffixed folder of its identity holding the same file moves it. It returns
+// the hash, and the folder and target found ("" when none). The relink sweep and the come-back of a file that broke
+// while playing (ComeBack) both choose with it.
+func (l *Library) pickFolder(ctx context.Context, db *sql.DB, ix *mountIndex, lists relinkLists, ml mountLink, ok,
+	hinted bool, hint, savedHash string) (hash, newFolder, newTarget string, err error) {
+	hash, names, err := l.candidatesFor(ctx, db, ml, savedHash)
+	if err != nil {
+		return "", "", "", err
+	}
+	identity := hash
+	if m := hash6Suffix.FindStringSubmatch(ml.folder); identity == "" && m != nil {
+		identity = m[2]
+	}
+	if hinted {
+		// An explicit rename is evidence even while the bare name resolves to a newer torrent. Do not
+		// substitute some other candidate if the reported destination lacks this file.
+		names = []string{hint}
+	} else if identity != "" {
+		names, err = identityFolders(ctx, db, ix, identity, append([]string{ml.folder}, names...))
+		if err != nil {
+			return "", "", "", err
+		}
+		if ok {
+			// An existing target is healthy unless a hash-suffixed folder for its identity also holds the
+			// same file. Registry names alone cannot prove that a bare folder was reclaimed by this torrent.
+			filtered := names[:0]
+			for _, n := range names {
+				m := hash6Suffix.FindStringSubmatch(n)
+				if m != nil && strings.HasPrefix(identity, m[2]) {
+					filtered = append(filtered, n)
+				}
+			}
+			names = filtered
+		}
+	}
+	if l.decy != nil && !ok && !hinted && len(hash) == 40 {
+		// decypharr's current name for the hash, whatever the registry records.
+		if dnames, known := l.decypharrNames(ctx, hash, false); known {
+			names = withDecypharrNames(dnames, names)
+		}
+	}
+	for _, n := range names {
+		found, err := ix.has(n, ml.inner)
+		if errors.Is(err, errFolderUnreadable) {
+			continue // no verdict on this candidate
+		}
+		if err != nil {
+			return "", "", "", err
+		}
+		if found && len(hash) == 40 {
+			// zurg knows which torrent holds the file: a candidate holding another torrent's is not this link's.
+			if e, ok := l.zurgConfirm(ctx, hash, n, ml.inner); !ok {
+				l.log.Info("library: relink candidate holds another torrent", "link", ml.path, "folder", n,
+					"want", hash, "zurg_hash", e.Hash)
+				continue
+			}
+			// decypharr: the file there must be one of the download's own, when its list can be read.
+			if !l.relinkHolds(ctx, db, lists, ml, hash, n) {
+				l.log.Info("library: relink candidate holds another torrent's file", "link", ml.path, "folder", n,
+					"want", hash)
+				continue
+			}
+		}
+		if found {
+			return hash, n, l.mount.ToLink(filepath.Join(l.mount.AllPath(), n, ml.inner)), nil
+		}
+	}
+	return hash, "", "", nil
 }
 
 // identityQuery counts the registry's claims on folder name n: by recorded mount folder, and by any of mount folder,
@@ -592,72 +674,11 @@ func (l *Library) relinkRoot(ctx context.Context, ix *mountIndex, zv *zurgView, 
 			continue
 		}
 		dl := DanglingLink{Path: ml.path, Target: ml.target}
-		hash, names, err := l.candidates(ctx, db, ml)
+		hash, newFolder, newTarget, err := l.pickFolder(ctx, db, ix, lists, ml, ok, hinted, hint, "")
 		if err != nil {
 			return sc, err
 		}
-		dl.Hash = hash
-		identity := hash
-		if m := hash6Suffix.FindStringSubmatch(ml.folder); identity == "" && m != nil {
-			identity = m[2]
-		}
-		if hinted {
-			// An explicit rename is evidence even while the bare name resolves to a newer torrent. Do not
-			// substitute some other candidate if the reported destination lacks this file.
-			names = []string{hint}
-		} else if identity != "" {
-			names, err = identityFolders(ctx, db, ix, identity, append([]string{ml.folder}, names...))
-			if err != nil {
-				return sc, err
-			}
-			if ok {
-				// An existing target is healthy unless a hash-suffixed folder for its identity also holds the
-				// same file. Registry names alone cannot prove that a bare folder was reclaimed by this torrent.
-				filtered := names[:0]
-				for _, n := range names {
-					m := hash6Suffix.FindStringSubmatch(n)
-					if m != nil && strings.HasPrefix(identity, m[2]) {
-						filtered = append(filtered, n)
-					}
-				}
-				names = filtered
-			}
-		}
-		if l.decy != nil && !ok && !hinted && len(hash) == 40 {
-			// decypharr's current name for the hash, whatever the registry records.
-			if dnames, known := l.decypharrNames(ctx, hash, false); known {
-				names = withDecypharrNames(dnames, names)
-			}
-		}
-		newFolder := ""
-		for _, n := range names {
-			found, err := ix.has(n, ml.inner)
-			if errors.Is(err, errFolderUnreadable) {
-				continue // no verdict on this candidate
-			}
-			if err != nil {
-				return sc, err
-			}
-			if found && len(hash) == 40 {
-				// zurg knows which torrent holds the file: a candidate holding another torrent's is not this link's.
-				if e, ok := l.zurgConfirm(ctx, hash, n, ml.inner); !ok {
-					l.log.Info("library: relink candidate holds another torrent", "link", ml.path, "folder", n,
-						"want", hash, "zurg_hash", e.Hash)
-					continue
-				}
-				// decypharr: the file there must be one of the download's own, when its list can be read.
-				if !l.relinkHolds(ctx, db, lists, ml, hash, n) {
-					l.log.Info("library: relink candidate holds another torrent's file", "link", ml.path, "folder", n,
-						"want", hash)
-					continue
-				}
-			}
-			if found {
-				newFolder = n
-				dl.NewTarget = l.mount.ToLink(filepath.Join(l.mount.AllPath(), n, ml.inner))
-				break
-			}
-		}
+		dl.Hash, dl.NewTarget = hash, newTarget
 		if dl.NewTarget == ml.target {
 			continue
 		}
