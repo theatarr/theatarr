@@ -96,10 +96,13 @@ export function SheetLayout({
   children,
   testid,
   changes = 0,
+  step,
   ...rest
 }: {
   /** The form's unsaved edits: closing asks first while there are any. */
   changes?: number;
+  /** A wizard's step: when it changes, the body starts again at its top. */
+  step?: string;
   title: ReactNode;
   subtitle?: ReactNode;
   headingRef?: RefObject<HTMLHeadingElement | null>;
@@ -113,6 +116,10 @@ export function SheetLayout({
   const id = headingId ?? own;
   const guard = useContext(SheetGuard);
   useSheetChanges(changes);
+  const body = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (body.current) body.current.scrollTop = 0;
+  }, [step]);
   return (
     <section className="flex min-h-0 flex-1 flex-col" aria-labelledby={id} data-testid={testid} {...rest}>
       <header className="flex items-start justify-between gap-3 border-b border-[var(--line)] px-4 py-3.5 sm:px-5">
@@ -126,7 +133,7 @@ export function SheetLayout({
           <X />
         </Button>
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-4 sm:px-5">{children}</div>
+      <div ref={body} className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-4 sm:px-5" data-testid={testid ? `${testid}-body` : undefined}>{children}</div>
       {footer ? (
         <footer className="flex flex-wrap items-center gap-2 border-t border-[var(--line)] bg-[var(--bg)] px-4 py-3 sm:px-5" data-testid="sheet-footer">
           {footer}

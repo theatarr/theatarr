@@ -220,7 +220,7 @@ export function ProfileSheet({ session: initial, readOnly, onClose, onSaved, onR
   const diff = picking || readOnly || !config ? 0 : changedPaths(config, edit ? edit.config : built?.profile).length;
   const changes = create && built && !readOnly ? Math.max(1, diff) : diff;
   return <Sheet label={picking ? "New profile from a TRaSH preset" : create ? "New profile" : `Edit profile ${edit!.key}`} onClose={onClose} initialFocus={heading}>
-    <SheetLayout testid="profile-sheet" headingRef={heading} onClose={onClose} title={title} changes={changes}
+    <SheetLayout testid="profile-sheet" headingRef={heading} onClose={onClose} title={title} changes={changes} step={picking ? "pick" : "edit"}
       subtitle={edit ? `${flavourWord(summary?.flavour)} · ${summary?.formats ?? 0} formats` : create?.preset ? `${flavourWord(create.flavour)} · ${create.preset.built.formats} formats from TRaSH` : undefined}
       footer={footer}>
       {confirm.dialog}

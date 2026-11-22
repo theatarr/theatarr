@@ -141,8 +141,12 @@ describe("Quality profiles page", () => {
     // Only the modifiers that change this preset are offered.
     expect(within(picker).queryByRole("checkbox", { name: "Allow Bluray-2160p encodes" })).toBeNull();
     await user.click(within(picker).getByRole("checkbox", { name: "Add 1080p fallbacks below the top quality" }));
+    // The editor opens at its top, not where the preset list was scrolled to (F22).
+    let top = 640;
+    Object.defineProperty(screen.getByTestId("profile-sheet-body"), "scrollTop", { configurable: true, get: () => top, set: (v: number) => { top = v; } });
     await user.click(within(picker).getByRole("button", { name: "Continue to editor" }));
     await waitFor(() => expect(fetch.calls("POST", "/settings/presets/build")).toHaveLength(1));
+    await waitFor(() => expect(top).toBe(0));
     expect(fetch.calls("POST", "/settings/presets/build")[0].body).toEqual({ flavour: "radarr", preset: "0537", modifiers: ["fallbacks_1080p"] });
     expect(fetch.calls("GET", "/settings/presets")[0].search).toBe("?flavour=radarr");
 

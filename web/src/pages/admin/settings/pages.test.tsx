@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { useNavigate } from "react-router";
 import { expect, it, vi } from "vitest";
 import { mockFetch, renderPage } from "@/test/page";
 import { overview } from "@/components/settings/fixtures";
@@ -178,4 +179,23 @@ it("shows indexer statistics under Status with a 7 / 30 / 90 days choice", async
  fireEvent.click(screen.getByRole("button", { name: "30 days" }));
  await screen.findByRole("button", { name: "30 days", pressed: true });
  await vi.waitFor(() => expect(fetch.calls("GET", "/indexers/stats").map(r => r.search)).toContain("?days=30"));
+});
+it("opens another settings page at its top, and Back leaves the scroll to the browser (F22)", async () => {
+ mockFetch([
+  { method: "GET", path: "/settings", reply: overview() },
+  { method: "GET", path: "/settings/schema", reply: schema },
+  { method: "GET", path: "/settings/sections", reply: { source: "db", generation: 4, sections: [{ key: "library", config: null, secrets: [] }] } },
+ ]);
+ const scroll = vi.fn();
+ vi.stubGlobal("scrollTo", scroll);
+ function Back() { const navigate = useNavigate(); return <button type="button" onClick={() => navigate(-1)}>Go back</button>; }
+ renderPage(<><SettingsPage /><Back /></>, "/admin/settings/libraries/files");
+ await screen.findByRole("heading", { name: "Mount and folders" });
+ expect(scroll).not.toHaveBeenCalled();
+ fireEvent.click(screen.getByRole("tab", { name: "Naming" }));
+ await waitFor(() => expect(scroll).toHaveBeenCalledWith(0, 0));
+ scroll.mockClear();
+ fireEvent.click(screen.getByRole("button", { name: "Go back" }));
+ await screen.findByRole("heading", { name: "Mount and folders" });
+ expect(scroll).not.toHaveBeenCalled();
 });
