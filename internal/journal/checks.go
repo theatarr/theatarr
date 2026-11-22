@@ -376,26 +376,13 @@ func (b *builder) expectedLanguages(e *Entry, ti *titleInfo) (langs []string, st
 	return langs, false
 }
 
-// languageName turns an ISO 639-1 code into the arr's language name; names pass through.
+// languageName is the arr's name of a language held by code or name (decide.LanguageCode, the mapping the import's
+// wrong-audio rule uses): "ko" is Korean; a value the table lacks passes through.
 func languageName(s string) string {
-	if len(s) == 2 {
-		if iso := radarr.FindIsoLanguage(strings.ToLower(s)); iso != nil {
-			return iso.Language.Name
-		}
+	if c, ok := decide.LanguageCode(s); ok {
+		return decide.LanguageName(c)
 	}
 	return s
-}
-
-func threeLetter(name string) string {
-	if iso := radarr.FindIsoLanguageByName(name); iso != nil {
-		return iso.ThreeLetterCode
-	}
-	if l, ok := radarr.LanguageByName(name); ok {
-		if iso := radarr.GetIsoLanguage(l); iso != nil {
-			return iso.ThreeLetterCode
-		}
-	}
-	return ""
 }
 
 func (b *builder) checkLanguage(e *Entry, ti *titleInfo) {
@@ -512,14 +499,14 @@ func (b *builder) checkFile(e *Entry, ti *titleInfo) {
 		want, strict := b.expectedLanguages(e, ti)
 		var codes []string
 		for _, w := range want {
-			if c := threeLetter(w); c != "" {
+			if c, ok := decide.LanguageCode(w); ok {
 				codes = append(codes, c)
 			}
 		}
 		known := false
 		for _, a := range e.f.fileAudio {
-			a = audioCode(a)
-			if a == "" || a == "und" || a == "zxx" || a == "mul" {
+			a, ok := decide.AudioLanguage(a)
+			if !ok {
 				continue
 			}
 			known = true
@@ -536,24 +523,6 @@ func (b *builder) checkFile(e *Entry, ti *titleInfo) {
 				strings.Join(codes, " or "))
 		}
 	}
-}
-
-// audioCode normalises a stream's language tag to the three-letter code of the arrs' language table: Norwegian
-// Bokmål and Nynorsk (nb, nn, nob, nno; the two-letter ones from a Matroska LanguageIETF tag) count as Norwegian,
-// two-letter tags become three, and ISO 639-2/B codes (fre, ger, chi) become 639-2/T (fra, deu, zho) like the
-// expected codes.
-func audioCode(a string) string {
-	a = strings.ToLower(strings.TrimSpace(a))
-	switch a {
-	case "nb", "nn", "nob", "nno":
-		return "nor"
-	}
-	if len(a) == 2 || len(a) == 3 {
-		if iso := radarr.FindIsoLanguage(a); iso != nil {
-			return iso.ThreeLetterCode
-		}
-	}
-	return a
 }
 
 // Size statistics: the median MB per minute per quality, over the arrs' grabs and ours, recomputed every 6 hours.
