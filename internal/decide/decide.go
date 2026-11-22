@@ -86,8 +86,11 @@ type Episode struct {
 	Title         string
 	AirDate       string // YYYY-MM-DD, "" unknown
 	AirDateUTC    *time.Time
-	Runtime       int
-	Monitored     bool
+	// AirTimeUnknown: the series' listing gives air days without a time (series_meta.air_time empty), so AirDateUTC
+	// is a made-up midnight.
+	AirTimeUnknown bool
+	Runtime        int
+	Monitored      bool
 	// File is the version's file of the episode (nil: none); FileID groups the episodes of one file.
 	File   *ExistingFile
 	FileID int64

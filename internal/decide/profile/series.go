@@ -6,8 +6,12 @@ package profile
 // SingleEpisodeSearchMatch}. Search/SeriesSpecification is the caller's: a decision is always for one series.
 
 import (
+	"fmt"
 	"slices"
+	"strings"
 	"time"
+
+	"github.com/theatarr/theatarr/internal/decide/parser/sonarr"
 )
 
 // Reasons of the series specifications and of the mapping (DownloadRejectionReason names).
@@ -20,6 +24,7 @@ const (
 	ReasonWrongEpisode                Reason = "WrongEpisode"
 	ReasonFullSeason                  Reason = "FullSeason"
 	ReasonFullSeasonNotAired          Reason = "FullSeasonNotAired"
+	ReasonNotAiredYet                 Reason = "NotAiredYet" // ours
 	ReasonMultiSeason                 Reason = "MultiSeason"
 	ReasonSplitEpisode                Reason = "SplitEpisode"
 	ReasonExistingFileHasMoreEpisodes Reason = "ExistingFileHasMoreEpisodes"
@@ -98,6 +103,48 @@ func fullSeason(e *Engine, s *Subject) Decision {
 		}
 	}
 	return Accept()
+}
+
+// notAiredLead is how long before its air time a TV capture of an episode is taken.
+const notAiredLead = 36 * time.Hour
+
+// notAired is ours: a television capture (HDTV, SDTV, Raw-HD) of an episode cannot exist before the broadcast, so one
+// whose episode airs more than notAiredLead from now is a fake and is passed over for now (a temporary rejection: a
+// later sighting is decided again). Packs keep fullSeason; WEB, disc and unknown sources are never delayed, nor an
+// episode without an air date, a special or an upgrade of an episode with a file. The deciding episode is the
+// earliest of a release of one or two episodes and the latest of a longer range, so a fake "E01-E10" does not ride on
+// E01.
+func notAired(e *Engine, s *Subject) Decision {
+	src := sonarr.QualitySource(s.Release.Quality.Quality.Source)
+	if s.Release.pack() || len(s.Episodes) == 0 || src != sonarr.SourceTelevision && src != sonarr.SourceTelevisionRaw {
+		return Accept()
+	}
+	eps := slices.Clone(s.Episodes)
+	sortEpisodes(eps)
+	ep := eps[0]
+	if len(eps) > 2 {
+		ep = eps[len(eps)-1]
+	}
+	now := e.now()
+	if ep.SeasonNumber == 0 || ep.AirDateUtc == nil || ep.File != nil || !ep.AirDateUtc.After(now.Add(notAiredLead)) {
+		return Accept()
+	}
+	return Reject(ReasonNotAiredYet, fmt.Sprintf("Not aired yet: S%02dE%02d airs %s; a TV recording cannot exist before then.",
+		ep.SeasonNumber, ep.EpisodeNumber, airWords(ep, now.Location())))
+}
+
+// airWords is an episode's air time as the UI says it, in loc: "Thu 26 Nov, 9 pm" ("9:30 pm" off the hour), or the
+// day alone when the listing gives no time.
+func airWords(ep *Episode, loc *time.Location) string {
+	if d, err := time.Parse(time.DateOnly, ep.AirDay); err == nil {
+		return d.Format("Mon 2 Jan")
+	}
+	t := ep.AirDateUtc.In(loc)
+	clock := t.Format("3")
+	if t.Minute() != 0 {
+		clock = t.Format("3:04")
+	}
+	return t.Format("Mon 2 Jan") + ", " + clock + " " + strings.ToLower(t.Format("PM"))
 }
 
 // multiSeason is MultiSeasonSpecification, for a multi-season release whose span was not read (Release.Seasons):

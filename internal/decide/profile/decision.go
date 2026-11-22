@@ -192,6 +192,9 @@ type Episode struct {
 	EpisodeNumber int
 	Runtime       int // minutes, 0 unknown
 	AirDateUtc    *time.Time
+	// AirDay is the air date (YYYY-MM-DD) when the listing gives the day only (AirDateUtc is then a made-up
+	// midnight), "" when it gives a time.
+	AirDay string
 	// File is the episode's current file, nil when it has none.
 	File *File
 }

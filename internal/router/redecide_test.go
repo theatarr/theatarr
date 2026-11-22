@@ -479,3 +479,75 @@ func TestKeptByRuleEpisodesLeftOut(t *testing.T) {
 		}
 	})
 }
+
+// AF D3: a TV capture of an episode that airs in five days is passed over by an automatic pick (the route's second
+// decision drops it from RSS in a library that prefers SeaDex), but a person's grab of it from Interactive search
+// passes the route, also when it was deferred and resumes, in an ordinary library and in one that prefers SeaDex.
+func TestHandGrabOfUnairedTVCapturePassesRoute(t *testing.T) {
+	t.Parallel()
+	setup := func(t *testing.T, preferSeaDex bool) *env {
+		t.Helper()
+		e := newEnv(t, true)
+		e.pol.Profiles = map[string]*policy.Profile{"tv": {Qualities: []policy.QualityItem{{Name: "HDTV-720p"}},
+			Cutoff: "HDTV-720p", Propers: policy.PropersPreferAndUpgrade}}
+		e.pol.Versions["series"].Profile = "tv"
+		e.pol.Versions["series"].PreferSeaDex = preferSeaDex
+		e.exec(`UPDATE title SET runtime_minutes = 45 WHERE id = 2`)
+		e.exec(`INSERT INTO episode (id, title_id, season, number, name, air_date, air_date_utc_at, created_at, updated_at)
+			VALUES (101, 2, 1, 1, 'Pilot', '2026-10-31', ?, 0, 0)`, e.clock.Add(5*24*time.Hour).UnixMilli())
+		eng, err := decide.New(e.pol, decide.Options{Now: func() time.Time { return e.clock }})
+		if err != nil {
+			t.Fatal(err)
+		}
+		e.r.SetProfiles(eng.Profile)
+		e.r.SetDecider(eng.Decide, eng.DecideSearch)
+		return e
+	}
+	hdtv := func(c string) Candidate {
+		x := cand(h(c), "Show.S01E01.720p.HDTV.x264-GRP")
+		x.Release.Size, x.Release.Seeders = 1<<30, 10
+		x.Quality, x.Episodes = "HDTV-720p", []int64{101}
+		return x
+	}
+	for _, prefer := range []bool{false, true} {
+		name := "ordinary"
+		if prefer {
+			name = "prefer_seadex"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			e := setup(t, prefer)
+			for _, k := range []string{"rd", "ad", "tb"} {
+				e.exec(`INSERT INTO router_pacing (provider, backoff_until, failures, reason, updated_at)
+					VALUES (?, ?, 1, 'x', 0)`, k, e.clock.Add(time.Minute).UnixMilli())
+			}
+			res, err := e.r.Route(e.ctx, Request{TitleID: 2, VersionID: 20, Version: "series", Source: "ui:grab:me",
+				Candidates: []Candidate{hdtv("a")}})
+			if err != nil || res.Outcome != OutcomeDeferred {
+				t.Fatalf("hand grab: %+v %v steps=%s", res, err, steps(res))
+			}
+			req, err := DownloadRequest(e.ctx, e.st.Reader(), e.pol, res.DownloadID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			e.clock = e.clock.Add(2 * time.Minute)
+			res, err = e.r.Route(e.ctx, *req)
+			if err != nil || res.Outcome != OutcomeAdded {
+				t.Fatalf("resumed hand grab: %+v %v steps=%s", res, err, steps(res))
+			}
+		})
+	}
+	t.Run("rss_prefer_seadex", func(t *testing.T) {
+		t.Parallel()
+		e := setup(t, true)
+		e.exec(`INSERT INTO series_meta (title_id, air_time) VALUES (2, '')`) // a listing without air times
+		res, err := e.r.Route(e.ctx, Request{TitleID: 2, VersionID: 20, Version: "series", Source: "rss",
+			Candidates: []Candidate{hdtv("b")}})
+		if err != nil || res.Outcome != OutcomeCancelled || !strings.Contains(steps(res), "rejected_now") {
+			t.Fatalf("rss route: %+v %v steps=%s", res, err, steps(res))
+		}
+		if m := res.Steps[0].Message; !strings.Contains(m, "[NotAiredYet] Not aired yet: S01E01 airs Sat 31 Oct; a TV recording") {
+			t.Errorf("rejection = %q", m)
+		}
+	})
+}

@@ -2,6 +2,7 @@ package profile
 
 import (
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -494,5 +495,75 @@ func TestCompanionChecksKeepByRule(t *testing.T) {
 				t.Errorf("radarr KeptByRule = %v, want empty", gotKept)
 			}
 		})
+	}
+}
+
+// AF D3: an automatic pick of a television capture (not a pack) whose deciding episode airs more than 36 hours from
+// now is passed over for now; WEB, Blu-ray and an unknown source never are.
+func TestNotAiredSpecification(t *testing.T) {
+	hours := func(h float64) *time.Time { return aired(h / 24) }
+	ep := func(season, number int, at *time.Time) *Episode {
+		return &Episode{ID: int64(season*100 + number), SeasonNumber: season, EpisodeNumber: number, AirDateUtc: at}
+	}
+	cases := []struct {
+		name    string
+		quality string
+		full    bool
+		eps     []*Episode
+		accept  bool
+	}{
+		{"HDTV 37 h ahead", "HDTV-720p", false, []*Episode{ep(2, 5, hours(37))}, false},
+		{"HDTV 35 h ahead", "HDTV-720p", false, []*Episode{ep(2, 5, hours(35))}, true},
+		{"SDTV 37 h ahead", "SDTV", false, []*Episode{ep(2, 5, hours(37))}, false},
+		{"Raw-HD 37 h ahead", "Raw-HD", false, []*Episode{ep(2, 5, hours(37))}, false},
+		{"WEB-DL five days ahead", "WEBDL-1080p", false, []*Episode{ep(2, 5, hours(120))}, true},
+		{"unknown source", "Unknown", false, []*Episode{ep(2, 5, hours(120))}, true},
+		{"no air date", "HDTV-720p", false, []*Episode{ep(2, 5, nil)}, true},
+		{"season 0", "HDTV-720p", false, []*Episode{ep(0, 5, hours(120))}, true},
+		{"a pack", "HDTV-720p", true, []*Episode{ep(2, 1, hours(-48)), ep(2, 2, hours(120))}, true},
+		{"two episodes by the first", "HDTV-720p", false, []*Episode{ep(2, 1, hours(2)), ep(2, 2, hours(120))}, true},
+		{"two episodes, the first ahead", "HDTV-720p", false, []*Episode{ep(2, 1, hours(40)), ep(2, 2, hours(41))}, false},
+		{"a range by its last", "HDTV-720p", false, []*Episode{ep(2, 1, hours(-48)), ep(2, 2, hours(-24)),
+			ep(2, 3, hours(120))}, false},
+	}
+	for _, c := range cases {
+		s := &Subject{Release: &Release{FullSeason: c.full,
+			Quality: NewQualityModel(MustQuality(format.Sonarr, c.quality))}, Episodes: c.eps}
+		if got := run(t, "NotAired", s); got.Accepted != c.accept {
+			t.Errorf("%s: %+v", c.name, got)
+		}
+	}
+
+	// An upgrade of an episode that already has a file is never delayed.
+	held := ep(2, 5, hours(120))
+	held.File = &File{}
+	s := &Subject{Release: &Release{Quality: NewQualityModel(MustQuality(format.Sonarr, "HDTV-720p"))},
+		Episodes: []*Episode{held}}
+	if got := run(t, "NotAired", s); !got.Accepted {
+		t.Errorf("upgrade of a held episode: %+v", got)
+	}
+
+	// The words: the air time in the clock's zone, or the day alone for a listing without a time.
+	ny, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := &Engine{Flavour: format.Sonarr, Now: func() time.Time { return seriesNow.In(ny) }}
+	sp, _ := e.Spec("NotAired")
+	at := time.Date(2026, 10, 29, 21, 0, 0, 0, ny)
+	s = &Subject{Release: &Release{Quality: NewQualityModel(MustQuality(format.Sonarr, "HDTV-720p"))},
+		Episodes: []*Episode{ep(2, 5, &at)}}
+	want := "Not aired yet: S02E05 airs Thu 29 Oct, 9 pm; a TV recording cannot exist before then."
+	if got := e.Run(sp, s); got.Accepted || got.Reason != ReasonNotAiredYet || got.Message != want {
+		t.Errorf("words: %+v, want %q", got, want)
+	}
+	at = time.Date(2026, 10, 29, 21, 30, 0, 0, ny)
+	if got := e.Run(sp, s); !strings.Contains(got.Message, "airs Thu 29 Oct, 9:30 pm;") {
+		t.Errorf("words with minutes: %q", got.Message)
+	}
+	s.Episodes[0].AirDay = "2026-10-29"
+	want = "Not aired yet: S02E05 airs Thu 29 Oct; a TV recording cannot exist before then."
+	if got := e.Run(sp, s); got.Message != want {
+		t.Errorf("date-only words: %q, want %q", got.Message, want)
 	}
 }

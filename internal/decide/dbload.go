@@ -282,7 +282,8 @@ func loadEpisodes(ctx context.Context, db *sql.DB, tvs []titleVersion, history b
 	}
 	list, _ := json.Marshal(pairs)
 	rows, err := db.QueryContext(ctx, `SELECT p.key, e.id, e.season, e.number, e.name, COALESCE(e.air_date, ''),
-		e.air_date_utc_at, COALESCE(e.runtime_minutes, 0), COALESCE(s.monitored, e.monitored)
+		e.air_date_utc_at, COALESCE((SELECT sm.air_time = '' FROM series_meta sm WHERE sm.title_id = e.title_id), 0),
+		COALESCE(e.runtime_minutes, 0), COALESCE(s.monitored, e.monitored)
 		FROM json_each(?) p JOIN episode e ON e.title_id = json_extract(p.value, '$[0]')
 		LEFT JOIN episode_version_state s ON s.episode_id = e.id AND s.version_id = json_extract(p.value, '$[1]')
 		WHERE e.removed_at IS NULL ORDER BY p.key, e.season, e.number`, string(list))
@@ -298,7 +299,7 @@ func loadEpisodes(ctx context.Context, db *sql.DB, tvs []titleVersion, history b
 		var i int
 		var e Episode
 		var at sql.NullInt64
-		if err := rows.Scan(&i, &e.ID, &e.Season, &e.Number, &e.Title, &e.AirDate, &at, &e.Runtime, &e.Monitored); err != nil {
+		if err := rows.Scan(&i, &e.ID, &e.Season, &e.Number, &e.Title, &e.AirDate, &at, &e.AirTimeUnknown, &e.Runtime, &e.Monitored); err != nil {
 			rows.Close()
 			return nil, err
 		}

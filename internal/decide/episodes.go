@@ -349,8 +349,12 @@ func firstUpgraded(p *Profile, episodes []*profile.Episode, qm profile.QualityMo
 }
 
 func profileEpisode(ep *Episode) *profile.Episode {
-	return &profile.Episode{ID: ep.ID, Monitored: ep.Monitored, SeasonNumber: ep.Season, EpisodeNumber: ep.Number,
+	pe := &profile.Episode{ID: ep.ID, Monitored: ep.Monitored, SeasonNumber: ep.Season, EpisodeNumber: ep.Number,
 		Runtime: ep.Runtime, AirDateUtc: ep.AirDateUTC, Title: ep.Title, LastGrab: ep.LastGrab}
+	if ep.AirTimeUnknown {
+		pe.AirDay = ep.AirDate
+	}
+	return pe
 }
 
 // pilot is the first episode of the lowest season above 0 (Sonarr's AcceptableSize fallback when the series runtime

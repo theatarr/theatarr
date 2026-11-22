@@ -42,6 +42,7 @@ var sonarrSpecs = []Spec{
 	{"FullSeasonSpecification", PriorityDefault, Permanent, fullSeason},
 	{"MaximumSizeSpecification", PriorityDefault, Permanent, maximumSize},
 	{"MultiSeasonSpecification", PriorityDefault, Permanent, multiSeason},
+	{"NotAiredSpecification", PriorityDefault, Temporary, notAired}, // ours
 	{"NotSampleSpecification", PriorityDefault, Permanent, notSample},
 	{"ProperSpecification", PriorityDefault, Permanent, proper},
 	{"QualityAllowedByProfileSpecification", PriorityDefault, Permanent, qualityAllowedByProfile},

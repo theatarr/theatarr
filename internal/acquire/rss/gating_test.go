@@ -8,6 +8,7 @@ import (
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/decide/format"
 	"github.com/theatarr/theatarr/internal/decide/profile"
+	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 )
 
@@ -119,6 +120,37 @@ func TestRSSTemporarySeasonPackReconsidered(t *testing.T) {
 	e.exec(t, `UPDATE episode SET air_date_utc_at = ? WHERE number = 3`, store.Millis(t0.Add(-time.Hour)))
 	if sum, err := e.r.RSS(e.ctx); err != nil || sum.Routed != 1 {
 		t.Fatalf("aired pack: %+v %v", sum, err)
+	}
+}
+
+// AF D3: a TV capture of an episode that airs more than 36 hours ahead is passed over and not remembered; a later
+// sync, once the episode is within 36 hours, takes it.
+func TestRSSUnairedTVCaptureReconsidered(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, false)
+	e.seed(t)
+	e.seedShow(t)
+	p := e.pol.Profiles["tv-2160p"]
+	p.Qualities = append(p.Qualities, policy.QualityItem{Name: "HDTV-2160p"})
+	eng, err := decide.New(e.pol, decide.Options{Now: e.clock})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.eng = eng
+	e.build(nil)
+	e.exec(t, `UPDATE episode SET air_date_utc_at = ? WHERE number = 3`, store.Millis(t0.Add(37*time.Hour)))
+	e.prow.setRSS(item{title: "The.Show.S01E03.2160p.HDTV.x265-GRP", hash: hShowE03, size: 8e9, pub: t0, tv: true})
+	if sum, err := e.r.RSS(e.ctx); err != nil || sum.Decided != 1 || sum.Routed != 0 {
+		t.Fatalf("unaired TV capture: %+v %v", sum, err)
+	}
+	if n := one[int](t, e.st, `SELECT COUNT(*) FROM shadow_rss_seen`); n != 0 {
+		t.Fatal("unaired TV capture remembered")
+	}
+	e.mu.Lock()
+	e.now = t0.Add(2 * time.Hour)
+	e.mu.Unlock()
+	if sum, err := e.r.RSS(e.ctx); err != nil || sum.Routed != 1 || !e.rec.routed(hShowE03) {
+		t.Fatalf("TV capture 35 h ahead: %+v %v", sum, err)
 	}
 }
 
