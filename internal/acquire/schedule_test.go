@@ -421,6 +421,13 @@ func TestSearchOnResume(t *testing.T) {
 		t.Fatalf("nothing missing kept %d, %v", n, err)
 	}
 	e.exec(`UPDATE version SET state = 'wanted' WHERE id = 101`)
+	// Its only target already queued by a Wanted search: nothing kept either (that search is not this one).
+	e.exec(`INSERT INTO acquire_run (source, title_id, version_id, version_key, target, reason, state, created_at, updated_at)
+		VALUES ('wanted', 2, 102, 'movie', 'movie', 'missing', 'queued', ?, ?)`, store.Millis(t0), store.Millis(t0))
+	if n, err := e.a.SearchOnResume(e.ctx, 2, []string{"movie"}, nil); err != nil || n != 0 {
+		t.Fatalf("an already queued target kept %d, %v", n, err)
+	}
+	e.exec(`DELETE FROM acquire_run`)
 	if n, err := e.a.SearchOnResume(e.ctx, 1, []string{"movie", "movie-shadow"}, nil); err != nil || n != 1 {
 		t.Fatalf("movie kept %d, %v", n, err)
 	}

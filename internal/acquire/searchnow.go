@@ -233,7 +233,8 @@ func (a *Acquirer) searchLater(ctx context.Context, titleID int64, versions []st
 }
 
 // scheduleAdded makes the rows of sel's missing targets due now with why added (one per library and film or season),
-// leaving out targets with a download in flight. It returns how many rows are due for sel (made due now, or already).
+// leaving out targets with a download in flight. It returns how many rows are due for sel (made due now, or already)
+// for this search: a target a loop search is queued or running for is not counted.
 func (a *Acquirer) scheduleAdded(ctx context.Context, sel Selection, takeOver bool) (int, error) {
 	ts, err := a.targets(ctx, sel)
 	if err != nil {
@@ -257,13 +258,15 @@ func (a *Acquirer) scheduleAdded(ctx context.Context, sel Selection, takeOver bo
 		reqs = append(reqs, searchRequest{titleID: t.titleID, key: t.key, reason: t.reason, season: seasonOf(t.season)})
 	}
 	out := &SearchNowResult{}
-	if _, err := a.markDue(ctx, reqs, whyAdded, takeOver, out); err != nil {
+	due, err := a.markDue(ctx, reqs, whyAdded, takeOver, out)
+	if err != nil {
 		return 0, err
 	}
 	if out.Queued > 0 {
 		a.log.Info("added title scheduled for search", "titles", sel.TitleIDs, "rows", out.Queued)
 	}
-	return len(reqs), nil
+	// markDue leaves out a target a loop search is queued or running for: it is not this search's.
+	return len(due), nil
 }
 
 // askedDue counts the asked rows that are due.
