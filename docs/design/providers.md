@@ -117,7 +117,10 @@ hashes.
   the poll records a miss on AllDebrid for the content's miss TTL and routes the release again to the next provider,
   nothing blocklisted (`router.pollTooLarge`, `TestAllDebridTooBigTriesNextProvider`); a cached-only add whose first
 read already shows it is a miss there and the route goes on to the next provider (`router.settleTooLarge`,
-`TestAllDebridTooBigAtSettle`). The magnet stays on the account
+`TestAllDebridTooBigAtSettle`). Our own add is deleted from the account when the guard proved it a new entry of
+  ours (the uncached delete's proof at settle, `own_add` and not reused at the poll; `router.alldebrid_delete_uncached`
+  on; `TestAllDebridTooBigFromPollerDeletesOwnAdd`). Any other magnet (reused, on the account before, or an add without
+  the proof) stays on the account
   as an errored entry: its registry row is written from the answer, failed, so Torrents lists it under Failed until the owner clears it. AllDebrid documents no add-time error for this (no `MAGNET_TOO_LARGE`).
 - **Rate limit:** 12 requests per second and 600 per minute per key; 429 and 503 come with Retry-After. The example
   budget `ad-api` is 300/min. A sync costs one request.

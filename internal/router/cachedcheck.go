@@ -131,7 +131,7 @@ func (r *Router) resumeCachedCheck(ctx context.Context, x pollRow, t *provider.T
 	}
 	done := false
 	if why == "" {
-		if done, why, err = r.deleteOwnPolled(ctx, x); err != nil {
+		if done, why, err = r.deleteOwnPolled(ctx, x, false); err != nil {
 			return checkGoOn, err
 		}
 	}
@@ -151,10 +151,16 @@ func (r *Router) resumeCachedCheck(ctx context.Context, x pollRow, t *provider.T
 // ownRDAdd proved it (resumeCachedCheck, pollNameRefused): a crash after it, or an answer that does not say, leaves
 // the journal, and the poller that then finds the torrent gone takes it as our delete (owedDeleted). done: it is gone.
 // Otherwise why says why it cannot be deleted at all, or is "" when it waits for the gate or the delete failed: it is
-// tried again at the next poll.
-func (r *Router) deleteOwnPolled(ctx context.Context, x pollRow) (done bool, why string, err error) {
-	del, ok := r.adders[x.pk].(adder.StalledDeleter)
-	if !ok {
+// tried again at the next poll. tooLarge: the add is one AllDebrid refuses as too big (pollTooLarge), deleted with
+// the AllDebrid adder's own too-big delete (adder.TooLargeDeleter).
+func (r *Router) deleteOwnPolled(ctx context.Context, x pollRow, tooLarge bool) (done bool, why string, err error) {
+	var send func(ctx context.Context, id string, proof adder.OwnAdd) error
+	if d, ok := r.adders[x.pk].(adder.TooLargeDeleter); ok && tooLarge {
+		send = d.DeleteOwnTooLargeAdd
+	} else if d, ok := r.adders[x.pk].(adder.StalledDeleter); ok {
+		send = d.DeleteOwnStalledAdd
+	}
+	if send == nil {
 		return false, "the adder for " + x.pk + " cannot delete", nil
 	}
 	if err := r.mayWrite(x.version); err != nil {
@@ -166,7 +172,7 @@ func (r *Router) deleteOwnPolled(ctx context.Context, x pollRow) (done bool, why
 		return false, "", err
 	}
 	wctx, cancel := context.WithTimeout(ctx, providerWriteLimit)
-	err = del.DeleteOwnStalledAdd(wctx, x.tid, adder.OwnAdd{NotOnAccountBefore: true, NewEntry: true})
+	err = send(wctx, x.tid, adder.OwnAdd{NotOnAccountBefore: true, NewEntry: true})
 	cancel()
 	if err != nil {
 		gone, present := r.readAfterDelete(ctx, x.pk, x.tid)
@@ -200,7 +206,7 @@ func (r *Router) pollNameRefused(ctx context.Context, x pollRow, t *provider.Tor
 		return nil
 	}
 	if why == "" {
-		done, no, err := r.deleteOwnPolled(ctx, x)
+		done, no, err := r.deleteOwnPolled(ctx, x, false)
 		if err != nil || (!done && no == "") {
 			return err
 		}
@@ -227,18 +233,46 @@ func (r *Router) pollNameRefused(ctx context.Context, x pollRow, t *provider.Tor
 // pollTooLarge is download x on a provider that refuses its torrent as too big for it after the add (AllDebrid
 // statusCode 8, provider.Torrent.TooLarge): as Real-Debrid's 29 and TorBox's DOWNLOAD_TOO_LARGE at the add, a miss
 // there for the content's miss TTL and the release routed again (requeue) to the next provider; nothing blocklisted.
+// Our own new add (ownPolledAdd: own_add, not reused) is deleted (deleteOwnPolled; one that waits for the gate or
+// failed is tried again at the next poll) when router.alldebrid_delete_uncached is on; any other magnet stays,
+// listed on Torrents as failed.
 func (r *Router) pollTooLarge(ctx context.Context, x pollRow, t *provider.Torrent, now time.Time, sum *PollSummary) error {
 	rctx := context.WithoutCancel(ctx)
-	if err := r.recordFailed(rctx, x.pk, x.tid, t); err != nil {
-		return err
+	kept := "the add was not provably ours"
+	if pv := r.pol.Providers[x.pk]; pv != nil && (pv.Kind != provider.KindAllDebrid || r.set.AllDebridDeleteUncached) {
+		why, err := r.ownPolledAdd(ctx, x, t)
+		if err != nil {
+			r.log.Warn("checking the torrent id failed; tried again at the next poll", "download", x.id,
+				"provider", x.pk, "torrent", x.tid, "err", err)
+			return nil
+		}
+		if why == "" {
+			done, no, err := r.deleteOwnPolled(ctx, x, true)
+			if err != nil || (!done && no == "") {
+				return err
+			}
+			why = no
+		}
+		kept = why
+	}
+	if kept != "" {
+		if err := r.recordFailed(rctx, x.pk, x.tid, t); err != nil {
+			return err
+		}
 	}
 	if err := r.setCache(rctx, x.hash, x.pk, "miss", "too_large", now.Add(r.downloadMissTTL(rctx, x, now)), now); err != nil {
 		return err
 	}
 	why := "too big for " + x.pk + " (File too big.)"
-	r.log.Warn(why+"; a miss on "+x.pk+", the release is routed again", "download", x.id, "provider", x.pk, "torrent", x.tid)
-	// The magnet stays on the account, and its registry row with it: Torrents lists it until the owner clears it.
-	queued, err := r.requeue(rctx, x, why+"; the release is routed again", why+"; not blocklisted (no route queue)", false)
+	done := "deleted"
+	if kept != "" {
+		// The magnet stays on the account, and its registry row with it: Torrents lists it until the owner clears it.
+		done = "kept (" + kept + ")"
+	}
+	r.log.Warn(why+"; a miss on "+x.pk+", the release is routed again", "download", x.id, "provider", x.pk,
+		"torrent", x.tid, "our_add", done)
+	queued, err := r.requeue(rctx, x, why+"; our add was "+done+"; the release is routed again",
+		why+"; our add was "+done+"; not blocklisted (no route queue)", kept == "")
 	if err == nil && !queued {
 		sum.Failed++
 	}

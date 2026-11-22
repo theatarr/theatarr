@@ -162,10 +162,16 @@ func (r *Router) deleteStalled(ctx context.Context, x pollRow, t *provider.Torre
 // cached-only delete (cachedcheck.go): why torrent t of download x is not provably our own unshared Real-Debrid add
 // ("" when it is). when ends the message for a provider other than Real-Debrid. err: the id check could not be read.
 func (r *Router) ownRDAdd(ctx context.Context, x pollRow, t *provider.Torrent, when string) (string, error) {
-	pv := r.pol.Providers[x.pk]
-	switch {
-	case pv == nil || pv.Kind != provider.KindRealDebrid:
+	if pv := r.pol.Providers[x.pk]; pv == nil || pv.Kind != provider.KindRealDebrid {
 		return "only a Real-Debrid add of ours is deleted " + when, nil
+	}
+	return r.ownPolledAdd(ctx, x, t)
+}
+
+// ownPolledAdd is ownRDAdd on any provider: why torrent t of download x is not provably our own new add ("" when it
+// is): not reused, proven a new entry at the add (own_add), still showing the hash, and known to nothing else.
+func (r *Router) ownPolledAdd(ctx context.Context, x pollRow, t *provider.Torrent) (string, error) {
+	switch {
 	case x.reused == 1:
 		return "the torrent was reused from the account", nil
 	case x.ownAdd != 1:

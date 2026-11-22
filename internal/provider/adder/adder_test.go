@@ -406,14 +406,14 @@ func TestTorBoxAdd(t *testing.T) {
 }
 
 // Nothing here can restart or unrestrict, and the only deletes are in delete.go, outside the Adder interface: the
-// router's two (DeleteOwnUncachedAdd on Real-Debrid and AllDebrid, DeleteOwnStalledAdd on all three: AllDebrid and
-// TorBox for copies to other providers) and the torrent manager's DeleteUserChosen (all three; who may call it is
+// router's (DeleteOwnUncachedAdd on Real-Debrid and AllDebrid, DeleteOwnStalledAdd on all three: AllDebrid and
+// TorBox for copies to other providers; DeleteOwnTooLargeAdd on AllDebrid, its own add refused as too big) and the torrent manager's DeleteUserChosen (all three; who may call it is
 // boundary_test.go's).
 func TestNoDeletes(t *testing.T) {
 	bad := regexp.MustCompile(`(?i)delete|remove|unrestrict|restart|requestdl|controltorrent|magnet/delete|links`)
 	allowed := map[reflect.Type][]string{
 		reflect.TypeFor[*realDebrid](): {"DeleteOwnUncachedAdd", "DeleteOwnStalledAdd", "deleteTorrent", "DeleteUserChosen"},
-		reflect.TypeFor[*allDebrid]():  {"DeleteOwnUncachedAdd", "DeleteOwnStalledAdd", "DeleteUserChosen"},
+		reflect.TypeFor[*allDebrid]():  {"DeleteOwnUncachedAdd", "DeleteOwnStalledAdd", "DeleteOwnTooLargeAdd", "DeleteUserChosen"},
 		reflect.TypeFor[*torBox]():     {"DeleteOwnStalledAdd", "DeleteUserChosen"}}
 	types := []reflect.Type{reflect.TypeFor[Adder](), reflect.TypeFor[*realDebrid](), reflect.TypeFor[*allDebrid](),
 		reflect.TypeFor[*torBox](), reflect.TypeFor[*poster](), reflect.TypeFor[*ledger]()}
@@ -435,6 +435,9 @@ func TestNoDeletes(t *testing.T) {
 	}
 	if _, ok := any(&torBox{}).(StalledDeleter); ok {
 		t.Error("TorBox can delete a stalled add")
+	}
+	if _, ok := any(&torBox{}).(TooLargeDeleter); ok {
+		t.Error("TorBox can delete a too-big add")
 	}
 	paths := regexp.MustCompile(`"/[^"]*"`)
 	entries, _ := os.ReadDir(".")

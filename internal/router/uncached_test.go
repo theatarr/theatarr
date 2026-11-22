@@ -1133,3 +1133,42 @@ func TestRDRefusedFileNameFromPoller(t *testing.T) {
 		}
 	}
 }
+
+// The poller finds AllDebrid's "File too big." on a magnet the route proved its own new add (own_add): it is
+// deleted from the account and the release routed again, nothing blocklisted. One not proven ours (own_add unset)
+// stays, listed on Torrents as failed.
+func TestAllDebridTooBigFromPollerDeletesOwnAdd(t *testing.T) {
+	t.Parallel()
+	for _, own := range []bool{true, false} {
+		e, f, _ := newDebridEnv(t, true, true)
+		withQueue(e)
+		f.ad[1001] = &fakeAD{hash: h("a"), code: 8}
+		var ownAdd any
+		if own {
+			ownAdd = 1
+		}
+		e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
+			provider_torrent_id, state, own_add, added_at, created_at, updated_at)
+			VALUES (1, 1, 10, 'movie', ?, 'Movie.2024.2160p.WEB.H265-GRP', 'pub', 'ad', '1001', 'added', ?, 0, 0, 0)`,
+			h("a"), ownAdd)
+		if _, err := e.r.Poll(e.ctx); err != nil {
+			t.Fatal(err)
+		}
+		if n := e.count(`SELECT COUNT(*) FROM download WHERE id = 1 AND state = 'queued' AND provider IS NULL`); n != 1 {
+			t.Fatalf("own %v: download not routed again", own)
+		}
+		if n := e.count(`SELECT COUNT(*) FROM router_blocklist`); n != 0 {
+			t.Errorf("own %v: blocklisted", own)
+		}
+		if n := e.count(`SELECT COUNT(*) FROM provider_cache WHERE provider = 'ad' AND state = 'miss'
+			AND source = 'router:too_large'`); n != 1 {
+			t.Errorf("own %v: no too-large miss on ad", own)
+		}
+		deleted := f.count("ad.test POST /v4/magnet/delete") == 1 && len(f.ad) == 0
+		listed := e.count(`SELECT COUNT(*) FROM provider_torrent WHERE provider = 'ad' AND torrent_id = '1001'
+			AND state = 'error'`) == 1
+		if own && (!deleted || listed) || !own && (deleted || !listed) {
+			t.Errorf("own %v: deleted %v, listed as failed %v: %v", own, deleted, listed, f.list())
+		}
+	}
+}

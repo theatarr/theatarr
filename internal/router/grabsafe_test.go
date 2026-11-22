@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -623,10 +624,40 @@ func TestAllDebridTooBigAtSettle(t *testing.T) {
 	if n := e.count(`SELECT COUNT(*) FROM provider_cache WHERE provider = 'ad' AND state = 'miss'`); n != 1 {
 		t.Errorf("no miss on ad: %d", n)
 	}
-	// Our fresh add, not yet listed by a sync, is listed on Torrents as failed.
-	if n := e.count(`SELECT COUNT(*) FROM provider_torrent WHERE provider = 'ad' AND torrent_id = ? AND state = 'error'
+	// Our fresh add, proven ours by the guard, is deleted from the account: nothing is listed on Torrents.
+	if got := e.ad["ad"].deletes; len(got) != 1 || got[0] != "ad-"+h("a")[:4] {
+		t.Errorf("our too-big add not deleted: %v", got)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM provider_torrent WHERE provider = 'ad'`); n != 0 {
+		t.Errorf("registry row of the deleted add: %d", n)
+	}
+
+	// An add the guard cannot prove ours (the magnet list did not read) is kept, listed on Torrents as failed.
+	e2 := newEnv(t, true)
+	e2.pol.Router.CachedOnly = &on
+	adders, provs = map[string]adder.Adder{}, map[string]provider.Provider{}
+	for k := range e2.ad {
+		adders[k], provs[k] = e2.ad[k], e2.pr[k]
+	}
+	if e2.r, err = New(Config{Store: e2.st, Policy: e2.pol, Adders: adders, Providers: provs,
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: func() time.Time { return e2.clock }}); err != nil {
+		t.Fatal(err)
+	}
+	e2.r.sleep = func(context.Context, time.Duration) error { return nil }
+	e2.ad["rd"].add = e.ad["rd"].add
+	e2.pr["ad"].listErr = errors.New("ad: connection refused")
+	e2.pr["ad"].set("ad-"+h("a")[:4], provider.Torrent{Hash: h("a"), Status: "File too big.", State: provider.StateError,
+		TooLarge: true, Added: uploaded})
+	e2.pr["tb"].set("tb-"+h("a")[:4], provider.Torrent{Hash: h("a"), Status: "cached", State: provider.StateDownloaded})
+	if res, err := e2.r.Route(e2.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP"))); err != nil || res.Provider != "tb" {
+		t.Fatalf("route, not provably ours: %+v %v: %s", res, err, steps(res))
+	}
+	if got := e2.ad["ad"].deletes; len(got) != 0 {
+		t.Errorf("an add not proven ours was deleted: %v", got)
+	}
+	if n := e2.count(`SELECT COUNT(*) FROM provider_torrent WHERE provider = 'ad' AND torrent_id = ? AND state = 'error'
 		AND status = 'File too big.' AND added_at = ?`, "ad-"+h("a")[:4], store.Millis(uploaded)); n != 1 {
-		t.Errorf("registry row of the too-big add: %d", n)
+		t.Errorf("registry row of the kept too-big add: %d", n)
 	}
 }
 

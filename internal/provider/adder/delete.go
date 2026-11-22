@@ -84,6 +84,14 @@ type StalledDeleter interface {
 	DeleteOwnStalledAdd(ctx context.Context, id string, proof OwnAdd) error
 }
 
+// TooLargeDeleter is implemented by the AllDebrid adder: the router deletes its own add of an earlier route that
+// AllDebrid then refuses as too big (statusCode 8, router pollTooLarge). Like Deleter, it is not part of [Adder].
+type TooLargeDeleter interface {
+	// DeleteOwnTooLargeAdd deletes magnet id, which the router added itself (proof as for DeleteOwnStalledAdd).
+	// ErrNotOwnAdd (no request) without the full proof.
+	DeleteOwnTooLargeAdd(ctx context.Context, id string, proof OwnAdd) error
+}
+
 // ledger remembers the adds this adder made, by the *Added it returned.
 type ledger struct {
 	mu  sync.Mutex
@@ -160,6 +168,14 @@ func (a *allDebrid) DeleteOwnUncachedAdd(ctx context.Context, ad *Added, proof O
 		return err
 	}
 	return a.deleteMagnet(ctx, ad.ID)
+}
+
+// DeleteOwnTooLargeAdd: the same AllDebrid request as DeleteOwnUncachedAdd, for an add of an earlier route.
+func (a *allDebrid) DeleteOwnTooLargeAdd(ctx context.Context, id string, proof OwnAdd) error {
+	if id == "" || !proof.NotOnAccountBefore || !proof.NewEntry {
+		return ErrNotOwnAdd
+	}
+	return a.deleteMagnet(ctx, id)
 }
 
 func (a *allDebrid) deleteMagnet(ctx context.Context, id string) error {
