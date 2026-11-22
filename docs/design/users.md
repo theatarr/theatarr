@@ -166,7 +166,8 @@ and no other-requester list or count.
   version, specials aside. A request naming no seasons asks for every season but the specials. Approval monitors just
   the requested seasons in versions the title has (`catalog.SetSeasonMonitored`, never unmonitoring the others) and
   applies the whole-series rule (requested seasons on, the series' other seasons off) only to versions it turns on; a request
-  that named no seasons is stored with the seasons it monitored. An open request covers a version only for the
+  that named no seasons is stored with the seasons it monitored. Its search then takes the missing episodes of those
+  seasons only, together as one search across them (`Selection.Seasons`), so nothing already there is upgraded by it. An open request covers a version only for the
   seasons it holds, so asking for season 3 after an approved request for seasons 1-2 makes a new request.
   The UI: the hero (on a phone its sticky copy) says **Request more seasons**, the page's one button for it; the
   request card keeps its status and history, and the Episodes tab names the seasons that can be asked for above the

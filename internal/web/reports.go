@@ -747,7 +747,7 @@ func (w *Web) replaceFile(rw http.ResponseWriter, r *http.Request, titleID int64
 // replaceBlocked has already found every library searchable in this request.
 func (w *Web) searchReplaced(ctx context.Context, titleID int64, f ReportFile) (*SearchOutcome, error) {
 	if len(f.episodeIDs) == 0 {
-		return w.searchNow(ctx, titleID, f.Versions)
+		return w.searchNow(ctx, titleID, f.Versions, nil)
 	}
 	queued, found, err := w.add.Acquirer.Submit(ctx, 0, acquire.Selection{Versions: f.Versions,
 		TitleIDs: []int64{titleID}, EpisodeIDs: f.episodeIDs})

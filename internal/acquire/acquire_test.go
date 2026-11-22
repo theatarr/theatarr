@@ -554,6 +554,9 @@ func TestSeriesTargets(t *testing.T) {
 		{"SeasonSearch", Selection{TitleIDs: []int64{10}, Season: &one}, "s01:3"},
 		{"EpisodeSearch", Selection{EpisodeIDs: []int64{1002, 1000}}, "s00e01:1 s01e02:1"},
 		{"MissingEpisodeSearch", Selection{TitleIDs: []int64{10}, Only: OnlyMissing}, "s00e01:1 s01:2 s02e01:1"},
+		// A request for more seasons searches the missing episodes of those seasons only.
+		{"MissingOfSeasons", Selection{TitleIDs: []int64{10}, Only: OnlyMissing, Seasons: []int{0, 2}}, "s00e01:1 s02e01:1"},
+		{"MissingOfOneSeason", Selection{TitleIDs: []int64{10}, Only: OnlyMissing, Seasons: []int{1}}, "s01:2"},
 		{"CutoffUnmetEpisodeSearch", Selection{Only: OnlyCutoff}, "s01e02:1"},
 	} {
 		tc.sel.Versions = []string{"series", "series-shadow"}

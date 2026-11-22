@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/acquire"
 	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/notify"
@@ -794,6 +795,31 @@ func TestRequestMoreSeasons(t *testing.T) {
 	e.web.syncRequests(ctx, id)
 	if s := e.requestStatus(id); s != ReqAvailable {
 		t.Errorf("season 3 filled: %s", s)
+	}
+}
+
+// TestRequestMoreSeasonsSearchesThem: approving more seasons of a series a library has searches the missing episodes
+// of those seasons only, not upgrades of the seasons already there ("the ones already there stay as they are").
+func TestRequestMoreSeasonsSearchesThem(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, func(p *policy.Policy) {
+		p.Router = &policy.Router{Enabled: true}
+	})
+	_, ann := e.user("ann", auth.RoleUser)
+	_, mgr := e.user("mgr", auth.RoleManager)
+	now := store.Millis(addNow)
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, monitored, air_date, created_at, updated_at) VALUES
+		(104, 10, 3, 1, 'Fourth', 0, '2026-01-01', ?, ?)`, now, now)
+	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, updated_at) VALUES
+		(10, 104, 0, 'wanted', ?)`, now)
+	var cr CreateResult
+	e.callAs(ann, "POST", APIBase+"/requests", map[string]any{"title_id": 10, "seasons": []int{3}}, 201, &cr)
+	var ap ApproveResult
+	e.callAs(mgr, "POST", fmt.Sprintf("%s/requests/%d/approve", APIBase, cr.Request.ID), map[string]any{}, 200, &ap)
+	calls := searchCalls(e)
+	if len(calls) != 1 || calls[0].Only != acquire.OnlyMissing || !slices.Equal(calls[0].Seasons, []int{3}) ||
+		!slices.Equal(calls[0].TitleIDs, []int64{10}) {
+		t.Fatalf("approval searched: %+v", calls)
 	}
 }
 

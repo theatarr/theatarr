@@ -197,6 +197,9 @@ type Selection struct {
 	// Season limits a series search to one season; EpisodeIDs to these episodes (one search each).
 	Season     *int
 	EpisodeIDs []int64
+	// Seasons, when set, limits a series search to these seasons, searched together as a whole-series search
+	// would (an approved request for more seasons: the seasons it names, not the ones already there).
+	Seasons []int `json:",omitempty"`
 	// Only is "" (every monitored item: MoviesSearch, SeriesSearch, SeasonSearch, EpisodeSearch), OnlyMissing or
 	// OnlyCutoff.
 	Only string
@@ -624,7 +627,7 @@ func (a *Acquirer) seriesTargets(ctx context.Context, db *sql.DB, versionID, tit
 		switch {
 		case len(sel.EpisodeIDs) > 0 && !slices.Contains(sel.EpisodeIDs, e.id):
 			continue
-		case sel.Season != nil && e.season != *sel.Season:
+		case sel.Season != nil && e.season != *sel.Season, sel.Seasons != nil && !slices.Contains(sel.Seasons, e.season):
 			continue
 		case e.season == 0 && sel.Only == OnlyCutoff && sel.Season == nil && len(sel.EpisodeIDs) == 0:
 			continue

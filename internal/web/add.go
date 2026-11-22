@@ -459,6 +459,9 @@ type AddRequest struct {
 	originalLanguage string
 	moreVersions     []string
 	moreSeasons      []int
+	// searchSeasons, when set, makes the add's search the missing episodes of these seasons only (an approval for
+	// more seasons of a series a library has: the seasons it asked for, not upgrades of the ones already there).
+	searchSeasons []int
 	// newSeasonsOff: the copies this add turns on (and their partners in sync) leave a season they do not name
 	// unmonitored when it appears (monitor new items none); the copies the title had keep their own choice.
 	newSeasonsOff bool
@@ -816,7 +819,7 @@ func (w *Web) addTitle(ctx context.Context, req AddRequest, source string) (*Add
 		out.New = []string{}
 	}
 	if req.Search {
-		so, err := w.searchNow(ctx, res.TitleID, res.Versions)
+		so, err := w.searchNow(ctx, res.TitleID, res.Versions, req.searchSeasons)
 		if err != nil {
 			return nil, err
 		}
@@ -853,7 +856,8 @@ var addMonitors = []string{catalog.MonitorTypeAll, catalog.MonitorTypeFuture, ca
 	catalog.MonitorTypePilot, catalog.MonitorTypeRecent, catalog.MonitorTypeNone}
 
 // searchNow searches the title for the versions catalog.Searchable lets through; the rest are skipped with the reason.
-func (w *Web) searchNow(ctx context.Context, titleID int64, keys []string) (*SearchOutcome, error) {
+// seasons, when given, narrows it to the missing episodes of those seasons (AddRequest.searchSeasons).
+func (w *Web) searchNow(ctx context.Context, titleID int64, keys []string, seasons []int) (*SearchOutcome, error) {
 	active, skipped := catalog.Searchable(w.pol, keys)
 	out := &SearchOutcome{Versions: active, Skipped: skipped}
 	if out.Versions == nil {
@@ -874,7 +878,11 @@ func (w *Web) searchNow(ctx context.Context, titleID int64, keys []string) (*Sea
 		out.Message = "Nothing searched: the acquirer is not running"
 		return out, nil
 	}
-	queued, found, err := w.add.Acquirer.Submit(ctx, 0, acquire.Selection{Versions: active, TitleIDs: []int64{titleID}})
+	sel := acquire.Selection{Versions: active, TitleIDs: []int64{titleID}}
+	if seasons != nil {
+		sel.Only, sel.Seasons = acquire.OnlyMissing, seasons
+	}
+	queued, found, err := w.add.Acquirer.Submit(ctx, 0, sel)
 	if err != nil {
 		return nil, err
 	}
@@ -941,7 +949,7 @@ func (w *Web) apiSearchNow(rw http.ResponseWriter, r *http.Request) {
 			keys = append(keys, k)
 		}
 	}
-	out, err := w.searchNow(ctx, id, keys)
+	out, err := w.searchNow(ctx, id, keys, nil)
 	if err != nil {
 		w.internal(rw, err)
 		return

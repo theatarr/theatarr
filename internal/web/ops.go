@@ -696,7 +696,7 @@ func (w *Web) searchCopy(ctx context.Context, titleID int64, version string) (*S
 	if w.pol == nil {
 		return &SearchOutcome{Versions: []string{}, Skipped: []catalog.Skip{}, Message: "Not searched: no policy loaded"}, nil
 	}
-	return w.searchNow(ctx, titleID, []string{version})
+	return w.searchNow(ctx, titleID, []string{version}, nil)
 }
 
 // RetryResult is the answer of a retry.
