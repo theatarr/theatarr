@@ -1189,3 +1189,34 @@ func TestRescueCompleteHolderOnly(t *testing.T) {
 		t.Errorf("misses on %q", got)
 	}
 }
+
+// A check cut short (here Pause saved during step 1) leaves nothing behind: no incident row, nothing in the list, the
+// day's bound unused, and the file checked again at its next sign once Pause is off.
+func TestRescueCutShortLeavesNothing(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.copyOK["ad"] = true
+	live := e.tr.o.Mount
+	e.pauseDuring()
+	paused := e.tr.sleep
+	waits := 0
+	e.tr.sleep = func(ctx context.Context, d time.Duration) error {
+		if waits++; waits < 3 { // Pause comes on during step 1, after the incident was recorded
+			e.advance(d)
+			return ctx.Err()
+		}
+		return paused(ctx, d)
+	}
+	e.play(2, "buffering")
+	e.poll()
+	if got := e.one(`SELECT COUNT(*) FROM playing_break`); got != "0" || len(e.tr.Incidents()) != 0 {
+		t.Fatalf("%s rows, incidents %+v", got, e.tr.Incidents())
+	}
+	e.tr.o.Mount = live
+	e.tr.sleep = func(ctx context.Context, d time.Duration) error { e.advance(d); return ctx.Err() }
+	e.copyOK["ad"] = false
+	e.poll()
+	if got := e.one(`SELECT state FROM link WHERE id = 11`) + " " + e.one(`SELECT COUNT(*) FROM playing_break`); got != "dead 1" {
+		t.Errorf("the next break after Pause: %s", got)
+	}
+}

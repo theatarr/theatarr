@@ -197,6 +197,15 @@ func (l *Library) SettlePlayingIncident(ctx context.Context, incident int64, set
 	return err
 }
 
+// DropPlayingIncident removes the rows of an incident cut short before anything was done (still open, not fixed, no
+// search queued), so the day's bound and Now playing's list hold only real incidents. A row an import fixed, or one
+// marked and searched, stays.
+func (l *Library) DropPlayingIncident(ctx context.Context, incident int64) error {
+	_, err := l.st.Writer().ExecContext(ctx, `DELETE FROM playing_break WHERE incident = ? AND settled = ''
+		AND fixed_by = '' AND searched = 0`, incident)
+	return err
+}
+
 // PlayingMiss writes the miss of the incident's release on each of keys (a provider key, or the client's
 // "client:"+key), source router:playing, for router.PlayingMissTTL: no search takes that release there again
 // meanwhile (it may elsewhere). The come-back lifts it.

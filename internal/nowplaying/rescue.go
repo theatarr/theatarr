@@ -56,6 +56,7 @@ type Rescuer interface {
 	PlayingRoute(version string) (client string, providers []string)
 	OpenPlayingIncident(ctx context.Context, inc library.PlayingIncident, f library.PlayingFile) (int64, error)
 	SettlePlayingIncident(ctx context.Context, incident int64, settled, account string) error
+	DropPlayingIncident(ctx context.Context, incident int64) error
 	PlayingMiss(ctx context.Context, incident int64, keys []string) error
 	MarkBrokenPlaying(ctx context.Context, incident int64, f library.PlayingFile, search bool,
 		missKeys []string) (bool, error)
@@ -579,7 +580,7 @@ func (t *Tracker) repair(ctx context.Context, lib Rescuer, j *sign, hash string,
 		result, acct := t.sameRelease(ctx, lib, j, id, hash, off, others, &told)
 		switch result {
 		case copyStopped:
-			t.settleQuiet(ctx, id)
+			t.settleQuiet(ctx, j, id)
 			return
 		case copyReadable:
 			t.clearPending(src.LinkID)
@@ -597,7 +598,7 @@ func (t *Tracker) repair(ctx context.Context, lib Rescuer, j *sign, hash string,
 		}
 	}
 	if lib = t.live(src.version); lib == nil {
-		t.settleQuiet(ctx, id)
+		t.settleQuiet(ctx, j, id)
 		return
 	}
 	// The release's miss goes on the accounts it failed on; an account found out (an outage) gets none: the
@@ -611,7 +612,7 @@ func (t *Tracker) repair(ctx context.Context, lib Rescuer, j *sign, hash string,
 		true, miss)
 	if err != nil || !ok {
 		log.Info("nowplaying: the broken file was not marked (its link changed, or Pause came on)", "err", err)
-		t.settleQuiet(ctx, id)
+		t.settleQuiet(ctx, j, id)
 		return
 	}
 	log.Info("nowplaying: the broken file is marked dead and searched for at once")
@@ -645,16 +646,22 @@ func (t *Tracker) sameCopy(ctx context.Context, src *Source) bool {
 	return err == nil && state == "active" && target == src.Target && t.live(src.version) != nil
 }
 
-// settleQuiet settles an incident cut short (Pause came on, the library stopped writing, or the link no longer
-// points at the copy read): nothing done, nothing said. A row an import fixed meanwhile stays as it is.
-func (t *Tracker) settleQuiet(ctx context.Context, id int64) {
+// settleQuiet ends an incident cut short (Pause came on, the library stopped writing, or the link no longer points at
+// the copy read): nothing done, nothing said, and nothing left behind (no row to use up the day's bound or show in
+// the list; a row an import fixed meanwhile stays as it is).
+func (t *Tracker) settleQuiet(ctx context.Context, j *sign, id int64) {
 	t.o.Logger.Info("nowplaying: the broken file is left (Pause is on, its library writes nothing now, or its link changed)",
 		"incident", id)
 	if lib := t.rescuer(); lib != nil {
-		if err := lib.SettlePlayingIncident(ctx, id, "none", ""); err != nil {
-			t.o.Logger.Warn("nowplaying: incident not settled", "incident", id, "err", err)
+		if err := lib.DropPlayingIncident(ctx, id); err != nil {
+			t.o.Logger.Warn("nowplaying: cut-short incident not removed", "incident", id, "err", err)
 		}
 	}
+	// Nothing was judged: the copy is checked again at its next sign, and no message is owed for it.
+	t.mu.Lock()
+	delete(t.quiet, copyKey(j.src.LinkID, j.src.Target))
+	t.mu.Unlock()
+	t.clearPending(j.src.LinkID)
 }
 
 // settleNone settles an incident where nothing was done, and tells its outcome.

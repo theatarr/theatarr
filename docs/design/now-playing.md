@@ -210,7 +210,8 @@ broke while playing is searched at once").
   Looking for another copy. Try again in a few minutes.", or "This file stopped working. Try again later." when nothing
   will be done (the day's bound reached, a replacement at the same path breaking the same day included, the account
   out with no other). Pause, or a library that stopped writing, checked again before each change and each message,
-  ends the check with nothing done or said. Only when it is buffering or its position has
+  ends the check with nothing done or said, and nothing kept (no incident to use up the day's bound or show in the
+  list); the file is checked again at its next sign. Only when it is buffering or its position has
   not moved since the sign; one still advancing gets it at the next fresh Plex sample of it that is buffering or has
   not moved since the sample before (the same position; a rewind is movement too) (never on a remembered verdict or an old zurg line); a paused one never; no session left: nothing
   is sent. Never when the mount is the problem, never after a read that passed. `Options.StopWithMessage` switches it
