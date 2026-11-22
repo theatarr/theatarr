@@ -365,6 +365,6 @@ lookup (its opener cleared; a slow answer would lose the tap's permission to ope
 answer comes and closes it when nothing was found, and shows an "Open in Plex" link only when the browser gave no tab
 back; on iOS it hands over to the app with `app_url` and keeps an "Open in Plex web" link beneath the button, for a
 phone without the app (`watch-in-plex.test.tsx`). Otherwise it answers `{found: false, message}`: "This library has
-no Plex section." (no `plex_section` set for it, checked before anything else, so also when Plex is not set up; `web.TestPlexLinkNoSectionWithoutPlex`), "Not found in Plex yet" (no file, or Plex has not listed it), or, for managers and admins, the sentence for a Plex that does not
+no Plex section." (no `plex_section` set for it, checked before anything else, so also when Plex is not set up), then "Plex is not set up: add its address and token under Settings › Plex & playback." when there is no Plex address or no token, so Plex is not asked (a member, who cannot open Settings, reads "Plex is not set up."; `web.TestPlexLinkNoSectionWithoutPlex`), "Not found in Plex yet" (no file, or Plex has not listed it), or, for managers and admins, the sentence for a Plex that does not
 answer or refuses the token (`uipages.Fix`); a member reads "Plex does not answer", as on Now playing. A title in two libraries is two Plex items and gets two lookups, one per library with a
 file (`web.TestPlexLink`; a section of 5000 episodes from the fake takes about 20 ms to list and match).

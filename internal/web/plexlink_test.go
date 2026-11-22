@@ -130,25 +130,38 @@ func TestPlexLink(t *testing.T) {
 	}
 }
 
-// With Plex not set up at all, a library with no Plex section still says so; one with a section is not found.
+// With Plex not set up (no address, or an address without a token), a library with no Plex section still says so;
+// one with a section says Plex is not set up and where to set it, a member only that it is not set up.
 func TestPlexLinkNoSectionWithoutPlex(t *testing.T) {
 	t.Parallel()
-	pol := &policy.Policy{Library: &policy.Library{
+	noAddress := &policy.Policy{Library: &policy.Library{
 		Versions: map[string]*policy.LibraryVersion{"movie-pl": {PlexSection: 7}, "none-pl": {}}}}
-	e := newEnvWith(t, func(cfg *Config) {
-		cfg.PlexItems = func(context.Context) (PlexItems, *policy.Policy, error) { return nil, pol, nil }
-	})
-	now := time.Now().UnixMilli()
-	e.exec(`INSERT INTO title (id, kind, name, created_at, updated_at) VALUES (801, 'movie', 'Film', ?, ?)`, now, now)
-	key := e.apiKey()
-	for path, want := range map[string]string{"/titles/801/plex?version=none-pl": "This library has no Plex section.",
-		"/titles/801/plex?version=movie-pl": "Not found in Plex yet"} {
-		r := httptest.NewRequest("GET", APIBase+path, nil)
-		r.Header.Set(auth.APIKeyHeader, key)
-		rec := e.do(r)
-		var out PlexLink
-		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil || rec.Code != 200 || out.Found || out.Message != want {
-			t.Errorf("%s: %d %+v, want %q", path, rec.Code, out, want)
+	noToken := &policy.Policy{Library: &policy.Library{Plex: &policy.Plex{URL: "http://plex.invalid:32400", TokenEnv: "T"},
+		Versions: map[string]*policy.LibraryVersion{"movie-pl": {PlexSection: 7}, "none-pl": {}}}}
+	for name, pol := range map[string]*policy.Policy{"no address": noAddress, "no token": noToken} {
+		e := newEnvWith(t, func(cfg *Config) {
+			cfg.PlexItems = func(context.Context) (PlexItems, *policy.Policy, error) { return nil, pol, nil }
+		})
+		now := time.Now().UnixMilli()
+		e.exec(`INSERT INTO title (id, kind, name, created_at, updated_at) VALUES (801, 'movie', 'Film', ?, ?)`, now, now)
+		key := e.apiKey()
+		uid := e.account("member", auth.RoleUser, auth.StatusActive, true)
+		memberKey, _, err := e.auth.CreateKey(context.Background(), "k-member", uid)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, c := range []struct{ key, path, want string }{
+			{key, "/titles/801/plex?version=none-pl", "This library has no Plex section."},
+			{key, "/titles/801/plex?version=movie-pl", "Plex is not set up: add its address and token under Settings › Plex & playback."},
+			{memberKey, "/titles/801/plex?version=movie-pl", "Plex is not set up."},
+		} {
+			r := httptest.NewRequest("GET", APIBase+c.path, nil)
+			r.Header.Set(auth.APIKeyHeader, c.key)
+			rec := e.do(r)
+			var out PlexLink
+			if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil || rec.Code != 200 || out.Found || out.Message != c.want {
+				t.Errorf("%s %s: %d %+v, want %q", name, c.path, rec.Code, out, c.want)
+			}
 		}
 	}
 }

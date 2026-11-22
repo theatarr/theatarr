@@ -37,6 +37,13 @@ const plexNotFound = "Not found in Plex yet"
 // plexNoSection: the library names no Plex section (library.versions.<key>.plex_section), so nothing is looked up.
 const plexNoSection = "This library has no Plex section."
 
+// plexNotSetUp: no Plex address, or one without a token, so Plex was not asked; a caller who cannot open Settings
+// reads only the first half.
+const (
+	plexNotSetUp      = "Plex is not set up."
+	plexNotSetUpAdmin = "Plex is not set up: add its address and token under " + uipages.Plex + "."
+)
+
 // apiPlexLink looks the title up in Plex on demand, in the section of library ?version=: one identity call and one
 // listing of the section's items by file, matched on the library's own files of the title (a series by the show of
 // one of its episodes). Nothing is stored or polled. A title in two libraries is two Plex items, asked one by one.
@@ -69,6 +76,15 @@ func (w *Web) apiPlexLink(rw http.ResponseWriter, r *http.Request) {
 			writeJSON(rw, http.StatusOK, PlexLink{Message: plexNoSection})
 			return
 		}
+	}
+	// Then the set-up: without an address or its token no client, and Plex was never asked.
+	if err == nil && pol != nil && pc == nil {
+		msg := plexNotSetUp
+		if w.permsOf(r).Admin {
+			msg = plexNotSetUpAdmin
+		}
+		writeJSON(rw, http.StatusOK, PlexLink{Message: msg})
+		return
 	}
 	if err != nil || pc == nil || pol == nil || pol.Library == nil || pol.Library.Plex == nil {
 		notFoundYet()
