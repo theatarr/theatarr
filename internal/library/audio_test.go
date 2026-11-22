@@ -203,7 +203,7 @@ func TestAudioRuleRefusesDowngradeOfAudio(t *testing.T) {
 	held := e.heldFilm("", "eng")
 	before := tree(t, e.movies)
 	plan := e.filmImport(1, hashA, movieRelease, tracks("fre"))
-	want := "Import refused: French audio only; the file in the library has English."
+	want := "Import refused: French audio only; the file in the library has English. Use Manual import to take it anyway."
 	if len(plan.Links) != 0 || len(plan.Rejected) == 0 || plan.Rejected[0].Reason != want {
 		t.Fatalf("plan %+v", plan)
 	}
@@ -236,9 +236,9 @@ func TestAudioRuleReplacementSharesLanguage(t *testing.T) {
 	}{
 		{"Spanish over Spanish", []string{"spa"}, []string{"spa", "spa"}, true, ""},
 		{"Russian over Spanish", []string{"spa"}, []string{"rus"}, false,
-			"Import refused: Russian audio only; the file in the library has Spanish."},
+			"Import refused: Russian audio only; the file in the library has Spanish. Use Manual import to take it anyway."},
 		{"French over a file of unknown audio", []string{"und"}, []string{"fre"}, false,
-			"Import refused: French audio only; the file in the library has no known audio language."},
+			"Import refused: French audio only; the file in the library has no known audio language. Use Manual import to take it anyway."},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -281,7 +281,7 @@ func TestAudioRuleSamePathReplacement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "Import refused: French audio only; the file in the library has English."
+	want := "Import refused: French audio only; the file in the library has English. Use Manual import to take it anyway."
 	if len(plan.Links) != 0 || e.state(1) != "failed" || plan.Why != want {
 		t.Fatalf("plan %+v state %s", plan, e.state(1))
 	}
@@ -299,7 +299,7 @@ func TestAudioRuleEmptyFilmSlotRefusedOnce(t *testing.T) {
 	e.audioFilm("Japanese")
 	plan := e.filmImport(1, hashA, movieRelease, tracks("fre", "fra"))
 	first := "Import refused: French audio only; this library wants English or Japanese. Another release with the " +
-		"same audio would be taken."
+		"same audio would be taken. Use Manual import to take it anyway."
 	if e.state(1) != "failed" || plan.Why != first {
 		t.Fatalf("first: %s %q", e.state(1), plan.Why)
 	}
@@ -452,7 +452,7 @@ func TestAudioRulePartnerLibrary(t *testing.T) {
 		t.Errorf("movie-web links %s", got)
 	}
 	want := "Import refused: French audio only; this library wants English or Japanese. Another release with the same audio " +
-		"would be taken."
+		"would be taken. Use Manual import to take it anyway."
 	if got := e.one(`SELECT COUNT(*) || '|' || group_concat(source || '|' || reason || '|' || (download_id IS NULL) || '|' ||
 		(researched_at IS NOT NULL)) FROM router_blocklist WHERE version_key = 'movie-web'`); got != "1|library|"+want+"|1|1" {
 		t.Errorf("movie-web blocklist %s", got)
@@ -506,7 +506,7 @@ func TestAudioRuleEachDisplacedFile(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if want := "Import refused: French audio only; the file in the library has English."; e.state(1) != "failed" || p.Why != want {
+		if want := "Import refused: French audio only; the file in the library has English. Use Manual import to take it anyway."; e.state(1) != "failed" || p.Why != want {
 			t.Fatalf("%s %q", e.state(1), p.Why)
 		}
 	})
@@ -620,11 +620,11 @@ func TestAudioRuleStoredTagFact(t *testing.T) {
 		reason                  string
 	}{
 		{"English over an untagged track, French profile", "French", "", untagged, []string{"eng"}, false,
-			"Import refused: English audio only; the file in the library has no known audio language."},
+			"Import refused: English audio only; the file in the library has no known audio language. Use Manual import to take it anyway."},
 		{"French over an untagged track", "original", "Japanese", untagged, []string{"fre"}, false,
-			"Import refused: French audio only; the file in the library has no known audio language."},
+			"Import refused: French audio only; the file in the library has no known audio language. Use Manual import to take it anyway."},
 		{"old probe, eng", "original", "Japanese", untagged, []string{"spa"}, false,
-			"Import refused: Spanish audio only; the file in the library has no known audio language."},
+			"Import refused: Spanish audio only; the file in the library has no known audio language. Use Manual import to take it anyway."},
 		{"old probe, jpn stays known", "English", "", []probe.Audio{{Codec: "ac3", Language: "jpn"}}, []string{"jpn"},
 			true, ""},
 	} {
@@ -748,7 +748,7 @@ func TestAudioRuleRefusalNamesStoredAudio(t *testing.T) {
 			e.exec(`UPDATE content_file SET probe = ? WHERE id = 1`, tc.probe)
 			e.exec(`UPDATE link SET adopted_media = ? WHERE id = 1`, tc.media)
 			e.filmImport(1, hashA, movieRelease, tracks("fre"))
-			want := "Import refused: French audio only; the file in the library has English."
+			want := "Import refused: French audio only; the file in the library has English. Use Manual import to take it anyway."
 			if got := e.one(`SELECT COALESCE(reason, '') FROM router_blocklist WHERE info_hash = ?`, hashA); got != want {
 				t.Errorf("reason %q, want %q", got, want)
 			}

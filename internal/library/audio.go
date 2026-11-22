@@ -29,6 +29,9 @@ import (
 // audioRefusedPrefix starts every reason the rule gives.
 const audioRefusedPrefix = decide.AudioRefusedPrefix
 
+// useManualImport ends every refusal the rule gives: how to take the file anyway.
+const useManualImport = "Use Manual import to take it anyway."
+
 // audioWanted is the version's wanted languages (three-letter codes, English first), or nil for no rule.
 func (l *Library) audioWanted(ctx context.Context, d *importDownload) ([]string, error) {
 	v := &d.Version
@@ -172,9 +175,9 @@ func (l *Library) audioGuard(ctx context.Context, d *importDownload, plan *Plan,
 				languageWords(want, "or") + "."
 		case replacing:
 			reason = audioRefusedPrefix + languageWords(langs, "and") + " audio only; the file in the library has " +
-				has + "."
+				has + ". " + useManualImport
 		case d.Version.Title.Kind != "movie":
-			reason = audioOpening(langs) + languageWords(want, "or") + ". Use Manual import to take it anyway."
+			reason = audioOpening(langs) + languageWords(want, "or") + ". " + useManualImport
 		default:
 			earlier, err := l.audioRefusedBefore(ctx, d, audioOpening(langs))
 			if err != nil {
@@ -185,7 +188,8 @@ func (l *Library) audioGuard(ctx context.Context, d *importDownload, plan *Plan,
 					"an earlier release with the same audio was refused"
 				break
 			}
-			reason = audioOpening(langs) + languageWords(want, "or") + ". Another release with the same audio would be taken."
+			reason = audioOpening(langs) + languageWords(want, "or") + ". Another release with the same audio would be " +
+				"taken. " + useManualImport
 		}
 		f := plannedFile(plan, lk.File)
 		if note != "" {

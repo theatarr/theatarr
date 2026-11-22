@@ -370,9 +370,9 @@ mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
      Matroska `eng` track without `tagged` (untagged, or a probe stored before the fact was kept) is unknown;
      other languages in an old probe stay known. A French-only
      E01-E02 file does not replace an English E01 beside a French E02.
-     `Import refused: French audio only; the file in the library has English.`
+     `Import refused: French audio only; the file in the library has English. Use Manual import to take it anyway.`
    - *An empty film slot*: refused once, `Import refused: French audio only; this library wants English or Japanese.
-     Another release with the same audio would be taken.` (no "Searching again": the import cannot know whether the
+     Another release with the same audio would be taken. Use Manual import to take it anyway.` (no "Searching again": the import cannot know whether the
      poll will search). When this library already holds such a
      refusal of another release of the film (a `library` row of the same title, another blocklist key, whose reason
      starts with the same opening `Import refused: <languages> audio only; this library wants `, the languages by
