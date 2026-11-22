@@ -824,8 +824,8 @@ state and Cutoff unmet are its own. The journal records an `edit_file` action (m
   client-routed version) and one `acquire.research` job (reason `playing`; a version sharing the link gets
   `dead_link`). A release's other files found broken with it are marked as they are found without a search;
   `QueuePlayingSearch` queues one `playing` search for their episodes together once the watched file's search has
-  ended (`SettlePlayingRuns`: no search job, due row, running search or route, nor a download in flight of the title's
-  version since the break). Rows are found by title, version, path and old target, never by the link id alone (a
+  ended (`SettlePlayingRuns`: no search job for its episodes, due row, running search or route of their season, nor
+  a download in flight holding one of them, since the break; another season's searches do not count). Rows are found by title, version, path and old target, never by the link id alone (a
   same-path import keeps or replaces the row). **The sweep leaves an open incident's dead link alone** while its
   target is still the old copy: it is not revived, moved aside or repointed by a listing
   (`TestSweepLeavesUnsettledDeadLink`, `TestSweepDoesNotRepointUnsettledDeadLink`); a replacement at the same path (a
@@ -839,9 +839,10 @@ state and Cutoff unmet are its own. The journal records an `edit_file` action (m
   row is settled `revived` and the release's `router:playing` miss is lifted; in a renamed folder the row is settled
   and the next sweep repoints the link (`TestComeBackRevivesUncoveredCopy`). A copy another file now holds, in part or
   whole, is left as it is for the comparison that puts it back or keeps it aside; so is one while paused or of a
-  version no longer monitored (`TestComeBackLeavesCoveredOrStoppedCopy`). The import that brings a file for an open
-  row's film or episodes notes it fixed (`fixed_by` `replaced`, the new release) in its transaction and, after the
-  commit, reports the watched file's outcome `replaced` once (`TestPlayingReplacedByImport`). `OnPlayingOutcome` is the
+  version no longer monitored (`TestComeBackLeavesCoveredOrStoppedCopy`). The import after which an open row's film,
+  or every one of its episodes, has a file again notes it fixed (`fixed_by` `replaced`, the new release) in its
+  transaction and, after the commit, reports the watched file's outcome `replaced` once (`TestPlayingReplacedByImport`);
+  a row only partly covered stays open (`TestPlayingPartialImportNotReplaced`). `OnPlayingOutcome` is the
   one hook told each incident's outcome (`internal/outcome`); nothing is deleted from any account.
 - **An implausible listing is a mount that is down** (`Mount.checkListing`). `Healthy` only stats
   `__all__`, and a zurg that restarted can serve it present but empty or half-loaded. So relink, the dangling report,

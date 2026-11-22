@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/theatarr/theatarr/internal/outcome"
@@ -211,5 +212,81 @@ func TestPlayingReplacedByImport(t *testing.T) {
 	}
 	if len(got) != 1 {
 		t.Errorf("outcomes after settling %+v", got)
+	}
+}
+
+// A broken file holding E01 and E02 of which an import brings only E01 is not replaced: its row stays open for E02
+// and nothing is reported; the import that brings E02 fixes it.
+func TestPlayingPartialImportNotReplaced(t *testing.T) {
+	e := newEnv(t, true)
+	e.pol.Router = &policy.Router{Enabled: true}
+	var got []outcome.Outcome
+	e.lib.OnPlayingOutcome(func(o outcome.Outcome) { got = append(got, o) })
+	e.release("Old.S01", map[string]float64{"both.mkv": 5400})
+	e.exec(`INSERT INTO link (id, path, target, title_id, release_title, quality, state, created_at, updated_at)
+		VALUES (1, ?, ?, 2, 'Old.S01', 'WEBDL-1080p', 'active', 0, 0)`, filepath.Join(e.shows, "Show (2020)", "both.mkv"),
+		filepath.Join(e.mount, "__all__", "Old.S01", "both.mkv"))
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (1, 20)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (1, 201), (1, 202)`)
+	id, err := e.lib.OpenPlayingIncident(e.ctx, PlayingIncident{TitleID: 2, Version: "tv"}, PlayingFile{LinkID: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, err := e.lib.MarkBrokenPlaying(e.ctx, id, []PlayingFile{{LinkID: 1}}, true, nil); err != nil || n != 1 {
+		t.Fatalf("marked %d: %v", n, err)
+	}
+	importEp := func(dl int64, hash, ep string, eps string) {
+		rel := "Show." + ep + ".2160p.WEB-DL.DDP5.1.H.265-GRP"
+		e.release(rel, map[string]float64{rel + ".mkv": 2700})
+		e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, quality,
+			score, episodes, provider, name, state, created_at, updated_at, ready_at)
+			VALUES (?, 2, 20, 'tv', ?, ?, 'idx', 'Bluray-2160p Remux', 100, ?, 'rd', ?, 'ready', 0, 0, 0)`,
+			dl, hash, rel, eps, rel)
+		if _, err := e.lib.Import(e.ctx, dl, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	importEp(1, strings.Repeat("1", 40), "S01E01", "[201]")
+	if row := e.one(`SELECT fixed_by || '|' || reported FROM playing_break WHERE id = ?`, id); row != "|" || len(got) != 0 {
+		t.Fatalf("after E01 only: row %q, outcomes %+v", row, got)
+	}
+	importEp(2, strings.Repeat("2", 40), "S01E02", "[202]")
+	if got := e.one(`SELECT fixed_by || '|' || reported FROM playing_break WHERE id = ?`, id); got != "replaced|replaced" {
+		t.Errorf("after E02: row %q", got)
+	}
+	if len(got) != 1 || got[0].Kind != outcome.Replaced {
+		t.Errorf("outcomes %+v", got)
+	}
+}
+
+// The settle pass looks only at what belongs to the incident's episodes: another season's queued search does not hold
+// the outcome or the siblings' search back.
+func TestSettlePlayingIgnoresOtherSeasons(t *testing.T) {
+	e := playingEnv(t)
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, created_at, updated_at) VALUES (204, 2, 2, 1, 'S2', 0, 0)`)
+	id, err := e.lib.OpenPlayingIncident(e.ctx, PlayingIncident{TitleID: 2, Version: "tv"}, PlayingFile{LinkID: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.lib.MarkBrokenPlaying(e.ctx, id, []PlayingFile{{LinkID: 2}}, true, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.lib.MarkBrokenPlaying(e.ctx, id, []PlayingFile{{LinkID: 3}}, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	e.exec(`UPDATE job SET state = 'done'`)
+	e.exec(`INSERT INTO acquire_run (source, title_id, version_id, version_key, target, reason, season, episodes, state,
+		created_at, updated_at) VALUES ('wanted', 2, 20, 'tv', 's02', 'missing', 2, '[204]', 'queued', ?, ?)`,
+		e.now.UnixMilli(), e.now.UnixMilli())
+	e.exec(`INSERT INTO search_request (title_id, version_key, reason, season, created_at, next_at, tries, why)
+		VALUES (2, 'tv', 'missing', 2, 0, 0, 0, 'stalled')`)
+	if err := e.lib.SettlePlayingRuns(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.one(`SELECT reported FROM playing_break WHERE id = ?`, id); got != "unavailable" {
+		t.Errorf("reported %q with only another season pending", got)
+	}
+	if jobs := e.playingJobs(); len(jobs) != 2 || fmt.Sprint(jobs[1].Episodes) != "[203]" {
+		t.Errorf("searches %+v", jobs)
 	}
 }

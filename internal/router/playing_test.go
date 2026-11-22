@@ -121,3 +121,30 @@ func TestPlayingRouteSkipsFailedReleaseOnFailedAccount(t *testing.T) {
 		t.Errorf("route %+v: %s", res, steps(res))
 	}
 }
+
+// Once the watched file's search has ended (its outcome reported), the release's other files' search takes only a
+// release holding one of their episodes, not the watched episode again.
+func TestPlayingSiblingRouteSkipsWatchedEpisode(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.exec(`INSERT INTO episode (id, title_id, season, number, created_at, updated_at)
+		VALUES (101, 2, 1, 1, 0, 0), (103, 2, 1, 3, 0, 0)`)
+	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, updated_at)
+		VALUES (20, 101, 1, 'wanted', 0), (20, 103, 1, 'wanted', 0)`)
+	e.playingRun(8, 2, 20, "series", "[101,103]", "[101]", "")
+	e.exec(`UPDATE playing_break SET reported = 'unavailable'`)
+	e.exec(`INSERT INTO playing_break (incident, watched, link_id, title_id, version_key, path, old_target, episodes,
+		broken_at, searched, updated_at) VALUES (1, 0, 2, 2, 'series', '/lib/y.mkv', '/mnt/y.mkv', '[103]', 0, 1, 0)`)
+	watched := cand(h("a"), "Show.S01E01.2160p.WEB-DL-GRP")
+	watched.Episodes = []int64{101}
+	sibling := cand(h("b"), "Show.S01E03.2160p.WEB-DL-GRP")
+	sibling.Episodes = []int64{103}
+	res, err := e.r.Route(e.ctx, Request{TitleID: 2, VersionID: 20, Version: "series", Source: "acquire:8",
+		Candidates: []Candidate{watched, sibling}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.writes() != 1 || res.Hash != h("b") || !strings.Contains(steps(res), "aaaa//skipped/not_wanted") {
+		t.Errorf("route %+v: %s; adds %d", res, steps(res), e.writes())
+	}
+}

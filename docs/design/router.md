@@ -1029,8 +1029,9 @@ download of its own does not hold back the season's next search; its schedule ro
 spent (`router.wanted.per_hour`), alone, and nothing else with it, and it is not counted against the hour (Wanted's and
 Search now's count leave it out; `TestResearchPlayingPastTheHour`, `TestResearchPlayingNotDebited`); its route reads
 the title's version's open incident (table `playing_break`, by title and version: no incident id travels with the
-search) and takes only a release holding one of the incident's episodes still `wanted` (the run's episodes are its
-whole season; `TestPlayingRouteHoldsToIncidentEpisodes`), and each account the incident found out answers as not
+search) and takes only a release holding one of the incident's episodes still `wanted` and not fixed (the run's
+episodes are its whole season; once the watched file's search has ended, its episodes no longer count for the release's
+other files' search; `TestPlayingRouteHoldsToIncidentEpisodes`, `TestPlayingSiblingRouteSkipsWatchedEpisode`), and each account the incident found out answers as not
 holding the release for that route only (`skipProvider`: no miss is recorded there, the next account or release is
 tried at once; `TestPlayingRouteSkipsOutAccount`). The failed release on the account it failed on carries a
 `provider_cache` miss of source `router:playing` for 7 days (`client:<key>` on a client-routed version, whose client

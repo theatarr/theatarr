@@ -78,10 +78,11 @@ func (l *Library) playingOutcome(ctx context.Context, incident int64, kind strin
 	return o, nil
 }
 
-// playingFixedTx notes, in an import's transaction, the open rows of a title's version whose film or episodes the
-// imported file holds: fixed by an import (fixed_by replaced, with the new release). It returns the incidents whose
-// watched file it fixed, to report once the import commits.
-func playingFixedTx(ctx context.Context, tx *sql.Tx, titleID int64, version string, episodes []int64,
+// playingFixedTx notes, in an import's transaction after its links are written, the open rows of a title's version
+// whose film or episodes the import's files hold and that now have a file for the film or for every one of their
+// episodes: fixed by an import (fixed_by replaced, with the new release). A row only partly covered (E01 of a broken
+// E01-E02) stays open. It returns the incidents whose watched file it fixed, to report once the import commits.
+func playingFixedTx(ctx context.Context, tx *sql.Tx, titleID, versionID int64, version string, episodes []int64,
 	release string, now int64) ([]int64, error) {
 	rows, err := tx.QueryContext(ctx, `SELECT id, incident, watched, episodes FROM playing_break
 		WHERE title_id = ? AND version_key = ? AND settled = '' AND fixed_by = ''`, titleID, version)
@@ -91,17 +92,17 @@ func playingFixedTx(ctx context.Context, tx *sql.Tx, titleID int64, version stri
 	type row struct {
 		id, incident int64
 		watched      bool
+		eps          string
 	}
 	var hit []row
 	for rows.Next() {
 		var r row
-		var js string
-		if err := rows.Scan(&r.id, &r.incident, &r.watched, &js); err != nil {
+		if err := rows.Scan(&r.id, &r.incident, &r.watched, &r.eps); err != nil {
 			rows.Close()
 			return nil, err
 		}
 		var eps []int64
-		_ = json.Unmarshal([]byte(js), &eps)
+		_ = json.Unmarshal([]byte(r.eps), &eps)
 		if len(eps) == 0 && len(episodes) == 0 || slices.ContainsFunc(eps, func(e int64) bool {
 			return slices.Contains(episodes, e)
 		}) {
@@ -114,6 +115,18 @@ func playingFixedTx(ctx context.Context, tx *sql.Tx, titleID int64, version stri
 	}
 	var watched []int64
 	for _, r := range hit {
+		var covered bool
+		if err := tx.QueryRowContext(ctx, `SELECT CASE WHEN json_array_length(?) = 0 THEN EXISTS (SELECT 1 FROM link l
+				JOIN link_version lv ON lv.link_id = l.id WHERE lv.version_id = ? AND l.state = 'active')
+			ELSE NOT EXISTS (SELECT 1 FROM json_each(?) je WHERE NOT EXISTS (SELECT 1 FROM link l
+				JOIN link_version lv ON lv.link_id = l.id JOIN link_episode le ON le.link_id = l.id
+				WHERE lv.version_id = ? AND l.state = 'active' AND le.episode_id = je.value)) END`,
+			r.eps, versionID, r.eps, versionID).Scan(&covered); err != nil {
+			return nil, err
+		}
+		if !covered {
+			continue
+		}
 		if _, err := tx.ExecContext(ctx, `UPDATE playing_break SET fixed_by = 'replaced', new_release = ?, updated_at = ?
 			WHERE id = ?`, release, now, r.id); err != nil {
 			return nil, err
@@ -182,9 +195,10 @@ func (l *Library) SettlePlayingRuns(ctx context.Context) error {
 	return nil
 }
 
-// playingPending reports whether a search of a title's version started for an incident (broken at since) may still
-// bring a file: a search job queued or running, a schedule row due for a reason other than the regular retries, a
-// search or its route still running, or a download in flight for the episodes (any for a film).
+// playingPending reports whether a search started for an incident of a title's version (broken at since, about
+// eps; none for a film) may still bring a file: a search job for those episodes queued or running, a schedule row of
+// their season due for a reason other than the regular retries, a search of their season or its route still running,
+// or a download in flight holding one of them (any, for a film). Another season's searches do not count.
 func (l *Library) playingPending(ctx context.Context, titleID int64, version string, since int64,
 	eps []int64) (bool, error) {
 	db := l.st.Reader()
@@ -195,18 +209,28 @@ func (l *Library) playingPending(ctx context.Context, titleID int64, version str
 	} else if err != nil {
 		return false, err
 	}
+	js, _ := json.Marshal(eps)
+	if len(eps) == 0 {
+		js = []byte("[]")
+	}
+	// The incident's seasons (-1 for a film), as the schedule and the runs record them.
+	seasons := `(SELECT -1 WHERE json_array_length(?1) = 0
+		UNION SELECT e.season FROM episode e WHERE e.id IN (SELECT value FROM json_each(?1)))`
 	var pending bool
 	err := db.QueryRowContext(ctx, `SELECT
-		EXISTS (SELECT 1 FROM job WHERE kind = ? AND state IN ('queued', 'running')
-			AND json_extract(payload, '$.title_id') = ? AND json_extract(payload, '$.version') = ?)
-		OR EXISTS (SELECT 1 FROM search_request WHERE title_id = ? AND version_key = ? AND why IS NOT NULL
-			AND why NOT IN ('new', 'added'))
-		OR EXISTS (SELECT 1 FROM acquire_run WHERE title_id = ? AND version_key = ? AND created_at >= ?
-			AND state IN ('queued', 'searching'))
-		OR EXISTS (SELECT 1 FROM acquire_run r JOIN job j ON j.id = r.route_job WHERE r.title_id = ?
-			AND r.version_key = ? AND r.created_at >= ? AND j.state IN ('queued', 'running'))`,
-		router.JobResearch, titleID, version, titleID, version, titleID, version, since, titleID, version,
-		since).Scan(&pending)
+		EXISTS (SELECT 1 FROM job WHERE kind = ?2 AND state IN ('queued', 'running')
+			AND json_extract(payload, '$.title_id') = ?3 AND json_extract(payload, '$.version') = ?4
+			AND (json_array_length(?1) = 0 OR json_array_length(COALESCE(json_extract(payload, '$.episodes'), '[]')) = 0
+				OR EXISTS (SELECT 1 FROM json_each(json_extract(payload, '$.episodes')) pe
+					WHERE pe.value IN (SELECT value FROM json_each(?1)))))
+		OR EXISTS (SELECT 1 FROM search_request WHERE title_id = ?3 AND version_key = ?4 AND why IS NOT NULL
+			AND why NOT IN ('new', 'added') AND season IN `+seasons+`)
+		OR EXISTS (SELECT 1 FROM acquire_run WHERE title_id = ?3 AND version_key = ?4 AND created_at >= ?5
+			AND state IN ('queued', 'searching') AND COALESCE(season, -1) IN `+seasons+`)
+		OR EXISTS (SELECT 1 FROM acquire_run r JOIN job j ON j.id = r.route_job WHERE r.title_id = ?3
+			AND r.version_key = ?4 AND r.created_at >= ?5 AND j.state IN ('queued', 'running')
+			AND COALESCE(r.season, -1) IN `+seasons+`)`,
+		string(js), router.JobResearch, titleID, version, since).Scan(&pending)
 	if err != nil || pending {
 		return pending, err
 	}

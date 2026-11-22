@@ -384,12 +384,7 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 			if err := recordFile(ctx, tx, d.ID, &lk, now); err != nil {
 				return err
 			}
-			// A file that broke while playing, whose film or episodes this one holds: fixed by this import.
-			fixed, err := playingFixedTx(ctx, tx, v.Title.ID, v.Key, lk.Episodes, d.ReleaseTitle, now)
-			if err != nil {
-				return err
-			}
-			playingFixed = append(playingFixed, fixed...)
+
 			mode := "applied"
 			detail := ""
 			if lk.Exists {
@@ -404,6 +399,18 @@ func (l *Library) apply(ctx context.Context, d *importDownload, vn *VersionNamin
 					Episodes: lk.Episodes}}); err != nil {
 				return err
 			}
+		}
+		// A file that broke while playing whose film or every episode has a file again: fixed by this import.
+		if len(linked) > 0 {
+			var eps []int64
+			for _, lk := range linked {
+				eps = append(eps, lk.Episodes...)
+			}
+			fixed, err := playingFixedTx(ctx, tx, v.Title.ID, v.VersionID, v.Key, eps, d.ReleaseTitle, now)
+			if err != nil {
+				return err
+			}
+			playingFixed = append(playingFixed, fixed...)
 		}
 		strays = nil
 		for _, m := range moved {
