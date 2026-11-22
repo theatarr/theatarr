@@ -366,9 +366,14 @@ func (l *Library) undoUpgrade(ctx context.Context, actionID int64, by string) (*
 	r := &returnFile{entry: e, prefix: undoPrefix + " by " + orSomeone(by) + ": "}
 	r.endTx = func(ctx context.Context, tx *sql.Tx, v *importVersion, now int64) error {
 		// The undone release stays out of this library: blocked. Its source is not one the router searches again
-		// after (router researchSources), so no search starts and the row keeps no researched time.
+		// after (router researchSources), so no search starts and the row keeps no researched time, an older
+		// handled row of the same release's included.
 		if err := router.Blocklist(ctx, tx, v.Key, hash, v.Title.ID, e.snap.Successor.DownloadID, release,
 			"the upgrade was undone by "+orSomeone(by), UndoBlockSource(by), now); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE router_blocklist SET researched_at = NULL WHERE version_key = ?
+			AND info_hash = ?`, v.Key, router.BlocklistKey(hash, release)); err != nil {
 			return err
 		}
 		return settleUndoneIncidents(ctx, tx, v, e.target, release, now)

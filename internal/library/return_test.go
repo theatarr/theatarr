@@ -793,3 +793,19 @@ func TestUndoStartsNoSearch(t *testing.T) {
 		t.Errorf("researched rows %s", got)
 	}
 }
+
+// An older handled block of the same release (an earlier refusal, researched) does not lend the Undo's row its
+// researched time: the row starts clean, and no search starts.
+func TestUndoBlockStartsClean(t *testing.T) {
+	t.Parallel()
+	e, _, _, action := adoptedFilm(t)
+	e.exec(`INSERT INTO router_blocklist (version_key, info_hash, title_id, release_title, reason, source, created_at,
+		researched_at) VALUES ('movie-remux', ?, 1, ?, 'an earlier refusal', 'library', 1, 2)`, hashA, movieRelease)
+	if _, err := e.lib.UndoUpgrade(e.ctx, action, "ann"); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.one(`SELECT source || '/' || (researched_at IS NULL) FROM router_blocklist WHERE version_key = 'movie-remux'
+		AND info_hash = ?`, hashA); got != "undo:ann/1" {
+		t.Errorf("blocklist %s", got)
+	}
+}
