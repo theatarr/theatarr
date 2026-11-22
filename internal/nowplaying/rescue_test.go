@@ -1249,3 +1249,22 @@ func TestRescueOwedMessageWaitsForReportingInterval(t *testing.T) {
 		t.Errorf("not stopped after the position stayed the same for %v: %q", stillFor, got)
 	}
 }
+
+// A plain mount with no stored hashes and no registry rows: the control read tells releases apart by their folder on
+// the mount, so the break is still judged (no copy step without a hash).
+func TestRescueControlByFolderWithoutHashes(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.exec(`UPDATE link SET content_file_id = NULL`)
+	e.exec(`DELETE FROM provider_torrent`)
+	e.exec(`DELETE FROM content_file`)
+	e.exec(`DELETE FROM content`)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.play(2, "buffering")
+	e.poll()
+	if got := e.one(`SELECT state FROM link WHERE id = 11`); got != "dead" {
+		t.Errorf("link %s", got)
+	}
+	if len(e.copies) != 0 {
+		t.Errorf("copied without a hash: %v", e.copies)
+	}
+}

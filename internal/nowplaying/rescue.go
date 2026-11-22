@@ -508,9 +508,10 @@ func releaseFolder(target, allDir string) string {
 	return folder
 }
 
-// otherRelease picks at random the target of an active Theatarr symlink of another release (another stored hash and
-// another release folder than the checked file's): with account set, one whose release only that account holds
-// (only true) or only another single account holds (only false); with account "", any.
+// otherRelease picks at random the target of an active Theatarr symlink of another release (another hash and another
+// release folder than the checked file's): with account set, one whose release only that account holds (only true) or
+// only another single account holds (only false); with account "", any, told apart by folder alone when neither
+// hash is known.
 func (t *Tracker) otherRelease(ctx context.Context, linkID int64, hash, folder, account string, only bool) (string, bool) {
 	// A link's hash: the one it has stored, else the one release the registry records for its folder (as now playing
 	// and relink find a taken-over file's).
@@ -520,22 +521,25 @@ func (t *Tracker) otherRelease(ctx context.Context, linkID int64, hash, folder, 
 		FROM (SELECT l.target, ` + router.LinkStoredHashSQL + ` AS sh,
 			CASE WHEN substr(l.target, 1, length(?)) = ? THEN substr(substr(l.target, length(?) + 1), 1,
 				instr(substr(l.target, length(?) + 1), '/') - 1) END AS fold
-			FROM link l WHERE l.state = 'active' AND l.kind = 'symlink' AND l.id <> ? AND instr(l.target, ?) = 0))
-		WHERE COALESCE(h, '') <> ?`
-	args := []any{root, root, root, root, linkID, "/" + t.o.AllDir + "/" + folder + "/", hash}
+			FROM link l WHERE l.state = 'active' AND l.kind = 'symlink' AND l.id <> ? AND instr(l.target, ?) = 0))`
+	args := []any{root, root, root, root, linkID, "/" + t.o.AllDir + "/" + folder + "/"}
 	if folder == "" {
 		args[5] = "\x00" // no folder to leave out
 	}
 	if account != "" {
+		// An account's release needs a hash and the record's holders.
 		cmp := "="
 		if !only {
 			cmp = "<>"
 		}
-		q += ` AND h IN (SELECT info_hash FROM provider_torrent WHERE ` + completeSQL + `
+		q += ` WHERE COALESCE(h, '') <> ? AND h IN (SELECT info_hash FROM provider_torrent WHERE ` + completeSQL + `
 			GROUP BY info_hash HAVING COUNT(DISTINCT provider) = 1 AND MIN(provider) ` + cmp + ` ?)`
-		args = append(args, account)
+		args = append(args, hash, account)
 	} else {
-		q += ` AND COALESCE(h, '') <> ''`
+		// Any other release: another hash; with neither hash known, another release folder on the mount is another
+		// release (the folder is left out above).
+		q += ` WHERE (COALESCE(h, '') <> '' AND h <> ?) OR (COALESCE(h, '') = '' AND ? = '')`
+		args = append(args, hash, hash)
 	}
 	var target string
 	err := t.o.Store.Reader().QueryRowContext(ctx, q+` ORDER BY random() LIMIT 1`, args...).Scan(&target)

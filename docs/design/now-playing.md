@@ -185,7 +185,9 @@ broke while playing is searched at once").
   release held by the serving account alone, any other release must read, and the break is this release on that
   account; if it fails, there is no verdict (an outage is concluded only from a failed release the serving account
   alone holds). With the account unknown any other release must read too; the release then counts as broken on each
-  holder. Another release's hash is the one its link stored, else the one the registry records for its folder.
+  holder. Another release's hash is the one its link stored, else the one the registry records for its folder;
+  with no hash on either side, a release in another folder on the mount is another release (only for the
+  account-free control).
 - **The repair.** The bound first: one incident per title and library a day; a second one that day gets no fast
   path (the hourly path as today). Then the incident is recorded, and: **step 1**, the same release on another account
   of the library, in its provider order, as the automatic "Add to other providers" adds it (one account at a time; it
