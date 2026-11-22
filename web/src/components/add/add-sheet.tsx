@@ -259,8 +259,9 @@ export function AddSheet({ target, onClose, onLeave }: { target: AddTarget; onCl
     const named = [...new Set([...chosen, ...r.new])].filter((k) => !partners.includes(k));
     const turned = named.map((k) => nameOf(k)).join(", ");
     const inSync = partners.map((k) => nameOf(k)).join(", ");
-    // As saved: a title added with monitoring off says so, rather than "Turned on".
-    const verb = r.title.monitored === false ? "Added, not monitored" : "Turned on";
+    // As saved: a title added with monitoring off, or a new series that monitors no episode (Monitor None, or every
+    // season cleared), says so, rather than "Turned on".
+    const verb = r.title.monitored === false || noEpisodes ? "Added, not monitored" : "Turned on";
     const said = turned ? `${verb}: ${turned}.${inSync ? ` ${inSync} too (in sync).` : ""}` : inSync ? `${verb}: ${inSync} (in sync).` : "Saved.";
     const body = [said, r.search?.message ? r.search.message.replace(/([^.!?])$/, "$1.") : ""].filter(Boolean).join(" ");
     toast({ tone: r.search && !r.search.started ? "warn" : "ok", title: r.created ? `${r.title.name} is in the library` : `${r.title.name} updated`, body, image: target.poster });

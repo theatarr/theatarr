@@ -556,6 +556,16 @@ it("offers Add alone for a new series added with Monitor None, with the later-se
   }
 });
 
+it("says a series added with Monitor None was added, not monitored", async () => {
+  mockFetch([...routes(seriesOptions).slice(0, 2), { method: "POST", path: "/titles", reply: json({ ...posted, versions: ["tv-web"], title: { ...posted.title, monitored: true } }) }]);
+  const user = userEvent.setup();
+  renderPage(<><AddSheet target={{ kind: "series", name: "Kappa", year: 2025, tmdb_id: 8 }} onClose={() => {}} /><Toaster /></>);
+  await user.selectOptions(await screen.findByTestId("add-monitor"), "none");
+  await user.click(screen.getByTestId("add-submit"));
+  await waitFor(() => expect(screen.getAllByTestId("toast").at(-1)?.textContent).toContain("Added, not monitored: WEB."));
+  expect(screen.getAllByTestId("toast").at(-1)?.textContent).not.toContain("Turned on");
+});
+
 it("offers Add alone when Choose seasons has every box cleared, and both again once one is ticked", async () => {
   const own = { ...seriesOptions, seasons: [{ season: 0 }, { season: 1 }, { season: 2 }] };
   const fetch = mockFetch(routes(own));
