@@ -673,4 +673,12 @@ func TestUpgradeWhyNamesThePacksFile(t *testing.T) {
 		u.Replaces.Score == nil || *u.Replaces.Score != 100 {
 		t.Fatalf("replaces %+v", u)
 	}
+	// The verdict is the named file's own: S01E02 meets the quality cutoff, though S01E01 (the copy) does not.
+	e.exec(`UPDATE episode_version_state SET below_quality_cutoff = 1 WHERE episode_id = 101`)
+	d = TitleDetail{}
+	e.call("GET", APIBase+"/titles/10", nil, 200, &d)
+	u = d.Versions[0].Upgrade
+	if u.QualityMet == nil || *u.QualityMet || u.Replaces == nil || u.Replaces.QualityMet == nil || !*u.Replaces.QualityMet {
+		t.Errorf("verdicts: copy %v, named file %+v", u.QualityMet, u.Replaces)
+	}
 }

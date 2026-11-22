@@ -112,6 +112,9 @@ type UpgradeFile struct {
 	Episode string `json:"episode"`
 	Quality string `json:"quality,omitempty"`
 	Score   *int64 `json:"score,omitempty"`
+	// QualityMet is that file's own judgment against the cutoff quality (its episode's stored flag), where stored:
+	// Why?'s verdict is about the file it names.
+	QualityMet *bool `json:"quality_met,omitempty"`
 }
 
 // redactUpgrade keeps the state, the qualities and the counts.
@@ -738,6 +741,15 @@ func (s *upgradeSet) explain(v upgradeVersion, episode int64) *UpgradeInfo {
 			} else {
 				u.Replaces = &UpgradeFile{Episode: fmt.Sprintf("S%02dE%02d", pairedEp.season, pairedEp.number),
 					Quality: paired.quality, Score: paired.score}
+			}
+			if s.qualityJudged[v.id] {
+				for _, ep := range s.episodes[v.id] {
+					if fmt.Sprintf("S%02dE%02d", ep.season, ep.number) == u.Replaces.Episode {
+						met := !ep.belowQuality
+						u.Replaces.QualityMet = &met
+						break
+					}
+				}
 			}
 		}
 		if episode > 0 {

@@ -186,6 +186,10 @@ describe("a season's Why", () => {
       replaces: { episode: "S20E156", quality: "HDTV-1080p", score: 200 },
       next: { release: "Show.S20E156.1080p.WEB-DL", quality: "WEBDL-1080p", score: 202, reason: "better format score: 202 over 200", source: "search" as const, seen_at: "2026-11-13T12:00:00Z" } };
     expect(whyLines(u, 0, null, null, new Date("2026-11-15T12:00:00Z"))[0]).toBe("S20E156 has: HDTV-1080p, score 200.");
+    // The verdict is the named file's own, not the copy's.
+    const named = { ...u, quality_met: false, replaces: { ...u.replaces, quality_met: true } };
+    expect(whyLines(named, 0, null, null, new Date("2026-11-15T12:00:00Z")).join(" ")).not.toContain("Below the wanted quality");
+    expect(whyLines({ ...u, quality_met: true, replaces: { ...u.replaces, quality_met: false } }, 0, null, null, new Date("2026-11-15T12:00:00Z")).join(" ")).toContain("Below the wanted quality");
   });
 });
 

@@ -175,10 +175,11 @@ function foundLine(u: UpgradeInfo | undefined | null, now: Date, history?: reado
 
 /** Why?'s three lines: the file held, where upgrades stop, and the verdict with what was found (nextLine). */
 export function whyLines(u: UpgradeInfo, score: number | undefined | null, cutoff: Cutoff | undefined | null, history?: readonly HistoryEvent[] | null, now: Date = new Date()): string[] {
-  const third = [verdictLine(u, score, cutoff), foundLine(u, now, history)].filter(Boolean).join(" ");
   // A series copy or season: the file the release found was judged against, by its episode, not what most files
-  // have (the reason's numbers are about that file).
+  // have (the reason's numbers are about that file), with that file's own verdict.
   const r = u.replaces;
+  const verdict = r ? verdictLine({ quality_met: r.quality_met }, r.score, cutoff) : verdictLine(u, score, cutoff);
+  const third = [verdict, foundLine(u, now, history)].filter(Boolean).join(" ");
   const have = r ? haveLine(r.quality, r.score).replace(/^You have:/, `${r.episode} has:`) : haveLine(u.quality, score);
   return [have, stopLine(cutoff), third].filter(Boolean);
 }
