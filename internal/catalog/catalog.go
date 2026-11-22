@@ -57,6 +57,10 @@ type Input struct {
 	// SeasonVersions are the version keys whose episodes Seasons applies to (an arr view passes its own versions);
 	// nil means the versions this add turns on. Versions removed from the views are skipped.
 	SeasonVersions []string
+	// SeasonsKeep are version keys that keep their own season choices (the copies a title had before this add, when
+	// the person changed only some seasons): Seasons and Monitor skip them, and the caller applies the changed
+	// seasons to them. The add still counts as one that names its seasons.
+	SeasonsKeep []string
 	// MonitorNew is Sonarr's monitorNewItems for the series versions turned on: "all" (new seasons are monitored)
 	// or "none". "" keeps a version's choice, and a new version takes "all". Seasons are kept as the versions'
 	// season choices too, so episodes that arrive with a later metadata refresh follow them (series_monitor).
@@ -197,6 +201,9 @@ func Add(ctx context.Context, tx *sql.Tx, in Input, now time.Time, log *slog.Log
 		} else if len(res.Synced) > 0 {
 			// The libraries in sync take the add's seasons as the ones it names.
 			sv = append(slices.Clone(sv), res.Synced...)
+		}
+		if len(in.SeasonsKeep) > 0 {
+			sv = slices.DeleteFunc(slices.Clone(sv), func(k string) bool { return slices.Contains(in.SeasonsKeep, k) })
 		}
 		for _, se := range in.Seasons {
 			if err := SetSeasonMonitored(ctx, tx, titleID, sv, se.Number, se.Monitored, now); err != nil {

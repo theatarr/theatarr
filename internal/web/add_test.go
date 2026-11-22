@@ -2587,3 +2587,49 @@ func TestAddCopyKeepsTheOtherCopysSeasons(t *testing.T) {
 		}
 	}
 }
+
+// TestAddSeasonsByStateBeforeTheAdd: which copies keep their seasons is read before the add. A removed library added
+// back beside a current one takes the sheet's seasons in full (its old choices go), and a partner the add newly
+// brings in sync takes the sheet's seasons and its own Monitor New, not a restored copy's "None".
+func TestAddSeasonsByStateBeforeTheAdd(t *testing.T) {
+	t.Parallel()
+	seasons := []map[string]any{{"season": 0, "monitored": false}, {"season": 1, "monitored": true}, {"season": 2, "monitored": false}}
+	e := newAddEnv(t, func(p *policy.Policy) {
+		for _, k := range []string{"tv-1080p", "tv-720p"} {
+			tv := *p.Versions["tv-2160p"]
+			tv.Library = "/media/" + k
+			p.Versions[k] = &tv
+		}
+		p.Library.SyncGroups = [][]string{{"tv-1080p", "tv-720p"}}
+	})
+	// tv-1080p: removed, everything monitored, new seasons off.
+	e.exec(`INSERT INTO version (id, title_id, policy_key, monitored, created_at, updated_at) VALUES (31, 10, 'tv-1080p', 1, 0, 0)`)
+	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, monitored, updated_at)
+		SELECT 31, id, 1, 0 FROM episode WHERE title_id = 10`)
+	e.exec(`INSERT INTO series_monitor (version_id, monitor_new, seasons, updated_at) VALUES (31, 'none', '{}', 0)`)
+	e.exec(`INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (31, 'ui', 0)`)
+	e.call("POST", APIBase+"/titles", map[string]any{"title_id": 10, "kind": "series", "versions": []string{"tv-2160p", "tv-1080p"},
+		"seasons": seasons, "changed_seasons": []int{}}, 201, nil)
+	monitored := func(k string) string {
+		var out []string
+		_ = scanAll(context.Background(), e.st.Reader(), `SELECT s.episode_id FROM episode_version_state s
+			JOIN version v ON v.id = s.version_id WHERE v.title_id = 10 AND v.policy_key = ? AND s.monitored = 1
+			ORDER BY s.episode_id`, []any{k}, func(r *sql.Rows) error {
+			var s string
+			out = append(out, s)
+			return r.Scan(&out[len(out)-1])
+		})
+		return strings.Join(out, ",")
+	}
+	if got := monitored("tv-1080p"); got != "101,102" {
+		t.Errorf("re-added library monitors %q, want 101,102", got)
+	}
+	if got := monitored("tv-720p"); got != "101,102" {
+		t.Errorf("partner monitors %q, want 101,102", got)
+	}
+	var mn string
+	if err := e.st.Reader().QueryRow(`SELECT COALESCE((SELECT m.monitor_new FROM series_monitor m JOIN version v ON v.id = m.version_id
+		WHERE v.title_id = 10 AND v.policy_key = 'tv-720p'), 'all')`).Scan(&mn); err != nil || mn != "all" {
+		t.Errorf("partner's Monitor New %q %v, want all", mn, err)
+	}
+}
