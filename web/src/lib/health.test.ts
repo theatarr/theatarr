@@ -98,4 +98,11 @@ describe("accountNotice", () => {
     expect(n?.next).toBe("Renew at TorBox to keep premium access. Check the account and its API key under Settings › Download clients.");
     expect(accountNotice(check({ rd: { premium: true, expires: "2027-03-01T00:00:00Z" } }), (k) => k, now)).toBeNull();
   });
+  it("gives the health check's own advice for an account it could not read, so both lists agree", () => {
+    const advice = "Theatarr could not reach AllDebrid: check the network and the VPN.";
+    const n = accountNotice(check({ ad: { error: "dial tcp: i/o timeout", advice }, rd: { error: "provider: authentication refused", refused: true } }), (k) => k, now);
+    expect(n?.effect).toBe("AllDebrid's account could not be read. Real-Debrid refused the API key.");
+    expect(n?.next).toBe(`${advice} Check the account and its API key under Settings › Download clients.`);
+    expect(accountNotice(check({ ad: { error: "dial tcp: i/o timeout", advice } }), (k) => k, now)?.next).toBe(advice);
+  });
 });

@@ -94,9 +94,12 @@ function inWords(ms: number): string {
  * ad, tb: useProviderCode); null when the check's detail names no account that needs attention.
  */
 export function accountNotice(c: HealthCheck, code: (key: string) => string = (k) => k, now: Date = new Date()): { effect: string; next: string } | null {
-  const detail = (c.detail ?? {}) as Record<string, { expires?: string; premium?: boolean; error?: string; refused?: boolean } | undefined>;
+  // advice: the health check's own sentence for an account it could not read (network, VPN or key), so Needs
+  // attention and the Checks list agree; without it the key advice stands.
+  const detail = (c.detail ?? {}) as Record<string, { expires?: string; premium?: boolean; error?: string; refused?: boolean; advice?: string } | undefined>;
   const lines: string[] = [];
   const renew: string[] = [];
+  const advice: string[] = [];
   let key = false;
   for (const k of Object.keys(detail).sort()) {
     const d = detail[k];
@@ -104,12 +107,11 @@ export function accountNotice(c: HealthCheck, code: (key: string) => string = (k
     const name = PROVIDER_NAMES[code(k).toLowerCase()] ?? k;
     const at = d.expires ? new Date(d.expires) : null;
     const left = at && !Number.isNaN(at.getTime()) ? at.getTime() - now.getTime() : null;
-    if (d.refused) {
-      lines.push(`${name} refused the API key.`);
-      key = true;
-    } else if (d.error) {
-      lines.push(`${name}'s account could not be read.`);
-      key = true;
+    if (d.refused || d.error) {
+      lines.push(d.refused ? `${name} refused the API key.` : `${name}'s account could not be read.`);
+      if (d.advice) {
+        if (!advice.includes(d.advice)) advice.push(d.advice);
+      } else key = true;
     } else if (left !== null && left <= 0) {
       lines.push(`${name} premium ended ${fmtDay(d.expires!, now)}.`);
       renew.push(name);
@@ -124,6 +126,7 @@ export function accountNotice(c: HealthCheck, code: (key: string) => string = (k
   if (lines.length === 0) return null;
   const next = [
     ...renew.map((n) => `Renew at ${n} to keep premium access.`),
+    ...advice,
     key ? "Check the account and its API key under Settings › Download clients." : "",
   ].filter(Boolean).join(" ");
   return { effect: lines.join(" "), next };
