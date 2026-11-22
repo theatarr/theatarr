@@ -42,6 +42,9 @@ const (
 	copyQuiet = 30 * time.Second
 	// settleEvery is how often the worker looks whether an incident's search has ended (SettlePlayingRuns).
 	settleEvery = 30 * time.Second
+	// stillFor: an owed message goes to a playing stream whose position has stayed the same this long. Plex reports a
+	// playing position about every 10 s, so two samples closer than that may show the same one while it plays.
+	stillFor = 15 * time.Second
 )
 
 // Rescuer is what the check uses of the library (internal/library.Library): the piece reads, the mount's listing, the
@@ -127,14 +130,16 @@ func (t *Tracker) liveSigns(now time.Time) {
 	}
 	for _, se := range t.sess {
 		// A message owed goes at the next fresh Plex sample of the same playback that is buffering, or whose position
-		// is the same as at the previous sample (a change either way, a rewind too, is movement); never on a
-		// remembered verdict or an old zurg line.
+		// has stayed the same for stillFor since it was first seen (a change either way, a rewind too, is movement);
+		// never on a remembered verdict or an old zurg line.
 		if p := t.pending[se.s.SessionKey]; p != nil && se.s.File == p.j.s.File && se.s.RatingKey == p.j.s.RatingKey {
-			if se.s.State == "buffering" || se.s.State == "playing" && se.s.ViewOffset == p.lastOffset {
+			if se.s.ViewOffset != p.lastOffset {
+				p.lastOffset, p.lastAt = se.s.ViewOffset, now // a new baseline
+			}
+			if se.s.State == "buffering" || se.s.State == "playing" && now.Sub(p.lastAt) >= stillFor {
 				p.due = true
 				p.j.s.ViewOffset = se.s.ViewOffset
 			}
-			p.lastOffset = se.s.ViewOffset
 		}
 		switch {
 		case se.health.Verdict == "buffering":
@@ -800,8 +805,9 @@ type pendingTell struct {
 	msg      string
 	incident int64
 	due      bool
-	// lastOffset is the playback's position at the latest fresh Plex sample.
+	// lastOffset is the playback's position at the latest fresh Plex sample, lastAt when that position was first seen.
 	lastOffset int64
+	lastAt     time.Time
 }
 
 // tell stops the playback of a confirmed broken file with msg (Options.StopWithMessage on, the default): only the same
@@ -835,7 +841,8 @@ func (t *Tracker) tell(ctx context.Context, j *sign, msg string, incident int64)
 	case now.State != "buffering" && now.ViewOffset != j.s.ViewOffset:
 		// Still advancing (what it has cached plays on): told at its next sign.
 		t.mu.Lock()
-		t.pending[j.key] = &pendingTell{j: *j, msg: msg, incident: incident, lastOffset: now.ViewOffset}
+		t.pending[j.key] = &pendingTell{j: *j, msg: msg, incident: incident, lastOffset: now.ViewOffset,
+			lastAt: t.o.Now()}
 		t.mu.Unlock()
 		return
 	}

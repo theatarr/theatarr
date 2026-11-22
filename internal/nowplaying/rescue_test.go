@@ -1220,3 +1220,32 @@ func TestRescueCutShortLeavesNothing(t *testing.T) {
 		t.Errorf("the next break after Pause: %s", got)
 	}
 }
+
+// Plex reports a playing position only every ten seconds or so: an owed message is not sent on a second sample taken
+// too soon after the first that shows the same position; only once the position has stayed the same for
+// stillFor. A buffering sample sends it at once (TestRescueMessageAtNextSign).
+func TestRescueOwedMessageWaitsForReportingInterval(t *testing.T) {
+	e := newRescueEnv(t, false, true)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.play(2, "playing")
+	e.zurg.stats.BlockedReads = []library.ZurgBlockedRead{{Filename: "S01E02.mkv", Reason: "broken"}}
+	e.tr.sleep = func(ctx context.Context, d time.Duration) error {
+		e.advance(d)
+		e.plex.mu.Lock()
+		e.plex.ss[0].ViewOffset += d.Milliseconds()
+		e.plex.mu.Unlock()
+		return ctx.Err()
+	}
+	e.poll() // the check: the message is owed, the stream still advancing
+	e.poll() // a poke right after: the same position, too soon to say
+	e.advance(6 * time.Second)
+	e.poll()
+	if got := e.stop.stopped(); len(got) != 0 {
+		t.Fatalf("stopped on samples too close together: %q", got)
+	}
+	e.advance(stillFor)
+	e.poll()
+	if got := e.stop.stopped(); len(got) != 1 {
+		t.Errorf("not stopped after the position stayed the same for %v: %q", stillFor, got)
+	}
+}

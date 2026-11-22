@@ -212,8 +212,8 @@ broke while playing is searched at once").
   out with no other). Pause, or a library that stopped writing, checked again before each change and each message,
   ends the check with nothing done or said, and nothing kept (no incident to use up the day's bound or show in the
   list); the file is checked again at its next sign. Only when it is buffering or its position has
-  not moved since the sign; one still advancing gets it at the next fresh Plex sample of it that is buffering or has
-  not moved since the sample before (the same position; a rewind is movement too) (never on a remembered verdict or an old zurg line); a paused one never; no session left: nothing
+  not moved since the sign; one still advancing gets it at the next fresh Plex sample of it that is buffering, or
+  whose position has stayed the same for 15 s (Plex reports it about every 10 s; a rewind is movement too) (never on a remembered verdict or an old zurg line); a paused one never; no session left: nothing
   is sent. Never when the mount is the problem, never after a read that passed. `Options.StopWithMessage` switches it
   (on when unset); off, nothing is ever sent to Plex. A refusal by Plex is logged once and kept on the incident.
 - **Incidents.** `Tracker.Incidents` lists the last 24 hours' incidents (title, episodes, how many files, viewer,
