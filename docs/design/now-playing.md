@@ -190,7 +190,7 @@ broke while playing is searched at once").
   the release's only complete holder in the record (state downloaded at 100 %). A release only it holds reads: only
   this release is broken. It fails: one only another account holds is read; that reads: the account is out; it fails,
   or there is none: the mount, and nothing is done. zurg saying the account cools down, in a line whose own time (the
-  RFC 3339 stamp it starts with) is at or after read 1's failure, also means it is out (an older line, or one without
+  RFC 3339 stamp it starts with) is at or after the time read 1 started, also means it is out (an older line, or one without
   a time, means nothing; the control read decides). With no
   release held by the serving account alone, any other release must read, and the break is this release on that
   account; if it fails, there is no verdict (an outage is concluded only from a failed release the serving account

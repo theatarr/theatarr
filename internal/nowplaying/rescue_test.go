@@ -45,6 +45,8 @@ type testLib struct {
 	heldReads    []string
 	// asked: the link and version of each PlayingSearchable call.
 	asked []string
+	// onRead, when set, runs at the start of each read (outside the lock).
+	onRead func(name string)
 }
 
 func (l *testLib) PlayingSearchable(_ context.Context, linkID int64, version string) (bool, error) {
@@ -66,6 +68,9 @@ func (l *testLib) HoldPlayingSiblings(incident int64) func() {
 }
 
 func (l *testLib) ReadPiece(ctx context.Context, target string, off, n int64, limit time.Duration) (int64, error) {
+	if l.onRead != nil {
+		l.onRead(path.Base(target))
+	}
 	l.mu.Lock()
 	b := path.Base(target)
 	l.reads = append(l.reads, b)
@@ -1554,7 +1559,7 @@ func TestRescueOutageLeavesSiblings(t *testing.T) {
 }
 
 // A zurg cooldown line of the serving account counts as an outage only when its own logged time is at or after the
-// check's first failed read: the log is polled, so a line logged before may arrive during the check. An older line,
+// start of the check's read 1: the log is polled, so a line logged before may arrive during the check. An older line,
 // or one whose time cannot be read, means nothing, and the control read decides.
 func TestRescueCooldownOnlySinceFirstFailure(t *testing.T) {
 	stamp := func(at time.Time, level string) string {
@@ -1588,6 +1593,35 @@ func TestRescueCooldownOnlySinceFirstFailure(t *testing.T) {
 		if n, want := e.lib.readsOf("film.mkv"), map[bool]int{true: 1, false: 0}[c.out == ""]; n != want {
 			t.Errorf("%s: control reads %d, want %d", c.name, n, want)
 		}
+		// Only this release broken: its miss on the serving account; an outage: none.
+		want := map[bool]string{true: "rd", false: ""}[c.out == ""]
+		if got := e.one(`SELECT group_concat(provider) FROM provider_cache WHERE source = 'router:playing'`); got != want {
+			t.Errorf("%s: misses on %q, want %q", c.name, got, want)
+		}
+	}
+	// zurg logs the cooldown while read 1 is in flight (the read that caused it), and the line arrives later: it counts.
+	e := newRescueEnv(t, false, true)
+	e.play(2, "playing")
+	e.poll()
+	e.tr.ZurgLine("INFO Large transfer: 512 MiB of __all__/Rel/S01E02.mkv from rd for 30s")
+	e.lib.setBroken("S01E02.mkv", -1)
+	var line string
+	e.lib.onRead = func(name string) {
+		if name == "S01E02.mkv" && line == "" {
+			e.advance(time.Second)
+			line = stamp(e.now(), "WARN")
+			e.advance(14 * time.Second) // the read hangs to its limit
+		}
+	}
+	e.tr.sleep = func(ctx context.Context, d time.Duration) error {
+		e.advance(d)
+		e.tr.ZurgLine(line)
+		return ctx.Err()
+	}
+	e.play(2, "buffering")
+	e.poll()
+	if got := e.one(`SELECT out_account FROM playing_break WHERE link_id = 11`); got != "rd" {
+		t.Errorf("a cooldown logged during read 1: out account %q", got)
 	}
 }
 

@@ -355,6 +355,8 @@ func (t *Tracker) check(ctx context.Context, lib Rescuer, j *sign) {
 		return
 	}
 	off := pieceOffset(j.s.ViewOffset, j.s.Duration, size)
+	// A zurg cooldown line counts only when logged since read 1 started (control): the read may be what caused it.
+	since := t.o.Now()
 	if r := t.read(ctx, lib, src.Target, off); r != readFailed {
 		passed(r)
 		return
@@ -374,14 +376,13 @@ func (t *Tracker) check(ctx context.Context, lib Rescuer, j *sign) {
 			return
 		}
 		if past {
+			since = t.o.Now()
 			if r := t.read(ctx, lib, src.Target, off); r != readFailed {
 				passed(r)
 				return
 			}
 		}
 	}
-	// A zurg cooldown line counts only when logged from here on (control).
-	failedAt := t.o.Now()
 	log.Info("nowplaying: a playing file did not read; reading it again", "offset", off)
 	if t.sleep(ctx, retryGap) != nil {
 		fine()
@@ -407,7 +408,7 @@ func (t *Tracker) check(ctx context.Context, lib Rescuer, j *sign) {
 		fine()
 		return
 	}
-	verdict := t.control(ctx, lib, j, hash, failedAt)
+	verdict := t.control(ctx, lib, j, hash, since)
 	if verdict.where == whereMount || verdict.where == whereNone {
 		log.Info("nowplaying: a playing file did not read, nor did the control read: not judged",
 			"control", verdict.where)
@@ -454,7 +455,7 @@ type controlVerdict struct {
 // held only by the serving account (zurg's servedBy, else the release's only complete holder), at mid-file. It reads:
 // only this release is broken. It fails: one held only by another account is read; it reads: the serving account is
 // out; it fails, or there is none: the mount. zurg saying the serving account cools down, in a line whose own time is
-// at or after the check's first failed read (since), means it is out too; an older line, or one without a time, means
+// at or after the start of the check's counted read 1 (since), means it is out too; an older line, or one without a time, means
 // nothing. With no
 // release held by the serving account alone any other release is read, and the serving account is kept (it fails: no
 // verdict, never an outage); with the
