@@ -333,6 +333,21 @@ func TestSeasonPackRule(t *testing.T) {
 		}
 	}
 
+	// The file the reason compares with is named, with its episode (Why? shows that file's facts): the first one
+	// the pack upgrades, E03 when E01 is at its best.
+	{
+		tt := show()
+		ep(&tt, 101).File, ep(&tt, 101).FileID = remuxFile, 101
+		ep(&tt, 103).File, ep(&tt, 103).FileID = webFile, 103
+		d, err := e.Decide(ctx, pack, tt, tvVersion(e, "tv"), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if f := d.UpgradeFile; !d.Upgrade || f == nil || f.Episode != "S01E03" || f.Quality != "WEBDL-2160p" {
+			t.Errorf("upgrade file %+v (%q)", f, d.UpgradeReason)
+		}
+	}
+
 	// Kept by companion rule (upgrades off, E01 at the profile's first allowed quality): E01 is kept both ways
 	// (UpgradeAllowed and UpgradeDisk), counted once in Kept, never quoted as upgraded, and left out of
 	// DownloadEpisodes while EpisodeIDs still holds it. When the same pack is rejected for its size,

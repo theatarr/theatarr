@@ -650,3 +650,21 @@ func TestUpgradeWhyChosenOver(t *testing.T) {
 		t.Fatalf("next %+v", n)
 	}
 }
+
+// TestUpgradeWhyNamesThePacksFile: a pack's reason names the file it was judged against (the decision's
+// upgrade_file), even when the season shown holds another episode's file.
+func TestUpgradeWhyNamesThePacksFile(t *testing.T) {
+	t.Parallel()
+	e := newManageEnv(t, nil)
+	e.exec(`UPDATE journal_decision SET candidates = '[{"release":"The.Show.S01.2160p.WEB-DL-PACK","indexer":"dmm",
+		"accepted":true,"upgrade":true,"upgrade_reason":"better format score: 300 over 100","quality":"WEBDL-2160p",
+		"score":300,"episodes":["S01E01","S01E02"],"upgrade_file":{"quality":"WEBDL-1080p","score":100,"episode":"S01E02",
+		"profile_rank":0,"formats":[]}}]' WHERE title_id = 10`)
+	var d TitleDetail
+	e.call("GET", APIBase+"/titles/10", nil, 200, &d)
+	u := d.Versions[0].Upgrade
+	if u == nil || u.Replaces == nil || u.Replaces.Episode != "S01E02" || u.Replaces.Quality != "WEBDL-1080p" ||
+		u.Replaces.Score == nil || *u.Replaces.Score != 100 {
+		t.Fatalf("replaces %+v", u)
+	}
+}

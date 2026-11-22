@@ -233,7 +233,7 @@ but not every episode says what Available counts under the word ("6 of 6 monitor
 **Why?** is headed by the quality word that opened it, then three plain lines (`whyLines` in `lib/upgrade.ts`), the
 same layout everywhere: "You have: Remux-2160p, score 8,575." (the file's quality name; no score when never
 recorded; on a series copy or season with a release found, the episode file that release was judged against, "S20E156
-has: HDTV-1080p, score 200.", the server's `replaces`, so the reason's numbers match the file named); "Upgrades stop at: Remux-2160p and a score of 10,000." (the profile's own cutoff name, a group's name as
+has: HDTV-1080p, score 200.", the server's `replaces`: for a pack, the file its reason was judged against as the decision recorded it (`upgrade_file`), so the reason's numbers match the file named); "Upgrades stop at: Remux-2160p and a score of 10,000." (the profile's own cutoff name, a group's name as
 it is; "Upgrades are off in this library's profile." when it allows none); then the verdict and what was found. The
 verdict comes from the server's `quality_met` (the stored quality-cutoff judging, so quality names are never compared
 in the page): "Below the wanted quality." or, when the score falls short, "The quality is reached, the score is

@@ -81,6 +81,8 @@ type UpgradeNext struct {
 	// ChosenOver says why its search ranked it before the next accepted release: "Chosen over <release>:
 	// higher score (+450: DV)" (snapshot.ChosenOver); absent when nothing was ranked after it or the search predates the record.
 	ChosenOver string `json:"chosen_over,omitempty"`
+	// file is the file Reason compares with (the decision's upgrade_file), with its episode; nil when not recorded.
+	file *decide.Existing
 }
 
 // UpgradeInfo explains a version's (or one episode's) state against its cutoff.
@@ -148,6 +150,8 @@ type evCand struct {
 	Formats  []decide.FormatScore `json:"formats"`
 	Seeders  int                  `json:"seeders"`
 	Over     *snapshot.Over       `json:"over"`
+	// UpgradeFile is the file UpgradeWhy compares with, and its episode.
+	UpgradeFile *decide.Existing `json:"upgrade_file"`
 }
 
 // evRecord is one stored decision about a title's version.
@@ -275,7 +279,8 @@ func judgeUpgrade(it evItem, recs []evRecord, failed map[string]failedTry, cache
 				best = &UpgradeNext{Release: c.Release, Indexer: c.Indexer, Quality: c.Quality, Score: c.Score,
 					Reason: c.UpgradeWhy, Source: r.source, SeenAt: ts(r.at), Episodes: c.Episodes, Tried: tried,
 					ChosenOver: snapshot.ChosenOver(snapshot.Candidate{Quality: c.Quality, Revision: c.Revision, Score: c.Score,
-						Formats: c.Formats, CachedOn: c.CachedOn, Seeders: c.Seeders, Episodes: c.Episodes, Over: c.Over})}
+						Formats: c.Formats, CachedOn: c.CachedOn, Seeders: c.Seeders, Episodes: c.Episodes, Over: c.Over}),
+					file: c.UpgradeFile}
 				if tried {
 					at := ts(f.at)
 					best.TriedAt = &at
@@ -737,8 +742,14 @@ func (s *upgradeSet) explain(v upgradeVersion, episode int64) *UpgradeInfo {
 			}
 		}
 		if u.Next != nil && episode == 0 {
-			u.Replaces = &UpgradeFile{Episode: fmt.Sprintf("S%02dE%02d", pairedEp.season, pairedEp.number),
-				Quality: paired.quality, Score: paired.score}
+			if f := u.Next.file; f != nil && f.Episode != "" {
+				// The file the reason was judged against, as the decision recorded it.
+				sc := int64(f.Score)
+				u.Replaces = &UpgradeFile{Episode: f.Episode, Quality: f.Quality, Score: &sc}
+			} else {
+				u.Replaces = &UpgradeFile{Episode: fmt.Sprintf("S%02dE%02d", pairedEp.season, pairedEp.number),
+					Quality: paired.quality, Score: paired.score}
+			}
 		}
 		if episode > 0 {
 			u.Below, u.Seen, u.BelowQuality = 0, 0, 0

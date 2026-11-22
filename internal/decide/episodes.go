@@ -265,6 +265,13 @@ func (e *Engine) decideSeries(ctx context.Context, d *Decision, p *Profile, rel 
 			}
 		} else {
 			d.Upgrade, d.UpgradeReason = upgradeOf(p, file, qm, matched, d.Rejections)
+			for _, ep := range episodes {
+				if ep.File == file {
+					d.UpgradeFile = &Existing{Quality: file.Quality.Quality.Name, Formats: formatScores(p.Profile, file.Formats),
+						Score: p.Profile.FormatScore(file.Formats), Episode: fmt.Sprintf("S%02dE%02d", ep.SeasonNumber, ep.EpisodeNumber)}
+					break
+				}
+			}
 			if len(d.Rejections) > 0 && d.Upgrade {
 				d.Upgrade, d.UpgradeReason = false, "the release is rejected; it would upgrade the file ("+d.UpgradeReason+")"
 			}

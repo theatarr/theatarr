@@ -180,6 +180,8 @@ type Existing struct {
 	ProfileRank int           `json:"profile_rank"`
 	Formats     []FormatScore `json:"formats"`
 	Score       int           `json:"score"`
+	// Episode is the file's episode ("S01E03"), on UpgradeFile only.
+	Episode string `json:"episode,omitempty"`
 }
 
 // Decision is the outcome for one release and one version.
@@ -252,6 +254,8 @@ type Decision struct {
 	// Upgrade is whether an accepted release replaces the existing file; UpgradeReason says why or why not.
 	Upgrade       bool   `json:"upgrade"`
 	UpgradeReason string `json:"upgrade_reason,omitempty"`
+	// UpgradeFile (a series release that upgrades a file) is the file UpgradeReason compares with, and its episode.
+	UpgradeFile *Existing `json:"upgrade_file,omitempty"`
 
 	subject *profile.Subject
 	engine  *profile.Engine
