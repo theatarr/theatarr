@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/decide"
+	"github.com/theatarr/theatarr/internal/outcome"
+	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/rootprobe/probetest"
 	"github.com/theatarr/theatarr/internal/store"
 )
@@ -710,5 +712,41 @@ func TestUndoRemovedVersion(t *testing.T) {
 	}
 	if got := e.one(`SELECT COUNT(*) FROM router_blocklist`); got != "0" {
 		t.Errorf("blocklist rows %s", got)
+	}
+}
+
+// Undo of a replacement a playing-break incident made settles that incident in the same transaction, quietly: the
+// row says the earlier copy is back, no outcome is sent, History gains only the "Upgrade undone" row, and the sweep
+// past 30 days does not record it kept aside.
+func TestUndoSettlesThePlayingIncident(t *testing.T) {
+	t.Parallel()
+	e, old, target, action := adoptedFilm(t)
+	e.pol.Router = &policy.Router{Enabled: true}
+	var outcomes []string
+	e.lib.OnPlayingOutcome(func(o outcome.Outcome) { outcomes = append(outcomes, o.Kind) })
+	// Broken 31 days ago: the next sweep would settle it aside unread.
+	at := store.Millis(e.lib.now().Add(-31 * 24 * time.Hour))
+	e.exec(`INSERT INTO playing_break (id, incident, watched, link_id, title_id, version_key, path, old_target, broken_at,
+		searched, fixed_by, new_release, reported, updated_at) VALUES (50, 50, 1, 1, 1, 'movie-remux', ?, ?, ?, 1, 'replaced',
+		?, 'replaced', ?)`, old, target, at, movieRelease, at)
+	const others = `SELECT COUNT(*) FROM history WHERE event NOT IN ('undone', 'blocked')`
+	history := e.one(others)
+	if _, err := e.lib.UndoUpgrade(e.ctx, action, "ann"); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.one(`SELECT settled || '|' || reported FROM playing_break WHERE id = 50`); got != "restored|replaced" {
+		t.Errorf("incident %s", got)
+	}
+	if got := e.one(others); got != history {
+		t.Errorf("history rows %s, before %s", got, history)
+	}
+	if err := e.lib.ComeBack(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.one(`SELECT settled FROM playing_break WHERE id = 50`); got != "restored" {
+		t.Errorf("after the sweep %s", got)
+	}
+	if len(outcomes) != 0 {
+		t.Errorf("outcomes %v", outcomes)
 	}
 }

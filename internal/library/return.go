@@ -283,6 +283,40 @@ func (l *Library) UndoOffers(ctx context.Context, ids []int64) (map[int64]string
 	return out, nil
 }
 
+// settleUndoneIncidents settles, quietly, the open playing-break rows whose copy (its target) the Undo puts back in
+// this library after their incident replaced it: restored, as a put-back settles its own (the release's miss lifted),
+// with no outcome sent and no History row of its own, so no sweep keeps aside a copy that is in place.
+func settleUndoneIncidents(ctx context.Context, tx *sql.Tx, v *importVersion, target string, now int64) error {
+	rows, err := tx.QueryContext(ctx, `SELECT id, info_hash FROM playing_break WHERE title_id = ? AND version_key = ?
+		AND old_target = ? AND fixed_by = 'replaced' AND settled = ''`, v.Title.ID, v.Key, target)
+	if err != nil {
+		return err
+	}
+	type open struct {
+		id   int64
+		hash string
+	}
+	var todo []open
+	for rows.Next() {
+		var o open
+		if err := rows.Scan(&o.id, &o.hash); err != nil {
+			rows.Close()
+			return err
+		}
+		todo = append(todo, o)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, o := range todo {
+		if err := settleReturnTx(ctx, tx, o.id, o.hash, "restored", now); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Undone is what UndoUpgrade did: the file put back, and the release it blocked in that library.
 type Undone struct {
 	TitleID int64
@@ -333,7 +367,10 @@ func (l *Library) undoUpgrade(ctx context.Context, actionID int64, by string) (*
 		}
 		_, err := tx.ExecContext(ctx, `UPDATE router_blocklist SET researched_at = ? WHERE version_key = ?
 			AND info_hash = ?`, now, v.Key, router.BlocklistKey(hash, release))
-		return err
+		if err != nil {
+			return err
+		}
+		return settleUndoneIncidents(ctx, tx, v, e.target, now)
 	}
 	v, err := l.returnOne(ctx, r)
 	if err != nil {
