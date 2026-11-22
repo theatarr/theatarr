@@ -146,6 +146,11 @@ func (im *Images) fetchOnce(ctx context.Context, size, file, dest string) error 
 			return ctx.Err()
 		}
 	}
+	// A fetch that ended since this caller looked has put the file there (it renames before it leaves the flight).
+	if _, err := os.Stat(dest); err == nil {
+		im.mu.Unlock()
+		return nil
+	}
 	c := &call{done: make(chan struct{})}
 	im.flight[key] = c
 	im.mu.Unlock()

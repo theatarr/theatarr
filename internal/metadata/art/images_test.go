@@ -38,6 +38,11 @@ func TestImagesCache(t *testing.T) {
 	if p != filepath.Join(e.dir, "w185", "ab", file) {
 		t.Errorf("path %s", p)
 	}
+	// A caller whose look found no file just before the first fetch put it there, and that comes to fetch only once
+	// that fetch is over (a busy machine schedules it late), takes the file too.
+	if err := e.images.fetchOnce(ctx, "w185", file, p); err != nil {
+		t.Fatal(err)
+	}
 	if n := e.fake.count("img.test/t/p/w185/" + file); n != 1 {
 		t.Errorf("%d fetches, want 1", n)
 	}

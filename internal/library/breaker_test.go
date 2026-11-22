@@ -146,6 +146,9 @@ func TestMountBreakerHalfOpenProbeFails(t *testing.T) {
 	if err := m.Healthy(ctx); !errors.Is(err, ErrMountDown) {
 		t.Fatal(err)
 	}
+	// A call reaches the mount in its own goroutine, which a busy machine may start after the call timed out: wait
+	// for the four let through to arrive before counting.
+	waitFor(t, func() bool { return fs.calls.Load() >= 4 })
 	b := m.Breaker()
 	if b.State != BreakerOpen || !b.OpenedAt.Equal(now) || b.Opens != 1 || fs.calls.Load() != 4 {
 		t.Errorf("%+v, calls %d; want open again from now, one call let through", b, fs.calls.Load())
