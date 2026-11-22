@@ -54,8 +54,12 @@ func (l *Library) asideOldReplaced(ctx context.Context) error {
 
 // settleAside settles a row aside with one action, a relink in the words given, and lifts the release's miss. A dead
 // symlink of the old copy still in the library goes to the trash in the same step, as the sweep moves a covered dead
-// link aside (moveDeadAside, under the path's link lease); with Pause on that waits for a later sweep.
+// link aside (moveDeadAside, under the path's link lease). With Pause on or the version's library not writing nothing
+// is settled: a later sweep.
 func (l *Library) settleAside(ctx context.Context, r returned, words string) error {
+	if !l.PlayingWritable(r.version) { // Pause on or the library not writing: a later sweep
+		return nil
+	}
 	now := store.Millis(l.now())
 	relink := action{Kind: "relink", Version: r.version, LinkID: r.linkID, Path: r.path, Target: r.old, Detail: words}
 	settle := func(tx *sql.Tx) error { return settleReturnTx(ctx, tx, r.id, r.hash, "aside", now) }
@@ -75,9 +79,6 @@ func (l *Library) settleAside(ctx context.Context, r returned, words string) err
 			return err
 		}
 		l.log.Info("library: the copy that broke while playing is kept aside", "link", r.path, "incident_row", r.id)
-		return nil
-	}
-	if !l.PlayingWritable(r.version) {
 		return nil
 	}
 	root := ""
@@ -109,13 +110,4 @@ func (l *Library) settleAside(ctx context.Context, r returned, words string) err
 			"link", r.path, "incident_row", r.id)
 	}
 	return err
-}
-
-// returnCovered keeps aside an old copy (read on two sweeps) that other files now hold, in part or whole, or that an
-// import replaced; with Pause on or the version's library not writing it waits for a later sweep.
-func (l *Library) returnCovered(ctx context.Context, r returned) error {
-	if !l.PlayingWritable(r.version) {
-		return nil
-	}
-	return l.settleAside(ctx, r, asideWords)
 }

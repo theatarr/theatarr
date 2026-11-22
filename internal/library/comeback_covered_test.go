@@ -289,3 +289,25 @@ func TestComeBackPartialImportPackAside(t *testing.T) {
 		t.Errorf("got %s", got)
 	}
 }
+
+// A replaced row older than 30 days waits while paused: nothing settled, its miss kept, and it is not read either;
+// after Pause it is kept aside.
+func TestComeBackOldReplacedRowWaitsForPause(t *testing.T) {
+	c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
+	c.now = c.now.Add(31 * 24 * time.Hour)
+	c.pol.Router.Enabled = false
+	if err := c.lib.ComeBack(c.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if c.settled() != "" || c.missLifted() || c.one(`SELECT back_since IS NULL FROM playing_break WHERE id = ?`, c.id) != "1" {
+		t.Fatalf("paused: settled %q, miss lifted %v, read %s", c.settled(), c.missLifted(),
+			c.one(`SELECT back_since IS NOT NULL FROM playing_break WHERE id = ?`, c.id))
+	}
+	c.pol.Router.Enabled = true
+	if err := c.lib.ComeBack(c.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if c.settled() != "aside" {
+		t.Errorf("after Pause: %q", c.settled())
+	}
+}

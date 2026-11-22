@@ -72,7 +72,7 @@ const replacedAside = 30 * 24 * time.Hour
 // target, or replaced, or other active files hold its film or some of its saved episodes): listed where the sweep's
 // own folder choice puts it and read at its saved range. A read starts or continues its streak (back_since), an
 // unlisted file or a failed read ends it; a read at least deadConfirm after the streak began decides: reviveReturned
-// for a dead link nothing else covers, returnCovered (kept aside) for the rest. A replaced row older than 30 days is
+// for a dead link nothing else covers, settleAside (kept aside) for the rest. A replaced row older than 30 days is
 // settled aside unread. A mount that does not answer ends the pass.
 func (l *Library) ComeBack(ctx context.Context) error {
 	if l.mount == nil {
@@ -93,7 +93,9 @@ func (l *Library) ComeBack(ctx context.Context) error {
 			JOIN version v ON v.id = ov.version_id AND v.title_id = pb.title_id AND v.policy_key = pb.version_key
 			JOIN title t ON t.id = v.title_id WHERE o.state = 'active' AND (t.kind <> 'series' OR EXISTS (
 				SELECT 1 FROM link_episode oe WHERE oe.link_id = o.id
-				AND oe.episode_id IN (SELECT value FROM json_each(pb.episodes)))))) ORDER BY pb.id`)
+				AND oe.episode_id IN (SELECT value FROM json_each(pb.episodes))))))
+		AND NOT (pb.fixed_by = 'replaced' AND pb.broken_at < ?) -- expired: settled unread (asideOldReplaced)
+		ORDER BY pb.id`, store.Millis(l.now().Add(-replacedAside)))
 	if err != nil {
 		return err
 	}
@@ -176,7 +178,7 @@ func (l *Library) ComeBack(ctx context.Context) error {
 			continue
 		}
 		if !r.dead {
-			if err := l.returnCovered(ctx, r); err != nil {
+			if err := l.settleAside(ctx, r, asideWords); err != nil {
 				return err
 			}
 			continue
@@ -202,7 +204,7 @@ func (l *Library) setBack(ctx context.Context, id int64, back bool) error {
 }
 
 // reviveReturned brings back an old copy that read on two sweeps, when nothing else holds any of its film or
-// episodes (a file held in part or whole by another is kept aside: returnCovered), and only with Pause off,
+// episodes (a file held in part or whole by another is kept aside: settleAside), and only with Pause off,
 // the version's library writing, and its title and version still there and monitored (a deliberate removal stays
 // removed). In place it is the sweep's revive: active again, its items filled, Plex scanned, the row settled revived,
 // and the release's router:playing miss lifted. In a renamed folder it is the sweep's repoint (repointReturned).
@@ -214,7 +216,7 @@ func (l *Library) reviveReturned(ctx context.Context, r returned, target, newFol
 	if held, err := partlyCovered(ctx, db, r.linkID); err != nil {
 		return err
 	} else if held {
-		return l.returnCovered(ctx, r)
+		return l.settleAside(ctx, r, asideWords)
 	}
 	var kept bool
 	err := db.QueryRowContext(ctx, `SELECT t.monitored = 1 AND v.monitored = 1
