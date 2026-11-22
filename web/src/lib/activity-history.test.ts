@@ -53,6 +53,8 @@ describe("activity history filters", () => {
     expect(historyEventsFor(true).map((e) => e.id)).toContain("grabbed");
     expect(historyEventsFor(false).map((e) => e.id)).not.toContain("playing");
     expect(historyEventsFor(true).map((e) => e.id)).toContain("playing");
+    // The filter has the rows' own words.
+    expect(historyEventsFor(true).find((e) => e.id === "playing")?.label).toBe("Stopped working while playing");
     expect(historyFiltersFor({ ...NO_HISTORY_FILTERS, event: "grabbed" }, false).event).toBe("all");
     expect(historyFiltersFor({ ...NO_HISTORY_FILTERS, event: "grabbed" }, true).event).toBe("grabbed");
     // Since is local midnight of that day.

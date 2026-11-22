@@ -162,6 +162,9 @@ func playingText(o *outcome.Outcome, markdown bool) (string, []string, messageLe
 		return "Readable again: " + subject, append(lines, release("Release: ", o.OldRelease)...), levelGood
 	case outcome.Unavailable:
 		lines := []string{broke + " No other copy is available right now."}
+		if o.Outage {
+			lines[0] = broke + " The debrid account did not answer and no other copy is available right now."
+		}
 		return "No other copy: " + subject, append(lines, release("Release: ", o.OldRelease)...), levelWarn
 	case outcome.Restored:
 		lines := []string{"The copy that stopped working " + who + " works again and is better than its replacement, so it is back in place."}

@@ -16,7 +16,7 @@ export const HISTORY_EVENTS: { id: HistoryEventId; label: string; events: string
   { id: "adopted", label: "Adopted (files found in the library)", events: ["adopted"] },
   { id: "removed", label: "Removed and missing", events: ["removed", "missing", "title_removed"] },
   { id: "failed", label: "Failed and blocked", events: ["failed", "blocked"] },
-  { id: "playing", label: "Broke while playing", events: ["playing"] },
+  { id: "playing", label: "Stopped working while playing", events: ["playing"] },
 ];
 
 /** Event filters of bookmarks from before Radarr's words, and the filter each now is. */
@@ -77,7 +77,7 @@ export function historyFiltersFor(f: HistoryFilters, admin: boolean): HistoryFil
   return admin ? f : { ...f, copy: "", event: f.event === "grabbed" || f.event === "playing" ? "all" : f.event };
 }
 
-/** The event types a view offers: without "see files" there is no Grabbed and no Broke while playing. */
+/** The event types a view offers: without "see files" there is no Grabbed and no Stopped working while playing. */
 export function historyEventsFor(admin: boolean): typeof HISTORY_EVENTS {
   return admin ? HISTORY_EVENTS : HISTORY_EVENTS.filter((e) => e.id !== "grabbed" && e.id !== "playing");
 }

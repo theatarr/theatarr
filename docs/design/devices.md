@@ -322,7 +322,9 @@ SignalR, Sonarr v5, `downloadclient`.
   - Text: what (the title and episodes), by what (the old and new release) and for whom it was playing (the Plex
     user and player): "Replaced while playing: Show (2020) S02E07 / The file stopped working while ann was watching
     on Living room TV. Another copy is in its place: play it again. / Was: … / Now: …"; "Readable again: …" (naming
-    the account when known); "No other copy: … No other copy is available right now.".
+    the account when known); "No other copy: … No other copy is available right now.", or "… The debrid account
+    did not answer and no other copy is available right now." when the account was found out (`Outcome.Outage`; no
+    account is named, and the native event does not carry it).
   - Native: `theatarr.playing_replaced|unavailable` with the outcome under `playing` in snake_case
     (`incident`, `kind`, `title_id`, `version_key`, `title`, `episodes`, `old_release`, `new_release`, `account`,
     `viewer`, `player`, `at`), beside the usual `version` and `title`.

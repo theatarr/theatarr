@@ -232,7 +232,8 @@ broke while playing is searched at once").
   sentences for their own incidents, not Plex's refusal.
 - **Incidents.** `Tracker.Incidents` lists the last 24 hours' incidents (title, episodes, how many files, viewer,
   player, the old and new release, what the player was told) as "Looking for another copy", "Replaced with another
-  release", "Readable again" or "No other copy yet". `GET /nowplaying` carries them as
+  release", "Readable again" or "No other copy yet" (with ": the debrid account did not answer" when its account was
+  found out; no account named, as History says it). `GET /nowplaying` carries them as
   `incidents` (absent when none; see "Who sees what"), and the page lists them under "Files that stopped working".
 - **Where the outcome goes** (`cmd/theatarr/serveplaying.go`). Serve sets one `OnPlayingOutcome` hook on the startup
   library (its fallback copy for imports keeps it through `WithPolicy`) and on each settings generation's library: it writes the title's

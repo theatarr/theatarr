@@ -892,6 +892,10 @@ func entryWords(h *journal.HistoryRow, notStarted string, tag func(string) strin
 	return h.Event, "info"
 }
 
+// playingOutageWords say why nothing could be done when the debrid account did not answer (History's detail and Now
+// playing's list), naming no account.
+const playingOutageWords = "the debrid account did not answer"
+
 // playingHistoryWords are a playing row's words by its outcome kind (journal EvPlaying): what came of a file that
 // stopped working while someone played it.
 func playingHistoryWords(kind string) (words, tone string) {
@@ -942,6 +946,9 @@ func historyReason(h *journal.HistoryRow, notStarted string, tag, label func(str
 		// The row's release is the copy that broke.
 		if h.Source == outcome.Restored {
 			return "The copy that stopped working while playing works again and is better than its replacement"
+		}
+		if h.Source == outcome.Unavailable && h.Reason == "outage" {
+			return "It stopped working while playing: " + playingOutageWords
 		}
 		return "It stopped working while playing"
 	case journal.EvCopyAdded, journal.EvCopyAlready, journal.EvCopyNotCached:

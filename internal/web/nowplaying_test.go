@@ -147,6 +147,20 @@ func TestPlayingHistoryRows(t *testing.T) {
 	if code := e.getKey(APIBase+"/activity?state=history&events=playing&as=user", key, nil); code != 400 {
 		t.Errorf("household filter by playing: %d", code)
 	}
+	// An unavailable outcome of an account outage says so, naming no account.
+	e.exec(`INSERT INTO playing_break (id, incident, watched, link_id, title_id, version_key, path, old_target,
+		release_title, episodes, broken_at, out_account, updated_at) VALUES (9, 9, 1, 19, 9, 'movie-web', '/media/B.mkv',
+		'/mnt/old/B.mkv', 'Alpha.2020.2160p-OLD', '[]', 1, 'realdebrid', 1)`)
+	store.HistoryPlaying(ctx, e.st.Writer(), 9, outcome.Unavailable, 20000)
+	if code := e.getKey(APIBase+"/activity?state=history&title_id=9&events=playing", key, &hist); code != 200 {
+		t.Fatalf("history: %d", code)
+	}
+	for _, h := range hist.History {
+		if h.Release == "Alpha.2020.2160p-OLD" && (h.Reason != "It stopped working while playing: the debrid account did not answer" ||
+			h.Words != "Stopped working, no other copy yet") {
+			t.Errorf("outage row %q %q", h.Words, h.Reason)
+		}
+	}
 }
 
 // A taken-over link with no release name keeps its quality on its playing row, and one Theatarr never scored shows no

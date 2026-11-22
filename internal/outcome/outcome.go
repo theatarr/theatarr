@@ -36,4 +36,6 @@ type Outcome struct {
 	Viewer string
 	Player string
 	At     time.Time
+	// Outage, for Unavailable: the debrid account did not answer (an outage, not this release); no account is named.
+	Outage bool
 }

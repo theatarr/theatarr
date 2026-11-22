@@ -171,7 +171,8 @@ const playingUnscoredSQL = `(pb.adopted = 1 AND COALESCE(pb.score, 0) = 0 AND NO
 		AND json_extract(pb.file_metadata, '$.Score') <> 0)), 0))`
 
 // HistoryPlaying writes the playing row of an incident of a file that broke while someone played it (playing_break,
-// its watched row incident): its outcome kind (replaced, same_release, unavailable, restored) as source, and the
+// its watched row incident): its outcome kind (replaced, same_release, unavailable, restored) as source, reason
+// "outage" for an unavailable one whose debrid account did not answer (no account named), and the
 // watched broken copy's release (empty, not NULL, when a taken-over file has none but a quality), quality, score (none for a
 // taken-over file never scored) and episodes (no file count: the files found broken with it join later; Now playing
 // shows the incident's total). One row per incident and kind (pb:<incident>:<kind>), dated at.
@@ -181,7 +182,7 @@ func HistoryPlaying(ctx context.Context, ex Execer, incident int64, kind string,
 			CASE WHEN pb.release_title IS NULL AND pb.quality IS NOT NULL THEN '' ELSE pb.release_title END,
 			pb.info_hash, '', 0, COALESCE(pb.quality, ''), CASE WHEN `+playingUnscoredSQL+` THEN NULL ELSE pb.score END,
 			NULL, pb.episodes,
-			0, NULL, '', '', ?2, '', '', ''
+			0, NULL, '', CASE WHEN ?2 = 'unavailable' AND pb.out_account <> '' THEN 'outage' ELSE '' END, ?2, '', '', ''
 		FROM playing_break pb WHERE pb.id = ?1 AND pb.watched = 1`+historyUpsert, incident, kind, at)
 }
 

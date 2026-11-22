@@ -72,3 +72,11 @@ it("has no library selector in the household view, asks for no libraries and cou
   expect(screen.queryByTestId("history-clear")).toBeNull();
   expect(api.calls("GET", "/titles/facets")).toHaveLength(0);
 });
+
+it("gives the library and event choosers a whole line each on a phone, so a long event name is not cut", async () => {
+  mockFetch([{ method: "GET", path: "/titles/facets", reply: { versions: [{ key: "movie-web", label: "WEB" }] } }]);
+  renderPage(<HistoryFilters admin />, "/activity/history?event=playing");
+  const event = await screen.findByTestId("history-event");
+  expect(event.className).toContain("col-span-2");
+  expect(screen.getByTestId("history-copy").className).toContain("col-span-2");
+});

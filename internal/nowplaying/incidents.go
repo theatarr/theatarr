@@ -60,7 +60,7 @@ func (t *Tracker) Incidents() []Incident {
 	db := t.o.Store.Reader()
 	rows, err := db.QueryContext(ctx, `SELECT pb.id, pb.title_id, t.name, t.year, pb.version_key, pb.episodes,
 		(SELECT COUNT(*) FROM playing_break f WHERE f.incident = pb.id), pb.viewer, pb.player, pb.settled, pb.fixed_by,
-		pb.reported, COALESCE(pb.release_title, ''), pb.new_release, pb.message, pb.broken_at
+		pb.reported, COALESCE(pb.release_title, ''), pb.new_release, pb.message, pb.broken_at, pb.out_account <> ''
 		FROM playing_break pb JOIN title t ON t.id = pb.title_id WHERE pb.watched = 1 AND pb.broken_at > ?
 		ORDER BY pb.broken_at DESC, pb.id DESC`, store.Millis(t.o.Now().Add(-incidentsWithin)))
 	if err != nil {
@@ -74,14 +74,18 @@ func (t *Tracker) Incidents() []Incident {
 		var year sql.NullInt64
 		var js, settled, fixed, reported string
 		var at int64
+		var outage bool
 		if err := rows.Scan(&in.ID, &in.TitleID, &in.Title, &year, &in.Version, &js, &in.Files, &in.Viewer, &in.Player,
-			&settled, &fixed, &reported, &in.OldRelease, &in.NewRelease, &in.Message, &at); err != nil {
+			&settled, &fixed, &reported, &in.OldRelease, &in.NewRelease, &in.Message, &at, &outage); err != nil {
 			continue
 		}
 		if year.Valid && year.Int64 > 0 {
 			in.Title = fmt.Sprintf("%s (%d)", in.Title, year.Int64)
 		}
 		in.State, in.Status = incidentState(settled, fixed, reported)
+		if in.State == "unavailable" && outage {
+			in.Status += ": the debrid account did not answer" // History's words; no account named
+		}
 		if in.State != "replaced" {
 			in.NewRelease = ""
 		}

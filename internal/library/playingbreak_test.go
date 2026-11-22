@@ -458,3 +458,28 @@ func TestDropUnfinishedPlaying(t *testing.T) {
 		t.Errorf("rows left %s (cut %d)", got, cut)
 	}
 }
+
+// An incident whose account was found out (an outage) and could not be replaced reports unavailable with Outage set,
+// naming no account; another one's outcome has none.
+func TestPlayingOutcomeOutage(t *testing.T) {
+	e := playingEnv(t)
+	var got []outcome.Outcome
+	e.lib.OnPlayingOutcome(func(o outcome.Outcome) { got = append(got, o) })
+	for _, c := range []struct {
+		link int64
+		out  string
+		kind string
+	}{{1, "realdebrid", outcome.Unavailable}, {2, "", outcome.Unavailable}, {3, "realdebrid", outcome.SameRelease}} {
+		id, err := e.lib.OpenPlayingIncident(e.ctx, PlayingIncident{TitleID: 2, Version: "tv", OutAccount: c.out},
+			PlayingFile{LinkID: c.link})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := e.lib.ReportPlaying(e.ctx, id, c.kind); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(got) != 3 || !got[0].Outage || got[1].Outage || got[2].Outage || got[0].Account != "" {
+		t.Errorf("outcomes %+v", got)
+	}
+}

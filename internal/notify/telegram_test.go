@@ -89,6 +89,8 @@ func TestTelegramText(t *testing.T) {
 	ctx := context.Background()
 	was := &HealthItem{Source: "MountCheck", Type: "error", Message: "mount not readable"}
 	same := playingOutcome(outcome.SameRelease)
+	outage := playingOutcome(outcome.Unavailable)
+	outage.Outage = true
 	for _, c := range []struct {
 		name string
 		ev   Event
@@ -106,6 +108,7 @@ func TestTelegramText(t *testing.T) {
 			[]string{"Replaced while playing: Alpha (2020)", "while ann was watching on Living room TV", "Was: Alpha.2020.1080p.WEB-DL.DDP5.1.H.264-OLD", "Now: Alpha.2020.1080p.BluRay.x264-NEW"}},
 		{"readable again", Event{Kind: PlayingReplaced, Playing: &same}, []string{"Readable again: Alpha (2020)", "reads again from torbox"}},
 		{"unavailable", Event{Kind: PlayingUnavailable, Playing: ptr(playingOutcome(outcome.Unavailable))}, []string{"No other copy: Alpha (2020)", "No other copy is available right now"}},
+		{"outage", Event{Kind: PlayingUnavailable, Playing: &outage}, []string{"No other copy: Alpha (2020)", "The debrid account did not answer and no other copy is available right now."}},
 		{"restored", Event{Kind: PlayingRestored, Playing: ptr(playingOutcome(outcome.Restored))}, []string{"Earlier copy put back: Alpha (2020)", "back in place"}},
 	} {
 		m, err := e.n.telegramPayload(ctx, c.ev)

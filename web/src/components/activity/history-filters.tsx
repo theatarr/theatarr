@@ -1,5 +1,6 @@
 // Activity › History filters (lib/activity-history.ts): a title search, the copy, the event type, Today and a since date,
-// in one wrapping row; at phone width two to a line under the title box. Every change goes to the URL, so a filtered history survives a reload
+// in one wrapping row; at phone width the library and the event each on a line of their own (a long event name is
+// not cut), Today and Since two to a line. Every change goes to the URL, so a filtered history survives a reload
 // and can be shared; the title search waits for typing to pause.
 import { Search, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
@@ -66,14 +67,14 @@ export function HistoryFilters({ tools, admin = false }: { tools?: ReactNode; ad
         <Input aria-label="Title" placeholder="Title" value={text} onChange={(e) => setText(e.target.value)} className="h-8 pl-8" data-testid="history-title" />
       </div>
       {/* The household view has no library to choose. */}
-      {admin ? <Select aria-label="Library" value={f.copy} onChange={(e) => set("copy", e.target.value)} className="min-w-0 sm:w-auto" data-testid="history-copy">
+      {admin ? <Select aria-label="Library" value={f.copy} onChange={(e) => set("copy", e.target.value)} className="col-span-2 min-w-0 sm:w-auto" data-testid="history-copy">
         <option value="">All libraries</option>
         {copies.map((v) => (
           <option key={v.key} value={v.key}>{v.label || v.key}</option>
         ))}
         {f.copy && !copies.some((v) => v.key === f.copy) ? <option value={f.copy}>{known(f.copy) ? nameOf(f.copy) : "Removed library"}</option> : null}
       </Select> : null}
-      <Select aria-label="Event" value={historyFiltersFor(f, admin).event} onChange={(e) => set("event", e.target.value)} className="min-w-0 sm:w-auto" data-testid="history-event">
+      <Select aria-label="Event" value={historyFiltersFor(f, admin).event} onChange={(e) => set("event", e.target.value)} className="col-span-2 min-w-0 sm:w-auto" data-testid="history-event">
         {historyEventsFor(admin).map((e) => (
           <option key={e.id} value={e.id}>{e.label}</option>
         ))}

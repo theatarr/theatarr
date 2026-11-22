@@ -37,8 +37,7 @@ export const EVENT_MEANINGS: { words: string; meaning: string }[] = [
   { words: "Not cached on …", meaning: "Another provider did not have the torrent cached, so it was not added there." },
   { words: "Replaced after it stopped working", meaning: "The file stopped working while someone played it, and another release was imported in its place." },
   { words: "Readable again after it stopped working", meaning: "The file stopped working while someone played it, and the same release works again (for example from another provider)." },
-  { words: "Stopped working, no other copy yet", meaning: "The file stopped working while someone played it, and no other copy was found; the normal searches go on." },
-  { words: "Earlier copy put back", meaning: "The copy that stopped working works again and is better than the one that replaced it, so it was put back." },
+  { words: "Stopped working, no other copy yet", meaning: "The file stopped working while someone played it, and no other copy was found. A new release can still arrive through RSS. When the debrid account did not answer, the row says so." },
 ];
 
 /** The meaning of an event's words ("Not started: …" for every not-started reason, "Added to …" and "Not cached on …"

@@ -1478,3 +1478,18 @@ func TestRescueOwedMessageDueIsNotSticky(t *testing.T) {
 		t.Errorf("an advancing stream was stopped: %q", got)
 	}
 }
+
+// An incident that could not be replaced because its debrid account did not answer says so in the list, naming no
+// account (the same words as History's).
+func TestIncidentsOutage(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.play(2, "buffering")
+	e.poll()
+	e.exec(`UPDATE playing_break SET settled = 'none', reported = 'unavailable', out_account = 'realdebrid'
+		WHERE link_id = 11`)
+	if in := e.tr.Incidents(); len(in) != 1 || in[0].State != "unavailable" ||
+		in[0].Status != "No other copy yet: the debrid account did not answer" {
+		t.Errorf("incidents %+v", in)
+	}
+}

@@ -55,10 +55,11 @@ func (l *Library) playingOutcome(ctx context.Context, incident int64, kind strin
 	var name string
 	var year sql.NullInt64
 	var old sql.NullString
+	var out string
 	err := db.QueryRowContext(ctx, `SELECT pb.title_id, pb.version_key, t.name, t.year, pb.release_title, pb.new_release,
-		pb.episodes, pb.viewer, pb.player, pb.serving FROM playing_break pb JOIN title t ON t.id = pb.title_id
+		pb.episodes, pb.viewer, pb.player, pb.serving, pb.out_account FROM playing_break pb JOIN title t ON t.id = pb.title_id
 		WHERE pb.id = ?`, incident).Scan(&o.TitleID, &o.VersionKey, &name, &year, &old, &o.NewRelease, &eps, &o.Viewer,
-		&o.Player, &o.Account)
+		&o.Player, &o.Account, &out)
 	if err != nil {
 		return o, fmt.Errorf("library: playing incident %d: %w", incident, err)
 	}
@@ -69,6 +70,8 @@ func (l *Library) playingOutcome(ctx context.Context, incident int64, kind strin
 	if kind != outcome.Replaced {
 		o.NewRelease = ""
 	}
+	o.Outage = kind == outcome.Unavailable && out != "" // the account found out; never named
+
 	// The episodes' labels in one read, in the row's order.
 	rows, err := db.QueryContext(ctx, `SELECT je.value, e.season, e.number FROM json_each(?) je
 		JOIN episode e ON e.id = je.value ORDER BY je.key`, eps)
