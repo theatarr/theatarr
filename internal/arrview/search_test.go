@@ -221,6 +221,11 @@ func TestSearchOnAddPaused(t *testing.T) {
 	t.Parallel()
 	e := newSearchEnv(t)
 	e.pol.Router.Enabled = false
+	// movie-hd is in sync with movie-web: the add creates it too, and its search is kept as well.
+	hd := *e.pol.Versions["movie-web"]
+	hd.Library = "/media/movies-hd"
+	e.pol.Versions["movie-hd"] = &hd
+	e.pol.Library.SyncGroups = [][]string{{"movie-web", "movie-hd"}}
 	e.call("POST", "/v/movie-web/radarr/api/v3/movie", map[string]any{"title": "Iota", "year": 2024, "tmdbId": 109,
 		"minimumAvailability": "announced", "addOptions": map[string]any{"searchForMovie": true}}, 201, nil)
 	e.drain()
@@ -230,9 +235,9 @@ func TestSearchOnAddPaused(t *testing.T) {
 	if n := e.one(`SELECT COUNT(*) FROM title WHERE tmdb_id = 109`); n != 1 {
 		t.Errorf("the add did not add the title: %d", n)
 	}
-	// The search is kept for when Pause is off: a row of the view's library on the search schedule.
+	// The search is kept for when Pause is off: a row of each library the add turned on on the search schedule.
 	if n := e.one(`SELECT COUNT(*) FROM search_request r JOIN title t ON t.id = r.title_id WHERE t.tmdb_id = 109
-		AND r.version_key = 'movie-web' AND r.why = 'added'`); n != 1 {
+		AND r.version_key IN ('movie-web', 'movie-hd') AND r.why = 'added'`); n != 2 {
 		t.Errorf("paused add kept %d searches", n)
 	}
 }

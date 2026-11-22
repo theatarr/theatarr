@@ -739,6 +739,7 @@ func (s *Service) addTitle(w http.ResponseWriter, r *request) {
 	}
 	// The add itself is catalog.Add, shared with the native API; the view keeps its own record and tags.
 	var titleID int64
+	var turnedOn []string // the libraries the add turned on, its sync partners too
 	err := s.st.WriteTx(ctx, func(tx *sqlTx) error {
 		ci := catalog.Input{Kind: v.kind(), Title: in.Title, Year: in.Year, ImdbID: in.ImdbID,
 			Anime: anime, Monitored: in.monitored(true), Source: v.Key, Policy: s.pol, OriginalLanguage: lang,
@@ -772,7 +773,7 @@ func (s *Service) addTitle(w http.ResponseWriter, r *request) {
 		if err != nil {
 			return err
 		}
-		titleID = res.TitleID
+		titleID, turnedOn = res.TitleID, res.Versions
 		if v.Flavour == Radarr {
 			// A partner restored in sync keeps its saved choice, as a copy already on keeps its rule.
 			if err := s.chooseTurnedOn(ctx, tx, titleID, append(slices.Clone(on), res.Restored...), res.Versions,
@@ -846,12 +847,12 @@ func (s *Service) addTitle(w http.ResponseWriter, r *request) {
 		}
 	}
 	// The add's own search runs only while Pause is off, as the native add's (catalog.Searchable). While Pause is on
-	// it is kept for when Pause is off (SearchOnResume: the view's libraries, missing items), as an approved
-	// request's first search is.
+	// it is kept for when Pause is off (SearchOnResume: the libraries the add turned on, its sync partners too, as
+	// the search would reach them; missing items), as an approved request's first search is.
 	if in.AddOptions != nil && (in.AddOptions.SearchForMovie || in.AddOptions.SearchForMissingEpisodes) {
 		if !s.pol.RouterSettings().Enabled {
 			if sr, ok := s.searcher.(searchOnResume); ok {
-				if err := sr.SearchOnResume(context.WithoutCancel(ctx), titleID, v.Versions, nil); err != nil {
+				if err := sr.SearchOnResume(context.WithoutCancel(ctx), titleID, turnedOn, nil); err != nil {
 					s.log.Warn("add: first search not kept for after Pause", "title", titleID, "err", err)
 				}
 			}
