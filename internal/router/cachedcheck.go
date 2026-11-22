@@ -224,6 +224,23 @@ func (r *Router) pollNameRefused(ctx context.Context, x pollRow, t *provider.Tor
 	return err
 }
 
+// pollTooLarge is download x on a provider that refuses its torrent as too big for it after the add (AllDebrid
+// statusCode 8, provider.Torrent.TooLarge): as Real-Debrid's 29 and TorBox's DOWNLOAD_TOO_LARGE at the add, a miss
+// there for the content's miss TTL and the release routed again (requeue) to the next provider; nothing blocklisted.
+func (r *Router) pollTooLarge(ctx context.Context, x pollRow, now time.Time, sum *PollSummary) error {
+	rctx := context.WithoutCancel(ctx)
+	if err := r.setCache(rctx, x.hash, x.pk, "miss", "too_large", now.Add(r.downloadMissTTL(rctx, x, now)), now); err != nil {
+		return err
+	}
+	why := "too big for " + x.pk + " (File too big.)"
+	r.log.Warn(why+"; a miss on "+x.pk+", the release is routed again", "download", x.id, "provider", x.pk, "torrent", x.tid)
+	queued, err := r.requeue(rctx, x, 0, why+"; the release is routed again", why+"; not blocklisted (no route queue)")
+	if err == nil && !queued {
+		sum.Failed++
+	}
+	return err
+}
+
 // owedDeleted records an owed delete of our uncached add as done: the miss (provider_cache uncached for the content's
 // miss TTL, as a route writes it; counted unless counted when it started downloading) and the download routed again,
 // nothing blocklisted.

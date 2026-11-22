@@ -531,6 +531,9 @@ func (r *Router) pollOne(ctx context.Context, x pollRow, t *provider.Torrent, er
 			"torrent", x.tid, "err", err)
 		return nil
 	}
+	if t.TooLarge {
+		return r.pollTooLarge(ctx, x, now, sum)
+	}
 	failed := t.State == provider.StateError || noVideo(x.reused, t) ||
 		(x.reused == 0 && t.Status == rdWaitingFiles && len(t.Files) > 0 && len(ChooseFiles(kind, t.Files)) == 0)
 	// An unfinished cached-only check is settled before the stall timeouts: an uncached add of ours is a miss

@@ -229,7 +229,7 @@ plain errors.
 | Code | From | Router |
 |---|---|---|
 | `torrent_not_cached` | TorBox 400 `DOWNLOAD_NOT_CACHED` (with `add_only_if_cached`) | Miss at this provider. `provider_cache` gets `uncached` for `miss_ttl`, and the refusal counts toward TorBox's uncached adds per hour. Next provider |
-| `torrent_blocked` | RD 451 or error 35 on a name RD's rule refuses; RD 26, 28, 29; TorBox `DOWNLOAD_TOO_LARGE`, `BOZO_TORRENT` | Miss at this provider. Next provider |
+| `torrent_blocked` | RD 451 or error 35 on a name RD's rule refuses; RD 26, 28, 29; TorBox `DOWNLOAD_TOO_LARGE`, `BOZO_TORRENT` (AllDebrid's too big comes later, as magnet `statusCode` 8: the poll makes it the same miss and routes the release again, [providers.md](providers.md)) | Miss at this provider. Next provider |
 | `invalid` | RD 2, 30; AD `MAGNET_INVALID_URI`, `MAGNET_NO_URI`; TorBox `INVALID_OPTION` | Miss at this provider. Next provider |
 | `too_many_active_downloads` | RD 509 or 21; AD `MAGNET_TOO_MANY_ACTIVE`; TorBox `ACTIVE_LIMIT` | Exponential back-off (1, 2, 4 … min, up to `backoff_max`). Next provider |
 | `rate_limited` | HTTP 429, RD 5 or 34 | Exponential back-off; `Retry-After` wins when it is later. Next provider |

@@ -111,6 +111,12 @@ hashes.
   | 1-3 | downloading, compressing, uploading | downloading |
   | 4 | ready | downloaded |
   | 5-15 | upload failed, unpack error, no peer within 20 min, too big, internal error, over 72 h, deleted on the hoster, processing failed, tracker error, no peer | error |
+
+  Code 8 is "File too big." (source: docs.alldebrid.com, magnet status codes). It is also read as too big for
+  AllDebrid (`Torrent.TooLarge`), the state Real-Debrid's error 29 and TorBox's `DOWNLOAD_TOO_LARGE` give at the add:
+  the poll records a miss on AllDebrid for the content's miss TTL and routes the release again to the next provider,
+  nothing blocklisted (`router.pollTooLarge`, `TestAllDebridTooBigTriesNextProvider`). The magnet stays on the account
+  as an errored entry. AllDebrid documents no add-time error for this (no `MAGNET_TOO_LARGE`).
 - **Rate limit:** 12 requests per second and 600 per minute per key; 429 and 503 come with Retry-After. The example
   budget `ad-api` is 300/min. A sync costs one request.
 - **Live mode** (`session` and `counter` for diffs) is not used. A full list per sync is one request.

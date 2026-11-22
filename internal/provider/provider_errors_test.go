@@ -47,7 +47,8 @@ func TestAllDebridFilesOnlyWhenReady(t *testing.T) {
 		code      int
 		state     State
 		wantFiles bool
-	}{{0, StateQueued, false}, {1, StateDownloading, false}, {7, StateError, false}, {4, StateDownloaded, true}} {
+	}{{0, StateQueued, false}, {1, StateDownloading, false}, {7, StateError, false}, {8, StateError, false},
+		{4, StateDownloaded, true}} {
 		t.Run(fmt.Sprint(c.code), func(t *testing.T) {
 			f := newFakeNet(t)
 			filesCalls := 0
@@ -74,6 +75,10 @@ func TestAllDebridFilesOnlyWhenReady(t *testing.T) {
 			}
 			if got.State != c.state || (len(got.Files) > 0) != c.wantFiles || (filesCalls > 0) != c.wantFiles {
 				t.Errorf("state %s files %v files calls %d", got.State, got.Files, filesCalls)
+			}
+			// statusCode 8 is "File too big." (docs.alldebrid.com, magnet status codes): too big for AllDebrid.
+			if got.TooLarge != (c.code == 8) {
+				t.Errorf("code %d: too large %v", c.code, got.TooLarge)
 			}
 		})
 	}

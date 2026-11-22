@@ -82,6 +82,9 @@ type Torrent struct {
 	// provider's Name may differ (Real-Debrid's can be a selected file's lower-cased name). Filled by Torrent only,
 	// "" from list calls and when the provider gives none.
 	OriginalName string `json:"original_name,omitempty"`
+	// TooLarge: the provider refuses the torrent as too big for it after the add (AllDebrid statusCode 8, "File too
+	// big."), the state Real-Debrid's error 29 and TorBox's DOWNLOAD_TOO_LARGE give at the add. State is StateError.
+	TooLarge bool `json:"too_large,omitempty"`
 }
 
 // File is one file of a torrent. Path is relative to the torrent.

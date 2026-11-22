@@ -538,3 +538,43 @@ func TestLastVersionRemovedEndsDownloads(t *testing.T) {
 		t.Fatalf("%d provider writes", e.writes())
 	}
 }
+
+// AllDebrid's statusCode 8, "File too big.", is too big for that provider, as Real-Debrid's 29 and TorBox's
+// DOWNLOAD_TOO_LARGE are at the add: a miss there, and the release goes to the next provider; nothing blocklisted.
+func TestAllDebridTooBigTriesNextProvider(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	q := jobs.NewQueue(e.st)
+	q.SetClock(func() time.Time { return e.clock })
+	e.r.RegisterJobs(jobs.NewWorker(q, jobs.WorkerOptions{}), q)
+	e.ad["rd"].add = func(adder.Magnet, adder.AddOptions) (*adder.Added, error) {
+		return nil, &adder.Error{Provider: "rd", Code: adder.CodeBlocked, ProviderCode: "29"}
+	}
+	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
+	if err != nil || res.Provider != "ad" {
+		t.Fatalf("route: %+v %v: %s", res, err, steps(res))
+	}
+	e.pr["ad"].set(res.TorrentID, provider.Torrent{Hash: h("a"), Status: "File too big.", State: provider.StateError,
+		TooLarge: true})
+	if _, err := e.r.Poll(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM router_blocklist`); n != 0 {
+		t.Errorf("%d blocklist rows", n)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM download WHERE id = ? AND state = 'queued' AND provider IS NULL`, res.DownloadID); n != 1 {
+		t.Fatalf("download not routed again: %d failed", e.count(`SELECT COUNT(*) FROM download WHERE state = 'failed'`))
+	}
+	var raw string
+	if err := e.st.Reader().QueryRow(`SELECT payload FROM job WHERE kind = ? AND state = 'queued'`, JobRoute).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	var p routePayload
+	if err := json.Unmarshal([]byte(raw), &p); err != nil {
+		t.Fatal(err)
+	}
+	res2, err := e.r.Route(e.ctx, p.Request)
+	if err != nil || res2.Provider != "tb" || len(e.ad["ad"].adds) != 1 {
+		t.Fatalf("again: %+v %v, AllDebrid adds %d: %s", res2, err, len(e.ad["ad"].adds), steps(res2))
+	}
+}

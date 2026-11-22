@@ -248,10 +248,14 @@ func adState(code int) State {
 	return StateUnknown
 }
 
+// adTooBig is AllDebrid's statusCode 8, "File too big." (docs.alldebrid.com, magnet status codes): too big for
+// AllDebrid, as Real-Debrid's 29 and TorBox's DOWNLOAD_TOO_LARGE are for them (Torrent.TooLarge).
+const adTooBig = 8
+
 func (m *adMagnet) torrent() Torrent {
 	h, _ := normHash(m.Hash)
 	t := Torrent{ID: strconv.FormatInt(m.ID, 10), Hash: h, Name: m.Filename, Bytes: m.Size, Status: m.Status,
-		State: adState(m.StatusCode), Links: -1}
+		State: adState(m.StatusCode), Links: -1, TooLarge: m.StatusCode == adTooBig}
 	if m.NbLinks != nil {
 		t.Links = *m.NbLinks
 	}
