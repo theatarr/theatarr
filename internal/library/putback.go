@@ -19,8 +19,9 @@ import (
 // someone played it, replaced since and read again on two sweeps, comes back in place of its replacement through the
 // same return as Undo (return.go), when it is a strict win under today's profile; else it is kept aside as before.
 
-// PlayingNow answers whether a Plex session may be playing a replacement (its link, target and title): playing it, or
-// a session of its title whose file is not identified; answered false while Plex has not answered lately.
+// PlayingNow answers whether a Plex session may be playing a replacement (its link, target and title): playing it, a
+// session of its title whose file is not identified, or a video session nobody could place; answered false while
+// Plex has not answered lately.
 type PlayingNow func(linkID int64, target string, titleID int64) (may, answered bool)
 
 // SetPlayingNow sets the answer the put-back asks before it displaces a file (nil: Plex never answers, so nothing is
