@@ -99,6 +99,9 @@ type helperPool struct {
 	reapT   *time.Timer
 	reapIn  time.Duration
 	closed  bool
+	// pieceKilled are the processes of zombies a piece read killed (callPiece): no piece read starts while one is
+	// there.
+	pieceKilled map[*os.Process]bool
 
 	nextID  atomic.Uint64
 	starts  atomic.Int64
@@ -288,6 +291,21 @@ func (p *helperPool) discard(h *helperProc, why string, counted bool) {
 	p.notify()
 }
 
+// discardPiece kills the helper of a piece read that missed its deadline, without the back-off, and remembers it
+// until it has gone. Caller does not hold mu.
+func (p *helperPool) discardPiece(h *helperProc) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.busy--
+	p.running--
+	if p.pieceKilled == nil {
+		p.pieceKilled = map[*os.Process]bool{}
+	}
+	p.pieceKilled[h.proc] = true
+	p.kill(h)
+	p.notify()
+}
+
 // kill sends SIGKILL and closes the pipes. A helper blocked in the kernel (D state) may stay until the call
 // returns; it holds nothing of Theatarr's, and reap collects it without waiting. Caller holds mu.
 func (p *helperPool) kill(h *helperProc) {
@@ -328,6 +346,8 @@ func (p *helperPool) reap() {
 	for _, z := range p.zombies {
 		if !p.reapFn(z.proc) {
 			kept = append(kept, z)
+		} else {
+			delete(p.pieceKilled, z.proc)
 		}
 	}
 	clear(p.zombies[len(kept):])
@@ -401,6 +421,26 @@ func (p *helperPool) state() HelperState {
 // kills it without counting it (the call may have been fine). No goroutine waits on the helper: the pipes are
 // read and written with deadlines.
 func (p *helperPool) call(ctx context.Context, deadline time.Time, req helperRequest) (*helperResponse, error) {
+	return p.callAs(ctx, deadline, req, false)
+}
+
+// callPiece is call for a piece read (Mount.ReadPiece): a missed deadline kills the helper all the same, but it is
+// a finding about one file, so it does not push the next start back (failed), and the killed process is remembered
+// until it has gone (pieceLingering).
+func (p *helperPool) callPiece(ctx context.Context, deadline time.Time, req helperRequest) (*helperResponse, error) {
+	return p.callAs(ctx, deadline, req, true)
+}
+
+// pieceLingering reports whether a helper a piece read killed has not gone yet.
+func (p *helperPool) pieceLingering() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.reap()
+	return len(p.pieceKilled) > 0
+}
+
+func (p *helperPool) callAs(ctx context.Context, deadline time.Time, req helperRequest, piece bool) (*helperResponse,
+	error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -434,6 +474,10 @@ func (p *helperPool) call(ctx context.Context, deadline time.Time, req helperReq
 	case errors.Is(err, os.ErrDeadlineExceeded):
 		p.killed.Add(1)
 		why := fmt.Sprintf("%s %s: no answer in time", req.Op, req.Path)
+		if piece {
+			p.discardPiece(h)
+			return nil, fmt.Errorf("%w (%s)", errHelperTimeout, why)
+		}
 		p.discard(h, why, true)
 		return nil, fmt.Errorf("%w (%s)", errHelperTimeout, why)
 	default:
