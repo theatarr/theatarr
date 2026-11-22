@@ -83,11 +83,31 @@ func TestPlayingOutcomesReachNotifyAndHistory(t *testing.T) {
 		}
 		return n
 	}
-	for ev, want := range map[string]int{"theatarr.playing_replaced": 2, "theatarr.playing_unavailable": 1,
-		"theatarr.playing_restored": 1} {
-		if n := count(`SELECT COUNT(*) FROM notify_delivery WHERE target = 'policy:hook' AND event = ?`, ev); n != want {
-			t.Errorf("%s: %d deliveries, want %d", ev, n, want)
+	// One delivery per incident, carrying its own kind (a same-release outcome is a replaced message about that kind).
+	for id, want := range map[int64]struct{ event, kind string }{
+		1: {"theatarr.playing_replaced", outcome.Replaced}, 2: {"theatarr.playing_replaced", outcome.SameRelease},
+		3: {"theatarr.playing_unavailable", outcome.Unavailable}, 4: {"theatarr.playing_restored", outcome.Restored},
+	} {
+		rows, err := st.Reader().Query(`SELECT event, json_extract(payload, '$.playing.kind') FROM notify_delivery
+			WHERE target = 'policy:hook' AND json_extract(payload, '$.playing.incident') = ?`, id)
+		if err != nil {
+			t.Fatal(err)
 		}
+		var got []string
+		for rows.Next() {
+			var ev, kind string
+			if err := rows.Scan(&ev, &kind); err != nil {
+				t.Fatal(err)
+			}
+			got = append(got, ev+" "+kind)
+		}
+		rows.Close()
+		if len(got) != 1 || got[0] != want.event+" "+want.kind {
+			t.Errorf("incident %d reached the target as %q, want once as %s %s", id, got, want.event, want.kind)
+		}
+	}
+	if n := count(`SELECT COUNT(*) FROM notify_delivery`); n != 4 {
+		t.Errorf("%d deliveries, want 4", n)
 	}
 	for ref, kind := range map[string]string{"pb:1:replaced": outcome.Replaced, "pb:2:same_release": outcome.SameRelease,
 		"pb:3:unavailable": outcome.Unavailable, "pb:4:restored": outcome.Restored} {
@@ -101,21 +121,39 @@ func TestPlayingOutcomesReachNotifyAndHistory(t *testing.T) {
 	}
 }
 
-// library.plex.stop_with_message follows the settings in force, so a save turns stopping a broken stream on or off
-// without restarting the tracker.
+// library.plex.stop_with_message reaches the served tracker's options from the settings in force: a save that turns
+// it off (or on) keeps the now playing worker's key, so the tracker is not restarted, and its next message reads the
+// new value.
 func TestStopWithMessageFollowsSettings(t *testing.T) {
 	t.Parallel()
+	ref := policy.SettingsSecretPrefix + "PLEX"
+	runtime := func(stop *bool) *serveRuntime {
+		pol := &policy.Policy{Library: &policy.Library{Plex: &policy.Plex{URL: "http://127.0.0.1:1", TokenEnv: ref,
+			StopWithMessage: stop}}}
+		pol.WithSettingsSecrets(map[string]string{ref: "invented-plex"})
+		return &serveRuntime{Policy: pol, Library: &serveLibrary{pol: pol, set: pol.LibrarySettings()}}
+	}
 	off := false
-	start := (&policy.Policy{Library: &policy.Library{Plex: &policy.Plex{URL: "http://plex:32400"}}}).LibrarySettings()
-	saved := (&policy.Policy{Library: &policy.Library{Plex: &policy.Plex{URL: "http://plex:32400",
-		StopWithMessage: &off}}}).LibrarySettings()
-	if !stopWithMessage(nil, start) {
-		t.Error("default off")
+	start, saved := runtime(nil), runtime(&off)
+	cur := start
+	loops := serveLoops{log: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		current: func(ctx context.Context) (context.Context, *serveRuntime) { return ctx, cur }}
+	o, err := loops.nowPlayingOptions(context.Background(), start)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if stopWithMessage(&serveRuntime{Library: &serveLibrary{set: saved}}, start) {
-		t.Error("a save that turned it off is not followed")
+	if o.StopWithMessage == nil || !o.StopWithMessage() {
+		t.Fatal("off by default")
 	}
-	if !stopWithMessage(&serveRuntime{Library: &serveLibrary{set: start}}, saved) {
-		t.Error("a save that turned it on is not followed")
+	if k := nowPlayingKey(start); k == "" || k != nowPlayingKey(saved) {
+		t.Fatalf("the switch restarts the tracker: %q, %q", k, nowPlayingKey(saved))
+	}
+	cur = saved
+	if o.StopWithMessage() {
+		t.Error("a saved off is not followed")
+	}
+	cur = start
+	if !o.StopWithMessage() {
+		t.Error("a saved on is not followed")
 	}
 }

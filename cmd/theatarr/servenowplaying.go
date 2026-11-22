@@ -8,7 +8,6 @@ import (
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/nowplaying"
 	"github.com/theatarr/theatarr/internal/plex"
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/secrets"
 	"github.com/theatarr/theatarr/internal/torrents"
 )
@@ -57,14 +56,6 @@ func nowPlayingKey(rt *serveRuntime) string {
 		s.PrewarmMaxSize, rc)
 }
 
-// stopWithMessage is library.plex.stop_with_message of the generation in force (cur), else of the tracker's start (s).
-func stopWithMessage(cur *serveRuntime, s policy.LibrarySettings) bool {
-	if cur != nil && cur.Library != nil {
-		return cur.Library.set.StopWithMessage
-	}
-	return s.StopWithMessage
-}
-
 // currentGateway sends each request through the gateway of the generation in force, so a budget change applies
 // without restarting the tracker.
 type currentGateway struct {
@@ -78,11 +69,29 @@ func (g currentGateway) Do(ctx context.Context, t gateway.Target, req *http.Requ
 
 // runNowPlaying runs a tracker on rt's settings until ctx ends.
 func (l serveLoops) runNowPlaying(ctx context.Context, rt *serveRuntime) error {
+	o, err := l.nowPlayingOptions(ctx, rt)
+	if err != nil {
+		return err
+	}
+	t := nowplaying.New(o)
+	serveNowPlaying.Store(t)
+	defer serveNowPlaying.CompareAndSwap(t, nil)
+	s := rt.Library.set
+	o.Logger.Info("now playing: following Plex's sessions", "url", (secrets.URLMasker{}).Mask(s.Plex.URL), "zurg_api", s.ZurgAPI != "",
+		"rclone_rc", o.RC != nil, "prewarm", s.Prewarm,
+		"prewarm_rate", s.PrewarmRate)
+	t.Run(ctx)
+	return nil
+}
+
+// nowPlayingOptions are the tracker's options on rt's settings; the ones a save may change without a restart
+// (StopWithMessage, Roots, the gateway) read the generation in force each time.
+func (l serveLoops) nowPlayingOptions(ctx context.Context, rt *serveRuntime) (nowplaying.Options, error) {
 	s, pol, lb := rt.Library.set, rt.Policy, rt.Library
 	gw := currentGateway{current: l.current}
 	pc, err := plex.New(gw, s.Plex.URL, pol.Getenv(s.Plex.TokenEnv))
 	if err != nil {
-		return err
+		return nowplaying.Options{}, err
 	}
 	log := l.log.With("component", "nowplaying")
 	o := nowplaying.Options{Plex: pc, Store: lb.st, LinkPath: s.LinkPath, MountPath: s.MountPath, AllDir: s.AllDir,
@@ -132,8 +141,10 @@ func (l serveLoops) runNowPlaying(ctx context.Context, rt *serveRuntime) error {
 	}
 	// library.plex.stop_with_message of the settings in force: a save turns it on or off without restarting the tracker.
 	o.StopWithMessage = func() bool {
-		_, cur := l.current(ctx)
-		return stopWithMessage(cur, s)
+		if _, cur := l.current(ctx); cur != nil && cur.Library != nil {
+			return cur.Library.set.StopWithMessage
+		}
+		return s.StopWithMessage
 	}
 	if s.MountPath != "" {
 		o.Mount = func() nowplaying.Mount {
@@ -143,12 +154,5 @@ func (l serveLoops) runNowPlaying(ctx context.Context, rt *serveRuntime) error {
 			return nil
 		}
 	}
-	t := nowplaying.New(o)
-	serveNowPlaying.Store(t)
-	defer serveNowPlaying.CompareAndSwap(t, nil)
-	log.Info("now playing: following Plex's sessions", "url", (secrets.URLMasker{}).Mask(s.Plex.URL), "zurg_api", s.ZurgAPI != "",
-		"rclone_rc", o.RC != nil, "prewarm", s.Prewarm,
-		"prewarm_rate", s.PrewarmRate)
-	t.Run(ctx)
-	return nil
+	return o, nil
 }
