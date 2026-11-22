@@ -640,15 +640,19 @@ func (t *Tracker) repair(ctx context.Context, lib Rescuer, j *sign, hash string,
 	t.siblings(ctx, lib, j, id)
 }
 
-// servedSince is the account zurg last logged serving a file from ("Large transfer") at or after since; "" when it
-// logged none (a plain mount never does).
+// servedSince is the account zurg last logged serving a file from ("Large transfer") at or after since, matched by
+// the file's path under the mount (release folder and name, not the name alone); "" when it logged none (a plain
+// mount never does).
 func (t *Tracker) servedSince(src *Source, since time.Time) string {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	base := path.Base(src.Target)
+	if src.rel == "" {
+		return ""
+	}
 	account := ""
 	for _, e := range t.events {
-		if e.Kind == kindTransfer && !e.At.Before(since) && (e.File == base || e.File == path.Base(src.File)) {
+		if e.Kind == kindTransfer && !e.At.Before(since) &&
+			(e.Path == src.rel || strings.HasSuffix(e.Path, "/"+src.rel)) {
 			account = e.Account
 		}
 	}

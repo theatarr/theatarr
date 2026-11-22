@@ -1148,26 +1148,32 @@ func TestRescueImportBetweenReads(t *testing.T) {
 	}
 }
 
-// The account is named only with evidence of who served the file again: zurg logging a transfer of it from that
-// account after the copy. Without it (a plain mount), it stays empty.
+// The account is named only with evidence of who served the file again: zurg logging a transfer of that very file
+// (its release folder and name) after the copy, here from the original account, recovered. A transfer of another
+// release's file of the same name is no evidence.
 func TestRescueSameReleaseAccountEvidence(t *testing.T) {
-	e := newRescueEnv(t, false, true)
-	e.lib.setBroken("S01E02.mkv", 4) // reads 1-3 and the first re-read; the next passes
-	e.copyOK["ad"] = true
-	waits := 0
-	e.tr.sleep = func(ctx context.Context, d time.Duration) error {
-		e.advance(d)
-		if waits++; waits == 3 { // during step 1
-			e.tr.ZurgLine("INFO Large transfer: 512 MiB of __all__/Rel/S01E02.mkv from ad for 30s")
+	for _, c := range []struct{ line, want string }{
+		{"INFO Large transfer: 512 MiB of __all__/Rel/S01E02.mkv from rd for 30s", "rd"},
+		{"INFO Large transfer: 512 MiB of __all__/Another.Show/S01E02.mkv from tb for 30s", ""},
+	} {
+		e := newRescueEnv(t, false, true)
+		e.lib.setBroken("S01E02.mkv", 4) // reads 1-3 and the first re-read; the next passes
+		e.copyOK["ad"] = true
+		waits := 0
+		e.tr.sleep = func(ctx context.Context, d time.Duration) error {
+			e.advance(d)
+			if waits++; waits == 3 { // during step 1
+				e.tr.ZurgLine(c.line)
+			}
+			return ctx.Err()
 		}
-		return ctx.Err()
-	}
-	e.play(2, "buffering")
-	e.poll()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if len(e.outcomes) != 1 || e.outcomes[0].Kind != outcome.SameRelease || e.outcomes[0].Account != "ad" {
-		t.Errorf("outcomes %+v", e.outcomes)
+		e.play(2, "buffering")
+		e.poll()
+		e.mu.Lock()
+		if len(e.outcomes) != 1 || e.outcomes[0].Kind != outcome.SameRelease || e.outcomes[0].Account != c.want {
+			t.Errorf("%s: outcomes %+v, want account %q", c.line, e.outcomes, c.want)
+		}
+		e.mu.Unlock()
 	}
 }
 

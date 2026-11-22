@@ -40,6 +40,8 @@ type zurgEvent struct {
 	Kind    string
 	File    string // base name; "" for an account event
 	Account string
+	// Path is the file as the line names it (its release folder and name, for a transfer), "" when it names none.
+	Path string
 }
 
 // parseZurgLine matches a log line. A line whose pattern names no file is attributed to the first of files (base
@@ -53,7 +55,7 @@ func parseZurgLine(line string, files []string, at time.Time) (zurgEvent, bool) 
 		}
 		ev := zurgEvent{At: at, Kind: p.kind}
 		if i := p.re.SubexpIndex("file"); i > 0 && m[i] != "" {
-			ev.File = path.Base(m[i])
+			ev.File, ev.Path = path.Base(m[i]), m[i]
 		}
 		if i := p.re.SubexpIndex("account"); i > 0 {
 			ev.Account = m[i]
