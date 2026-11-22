@@ -5,7 +5,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/theatarr/theatarr/internal/library"
 	"github.com/theatarr/theatarr/internal/notify"
 	"github.com/theatarr/theatarr/internal/outcome"
 	"github.com/theatarr/theatarr/internal/store"
@@ -13,19 +12,12 @@ import (
 
 // playingOutcomes passes on the outcome of each incident of a file that broke while someone played it
 // (docs/design/now-playing.md "A file that stops working while it plays"): the title's History row and the
-// notifications. The library reports each incident's outcome once (Library.ReportPlaying); every library serve builds
-// (the startup one, its fallback copy and each settings generation's) is given the same hook. The notifier is set once
-// it is built.
+// notifications. The library reports each incident's outcome once (Library.ReportPlaying). Serve sets report as the
+// hook of the startup library (its import fallback copy keeps it through WithPolicy) and of each settings generation's
+// fresh library. The notifier is set once it is built.
 type playingOutcomes struct {
 	st *store.Store
 	nt atomic.Pointer[notify.Notifier]
-}
-
-// attach gives libraries the hook.
-func (p *playingOutcomes) attach(libs ...*library.Library) {
-	for _, l := range libs {
-		l.OnPlayingOutcome(p.report)
-	}
 }
 
 func (p *playingOutcomes) report(o outcome.Outcome) {

@@ -227,8 +227,8 @@ broke while playing is searched at once").
   player, the old and new release, what the player was told) as "Looking for another copy", "Replaced with another
   release", "Readable again", "No other copy yet" or "Earlier copy put back". `GET /nowplaying` carries them as
   `incidents` (absent when none; see "Who sees what"), and the page lists them under "Files that stopped working".
-- **Where the outcome goes** (`cmd/theatarr/serveplaying.go`). Serve gives every library it builds (the startup one,
-  its fallback copy for imports and each settings generation's) one `OnPlayingOutcome` hook: it writes the title's
+- **Where the outcome goes** (`cmd/theatarr/serveplaying.go`). Serve sets one `OnPlayingOutcome` hook on the startup
+  library (its fallback copy for imports keeps it through `WithPolicy`) and on each settings generation's library: it writes the title's
   History row (event `playing`, `pb:<incident>:<kind>`, the broken copy's release; "Replaced after it stopped
   working", "Readable again after it stopped working", "Stopped working, no other copy yet", "Earlier copy put back")
   and hands the outcome to `Notifier.PlayingOutcome` (sent at once; [devices.md](devices.md)). The

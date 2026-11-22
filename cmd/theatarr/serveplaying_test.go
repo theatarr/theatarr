@@ -26,8 +26,9 @@ func (noDoer) Do(context.Context, gateway.Target, *http.Request) (*http.Response
 }
 
 // Each kind of outcome of a file that broke while playing reaches a notification target once, and the title's
-// History, through the hook serve gives every library: replaced, readable again and nothing available as the library
-// reports them (a second report sends nothing), restored as an outcome made by hand.
+// History, through the hook serve sets: replaced, readable again and nothing available as the startup library, its
+// import fallback copy and a new settings generation's library report them (a second report sends nothing), restored
+// as an outcome made by hand.
 func TestPlayingOutcomesReachNotifyAndHistory(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -62,13 +63,21 @@ func TestPlayingOutcomesReachNotifyAndHistory(t *testing.T) {
 			VALUES (?, ?, 1, ?, 1, 'movie-web', '/media/Alpha.mkv', '/mnt/old/Alpha.mkv', 'Alpha.2020.1080p-OLD', '[]',
 			?, 'ann', 'TV', ?)`, id, id, 10+id, now, now)
 	}
-	lib := library.New(library.Options{Store: st, Policy: pol, Logger: log})
+	// As serve wires it: the hook on the startup library, which its import fallback copy keeps, and on a library built
+	// fresh for a new settings generation.
 	playing := &playingOutcomes{st: st}
-	playing.attach(lib)
+	startup := library.New(library.Options{Store: st, Policy: pol, Logger: log})
+	startup.OnPlayingOutcome(playing.report)
+	fallback := startup.WithPolicy(pol, nil, nil, nil)
+	generation := library.New(library.Options{Store: st, Policy: pol, Logger: log})
+	generation.OnPlayingOutcome(playing.report)
 	playing.nt.Store(nt)
-	for id, kind := range map[int64]string{1: outcome.Replaced, 2: outcome.SameRelease, 3: outcome.Unavailable} {
+	for id, c := range map[int64]struct {
+		lib  *library.Library
+		kind string
+	}{1: {startup, outcome.Replaced}, 2: {fallback, outcome.SameRelease}, 3: {generation, outcome.Unavailable}} {
 		for range 2 {
-			if err := lib.ReportPlaying(ctx, id, kind); err != nil {
+			if err := c.lib.ReportPlaying(ctx, id, c.kind); err != nil {
 				t.Fatal(err)
 			}
 		}
