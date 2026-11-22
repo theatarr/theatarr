@@ -288,4 +288,5 @@ Request detail, request lists, add options and title request cards share the ser
 Approval records monitoring intent while these gates are closed; it does not make a library Live or turn Pause off.
 An approval while Pause is on (an automatic one too) keeps its first search: the missing items it would search (the
 requested seasons only for more seasons) go on the search schedule (`SearchOnResume`, written also while paused), and
-the first search round once Pause is off searches them, whatever the backlog switches say.
+the first search round once Pause is off searches them, whatever the backlog switches say. The approval's answer says "the search starts when
+Pause is turned off" only when something was put on the schedule (a film with no release date yet has nothing to keep).

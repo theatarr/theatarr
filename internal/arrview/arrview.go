@@ -139,7 +139,7 @@ type Searcher interface {
 
 // searchOnResume is the part of acquire.Acquirer that keeps an add's search Pause stopped for when it is off.
 type searchOnResume interface {
-	SearchOnResume(ctx context.Context, titleID int64, versions []string, seasons []int) error
+	SearchOnResume(ctx context.Context, titleID int64, versions []string, seasons []int) (int, error)
 }
 
 // Service serves every view.

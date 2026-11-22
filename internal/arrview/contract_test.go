@@ -614,9 +614,9 @@ func (r *resumeSearcher) Submit(context.Context, int64, acquire.Selection) (int,
 	return 0, 0, nil
 }
 
-func (r *resumeSearcher) SearchOnResume(_ context.Context, titleID int64, versions []string, seasons []int) error {
+func (r *resumeSearcher) SearchOnResume(_ context.Context, titleID int64, versions []string, seasons []int) (int, error) {
 	r.resumed = append(r.resumed, fmt.Sprintf("%d:%s:%v", titleID, strings.Join(versions, ","), seasons))
-	return nil
+	return 1, nil
 }
 
 // While Pause is on, a client's add with its search flag records no command and keeps the search for when Pause

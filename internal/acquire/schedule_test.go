@@ -415,11 +415,17 @@ func TestSearchOnResume(t *testing.T) {
 	e := newEnv(t, true, &policy.Wanted{Missing: new(false), CutoffUnmet: policy.CutoffOff})
 	e.accept = false
 	e.pol.Router.Enabled = false
-	if err := e.a.SearchOnResume(e.ctx, 1, []string{"movie", "movie-shadow"}, nil); err != nil {
-		t.Fatal(err)
+	// Nothing to search (the film is no longer missing): nothing is kept, and it says so.
+	e.exec(`UPDATE version SET state = 'filled' WHERE id = 101`)
+	if n, err := e.a.SearchOnResume(e.ctx, 1, []string{"movie"}, nil); err != nil || n != 0 {
+		t.Fatalf("nothing missing kept %d, %v", n, err)
 	}
-	if err := e.a.SearchOnResume(e.ctx, 10, []string{"series"}, []int{1}); err != nil {
-		t.Fatal(err)
+	e.exec(`UPDATE version SET state = 'wanted' WHERE id = 101`)
+	if n, err := e.a.SearchOnResume(e.ctx, 1, []string{"movie", "movie-shadow"}, nil); err != nil || n != 1 {
+		t.Fatalf("movie kept %d, %v", n, err)
+	}
+	if n, err := e.a.SearchOnResume(e.ctx, 10, []string{"series"}, []int{1}); err != nil || n != 1 {
+		t.Fatalf("series kept %d, %v", n, err)
 	}
 	if n := e.count(`SELECT COUNT(*) FROM search_request WHERE why = 'added' AND reason = 'missing' AND
 		((title_id = 1 AND version_key = 'movie' AND season = -1) OR (title_id = 10 AND version_key = 'series' AND season = 1))`); n != 2 ||

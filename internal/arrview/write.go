@@ -852,7 +852,7 @@ func (s *Service) addTitle(w http.ResponseWriter, r *request) {
 	if in.AddOptions != nil && (in.AddOptions.SearchForMovie || in.AddOptions.SearchForMissingEpisodes) {
 		if !s.pol.RouterSettings().Enabled {
 			if sr, ok := s.searcher.(searchOnResume); ok {
-				if err := sr.SearchOnResume(context.WithoutCancel(ctx), titleID, turnedOn, nil); err != nil {
+				if _, err := sr.SearchOnResume(context.WithoutCancel(ctx), titleID, turnedOn, nil); err != nil {
 					s.log.Warn("add: first search not kept for after Pause", "title", titleID, "err", err)
 				}
 			}

@@ -113,7 +113,7 @@ func (a *Acquirer) ReleaseWaiting(ctx context.Context, titleID int64) error {
 	}
 	for _, h := range hs {
 		if h.sel.Later {
-			if err := a.scheduleAdded(ctx, h.sel.Selection); err != nil {
+			if _, err := a.scheduleAdded(ctx, h.sel.Selection); err != nil {
 				return err
 			}
 			if _, err := a.st.Writer().ExecContext(ctx, `DELETE FROM series_search_wait WHERE id = ?`, h.id); err != nil {

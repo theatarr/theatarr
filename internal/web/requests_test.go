@@ -273,6 +273,24 @@ func TestRequestVersionsAndAutoApprove(t *testing.T) {
 	}
 }
 
+// TestPausedApprovalKeepsNothing: an approval while paused whose search has nothing to keep yet (a film with no
+// release date) promises no search after Pause.
+func TestPausedApprovalKeepsNothing(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, nil)
+	e.acq.resumeNone = true
+	_, ann := e.user("ann", auth.RoleUser)
+	_, mgr := e.user("mgr", auth.RoleManager)
+	var cr CreateResult
+	e.callAs(ann, "POST", APIBase+"/requests", map[string]any{"kind": "movie", "tmdb_id": 106, "name": "Zeta"}, 201, &cr)
+	var ap ApproveResult
+	e.callAs(mgr, "POST", fmt.Sprintf("%s/requests/%d/approve", APIBase, cr.Request.ID), map[string]any{}, 200, &ap)
+	if ap.Add == nil || ap.Add.Search == nil || len(e.acq.resume) != 1 || strings.Contains(ap.Add.Search.Message, "when Pause") ||
+		!strings.Contains(ap.Add.Search.Message, "Paused") {
+		t.Errorf("nothing kept: %+v, kept %v", ap.Add, e.acq.resume)
+	}
+}
+
 // TestAutoApproveJoinsPendingRequest: an auto-approve account whose ask joins a pending request approves it, as the
 // decision maker, when the request asks for nothing beyond its ask; a smaller ask leaves it pending
 // and says why; a plain user's join and a join onto an approved request change nothing. The first requester (a

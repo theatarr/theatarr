@@ -200,34 +200,39 @@ func (a *Acquirer) RequestSearchLater(ctx context.Context, titleID int64, versio
 	if !a.pol.RouterSettings().Enabled {
 		return nil
 	}
-	return a.searchLater(ctx, titleID, versions, nil)
+	_, err := a.searchLater(ctx, titleID, versions, nil)
+	return err
 }
 
 // SearchOnResume keeps the first search asked for with a title added while Pause is on (an approved request, an arr
 // client's add with its search flag): its missing items (of seasons only, when given) are put on the search schedule
-// as RequestSearchLater puts them, also while paused, and the first round once Pause is off searches them.
-func (a *Acquirer) SearchOnResume(ctx context.Context, titleID int64, versions []string, seasons []int) error {
+// as RequestSearchLater puts them, also while paused, and the first round once Pause is off searches them. It says
+// how many it kept (rows on the schedule, and a series held for its metadata): 0 when nothing is to be searched yet
+// (a film before its minimum availability, nothing missing).
+func (a *Acquirer) SearchOnResume(ctx context.Context, titleID int64, versions []string, seasons []int) (int, error) {
 	return a.searchLater(a.captureRuntime(ctx), titleID, versions, seasons)
 }
 
-func (a *Acquirer) searchLater(ctx context.Context, titleID int64, versions []string, seasons []int) error {
+func (a *Acquirer) searchLater(ctx context.Context, titleID int64, versions []string, seasons []int) (int, error) {
 	keys := a.Active(versions)
 	if len(keys) == 0 {
-		return nil
+		return 0, nil
 	}
 	sel := Selection{Versions: keys, TitleIDs: []int64{titleID}, Only: OnlyMissing, Seasons: seasons}
-	if _, err := a.hold(ctx, 0, &sel, true); err != nil || len(sel.TitleIDs) == 0 {
-		return err
+	held, err := a.hold(ctx, 0, &sel, true)
+	if err != nil || len(sel.TitleIDs) == 0 {
+		return held, err
 	}
-	return a.scheduleAdded(ctx, sel)
+	n, err := a.scheduleAdded(ctx, sel)
+	return held + n, err
 }
 
 // scheduleAdded makes the rows of sel's missing targets due now with why added (one per library and film or season),
-// leaving out targets with a download in flight.
-func (a *Acquirer) scheduleAdded(ctx context.Context, sel Selection) error {
+// leaving out targets with a download in flight. It returns how many rows are due for sel (made due now, or already).
+func (a *Acquirer) scheduleAdded(ctx context.Context, sel Selection) (int, error) {
 	ts, err := a.targets(ctx, sel)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	var reqs []searchRequest
 	seen := map[string]bool{}
@@ -238,7 +243,7 @@ func (a *Acquirer) scheduleAdded(ctx context.Context, sel Selection) error {
 		}
 		busy, err := a.inFlight(ctx, t)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		if busy {
 			continue
@@ -248,12 +253,12 @@ func (a *Acquirer) scheduleAdded(ctx context.Context, sel Selection) error {
 	}
 	out := &SearchNowResult{}
 	if _, err := a.markDue(ctx, reqs, whyAdded, out); err != nil {
-		return err
+		return 0, err
 	}
 	if out.Queued > 0 {
 		a.log.Info("added title scheduled for search", "titles", sel.TitleIDs, "rows", out.Queued)
 	}
-	return nil
+	return len(reqs), nil
 }
 
 // askedDue counts the asked rows that are due.
