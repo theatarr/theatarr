@@ -681,4 +681,33 @@ func TestUpgradeWhyNamesThePacksFile(t *testing.T) {
 	if u.QualityMet == nil || *u.QualityMet || u.Replaces == nil || u.Replaces.QualityMet == nil || !*u.Replaces.QualityMet {
 		t.Errorf("verdicts: copy %v, named file %+v", u.QualityMet, u.Replaces)
 	}
+	// Season 2's Why names the S01E02 file the pack was judged against, with that file's own verdict, though the file
+	// is in another season.
+	e.exec(`INSERT INTO link (id, path, target, title_id, release_title, quality, score, file_metadata, adopted,
+		adopted_media, created_at, updated_at) VALUES (952, '/tv/Show/S02E01.mkv', '/zurg/Show/S02E01.mkv', 10,
+		'The.Show.S02E01.1080p.WEB-DL-GRP', 'WEBDL-1080p', 1700, '{"Score":1700}', 1, '{}', 1000, 1000)`)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (952, 10)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) SELECT 952, id FROM episode WHERE title_id = 10 AND season = 2 AND number = 1`)
+	e.exec(`UPDATE episode_version_state SET state = 'filled' WHERE episode_id IN (SELECT id FROM episode WHERE title_id = 10 AND season = 2)`)
+	e.exec(`UPDATE journal_decision SET candidates = replace(candidates, '"episodes":["S01E01","S01E02"]',
+		'"episodes":["S01E01","S01E02","S02E01"]') WHERE title_id = 10`)
+	var el EpisodeList
+	e.call("GET", APIBase+"/titles/10/episodes", nil, 200, &el)
+	for _, se := range el.Seasons {
+		if se.Season != 2 {
+			continue
+		}
+		su := se.Versions["tv-2160p"].Upgrade
+		if su == nil || su.Replaces == nil || su.Replaces.Episode != "S01E02" || su.Replaces.QualityMet == nil || !*su.Replaces.QualityMet {
+			t.Errorf("season 2 names S01E02 with its verdict: %+v", su)
+		}
+	}
+	// S01E02 got a new file after the search: the stored comparison is about a file that is gone, so neither it nor
+	// a verdict is shown.
+	e.exec(`UPDATE link SET quality = 'WEBDL-2160p', created_at = ? WHERE id = 901`, time.Now().UnixMilli())
+	d = TitleDetail{}
+	e.call("GET", APIBase+"/titles/10", nil, 200, &d)
+	if u = d.Versions[0].Upgrade; u.Replaces != nil {
+		t.Errorf("replaced file still named: %+v", u.Replaces)
+	}
 }

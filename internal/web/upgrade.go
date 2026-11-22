@@ -475,7 +475,10 @@ type upgradeEpisode struct {
 type upgradeSet struct {
 	files    map[int64]map[int64]itemFile
 	episodes map[int64][]upgradeEpisode
-	evidence map[titleKey][]evRecord
+	// allEpisodes is every episode of each version when episodes is scoped to one season (a season's Why), so a
+	// file named in another season is still found; nil when episodes is not scoped.
+	allEpisodes map[int64][]upgradeEpisode
+	evidence    map[titleKey][]evRecord
 	// failed is the newest failed try per hash of each title and library (loadFailedHashes); cachedOK says whether a
 	// cache code is a provider the library sends a release of the indexer to (policy ReleaseProviders).
 	failed   map[titleKey]map[string]failedTry
@@ -742,14 +745,29 @@ func (s *upgradeSet) explain(v upgradeVersion, episode int64) *UpgradeInfo {
 				u.Replaces = &UpgradeFile{Episode: fmt.Sprintf("S%02dE%02d", pairedEp.season, pairedEp.number),
 					Quality: paired.quality, Score: paired.score}
 			}
-			if s.qualityJudged[v.id] {
-				for _, ep := range s.episodes[v.id] {
-					if fmt.Sprintf("S%02dE%02d", ep.season, ep.number) == u.Replaces.Episode {
-						met := !ep.belowQuality
-						u.Replaces.QualityMet = &met
-						break
-					}
+			// Only while the named file is still that episode's current file (looked up across every season of the
+			// copy): a file added since the search, or none, makes the stored comparison about a file that is gone.
+			every := s.episodes[v.id]
+			if s.allEpisodes != nil {
+				every = s.allEpisodes[v.id]
+			}
+			var named *upgradeEpisode
+			for i, ep := range every {
+				if fmt.Sprintf("S%02dE%02d", ep.season, ep.number) == u.Replaces.Episode {
+					named = &every[i]
+					break
 				}
+			}
+			cur, ok := itemFile{}, false
+			if named != nil {
+				cur, ok = s.files[v.id][named.id]
+			}
+			switch {
+			case !ok || cur.added > u.Next.SeenAt.UnixMilli() || (u.Replaces.Quality != "" && cur.quality != u.Replaces.Quality):
+				u.Replaces = nil
+			case s.qualityJudged[v.id]:
+				met := !named.belowQuality
+				u.Replaces.QualityMet = &met
 			}
 		}
 		if episode > 0 {

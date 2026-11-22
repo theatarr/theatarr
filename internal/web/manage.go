@@ -440,7 +440,7 @@ func (w *Web) enrichEpisodes(ctx context.Context, db *sql.DB, out *EpisodeList, 
 	for _, se := range bySeason {
 		for _, v := range vs {
 			scoped := *s
-			scoped.episodes = map[int64][]upgradeEpisode{}
+			scoped.episodes, scoped.allEpisodes = map[int64][]upgradeEpisode{}, s.episodes
 			for _, e := range s.episodes[v.id] {
 				if e.season == se.Season {
 					scoped.episodes[v.id] = append(scoped.episodes[v.id], e)
