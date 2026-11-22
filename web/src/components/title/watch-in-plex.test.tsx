@@ -3,7 +3,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { mockFetch, renderPage } from "@/test/page";
-import { WatchInPlex } from "./watch-in-plex";
+import { plexHandover, WatchInPlex } from "./watch-in-plex";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -18,8 +18,13 @@ it("offers one button per library with a file, asks Plex only on the tap, and op
     { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["browse"] } },
     { method: "GET", path: "/titles/7/plex", reply: { found: true, web_url: "https://app.plex.tv/desktop/#!/x", app_url: "plex://preplay/?x" } },
   ]);
-  const tab = { opener: window as unknown, location: { href: "" } };
-  const open = vi.spyOn(window, "open").mockImplementation(() => tab as never);
+  const tab = { opener: window as unknown, location: { href: "" }, close: vi.fn() };
+  // The tab opens at the tap, before the lookup answers (a slow answer would lose the tap's permission to open it).
+  let asked = -1;
+  const open = vi.spyOn(window, "open").mockImplementation(() => {
+    asked = api.calls("GET", "/titles/7/plex").length;
+    return tab as never;
+  });
   renderPage(<WatchInPlex titleId={7} versions={versions as never} />);
   const box = await screen.findByTestId("watch-in-plex");
   const buttons = within(box).getAllByRole("button");
@@ -29,20 +34,41 @@ it("offers one button per library with a file, asks Plex only on the tap, and op
   // A blank tab, cut from this page, then sent to Plex Web: no fallback link when it opened.
   await waitFor(() => expect(tab.location.href).toBe("https://app.plex.tv/desktop/#!/x"));
   expect(open).toHaveBeenCalledWith("", "_blank");
+  expect(asked).toBe(0);
   expect(tab.opener).toBeNull();
+  expect(tab.close).not.toHaveBeenCalled();
   expect(screen.queryByRole("link", { name: "Open in Plex" })).toBeNull();
   expect(api.calls("GET", "/titles/7/plex").map((c) => c.search)).toEqual(["?version=movie-web"]);
 });
 
-it("says the server's sentence in place when Plex has not got it", async () => {
+it("says the server's sentence in place when Plex has not got it, and closes the tab it opened", async () => {
   mockFetch([
     { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["browse"] } },
-    { method: "GET", path: "/titles/7/plex", reply: { found: false, message: "Not found in Plex yet" } },
+    { method: "GET", path: "/titles/7/plex", reply: { found: false, message: "This library has no Plex section." } },
   ]);
+  const tab = { opener: window as unknown, location: { href: "" }, close: vi.fn() };
+  vi.spyOn(window, "open").mockImplementation(() => tab as never);
+  renderPage(<WatchInPlex titleId={7} versions={[versions[0]] as never} />);
+  await userEvent.setup().click(await screen.findByRole("button", { name: "Watch in Plex" }));
+  expect((await screen.findByTestId("watch-in-plex-message")).textContent).toBe("This library has no Plex section.");
+  expect(tab.close).toHaveBeenCalled();
+  expect(tab.location.href).toBe("");
+  expect(screen.queryByRole("link")).toBeNull();
+});
+
+it("hands over to the Plex app on iOS and keeps the Plex Web link beneath the button", async () => {
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { id: 1, permissions: ["browse"] } },
+    { method: "GET", path: "/titles/7/plex", reply: { found: true, web_url: "https://app.plex.tv/desktop/#!/x", app_url: "plex://preplay/?x" } },
+  ]);
+  vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15");
+  const toApp = vi.spyOn(plexHandover, "toApp").mockImplementation(() => {});
   const open = vi.spyOn(window, "open").mockImplementation(() => null);
   renderPage(<WatchInPlex titleId={7} versions={[versions[0]] as never} />);
   await userEvent.setup().click(await screen.findByRole("button", { name: "Watch in Plex" }));
-  expect((await screen.findByTestId("watch-in-plex-message")).textContent).toBe("Not found in Plex yet");
+  const link = await screen.findByRole("link", { name: "Open in Plex web" });
+  expect(link.getAttribute("href")).toBe("https://app.plex.tv/desktop/#!/x");
+  expect(toApp).toHaveBeenCalledWith("plex://preplay/?x");
   expect(open).not.toHaveBeenCalled();
 });
 

@@ -358,7 +358,11 @@ the playlists use: movies for a film, episodes for a series, an episode's show f
 library's active links of the title are matched on their path. The answer is `{found: true, web_url, app_url}`:
 `web_url` is `https://app.plex.tv/desktop/#!/server/<machine>/details?key=%2Flibrary%2Fmetadata%2F<ratingKey>` (Plex
 Web; Android can hand it to the app), and `app_url` is `plex://preplay/?metadataKey=…&server=<machine>`, the form the
-Plex iOS app opens. The web app picks one by platform. Otherwise it answers `{found: false, message}`: "This library has
+Plex iOS app opens. The web app picks one by platform: elsewhere than iOS it opens a blank tab at the tap, before the
+lookup (its opener cleared; a slow answer would lose the tap's permission to open one), sends it to `web_url` when the
+answer comes and closes it when nothing was found, and shows an "Open in Plex" link only when the browser gave no tab
+back; on iOS it hands over to the app with `app_url` and keeps an "Open in Plex web" link beneath the button, for a
+phone without the app (`watch-in-plex.test.tsx`). Otherwise it answers `{found: false, message}`: "This library has
 no Plex section." (no `plex_section` set for it), "Not found in Plex yet" (no file, or Plex has not listed it), or, for managers and admins, the sentence for a Plex that does not
 answer or refuses the token (`uipages.Fix`); a member reads "Plex does not answer", as on Now playing. A title in two libraries is two Plex items and gets two lookups, one per library with a
 file (`web.TestPlexLink`; a section of 5000 episodes from the fake takes about 20 ms to list and match).
