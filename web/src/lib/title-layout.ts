@@ -3,7 +3,7 @@
 import type { TitleRow, Version } from "@/api/library";
 import { fmtNumber } from "./format";
 import { POSTER_STATUS_LABEL, posterStatus, today, undatedUpcoming } from "./library";
-import { resolutionWords } from "./upgrade";
+import { resolutionWords, sourceWords } from "./upgrade";
 
 export type TitleTab = "episodes" | "order" | "about" | "history";
 
@@ -71,6 +71,21 @@ export function readiness(kind: string | undefined, versions: Version[], getting
   }
   const r = bestResolution(complete.map((v) => v.current?.quality ?? v.upgrade?.quality));
   return { label: r ? `Ready to watch in ${r}` : "Ready to watch", tone: "positive" };
+}
+
+/**
+ * The hero's audio languages: "Audio: English, Russian" when every copy with a file has the same, else each copy's
+ * after its quality, "Audio: English (4K Remux) · English, Russian (1080p WEB)" (its library's name when two copies
+ * have one quality), so a language is not read as the best copy's. Undefined when no file has a language.
+ */
+export function audioLine(versions: Version[]): string | undefined {
+  const held = versions.filter((v) => v.has_file && (v.current?.languages ?? []).length > 0);
+  const sets = held.map((v) => [...new Set(v.current?.languages ?? [])].join(", "));
+  if (held.length === 0) return undefined;
+  if (new Set(sets).size === 1) return `Audio: ${sets[0]}`;
+  const names = held.map((v) => sourceWords(v.current?.quality));
+  const name = (i: number) => (names[i] && names.filter((n) => n === names[i]).length === 1 ? names[i] : held[i].label || held[i].key || names[i]);
+  return `Audio: ${sets.map((l, i) => `${l} (${name(i)})`).join(" · ")}`;
 }
 
 /**

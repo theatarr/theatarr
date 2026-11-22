@@ -461,7 +461,9 @@ See [quickstart](../quickstart.md#readiness-led-setup) for the completion rules;
 - **Hero**, compact: poster, title and year, essential facts (certification, runtime, up to three genres, original
   language, rating), readiness for everyone ("Ready to watch in 4K": the best resolution a usable copy has; "5 of 10
   episodes ready"; "Not available yet", or "Getting ready" without See files while a download is in hand; a movie
-  missing one of its copies is still ready), audio languages, a
+  missing one of its copies is still ready), audio languages (once when every copy has the same, else per copy
+  after its quality, "Audio: English (4K Remux) · English, Russian (1080p WEB)", so a language is not read as the best
+  copy's), a
   synopsis cut to three lines with More, and the primary action beside the title: **Add to another library** (add;
   **Monitor** when every library that fits has the title, some not monitored; no action at all
   when every library that fits has it monitored, nor while the add options load), else **Request** / **View

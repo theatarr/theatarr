@@ -41,7 +41,7 @@ import { fmtAgo, fmtBytes, nameWithoutYear, plural, titleWithYear } from "@/lib/
 import { fmtDay, fmtRuntime, undatedUpcoming } from "@/lib/library";
 import { releasedText } from "@/lib/released";
 import { currentLibraries } from "@/lib/library-rows";
-import { airFact, readiness, releasedLabel, resolveTab, titleStatus, titleTabs, type TitleTab } from "@/lib/title-layout";
+import { airFact, audioLine, readiness, releasedLabel, resolveTab, titleStatus, titleTabs, type TitleTab } from "@/lib/title-layout";
 import { acquiringStatus, latestEvent } from "@/lib/title-facts";
 import { AttemptDialog } from "@/components/title/attempt-dialog";
 import { cn } from "@/lib/utils";
@@ -262,7 +262,7 @@ export function TitlePage() {
     (d.genres ?? []).length ? <span key="g">{(d.genres ?? []).slice(0, 3).join(", ")}</span> : null,
     lang ? <span key="l">{lang}</span> : null,
   ].filter(Boolean);
-  const audio = [...new Set(versions.flatMap((v) => (v.has_file ? (v.current?.languages ?? []) : [])))];
+  const audio = audioLine(versions);
 
   return (
     <div className={cn("relative isolate", action && "max-md:pb-28")}>
@@ -305,7 +305,7 @@ export function TitlePage() {
               {ready.label}
             </Chip>
             {stageBeside ? <Chip tone="info" data-testid="title-stage">{stageBeside}</Chip> : null}
-            {audio.length > 0 ? <span className="text-xs text-muted-foreground">Audio: {audio.join(", ")}</span> : null}
+            {audio ? <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]" data-testid="title-audio">{audio}</span> : null}
             {perms.seeFiles && !gone && !d.monitored && d.availability !== "unmonitored" ? <Chip tone="ghost">Not monitored</Chip> : null}
             {!series && !gone && anyHeld ? <ReportProblemButton target={{ titleId: Number(id), subject: titleWithYear(d.name, d.year) }} className="h-7" /> : null}
           </div>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Version } from "@/api/library";
-import { airFact, parseTitleID, readiness, releasedLabel, resolveTab, titleReleaseAccess, titleStatus, titleTabs } from "./title-layout";
+import { airFact, audioLine, parseTitleID, readiness, releasedLabel, resolveTab, titleReleaseAccess, titleStatus, titleTabs } from "./title-layout";
 
 const v = (o: Partial<Version>): Version => ({ id: 1, key: "movie-remux", label: "4K Remux", has_file: true, state: "filled", ...o }) as Version;
 
@@ -96,5 +96,18 @@ describe("releasedLabel", () => {
     expect(releasedLabel(false, "2024-10-14", "2026-11-13")).toBe("Released");
     expect(releasedLabel(true, "2026-11-13", "2026-11-13")).toBe("First aired");
     expect(releasedLabel(true, "2026-12-01", "2026-11-13")).toBe("First airs");
+  });
+});
+
+describe("the hero's audio line", () => {
+  it("says the languages once when every copy has the same, else per copy by its quality", () => {
+    const remux = v({ current: { quality: "Remux-2160p", languages: ["English"] } as Version["current"] });
+    const web = v({ id: 2, key: "movie-web", label: "WEB", current: { quality: "WEBDL-1080p", languages: ["English", "Russian"] } as Version["current"] });
+    expect(audioLine([remux])).toBe("Audio: English");
+    expect(audioLine([remux, { ...remux, id: 3 }])).toBe("Audio: English");
+    expect(audioLine([remux, web])).toBe("Audio: English (4K Remux) · English, Russian (1080p WEB)");
+    // Two copies of one quality are told apart by library.
+    expect(audioLine([remux, { ...web, current: { ...web.current, quality: "Remux-2160p" } as Version["current"] }])).toBe("Audio: English (4K Remux) · English, Russian (WEB)");
+    expect(audioLine([{ ...remux, has_file: false }])).toBeUndefined();
   });
 });
