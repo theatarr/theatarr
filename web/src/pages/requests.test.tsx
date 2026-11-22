@@ -302,3 +302,34 @@ it("keeps a request's thumbnail at its own 2:3 box at the top of the row, not st
   expect(poster.parentElement!.className.split(" ")).toContain("flex");
   expect(poster.className.split(" ")).toEqual(expect.arrayContaining(["aspect-[2/3]", "self-start", "shrink-0"]));
 });
+
+it("keeps a problem report's thumbnail at its own 2:3 box at the top of the row, as a request's", async () => {
+  const report = { id: 1, title_id: 5, title_kind: "movie", name: "A film whose name is long enough to wrap", episode_id: 0, kind: "sound", kind_label: "Sound", status: "open", reply: "", mine: true, note: "The sound drops out near the end of the second act", created_at: "2026-10-30T12:00:00Z", updated_at: "2026-10-30T12:00:00Z" };
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { username: "ann", permissions: ["browse", "request"], csrf_token: "fixture" } },
+    { method: "GET", path: "/reports", reply: { items: [report] } },
+  ]);
+  renderPage(<Routes><Route path="/requests/:tab?" element={<RequestsPage />} /></Routes>, "/requests/problems");
+  const row = await screen.findByTestId("problem-row");
+  const poster = row.querySelector<HTMLElement>(".aspect-\\[2\\/3\\]")!;
+  expect(poster.className.split(" ")).toEqual(expect.arrayContaining(["aspect-[2/3]", "self-start", "shrink-0"]));
+});
+
+it("says nothing about paused downloads on a closed request, in the list and on its timeline", async () => {
+  const paused = { grab: true, router_enabled: false, router_forced_off: false, will_grab: false, paused: true, pause_forced: false };
+  const closed = { id: 1, kind: "movie", name: "Alpha", anime: false, title_id: 12, tmdb_id: 34, status: "canceled", mine: true, seasons: [], created_at: "2026-10-30T12:00:00Z", updated_at: "2026-10-30T12:00:00Z", decided_at: "2026-10-30T13:00:00Z",
+    versions: [{ key: "web", label: "WEB", available: false, grab_state: paused }], progress: [] };
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: { username: "ann", permissions: ["browse", "request"], csrf_token: "fixture" } },
+    { method: "GET", path: "/requests", reply: { items: [closed], total: 1, counts: { canceled: 1 } } },
+    { method: "GET", path: "/requests/1", reply: json(closed) },
+  ]);
+  const page = renderPage(<Routes><Route path="/requests/:tab?" element={<RequestsPage />} /></Routes>, "/requests");
+  const chip = (await screen.findAllByTestId("request-row"))[0].querySelector<HTMLElement>('[data-vkey="web"]')!;
+  expect(chip.textContent).toBe("WEB");
+  page.unmount();
+  renderPage(<Routes><Route path="/requests/:tab" element={<RequestsPage />} /></Routes>, "/requests/1");
+  const timeline = await screen.findByTestId("request-timeline");
+  expect(within(timeline).getByText("Canceled")).toBeTruthy();
+  expect(screen.queryByTestId("downloads-off-notice")).toBeNull();
+});

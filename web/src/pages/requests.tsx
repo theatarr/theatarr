@@ -101,7 +101,7 @@ function RequestTimeline({ r }: { r: RequestDetail }) {
   return (
     <Card className="min-w-0 p-4">
       <h2 className="mb-4 font-semibold">Timeline</h2>
-      <DownloadsOffNotice off={globalDownloadsOff(versions.map((v) => v.grab_state))} canManage={perms.admin} className="mb-4" />
+      {r.status === "declined" || r.status === "canceled" ? null : <DownloadsOffNotice off={globalDownloadsOff(versions.map((v) => v.grab_state))} canManage={perms.admin} className="mb-4" />}
       <ol className="space-y-5" data-testid="request-timeline">
         {requestTimeline(r, versionFetching(versions)).map((s) => <li key={s.key} className="flex min-w-0 gap-3" data-state={s.state}>
           <span aria-hidden className={cn("mt-1 size-3 shrink-0 rounded-full border border-[var(--line)]", s.state === "done" && "bg-[var(--ok-ink)]", s.state === "current" && "bg-[var(--accent-ink)]", s.state === "stopped" && "bg-[var(--bad-ink)]")} />
@@ -342,7 +342,8 @@ function RequestRow({ r, manager, detail }: { r: Request; manager: boolean; deta
               >
                 {v.available ? <Check className="size-3" /> : null}
                 {v.label}
-                {!v.available ? <VersionStatus state={v.grab_state} why={false} canManage={admin} settingsKey={v.key} quiet /> : null}
+                {/* A closed request (declined, canceled) waits on nothing: no download gate beside it. */}
+                {!v.available && r.status !== "declined" && r.status !== "canceled" ? <VersionStatus state={v.grab_state} why={false} canManage={admin} settingsKey={v.key} quiet /> : null}
               </span>
             ))}
             {seasonsText(r) ? <span className="text-xs text-[var(--ink-3)]">{seasonsText(r)}</span> : null}
