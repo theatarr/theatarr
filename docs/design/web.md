@@ -172,7 +172,7 @@ Code: `internal/web/setup.go`, `internal/preflight`, `cmd/theatarr/preflight.go`
 - `theatarr preflight [-json] [-sources=false]` runs the same checks offline. A missing database or an empty policy
   directory is a fresh install, not an error; the database is never migrated. The gateway has no store, so the live
   budget counters are untouched. It exits 1 when a check fails.
-- Health: `SetupCheck` (first in the list) is OK when versions, indexers, providers, TMDb and the mount are set, else a
+- Health: `SetupCheck` (first in the list) is OK when versions, indexers, providers, a TMDb source and the mount are set (its sentence names TMDb only when the TMDb key is set too, as the Metadata check reads it, so the two never disagree), else a
   notice naming what is missing. It is a notice, so it does not join Needs attention.
 - UI: Admin › Setup (first admin entry while unfinished). `/admin` leads an admin there once per browser session while the
   install has no version and settings come from the database. Steps: the admin password (`POST /me/password`),

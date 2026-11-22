@@ -75,12 +75,16 @@ func newServeHealth(c serveHealthConfig) *health.Checker {
 		if c.snap != nil {
 			indexers, providers = c.snap.Ready(os.LookupEnv)
 		}
+		tmdbKey := c.tmdb // as the Metadata check reads it
 		if c.manager != nil {
 			if runtime, err := runtimeForSearch(c.manager.Capture(ctx), c.manager); err == nil && runtime.Policy != nil {
 				p, indexers, providers = runtime.Policy, runtime.ReadyIndexers, runtime.ReadyProviders
+				if runtime.Metadata != nil {
+					tmdbKey = runtime.Metadata.art.Enabled()
+				}
 			}
 		}
-		return setupHealth(p, indexers, providers)
+		return setupHealth(p, indexers, providers, tmdbKey)
 	})
 	if c.manager != nil {
 		hc.Add("SettingsFallbackCheck", "Settings generation", settingsFallbackHealth(c.manager))
@@ -298,9 +302,14 @@ func runHealth(args []string, out io.Writer) error {
 
 // setupHealth is SetupCheck: what a fresh install still lacks (preflight.Missing), as a notice. Each missing piece
 // turns one feature off; nothing it turns off can grab, write or add on its own. theatarr preflight has the details.
-func setupHealth(p *policy.Policy, indexers, providers int) health.Result {
+// Setup asks for a TMDb source, not its key: it names TMDb as configured only with the key set (tmdbKey), and the
+// Metadata check reports a missing key, so the two never disagree.
+func setupHealth(p *policy.Policy, indexers, providers int, tmdbKey bool) health.Result {
 	missing := preflight.Missing(p, indexers, providers)
 	if len(missing) == 0 {
+		if !tmdbKey {
+			return health.Result{Type: health.OK, Message: "Libraries, indexers, providers and the debrid mount are configured"}
+		}
 		return health.Result{Type: health.OK, Message: "Libraries, indexers, providers, TMDb and the debrid mount are configured"}
 	}
 	return health.Result{Type: health.Notice, Message: "Setup incomplete: " + strings.Join(missing, "; ") +

@@ -240,9 +240,10 @@ func TestSetupCheckCountsReadySources(t *testing.T) {
 	if indexers == 0 || providers == 0 || rt.ReadyIndexers != indexers || rt.ReadyProviders != providers {
 		t.Fatalf("runtime ready %d/%d, snapshot %d/%d", rt.ReadyIndexers, rt.ReadyProviders, indexers, providers)
 	}
+	tmdbKey := false
 	setup := func() health.Result {
 		t.Helper()
-		hc := newServeHealth(serveHealthConfig{pol: snap.Policy, snap: snap, st: db, q: jobs.NewQueue(db), dbPath: db.Path()})
+		hc := newServeHealth(serveHealthConfig{pol: snap.Policy, snap: snap, st: db, q: jobs.NewQueue(db), dbPath: db.Path(), tmdb: tmdbKey})
 		for _, r := range hc.Results(ctx) {
 			if r.Source == "SetupCheck" {
 				return r
@@ -253,9 +254,15 @@ func TestSetupCheckCountsReadySources(t *testing.T) {
 	}
 	if r := setup(); strings.Contains(r.Message, "no enabled indexer") || strings.Contains(r.Message, "no enabled debrid provider") {
 		t.Fatalf("ready sources reported missing: %+v", r)
-	} else if r.Type != health.OK || r.Message != "Libraries, indexers, providers, TMDb and the debrid mount are configured" {
+	} else if r.Type != health.OK || r.Message != "Libraries, indexers, providers and the debrid mount are configured" {
+		// Without a TMDb key Setup does not call TMDb configured: the Metadata check says what is missing (F20).
+		t.Errorf("complete setup without a TMDb key: %+v", r)
+	}
+	tmdbKey = true
+	if r := setup(); r.Type != health.OK || r.Message != "Libraries, indexers, providers, TMDb and the debrid mount are configured" {
 		t.Errorf("complete setup: %+v", r)
 	}
+	tmdbKey = false
 	for i := range snap.Records.Indexers {
 		snap.Records.Indexers[i].Enabled = false
 	}
