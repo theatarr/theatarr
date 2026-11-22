@@ -27,6 +27,8 @@ function TitleReads() {
 function ActivityAndReleases() {
   useQuery({ queryKey: [...qk.activity.all, "history", {}, {}], queryFn: () => api("/activity") });
   useQuery({ queryKey: qk.releases(7, "movie-web"), queryFn: () => api("/titles/7/releases") });
+  // An open Interactive search: never asked again by a save.
+  useQuery({ queryKey: qk.liveSearch(7, "movie-web", 1, ""), queryFn: () => api("/titles/7/releases?live=1") });
   return null;
 }
 
@@ -80,10 +82,12 @@ describe("Pause in the admin header", () => {
     renderPage(<><PauseSwitch /><ActivityAndReleases /></>);
     const pause = await screen.findByRole("switch", { name: "Pause" });
     await waitFor(() => expect(fetch.calls("GET", "/activity")).toHaveLength(1));
-    expect(fetch.calls("GET", "/titles/7/releases")).toHaveLength(1);
+    await waitFor(() => expect(fetch.calls("GET", "/titles/7/releases")).toHaveLength(2));
     await userEvent.setup().click(pause);
     await waitFor(() => expect(fetch.calls("GET", "/activity")).toHaveLength(2));
-    expect(fetch.calls("GET", "/titles/7/releases")).toHaveLength(2);
+    // The stored Last search again, the live search not: two stored reads and one live.
+    await waitFor(() => expect(fetch.calls("GET", "/titles/7/releases").filter((c) => !c.search.includes("live=1"))).toHaveLength(2));
+    expect(fetch.calls("GET", "/titles/7/releases").filter((c) => c.search.includes("live=1"))).toHaveLength(1);
   });
 
   it("turning Pause off reads an open title page's add options and title again, so its Search now follows", async () => {

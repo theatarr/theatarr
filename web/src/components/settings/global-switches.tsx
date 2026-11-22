@@ -35,7 +35,8 @@ function useSwitchSave() {
       void qc.invalidateQueries({ queryKey: qk.titles.all });
       // Activity's Retry and Last search's Add by magnet read Pause from their own answers.
       void qc.invalidateQueries({ queryKey: qk.activity.all });
-      void qc.invalidateQueries({ queryKey: ["releases"] });
+      // The stored Last search only: an open Interactive search is never asked again by a save.
+      void qc.invalidateQueries({ queryKey: ["releases"], predicate: (q) => q.queryKey[2] !== "interactive" });
       // Pause acts at once, without a confirm: say what it did.
       toast(paused
         ? { tone: "warn", title: "Paused", body: `${PAUSE_STOPS[0].toUpperCase()}${PAUSE_STOPS.slice(1)}. Downloads already started finish at the provider.` }
