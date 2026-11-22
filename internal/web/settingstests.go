@@ -338,11 +338,11 @@ func (w *Web) runTest(ctx context.Context, item testItem) SettingsTestResult {
 func sourceFix(req SettingsTestRequest, category string) string {
 	switch req.Entity {
 	case entityProviders:
-		name := req.Key
+		kind := ""
 		if req.Snapshot != nil && req.Snapshot.Policy != nil && req.Snapshot.Policy.Providers[req.Key] != nil {
-			name = cmp.Or(req.Snapshot.Policy.Providers[req.Key].Kind, name)
+			kind = req.Snapshot.Policy.Providers[req.Key].Kind
 		}
-		return uipages.Fix(uipages.FixProvider, uipages.ProviderName(name), "", category)
+		return uipages.Fix(uipages.FixProvider, uipages.ProviderName(kind, req.Key), "", category)
 	case entityIndexers:
 		return uipages.Fix(uipages.FixIndexer, req.Key, "", category)
 	}

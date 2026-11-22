@@ -826,9 +826,14 @@ func Accounts(accounts func(ctx context.Context) map[string]AccountSource, o Acc
 			d := map[string]any{"read_at": r.at.UTC()}
 			detail[k] = d
 			t, line, name := OK, "", providerLabel(k)
+			kind := ""
+			if kr, ok := clients[k].Reader.(interface{ Kind() string }); ok {
+				kind = kr.Kind()
+			}
+			pname := uipages.ProviderName(kind, k)
 			switch a := r.account; {
 			case errors.Is(r.err, provider.ErrAuth):
-				t, line = Error, uipages.Fix(uipages.FixProvider, uipages.ProviderName(k), "", uipages.FailAuth)
+				t, line = Error, uipages.Fix(uipages.FixProvider, pname, "", uipages.FailAuth)
 				d["advice"] = line
 			case heldBack(r.err):
 				// Theatarr's own gateway did not send the read (a request budget, a back-off): no network fault.
@@ -840,7 +845,7 @@ func Accounts(accounts func(ctx context.Context) map[string]AccountSource, o Acc
 				} else if errors.As(r.err, new(*provider.APIError)) {
 					class = uipages.FailHTTP
 				}
-				t, line = Warning, uipages.Fix(uipages.FixProvider, uipages.ProviderName(k), "", class)
+				t, line = Warning, uipages.Fix(uipages.FixProvider, pname, "", class)
 				d["advice"] = line // Status' Needs attention shows the same sentence
 			case !a.Expires.IsZero() && !a.Expires.After(now):
 				t, line = Error, name+": premium ended "+day(a.Expires, now)

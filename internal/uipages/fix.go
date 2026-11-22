@@ -98,15 +98,23 @@ func HTTPClass(status int) string {
 	return FailHTTP
 }
 
-// ProviderName names a debrid provider for people, by its policy kind or key.
-func ProviderName(kindOrKey string) string {
-	switch strings.ToLower(kindOrKey) {
-	case "realdebrid", "rd":
-		return "Real-Debrid"
-	case "alldebrid", "ad":
-		return "AllDebrid"
-	case "torbox", "tb":
-		return "TorBox"
+// ProviderName names a debrid provider for people by its policy kind (realdebrid, alldebrid, torbox), or its key
+// when the kind is unknown. A key other than the kind's usual one (rd, ad, tb) follows in brackets, so two accounts
+// of one provider stay apart: "Real-Debrid (rd2)".
+func ProviderName(kind, key string) string {
+	names := map[string][2]string{"realdebrid": {"Real-Debrid", "rd"}, "alldebrid": {"AllDebrid", "ad"},
+		"torbox": {"TorBox", "tb"}}
+	byKey := map[string]string{"rd": "realdebrid", "ad": "alldebrid", "tb": "torbox"}
+	k := strings.ToLower(kind)
+	if k == "" {
+		k = byKey[strings.ToLower(key)]
 	}
-	return kindOrKey
+	n, ok := names[k]
+	switch {
+	case !ok:
+		return key
+	case key == "" || strings.EqualFold(key, n[1]):
+		return n[0]
+	}
+	return n[0] + " (" + key + ")"
 }

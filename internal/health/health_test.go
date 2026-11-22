@@ -518,6 +518,11 @@ func TestAccounts(t *testing.T) {
 			t.Errorf("%s: %s %q, want %s %q", tc.name, r.Type, r.Message, tc.typ, tc.msg)
 		}
 	}
+	// A provider under a custom key is named by its kind, with the key.
+	if r := run(map[string]AccountReader{"rd2": kindAccount{down, provider.KindRealDebrid}}); !strings.Contains(r.Message,
+		"Real-Debrid (rd2) cannot be reached") {
+		t.Errorf("custom key: %q", r.Message)
+	}
 	// A read held back by Theatarr's own request budget is no network fault: its earlier words, no network advice.
 	held := &fakeAccount{err: &gateway.Refused{Reason: gateway.ReasonBudget, Target: "provider:tb", Detail: "hourly cap"}}
 	if r := run(map[string]AccountReader{"tb": held}); r.Type != Warning ||
@@ -745,3 +750,11 @@ func TestCheckerReplayedRunNotCounted(t *testing.T) {
 		t.Fatalf("a fresh failed run %d", rs[0].Runs)
 	}
 }
+
+// kindAccount is a fakeAccount that names its provider kind, as provider clients do.
+type kindAccount struct {
+	*fakeAccount
+	kind string
+}
+
+func (k kindAccount) Kind() string { return k.kind }
