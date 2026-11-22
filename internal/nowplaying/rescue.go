@@ -415,7 +415,8 @@ type controlVerdict struct {
 // held only by the serving account (zurg's servedBy, else the release's only complete holder), at mid-file. It reads:
 // only this release is broken. It fails: one held only by another account is read; it reads: the serving account is
 // out; it fails, or there is none: the mount. zurg saying the serving account cools down means it is out too. With no
-// release held by the serving account alone any other release is read, and the serving account is kept; with the
+// release held by the serving account alone any other release is read, and the serving account is kept (it fails: no
+// verdict, never an outage); with the
 // serving account unknown from the start any other release is read too, and the release counts as broken on each
 // holder (the repair's failed accounts).
 func (t *Tracker) control(ctx context.Context, lib Rescuer, j *sign, hash string) controlVerdict {
@@ -433,7 +434,8 @@ func (t *Tracker) control(ctx context.Context, lib Rescuer, j *sign, hash string
 	}
 	folder := releaseFolder(j.src.Target, t.o.AllDir)
 	target, ok := t.otherRelease(ctx, j.src.LinkID, hash, folder, v.serving, true)
-	if !ok {
+	fallback := !ok
+	if fallback {
 		// Nothing held by the serving account alone: any other release must read. The serving account is kept: the
 		// break is then this release on it only.
 		target, ok = t.otherRelease(ctx, j.src.LinkID, hash, folder, "", false)
@@ -451,6 +453,11 @@ func (t *Tracker) control(ctx context.Context, lib Rescuer, j *sign, hash string
 	}
 	if v.serving == "" {
 		v.where = whereMount
+		return v
+	}
+	if fallback {
+		// That other release may be on any account: its failing proves nothing about the serving one. An outage is
+		// concluded only from a failed release the serving account alone holds.
 		return v
 	}
 	target, ok = t.otherRelease(ctx, j.src.LinkID, hash, folder, v.serving, false)

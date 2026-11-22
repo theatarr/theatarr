@@ -1090,3 +1090,32 @@ func TestRescueControlReadByRegisteredFolder(t *testing.T) {
 		t.Errorf("link %s, control reads %d", got, e.lib.readsOf("film.mkv"))
 	}
 }
+
+// No release is held by the serving account alone, so any other release is read; when that one fails the check ends
+// without a verdict. An outage is never concluded from it, even when a release only another account holds reads.
+// (The other release is picked at random: several runs cover both picks.)
+func TestRescueNoFalseOutage(t *testing.T) {
+	for i := range 12 {
+		e := newRescueEnv(t, false, true)
+		b := strings.Repeat("b", 40)
+		e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash, progress, state) VALUES
+			('ad', 'a60', ?, 100, 'downloaded')`, b)
+		e.play(2, "playing")
+		e.poll()
+		e.tr.ZurgLine("INFO Large transfer: 512 MiB of __all__/Rel/S01E02.mkv from rd for 30s")
+		e.lib.setBroken("S01E02.mkv", -1)
+		e.lib.setBroken("film.mkv", -1) // the release on rd and ad fails; the AD-only one reads
+		e.play(2, "buffering")
+		e.poll()
+		out := e.one(`SELECT out_account FROM playing_break WHERE link_id = 11`)
+		if out != "" {
+			t.Fatalf("run %d: outage concluded on %q", i, out)
+		}
+		if e.lib.readsOf("film.mkv") > 0 && e.lib.readsOf("film2.mkv") > 0 {
+			t.Fatalf("run %d: a second control read after the fallback failed", i)
+		}
+		if e.lib.readsOf("film.mkv") > 0 && e.one(`SELECT COUNT(*) FROM playing_break`) != "0" {
+			t.Fatalf("run %d: an incident after the fallback control failed", i)
+		}
+	}
+}

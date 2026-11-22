@@ -183,7 +183,8 @@ broke while playing is searched at once").
   this release is broken. It fails: one only another account holds is read; that reads: the account is out; it fails,
   or there is none: the mount, and nothing is done. zurg saying the account cools down also means it is out. With no
   release held by the serving account alone, any other release must read, and the break is this release on that
-  account. With the account unknown any other release must read too; the release then counts as broken on each
+  account; if it fails, there is no verdict (an outage is concluded only from a failed release the serving account
+  alone holds). With the account unknown any other release must read too; the release then counts as broken on each
   holder. Another release's hash is the one its link stored, else the one the registry records for its folder.
 - **The repair.** The bound first: one incident per title and library a day; a second one that day gets no fast
   path (the hourly path as today). Then the incident is recorded, and: **step 1**, the same release on another account
