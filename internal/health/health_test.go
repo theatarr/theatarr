@@ -824,6 +824,16 @@ func TestAccountsRunsPerAccount(t *testing.T) {
 		t.Fatalf("one refusal beside a warning: %s runs %d", r.Type, r.Runs)
 	}
 
+	// A standing expiry warning from a good read adds nothing when another account's read failed at the same level.
+	rd.err, rd.account = nil, &provider.Account{Premium: true}
+	if r := run(); r.Type != Warning || r.Runs < 2 {
+		t.Fatalf("expiry warning again: %s runs %d", r.Type, r.Runs)
+	}
+	rd.err, rd.account = errors.New("dial tcp: connection refused"), nil
+	if r := run(); r.Type != Warning || r.Runs != 1 || !strings.Contains(r.Message, "cannot be reached") {
+		t.Fatalf("one timeout beside an expiry warning: %s runs %d %q", r.Type, r.Runs, r.Message)
+	}
+
 	// One Real-Debrid failure, then (Real-Debrid fine again) one TorBox failure: one run each.
 	now = t0
 	rd2 := &fakeAccount{err: errors.New("dial tcp: connection refused")}
@@ -839,5 +849,40 @@ func TestAccountsRunsPerAccount(t *testing.T) {
 	tb2.account, tb2.err = nil, errors.New("dial tcp: connection refused")
 	if r := run(); r.Type != Warning || r.Runs != 1 || !strings.Contains(r.Message, "TorBox") || strings.Contains(r.Message, "Real-Debrid") {
 		t.Fatalf("tb fails after rd recovered: %s runs %d %q", r.Type, r.Runs, r.Message)
+	}
+}
+
+// A request Theatarr's own gateway never sent is no read: it neither confirms a failure nor starts the retry wait;
+// the next real read does.
+func TestAccountsHeldBackIsNoRead(t *testing.T) {
+	now := t0
+	acct := &fakeAccount{err: errors.New("dial tcp: connection refused")}
+	c := New(Options{TTL: time.Minute, Now: func() time.Time { return now }})
+	c.Add("ProviderAccountCheck", "Debrid accounts", Accounts(func(context.Context) map[string]AccountSource {
+		return sources(map[string]AccountReader{"rd": acct}, nil)
+	}, AccountOptions{Now: func() time.Time { return now }}))
+	run := func() Result { now = now.Add(2 * time.Minute); return c.Results(context.Background())[0] }
+	if r := run(); r.Type != Warning || r.Runs != 1 {
+		t.Fatalf("first failure: %s runs %d", r.Type, r.Runs)
+	}
+	acct.err = &gateway.Refused{Reason: gateway.ReasonBudget, Target: "provider:rd", Detail: "back-off"}
+	if r := run(); r.Type != Warning || r.Runs != 1 {
+		t.Fatalf("held back: %s runs %d", r.Type, r.Runs)
+	}
+	acct.err = errors.New("dial tcp: connection refused")
+	if r := run(); r.Runs != 2 || acct.reads.Load() != 3 {
+		t.Fatalf("the next real read confirms: runs %d, reads %d", r.Runs, acct.reads.Load())
+	}
+	// A hold alone is never confirmed.
+	now = t0
+	held := &fakeAccount{err: &gateway.Refused{Reason: gateway.ReasonBudget, Target: "provider:tb", Detail: "hourly cap"}}
+	c = New(Options{TTL: time.Minute, Now: func() time.Time { return now }})
+	c.Add("ProviderAccountCheck", "Debrid accounts", Accounts(func(context.Context) map[string]AccountSource {
+		return sources(map[string]AccountReader{"tb": held}, nil)
+	}, AccountOptions{Now: func() time.Time { return now }}))
+	for range 3 {
+		if r := run(); r.Type != Warning || r.Runs != 1 {
+			t.Fatalf("hold alone: %s runs %d", r.Type, r.Runs)
+		}
 	}
 }

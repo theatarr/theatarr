@@ -762,10 +762,12 @@ type accountRead struct {
 // AccountWarnWithin, or when a provider does not answer. accounts gives the running clients, so reads go through the
 // gateway and the provider's pacing. A read is reused for Interval, keyed on the provider and its credential's
 // fingerprint: a settings save rebuilds the clients but keeps an unchanged account's read, and a changed key is read
-// at once. A failed read is read again at the next run; once two in a row failed, it is reused for Retry. The expiry
-// is judged against the clock at every run. The check counts its own runs (Result.Runs) per account: an account's
-// failed reads in a row, or its runs at a standing type from a good read (premium ending); the result's count is the
-// highest among the accounts at its type, so one account's single failure is one run whatever the others show.
+// at once. A failed read is read again at the next run; once two in a row failed, it is reused for Retry. A request
+// Theatarr's own gateway held back is no read: it neither counts nor starts the retry wait. The expiry is judged
+// against the clock at every run. The check counts its own runs (Result.Runs) per account: an account's failed reads
+// in a row, or its runs at a standing type from a good read (premium ending). When any read failed the result's count
+// is the highest among those accounts only, so one account's single failure is one run whatever the others show;
+// otherwise the highest among the accounts at the result's type.
 func Accounts(accounts func(ctx context.Context) map[string]AccountSource, o AccountOptions) Func {
 	if o.Interval <= 0 {
 		o.Interval = 6 * time.Hour
@@ -796,7 +798,8 @@ func Accounts(accounts func(ctx context.Context) map[string]AccountSource, o Acc
 			c := clients[k].Reader
 			r, ok := cache[cacheKey{k, clients[k].Fingerprint}]
 			prev[i] = r
-			if ok && (r.err == nil && o.Now().Sub(r.at) < o.Interval || r.err != nil && r.fails >= 2 && o.Now().Sub(r.at) < o.Retry) {
+			if ok && (r.err == nil && o.Now().Sub(r.at) < o.Interval ||
+				r.err != nil && !heldBack(r.err) && r.fails >= 2 && o.Now().Sub(r.at) < o.Retry) {
 				reads[i] = r
 				continue
 			}
@@ -810,7 +813,13 @@ func Accounts(accounts func(ctx context.Context) map[string]AccountSource, o Acc
 					err = errors.New("no account in the answer")
 				}
 				reads[i] = accountRead{at: o.Now(), account: a, err: err}
-				if err != nil {
+				switch {
+				case heldBack(err):
+					// Not sent, so no read: the failures so far stand, and the next run reads again.
+					if prev[i].err != nil {
+						reads[i].fails = prev[i].fails
+					}
+				case err != nil:
 					reads[i].fails = 1
 					if prev[i].err != nil {
 						reads[i].fails = prev[i].fails + 1
@@ -901,12 +910,23 @@ func Accounts(accounts func(ctx context.Context) map[string]AccountSource, o Acc
 		if typ == OK {
 			return Result{Type: OK, Detail: detail, Message: "Debrid accounts: " + strings.Join(fine, "; ")}
 		}
-		runs := 0
+		// Only failed reads decide when a provider alert goes out: with any, the highest count among them; else the
+		// count of the accounts at the result's type (a standing warning from a good read). A request the gateway held
+		// back counts nothing, so a hold alone stays at one run.
+		runs, failed := 0, false
 		for _, r := range reads {
-			if r.typ == typ {
-				runs = max(runs, r.runs)
+			if r.err != nil && r.fails > 0 {
+				runs, failed = max(runs, r.fails), true
 			}
 		}
+		if !failed {
+			for _, r := range reads {
+				if r.typ == typ && r.err == nil {
+					runs = max(runs, r.runs)
+				}
+			}
+		}
+		runs = max(runs, 1)
 		return Result{Type: typ, Detail: detail, Message: "Debrid account needs attention: " + strings.Join(issues, "; "),
 			Runs: runs}
 	}

@@ -162,7 +162,10 @@ SignalR, Sonarr v5, `downloadclient`.
     read is read again at the next check run, and the count is that account's failed reads in a row (a replayed
     one is no new run; once two failed it is read every 30 minutes), so a provider that stays down is announced at
     the second check run; another account's standing warning (premium ending) or its own single failure neither
-    adds to nor resets it (`health.TestAccountsFailureConfirmedAtNextRun`, `health.TestAccountsRunsPerAccount`).
+    adds to nor resets it: when any read failed, only the failed reads count. A request Theatarr's own gateway held
+    back (a budget, a back-off) is no read: it neither confirms a failure nor starts the 30-minute wait, and a hold
+    alone is not announced (`health.TestAccountsFailureConfirmedAtNextRun`, `health.TestAccountsRunsPerAccount`,
+    `health.TestAccountsHeldBackIsNoRead`). The accounts share one notification (decided: no identity per account).
     The count does not depend on how often the notifier looks; one failed run followed by a pass sends nothing. The
     router-disabled item (Pause), from no check run, counts the notifier's scans instead, two in a row (`notify_state` `health_scans`), so a brief Pause sends nothing. Easing and recovery go out at once, and only for a
     level that was announced (`notify_state` `health_checks`); while notifications are off nothing is marked
