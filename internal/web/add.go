@@ -458,10 +458,9 @@ type AddRequest struct {
 	// originalLanguage is a new movie's TMDb original_language, from the details fillFromTMDb read.
 	originalLanguage string
 	moreVersions     []string
-	moreSeasons      []int
-	// searchSeasons, when set, makes the add's search the missing episodes of these seasons only (an approval for
-	// more seasons of a series a library has: the seasons it asked for, not upgrades of the ones already there).
-	searchSeasons []int
+	// moreSeasons also make the add's search the missing episodes of these seasons only, in the approved libraries
+	// only (not upgrades of the seasons already there, nor another library of the series).
+	moreSeasons []int
 	// searchOnResume: the add's search, when Pause stops it, is kept for when Pause is off (an approved request:
 	// "Your request is saved and starts when they are turned back on"; SearchOnResume).
 	searchOnResume bool
@@ -822,14 +821,14 @@ func (w *Web) addTitle(ctx context.Context, req AddRequest, source string) (*Add
 		out.New = []string{}
 	}
 	if req.Search {
-		so, err := w.searchNow(ctx, res.TitleID, res.Versions, req.searchSeasons)
+		so, err := w.searchNow(ctx, res.TitleID, res.Versions, req.moreSeasons)
 		if err != nil {
 			return nil, err
 		}
 		out.Search = so
 		if sr, ok := w.add.Acquirer.(searchOnResume); ok && req.searchOnResume && len(res.Versions) > 0 &&
 			!w.pol.RouterSettings().Enabled {
-			if err := sr.SearchOnResume(context.WithoutCancel(ctx), res.TitleID, res.Versions, req.searchSeasons); err != nil {
+			if err := sr.SearchOnResume(context.WithoutCancel(ctx), res.TitleID, res.Versions, req.moreSeasons); err != nil {
 				w.log.Warn("add: first search not kept for after Pause", "title", res.TitleID, "err", err)
 			} else {
 				so.Message = "Paused: the search starts when Pause is turned off"
@@ -872,7 +871,8 @@ var addMonitors = []string{catalog.MonitorTypeAll, catalog.MonitorTypeFuture, ca
 	catalog.MonitorTypePilot, catalog.MonitorTypeRecent, catalog.MonitorTypeNone}
 
 // searchNow searches the title for the versions catalog.Searchable lets through; the rest are skipped with the reason.
-// seasons, when given, narrows it to the missing episodes of those seasons (AddRequest.searchSeasons).
+// seasons, when given, narrows it to the missing episodes of those seasons in keys' libraries only
+// (AddRequest.moreSeasons).
 func (w *Web) searchNow(ctx context.Context, titleID int64, keys []string, seasons []int) (*SearchOutcome, error) {
 	active, skipped := catalog.Searchable(w.pol, keys)
 	out := &SearchOutcome{Versions: active, Skipped: skipped}
@@ -896,7 +896,7 @@ func (w *Web) searchNow(ctx context.Context, titleID int64, keys []string, seaso
 	}
 	sel := acquire.Selection{Versions: active, TitleIDs: []int64{titleID}}
 	if seasons != nil {
-		sel.Only, sel.Seasons = acquire.OnlyMissing, seasons
+		sel.Only, sel.Seasons, sel.NoJoin = acquire.OnlyMissing, seasons, true
 	}
 	queued, found, err := w.add.Acquirer.Submit(ctx, 0, sel)
 	if err != nil {

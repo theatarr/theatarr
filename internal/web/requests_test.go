@@ -824,8 +824,9 @@ func TestRequestMoreSeasonsSearchesThem(t *testing.T) {
 	var ap ApproveResult
 	e.callAs(mgr, "POST", fmt.Sprintf("%s/requests/%d/approve", APIBase, cr.Request.ID), map[string]any{}, 200, &ap)
 	calls := searchCalls(e)
+	// NoJoin: the approved libraries only, not another library of the series that a title search would join.
 	if len(calls) != 1 || calls[0].Only != acquire.OnlyMissing || !slices.Equal(calls[0].Seasons, []int{3}) ||
-		!slices.Equal(calls[0].TitleIDs, []int64{10}) {
+		!slices.Equal(calls[0].TitleIDs, []int64{10}) || !calls[0].NoJoin {
 		t.Fatalf("approval searched: %+v", calls)
 	}
 }

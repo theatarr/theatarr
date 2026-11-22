@@ -1174,7 +1174,6 @@ func (w *Web) requestSeasons(ctx context.Context, req *Request, keys []string, s
 	// new copy monitors just them too), so nothing already there is upgraded by it.
 	if len(ss) > 0 {
 		ar.moreSeasons = ss
-		ar.searchSeasons = ss
 		return nil
 	}
 	known, err := w.librarySeasons(ctx, *titleID)
@@ -1186,7 +1185,6 @@ func (w *Web) requestSeasons(ctx context.Context, req *Request, keys []string, s
 			ar.moreSeasons = append(ar.moreSeasons, s.Number)
 		}
 	}
-	ar.searchSeasons = ar.moreSeasons
 	return nil
 }
 
