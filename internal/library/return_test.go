@@ -610,3 +610,25 @@ func TestUndoAsksTheGate(t *testing.T) {
 		}
 	})
 }
+
+// A link a rename moved during a return goes to the trash in the return's words: never a "Removed" row.
+func TestMoveStrayInReturnWords(t *testing.T) {
+	t.Parallel()
+	e, _, _, _ := adoptedFilm(t)
+	p := filepath.Join(e.movies, "Amelie The Movie (2001)", "stray.mkv")
+	tgt := filepath.Join(e.mount, "__all__", "Held", "held.mkv")
+	if err := os.Symlink(tgt, p); err != nil {
+		t.Fatal(err)
+	}
+	e.lib.moveStray(e.ctx, 0, e.movies, trashed{version: "movie-remux", path: p, target: tgt, reason: "upgrade", linkID: 1},
+		undoPrefix+" by ann: ")
+	if _, err := os.Lstat(p); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("stray stayed: %v", err)
+	}
+	if got := e.one(`SELECT COUNT(*) FROM history WHERE event = 'removed'`); got != "0" {
+		t.Errorf("removed rows %s", got)
+	}
+	if got := e.one(`SELECT detail FROM library_action ORDER BY id DESC LIMIT 1`); !strings.HasPrefix(got, undoPrefix) {
+		t.Errorf("detail %q", got)
+	}
+}

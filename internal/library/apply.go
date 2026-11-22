@@ -484,7 +484,7 @@ func (l *Library) undo(ctx context.Context, d *importDownload, root string, plan
 // moveStray moves aside a replaced link that a rename moved to path after the upgrade had moved its old symlink aside
 // (the row, unlinked by id, no longer holds it). Only a symlink still pointing at the replaced target goes; a failure
 // is logged and left for a human (the link's row is unlinked already).
-func (l *Library) moveStray(ctx context.Context, downloadID int64, root string, m trashed) {
+func (l *Library) moveStray(ctx context.Context, downloadID int64, root string, m trashed, prefix string) {
 	ctx, unlock, err := l.lockLinks(ctx, m.path)
 	defer unlock()
 	if err != nil {
@@ -502,12 +502,12 @@ func (l *Library) moveStray(ctx context.Context, downloadID int64, root string, 
 	if err == nil {
 		err = l.st.WriteTx(ctx, func(tx *sql.Tx) error {
 			if _, err := tx.ExecContext(ctx, `INSERT INTO link_trash (link_id, version_key, path, trash_path, target, reason,
-				moved_at) VALUES (?, ?, ?, ?, ?, ?, ?)`, m.linkID, m.version, m.path, tp, target, m.reason,
+				moved_at) VALUES (?, ?, ?, ?, ?, ?, ?)`, m.linkID, m.version, m.path, tp, target, prefix+m.reason,
 				store.Millis(l.now())); err != nil {
 				return err
 			}
 			return l.record(ctx, tx, action{Kind: "replace", Mode: "applied", Version: m.version, DownloadID: downloadID,
-				LinkID: m.linkID, Path: m.path, Target: target, Detail: "moved aside to " + tp + " (renamed during the upgrade)",
+				LinkID: m.linkID, Path: m.path, Target: target, Detail: prefix + "moved aside to " + tp + " (renamed during the upgrade)",
 				Rel: linkFacts(ctx, tx, m.linkID, m.path)})
 		})
 	}

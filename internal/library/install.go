@@ -491,7 +491,7 @@ func (l *Library) installLinks(ctx context.Context, in *install) (*installed, er
 	}
 	l.storeCutoffs(ctx, []stateVersion{{id: v.VersionID, titleID: v.Title.ID, key: v.Key}})
 	for _, m := range strays {
-		l.moveStray(ctx, in.downloadID, root, m)
+		l.moveStray(ctx, in.downloadID, root, m, in.prefix)
 	}
 	dirs := map[string]bool{}
 	for _, lk := range linked {
