@@ -186,8 +186,8 @@ func (l *Library) putBackCopy(ctx context.Context, r returned, target string) (a
 	}
 	if _, err := l.returnOne(ctx, rf); err != nil {
 		var rr *ReturnRefused
-		if errors.As(err, &rr) && rr.Sentence == returnImporting {
-			return false, nil // its replacement's import is not finished: a later sweep
+		if errors.As(err, &rr) && rr.Passing {
+			return false, nil // a refusal that may not hold: a later sweep
 		}
 		if errors.As(err, &rr) {
 			l.log.Info("library: the copy that broke while playing is not put back", "link", r.path, "why", rr.Sentence)

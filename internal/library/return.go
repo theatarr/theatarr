@@ -36,8 +36,13 @@ const (
 	returnShared  = "That library path is shared with another copy"
 )
 
-// ReturnRefused is a return that changed nothing; Sentence says why.
-type ReturnRefused struct{ Sentence string }
+// ReturnRefused is a return that changed nothing; Sentence says why. Passing is a refusal that may not hold on a later
+// try (a path another run changes, the delete fence, the slot changing between the reads, a read with no verdict):
+// the put-back tries again on the next sweep instead of keeping the copy aside.
+type ReturnRefused struct {
+	Sentence string
+	Passing  bool
+}
 
 func (e *ReturnRefused) Error() string { return e.Sentence }
 
@@ -452,7 +457,7 @@ func (l *Library) returnOne(ctx context.Context, r *returnFile) (*importVersion,
 		case errors.As(err, &rr):
 		case errors.Is(err, ErrLinkChanged), errors.Is(err, errReturnFailed):
 			l.log.Info("library: return not made", "path", e.path, "err", err)
-			err = &ReturnRefused{Sentence: returnChanged}
+			err = &ReturnRefused{Sentence: returnChanged, Passing: true}
 		}
 		return nil, err
 	}
@@ -480,18 +485,18 @@ func (l *Library) returnChecks(ctx context.Context, e *undoEntry, v *importVersi
 	if held, others, importing, err := e.slot(ctx, db); err != nil {
 		return err
 	} else if !held {
-		return &ReturnRefused{Sentence: returnChanged}
+		return &ReturnRefused{Sentence: returnChanged, Passing: true}
 	} else if others {
 		return &ReturnRefused{Sentence: returnOthers}
 	} else if importing {
-		return &ReturnRefused{Sentence: returnImporting}
+		return &ReturnRefused{Sentence: returnImporting, Passing: true}
 	}
 	if cur, err := os.Readlink(s.Path); err != nil || cur != s.Target {
-		return &ReturnRefused{Sentence: returnChanged}
+		return &ReturnRefused{Sentence: returnChanged, Passing: true}
 	}
 	if s.Path != e.path {
 		if _, err := os.Lstat(e.path); !errors.Is(err, os.ErrNotExist) {
-			return &ReturnRefused{Sentence: returnChanged}
+			return &ReturnRefused{Sentence: returnChanged, Passing: true}
 		}
 	}
 	var shared bool
@@ -527,7 +532,9 @@ func (l *Library) returnChecks(ctx context.Context, e *undoEntry, v *importVersi
 	}
 	if _, err := l.ReadPiece(ctx, e.target, 0, PlayingPiece, PlayingPieceLimit); err != nil {
 		l.log.Info("library: return: the earlier file does not read", "target", e.target, "err", err)
-		return &ReturnRefused{Sentence: returnGone}
+		// No verdict, or no answer in time: not a "no".
+		passing := errors.Is(err, ErrPieceNoVerdict) || errors.Is(err, errPieceTimedOut)
+		return &ReturnRefused{Sentence: returnGone, Passing: passing}
 	}
 	return nil
 }

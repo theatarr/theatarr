@@ -1,9 +1,11 @@
 package library
 
 import (
+	"context"
 	"os"
 	"slices"
 	"testing"
+	"time"
 )
 
 // The put-back (putback.go): a replaced copy that reads again on two sweeps comes back in place of its replacement
@@ -131,6 +133,29 @@ func TestPutBack(t *testing.T) {
 	t.Run("being played", func(t *testing.T) {
 		c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
 		wait(t, c, func() { c.playing = []int64{2} }, func() { c.playing = nil })
+	})
+	t.Run("path busy", func(t *testing.T) {
+		// A passing refusal (another run holds the path's lease) leaves the incident open for the next sweep.
+		c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
+		if err := c.lib.ComeBack(c.ctx); err != nil {
+			t.Fatal(err)
+		}
+		c.now = c.now.Add(deadConfirm + time.Minute)
+		_, unlock, err := c.lib.lockLinks(context.Background(), c.oldPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := c.lib.ComeBack(c.ctx); err != nil {
+			t.Fatal(err)
+		}
+		if c.settled() != "" || len(c.kinds()) != 0 {
+			t.Fatalf("while busy: settled %q", c.settled())
+		}
+		unlock()
+		if err := c.lib.ComeBack(c.ctx); err != nil {
+			t.Fatal(err)
+		}
+		c.restored(t)
 	})
 	t.Run("search open", func(t *testing.T) {
 		c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
