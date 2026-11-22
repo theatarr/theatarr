@@ -519,8 +519,9 @@ func (o runOrigin) words() string {
 		// The search schedule's Search now row (Wanted page).
 		return "Search now"
 	case o.research == "added":
-		// The schedule's search of a title a list or a timed collection sync added.
-		return "added by a list"
+		// The schedule's first search of a title added (by a list, a timed collection sync) or of a request approved
+		// while paused: Wanted's words for it.
+		return "search after an add or approval"
 	case o.research == "new" || o.research == "retry_new" || o.research == "fresh":
 		// The schedule's retries of a new release, and the retry chains before it.
 		return "retry of a new release"
