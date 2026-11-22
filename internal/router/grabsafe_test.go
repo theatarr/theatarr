@@ -615,3 +615,29 @@ func TestAllDebridTooBigAtSettle(t *testing.T) {
 		t.Errorf("no miss on ad: %d", n)
 	}
 }
+
+// A reused AllDebrid magnet that turns out too big is routed again too, not left stuck.
+func TestAllDebridTooBigReusedRequeues(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	q := jobs.NewQueue(e.st)
+	q.SetClock(func() time.Time { return e.clock })
+	e.r.RegisterJobs(jobs.NewWorker(q, jobs.WorkerOptions{}), q)
+	e.ad["rd"].add = func(adder.Magnet, adder.AddOptions) (*adder.Added, error) {
+		return nil, &adder.Error{Provider: "rd", Code: adder.CodeBlocked, ProviderCode: "29"}
+	}
+	e.exec(`INSERT INTO content (id, info_hash, state, first_seen_at, last_seen_at) VALUES (7, ?, 'present', 0, 0)`, h("a"))
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash) VALUES ('ad', 'HELD', ?)`, h("a"))
+	e.pr["ad"].set("HELD", provider.Torrent{Hash: h("a"), Status: "Downloading", State: provider.StateDownloading})
+	res, err := e.r.Route(e.ctx, movieReq(cand(h("a"), "Movie.2024.2160p.WEB.H265-GRP")))
+	if err != nil || !res.Reused || res.TorrentID != "HELD" {
+		t.Fatalf("reuse: %+v %v: %s", res, err, steps(res))
+	}
+	e.pr["ad"].set("HELD", provider.Torrent{Hash: h("a"), Status: "File too big.", State: provider.StateError, TooLarge: true})
+	if _, err := e.r.Poll(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM download WHERE id = ? AND state = 'queued' AND provider IS NULL`, res.DownloadID); n != 1 {
+		t.Fatalf("reused too-big download not routed again")
+	}
+}
