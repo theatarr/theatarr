@@ -227,6 +227,7 @@ func (r *Router) freshCandidates(ctx context.Context, s *routeState) ([]Candidat
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("router: checking resumed download: %w", err)
 		}
+		s.resumeHash = hash
 		if err == nil && !slicesContainsHash(kept, hash) {
 			if err := r.failDownload(ctx, s.req.DownloadID, "route cancelled: its release is no longer wanted",
 				StateQueued); err != nil {
@@ -292,7 +293,6 @@ func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate)
 	var unproven []int64
 	anyUnproven := false
 	anyAllKept := false
-	held := 0 // candidates refused only because their episode has not aired yet
 	byDecision := map[*decide.Decision]Candidate{}
 	for i, c := range cands {
 		queued := c.Release
@@ -348,11 +348,8 @@ func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate)
 				why = append(why, rj.String())
 			}
 			r.skipFresh(s, c, "rejected_now", "rejected under the current policy: "+strings.Join(why, "; "))
-			if notAiredOnly(d) {
-				held++
-				if err := r.noteHeldResume(ctx, s, c); err != nil {
-					return nil, err
-				}
+			if err := r.closeHeldResume(ctx, s, c, d); err != nil {
+				return nil, err
 			}
 			continue
 		}
@@ -370,9 +367,6 @@ func (r *Router) redecide(ctx context.Context, s *routeState, cands []Candidate)
 		r.research(ctx, s.req.TitleID, s.req.VersionID, s.req.Version, unproven, "legacy_criteria", s.req.DownloadID)
 	}
 	if len(decisions) == 0 {
-		if !anyAllKept && !anyUnproven && held == len(cands) {
-			return r.closeNotAired(ctx, s)
-		}
 		msg := "no release is accepted under the current policy"
 		if anyAllKept {
 			msg = "no release is still wanted by this version"
@@ -407,7 +401,6 @@ func (r *Router) remapResumed(ctx context.Context, s *routeState, cands []Candid
 	var v decide.Version
 	out := make([]Candidate, 0, len(cands))
 	allKept := false
-	held := 0 // candidates refused only because their episode has not aired yet
 	for _, c := range cands {
 		search := c.Origin == OriginSearch
 		if search && len(c.Criteria) == 0 {
@@ -444,11 +437,8 @@ func (r *Router) remapResumed(ctx context.Context, s *routeState, cands []Candid
 				why = append(why, rj.String())
 			}
 			r.skipFresh(s, c, "rejected_now", "rejected under the current policy: "+strings.Join(why, "; "))
-			if notAiredOnly(d) {
-				held++
-				if err := r.noteHeldResume(ctx, s, c); err != nil {
-					return nil, err
-				}
+			if err := r.closeHeldResume(ctx, s, c, d); err != nil {
+				return nil, err
 			}
 			continue
 		}
@@ -457,9 +447,6 @@ func (r *Router) remapResumed(ctx context.Context, s *routeState, cands []Candid
 			continue
 		}
 		out = append(out, c)
-	}
-	if len(out) == 0 && held == len(cands) {
-		return r.closeNotAired(ctx, s)
 	}
 	if len(out) == 0 {
 		msg := "no release is still wanted by this version"
@@ -546,38 +533,26 @@ func notAiredOnly(d *decide.Decision) bool {
 	return len(d.Rejections) > 0
 }
 
-// closeNotAired ends a route whose every candidate waits for its episode to air: a hold, not a failure. The queued
-// download it resumes, never added, is removed, so no History or blocklist row is left; a later sighting is decided
-// again.
-func (r *Router) closeNotAired(ctx context.Context, s *routeState) ([]Candidate, error) {
-	const msg = "not aired yet: the release is decided again when it is seen later"
-	if s.req.DownloadID != 0 {
-		if closed, err := r.closeHeldQueued(ctx, s.req.DownloadID); err != nil || !closed {
-			if err != nil {
-				return nil, err
-			}
-			return r.finishFresh(ctx, s, "no release is accepted under the current policy")
-		}
-	}
-	s.res.Outcome = OutcomeCancelled
-	s.res.Steps = append(s.res.Steps, Step{Outcome: "cancelled", Code: "not_aired", Message: msg})
-	return nil, nil
-}
-
-// noteHeldResume marks the route's resumed download as held when c, refused only for air time, is its release.
-func (r *Router) noteHeldResume(ctx context.Context, s *routeState, c Candidate) error {
-	if s.req.DownloadID == 0 {
+// closeHeldResume closes the queued download the route resumes, at once, when c is its release and d refuses it only
+// because the episode has not aired yet: removed quietly when never accepted anywhere (closeHeldQueued), else
+// cancelled the usual way so its attempts stay. The route then goes on with its other releases without it.
+func (r *Router) closeHeldResume(ctx context.Context, s *routeState, c Candidate, d *decide.Decision) error {
+	if s.req.DownloadID == 0 || s.resumeHash == "" || !notAiredOnly(d) ||
+		indexer.NormalizeHash(c.Release.InfoHash) != indexer.NormalizeHash(s.resumeHash) {
 		return nil
 	}
-	var hash string
-	err := r.st.Writer().QueryRowContext(ctx, `SELECT COALESCE(info_hash, '') FROM download WHERE id = ?`,
-		s.req.DownloadID).Scan(&hash)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("router: held resume: %w", err)
+	closed, err := r.closeHeldQueued(ctx, s.req.DownloadID)
+	if err != nil {
+		return err
 	}
-	if hash != "" && indexer.NormalizeHash(hash) == indexer.NormalizeHash(c.Release.InfoHash) {
-		s.heldResume = true
+	if !closed {
+		if err := r.failDownload(ctx, s.req.DownloadID, "route cancelled: not aired yet", StateQueued); err != nil {
+			return err
+		}
 	}
+	s.req.DownloadID, s.resumeID, s.resumeHash = 0, 0, ""
+	s.res.Steps = append(s.res.Steps, Step{Release: c.Release.Title, Hash: indexer.NormalizeHash(c.Release.InfoHash),
+		Outcome: "cancelled", Code: "not_aired", Message: "not aired yet: the release is decided again when it is seen later"})
 	return nil
 }
 

@@ -679,6 +679,75 @@ func TestHandGrabOfUnairedTVCapturePassesRoute(t *testing.T) {
 		}
 	})
 
+	// The held recording's queued row closes on its own, whatever happens to the fallbacks: (a) a fallback refused for
+	// another reason, (b) an accepted fallback whose episodes are mapped again.
+	postponedWith := func(t *testing.T, fallback Candidate) (*env, *Result, int64) {
+		t.Helper()
+		e := setup(t, false)
+		e.exec(`INSERT INTO episode (id, title_id, season, number, name, air_date, air_date_utc_at, created_at, updated_at)
+			VALUES (102, 2, 1, 2, 'Second', '2026-10-20', ?, 0, 0)`, e.clock.Add(-6*24*time.Hour).UnixMilli())
+		e.exec(`UPDATE episode SET air_date_utc_at = ? WHERE id = 101`, e.clock.Add(time.Hour).UnixMilli())
+		for _, k := range []string{"rd", "ad", "tb"} {
+			e.exec(`INSERT INTO router_pacing (provider, backoff_until, failures, reason, updated_at)
+				VALUES (?, ?, 1, 'x', 0)`, k, e.clock.Add(time.Minute).UnixMilli())
+		}
+		q := jobs.NewQueue(e.st)
+		q.SetClock(func() time.Time { return e.clock })
+		e.r.RegisterJobs(jobs.NewWorker(q, jobs.WorkerOptions{}), q)
+		tv := hdtv("1")
+		tv.Origin = OriginRSS
+		fallback.Origin = OriginRSS
+		first, err := e.r.Route(e.ctx, Request{TitleID: 2, VersionID: 20, Version: "series", Source: "rss",
+			Candidates: []Candidate{tv, fallback}})
+		if err != nil || first.Outcome != OutcomeDeferred {
+			t.Fatalf("defer: %+v %v steps=%s", first, err, steps(first))
+		}
+		var raw string
+		if err := e.st.Reader().QueryRow(`SELECT payload FROM job WHERE kind = ? AND state = 'queued'`, JobRoute).Scan(&raw); err != nil {
+			t.Fatal(err)
+		}
+		var resumed routePayload
+		if err := json.Unmarshal([]byte(raw), &resumed); err != nil {
+			t.Fatal(err)
+		}
+		if len(resumed.Candidates) != 2 || e.count(`SELECT COUNT(*) FROM download WHERE id = ? AND info_hash = ?`,
+			resumed.DownloadID, h("1")) != 1 {
+			t.Fatalf("deferred payload %+v", resumed)
+		}
+		e.exec(`UPDATE episode SET air_date_utc_at = ? WHERE id = 101`, e.clock.Add(5*24*time.Hour).UnixMilli())
+		e.clock = e.clock.Add(2 * time.Minute)
+		res, err := e.r.Route(e.ctx, resumed.Request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n := e.count(`SELECT COUNT(*) FROM download WHERE state = 'failed' OR info_hash = ?`, h("1")); n != 0 {
+			t.Errorf("%d failed or held download rows left; steps=%s", n, steps(res))
+		}
+		if n := e.count(`SELECT COUNT(*) FROM history WHERE ref LIKE '%:fail'`); n != 0 {
+			t.Errorf("%d failure History rows", n)
+		}
+		return e, res, resumed.DownloadID
+	}
+	t.Run("postponed_fallback_refused", func(t *testing.T) {
+		t.Parallel()
+		bd := cand(h("2"), "Show.S01E01.1080p.BluRay.x264-GRP")
+		bd.Release.Size, bd.Release.Seeders = 1<<30, 10
+		bd.Quality, bd.Episodes = "Bluray-1080p", []int64{101}
+		if _, res, _ := postponedWith(t, bd); res.Outcome != OutcomeCancelled {
+			t.Errorf("outcome %s, steps=%s", res.Outcome, steps(res))
+		}
+	})
+	t.Run("postponed_fallback_remapped", func(t *testing.T) {
+		t.Parallel()
+		web := cand(h("3"), "Show.S01E01.720p.WEB-DL.x264-GRP")
+		web.Release.Size, web.Release.Seeders = 1<<30, 10
+		web.Quality, web.Episodes = "WEBDL-720p", []int64{101, 102} // queued with more episodes than it maps to now
+		if e, res, _ := postponedWith(t, web); res.Outcome != OutcomeAdded || res.Hash != h("3") {
+			t.Errorf("outcome %s hash %s, steps=%+v rows=%d", res.Outcome, res.Hash, res.Steps,
+				e.count(`SELECT COUNT(*) FROM download`))
+		}
+	})
+
 	// "Date only" as Calendar reads it: a midnight of the air day in the series' zone (UTC without a series_meta row)
 	// prints the day; a real time prints with its zone even where series_meta.air_time is blank.
 	t.Run("date_only_as_calendar", func(t *testing.T) {

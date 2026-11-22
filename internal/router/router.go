@@ -404,9 +404,8 @@ type routeState struct {
 	// remapped: redecide gave a candidate other episodes than it was queued with (a changed scene mapping); the
 	// candidates are checked for freshness again.
 	remapped bool
-	// heldResume: the resumed download's own release was refused only because its episode has not aired yet; the
-	// queued row is closed quietly (closeHeldQueued), not failed.
-	heldResume bool
+	// resumeHash is the info hash of the queued download the route resumes, as freshCandidates read it.
+	resumeHash string
 	// resumeID is the queued download the route was asked to resume, and resumed whether a candidate took it up
 	// (openDownload). One no candidate took up is ended when the route is done (endSuperseded).
 	resumeID int64
@@ -486,11 +485,6 @@ func (r *Router) run(ctx context.Context, req Request, dry bool) (*Result, error
 func (r *Router) endSuperseded(ctx context.Context, s *routeState, res *Result) error {
 	if s.resumeID == 0 || s.resumed || res.Outcome == OutcomeCancelled {
 		return nil
-	}
-	if s.heldResume {
-		if closed, err := r.closeHeldQueued(ctx, s.resumeID); err != nil || closed {
-			return err
-		}
 	}
 	err := r.endQueued(ctx, s.resumeID, fmt.Sprintf("route ended: its release was not placed by the route that "+
 		"resumed it (outcome %s)", res.Outcome))
