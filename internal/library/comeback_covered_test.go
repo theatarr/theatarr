@@ -170,7 +170,8 @@ func TestComeBackAsideWaitsForPause(t *testing.T) {
 	}
 }
 
-// A replaced row older than 30 days is settled aside without a read, in words that do not claim it works.
+// A replaced row older than 30 days is settled aside without a read, in words that do not claim it works, and lifts
+// no miss: its own aged out long ago, and one for the same release now is a later incident's.
 func TestComeBackOldReplacedRowAside(t *testing.T) {
 	c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
 	c.now = c.now.Add(31 * 24 * time.Hour)
@@ -180,7 +181,7 @@ func TestComeBackOldReplacedRowAside(t *testing.T) {
 	if err := c.lib.ComeBack(c.ctx); err != nil {
 		t.Fatal(err)
 	}
-	if c.settled() != "aside" || !c.missLifted() || c.one(`SELECT state FROM link WHERE id = 2`) != "active" {
+	if c.settled() != "aside" || c.missLifted() || c.one(`SELECT state FROM link WHERE id = 2`) != "active" {
 		t.Errorf("settled %q, miss lifted %v", c.settled(), c.missLifted())
 	}
 	if got := c.one(`SELECT kind || ': ' || detail FROM library_action ORDER BY id DESC LIMIT 1`); got !=

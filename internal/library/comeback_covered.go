@@ -45,6 +45,7 @@ func (l *Library) asideOldReplaced(ctx context.Context) error {
 		return err
 	}
 	for _, r := range old {
+		r.hash = "" // never read: it lifts no miss (its own aged out; one now is a later incident's)
 		if err := l.settleAside(ctx, r, asideOldWords); err != nil {
 			return err
 		}
@@ -52,7 +53,8 @@ func (l *Library) asideOldReplaced(ctx context.Context) error {
 	return nil
 }
 
-// settleAside settles a row aside with one action, a relink in the words given, and lifts the release's miss. A dead
+// settleAside settles a row aside with one action, a relink in the words given, and lifts the release's miss (none
+// for a row without a hash, as an expired row is given). A dead
 // symlink of the old copy still in the library goes to the trash in the same step, as the sweep moves a covered dead
 // link aside (moveDeadAside, under the path's link lease). With Pause on or the version's library not writing nothing
 // is settled: a later sweep.
