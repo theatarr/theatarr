@@ -130,14 +130,23 @@ func (t *Tracker) liveSigns(now time.Time) {
 	}
 	for _, se := range t.sess {
 		// A message owed goes at the next fresh Plex sample of the same playback that is buffering, or whose position
-		// has stayed the same for stillFor since it was first seen (a change either way, a rewind too, is movement);
-		// never on a remembered verdict or an old zurg line.
+		// has stayed the same over playing samples for stillFor (a change either way, a rewind too, is movement, and a
+		// pause starts the count again); never on a remembered verdict or an old zurg line.
 		if p := t.pending[se.s.SessionKey]; p != nil && se.s.File == p.j.s.File && se.s.RatingKey == p.j.s.RatingKey {
-			if se.s.ViewOffset != p.lastOffset {
-				p.lastOffset, p.lastAt = se.s.ViewOffset, now // a new baseline
-			}
-			if se.s.State == "buffering" || se.s.State == "playing" && now.Sub(p.lastAt) >= stillFor {
+			switch se.s.State {
+			case "buffering":
 				p.due = true
+			case "playing":
+				// Only playing samples in a row at one position count; a new position starts the baseline again.
+				if !p.playing || se.s.ViewOffset != p.lastOffset {
+					p.lastOffset, p.lastAt, p.playing = se.s.ViewOffset, now, true
+				} else if now.Sub(p.lastAt) >= stillFor {
+					p.due = true
+				}
+			default: // paused or anything else: time stopped does not count
+				p.playing = false
+			}
+			if p.due {
 				p.j.s.ViewOffset = se.s.ViewOffset
 			}
 		}
@@ -809,9 +818,11 @@ type pendingTell struct {
 	msg      string
 	incident int64
 	due      bool
-	// lastOffset is the playback's position at the latest fresh Plex sample, lastAt when that position was first seen.
+	// lastOffset is the playback's position at the latest fresh Plex sample, lastAt when that position was first seen
+	// while playing; playing: the samples since then were all playing.
 	lastOffset int64
 	lastAt     time.Time
+	playing    bool
 }
 
 // tell stops the playback of a confirmed broken file with msg (Options.StopWithMessage on, the default): only the same
@@ -846,7 +857,7 @@ func (t *Tracker) tell(ctx context.Context, j *sign, msg string, incident int64)
 		// Still advancing (what it has cached plays on): told at its next sign.
 		t.mu.Lock()
 		t.pending[j.key] = &pendingTell{j: *j, msg: msg, incident: incident, lastOffset: now.ViewOffset,
-			lastAt: t.o.Now()}
+			lastAt: t.o.Now(), playing: now.State == "playing"}
 		t.mu.Unlock()
 		return
 	}

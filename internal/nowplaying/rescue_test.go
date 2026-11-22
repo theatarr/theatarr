@@ -1268,3 +1268,40 @@ func TestRescueControlByFolderWithoutHashes(t *testing.T) {
 		t.Errorf("copied without a hash: %v", e.copies)
 	}
 }
+
+// Time paused does not count toward stillFor: a stream that resumes at the same position after a pause is not
+// stopped on its first sample, only after stillFor of playing without moving.
+func TestRescueOwedMessagePauseRestarts(t *testing.T) {
+	e := newRescueEnv(t, false, true)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.play(2, "playing")
+	e.zurg.stats.BlockedReads = []library.ZurgBlockedRead{{Filename: "S01E02.mkv", Reason: "broken"}}
+	e.tr.sleep = func(ctx context.Context, d time.Duration) error {
+		e.advance(d)
+		e.plex.mu.Lock()
+		e.plex.ss[0].ViewOffset += d.Milliseconds()
+		e.plex.mu.Unlock()
+		return ctx.Err()
+	}
+	e.poll() // the message is owed
+	state := func(s string) {
+		e.plex.mu.Lock()
+		e.plex.ss[0].State = s
+		e.plex.mu.Unlock()
+	}
+	state("paused")
+	e.poll()
+	e.advance(30 * time.Second)
+	e.poll()
+	state("playing")
+	e.advance(time.Second)
+	e.poll()
+	if got := e.stop.stopped(); len(got) != 0 {
+		t.Fatalf("stopped on resume after a pause: %q", got)
+	}
+	e.advance(stillFor)
+	e.poll()
+	if got := e.stop.stopped(); len(got) != 1 {
+		t.Errorf("not stopped after %v playing without moving: %q", stillFor, got)
+	}
+}
