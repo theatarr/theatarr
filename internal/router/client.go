@@ -67,9 +67,13 @@ func (r *Router) clientSkip(ctx context.Context, s *routeState, rel *indexer.Rel
 	if code, msg := r.clientIndexer(s.vp, rel); code != "" {
 		return code, msg, nil
 	}
-	state, err := r.cacheState(ctx, hash, clientCacheKey(s.vp.Client), r.now(), s.req.ManualSince)
+	state, source, err := r.cacheStateSource(ctx, hash, clientCacheKey(s.vp.Client), r.now(), s.req.ManualSince)
 	if err != nil {
 		return "", "", err
+	}
+	if state == "miss" && source == PlayingMissSource {
+		return "known_miss", "it stopped working on client " + s.vp.Client + " while it was playing; kept off it for 7 days",
+			nil
 	}
 	if state == "miss" {
 		return "known_miss", "client " + s.vp.Client + " did not have it cached within miss_ttl", nil

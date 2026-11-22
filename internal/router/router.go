@@ -1341,7 +1341,7 @@ func (r *Router) candidate(ctx context.Context, s *routeState, c *Candidate) (ve
 // lists the providers skipped for that failed copy. It reads the cache and the downloads only; nothing is written.
 func (r *Router) knownMiss(ctx context.Context, s *routeState, c *Candidate, hash string) (bool, string, []string, error) {
 	now, usable := r.now(), 0
-	var whys, failed []string
+	var whys, failed, playing []string
 	held, err := r.failedCopy(ctx, s.req, hash, now)
 	if err != nil {
 		return false, "", nil, err
@@ -1365,11 +1365,16 @@ func (r *Router) knownMiss(ctx context.Context, s *routeState, c *Candidate, has
 			whys = append(whys, why)
 			continue
 		}
-		if state, err := r.cacheState(ctx, hash, pk, now, s.req.ManualSince); err != nil {
+		if state, source, err := r.cacheStateSource(ctx, hash, pk, now, s.req.ManualSince); err != nil {
 			return false, "", nil, err
 		} else if state != "miss" && (state != "uncached" || !r.set.CachedOnly) {
 			return false, "", nil, nil
+		} else if source == PlayingMissSource {
+			playing = append(playing, pk)
 		}
+	}
+	if len(playing) > 0 {
+		whys = append(whys, "it stopped working while it was playing on "+strings.Join(playing, ", "))
 	}
 	return usable > 0, strings.Join(whys, "; "), failed, nil
 }
@@ -1518,11 +1523,14 @@ func (r *Router) provider(ctx context.Context, s *routeState, c *Candidate, m ad
 		return vContent, time.Time{}, Step{Outcome: "skipped", Code: codeTitle451, Message: why}, nil
 	}
 	// Known misses and known uncached releases.
-	state, err := r.cacheState(ctx, hash, pk, now, s.req.ManualSince)
+	state, source, err := r.cacheStateSource(ctx, hash, pk, now, s.req.ManualSince)
 	if err != nil {
 		return 0, time.Time{}, Step{}, err
 	}
 	switch {
+	case state == "miss" && source == PlayingMissSource:
+		return vContent, time.Time{}, Step{Outcome: "skipped", Code: "miss",
+			Message: "it stopped working here while it was playing; kept off this account for 7 days"}, nil
 	case state == "miss":
 		return vContent, time.Time{}, Step{Outcome: "skipped", Code: "miss",
 			Message: "missed on every provider, or refused here with a 451 or for a file name, within miss_ttl"}, nil

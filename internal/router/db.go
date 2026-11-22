@@ -474,21 +474,29 @@ func b2i(b bool) int {
 // cacheState reads provider_cache for a hash at a provider: "miss", "uncached", "cached" or "" (nothing live). A
 // negative row a manual route asks past (asksAgain, since: Request.ManualSince) reads as "".
 func (r *Router) cacheState(ctx context.Context, hash, provider string, now, since time.Time) (string, error) {
+	state, _, err := r.cacheStateSource(ctx, hash, provider, now, since)
+	return state, err
+}
+
+// cacheStateSource is cacheState with the live row's source ("" with no state): a release skipped for it is worded
+// by what wrote it.
+func (r *Router) cacheStateSource(ctx context.Context, hash, provider string, now, since time.Time) (string, string,
+	error) {
 	var state, source string
 	var checked int64
 	err := r.st.Writer().QueryRowContext(ctx, `SELECT state, source, checked_at FROM provider_cache WHERE info_hash = ?
 		AND provider = ? AND (expires_at IS NULL OR expires_at > ?)`, hash, provider, store.Millis(now)).
 		Scan(&state, &source, &checked)
 	if errors.Is(err, sql.ErrNoRows) {
-		return "", nil
+		return "", "", nil
 	}
 	if err != nil {
-		return "", fmt.Errorf("router: cache state: %w", err)
+		return "", "", fmt.Errorf("router: cache state: %w", err)
 	}
 	if state != "cached" && asksAgain(since, source, checked) {
-		return "", nil
+		return "", "", nil
 	}
-	return state, nil
+	return state, source, nil
 }
 
 // asksAgain reports whether a route asked for by hand at since (Request.ManualSince; zero: not by hand) asks a

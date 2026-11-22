@@ -4,6 +4,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/theatarr/theatarr/internal/indexer"
+	"github.com/theatarr/theatarr/internal/policy"
 )
 
 // playingRun records the acquire run of a search for a file that broke while playing (research playing) and the
@@ -121,5 +124,42 @@ func TestPlayingSiblingRouteSkipsWatchedEpisode(t *testing.T) {
 	}
 	if e.writes() != 1 || res.Hash != h("b") || !strings.Contains(steps(res), "aaaa//skipped/not_wanted") {
 		t.Errorf("route %+v: %s; adds %d", res, steps(res), e.writes())
+	}
+}
+
+// A release skipped for the miss of a file that broke while playing says so, in the provider's step and the client's.
+func TestPlayingMissWorded(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	freshMovie(e)
+	tx, err := e.st.Writer().BeginTx(e.ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"ad", ClientCacheKey("dc")} {
+		if err := RecordPlayingMiss(e.ctx, tx, h("a"), k, e.clock); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	res, err := e.r.Route(e.ctx, grabReq(cand(h("a"), "Movie.2024.2160p.WEB-DL-GRP")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var msg string
+	for _, st := range res.Steps {
+		if st.Provider == "ad" {
+			msg = st.Message
+		}
+	}
+	if msg != "it stopped working here while it was playing; kept off this account for 7 days" {
+		t.Errorf("ad step %q: %s", msg, steps(res))
+	}
+	s := &routeState{vp: &policy.VersionPolicy{AddVia: policy.AddViaClient, Client: "dc"}}
+	if _, msg, err := e.r.clientSkip(e.ctx, s, &indexer.Release{}, h("a")); err != nil ||
+		msg != "it stopped working on client dc while it was playing; kept off it for 7 days" {
+		t.Errorf("client skip %q %v", msg, err)
 	}
 }
