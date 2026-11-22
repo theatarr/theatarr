@@ -9,8 +9,10 @@ describe("eventMeaning", () => {
 
   it("words the playing outcomes as they are: no put-back, and no promise of further searches", () => {
     expect(eventMeaning("Earlier copy put back")).toBe("");
-    const none = eventMeaning("Stopped working, no other copy yet");
-    expect(none).toContain("RSS");
-    expect(none).not.toContain("searches go on");
+    // One heading, the History filter's words; the line under it says what came of it.
+    const playing = eventMeaning("Stopped working while playing");
+    expect(playing).toContain("RSS");
+    expect(playing).not.toContain("searches go on");
+    expect(eventMeaning("Stopped working, no other copy yet")).toBe("");
   });
 });

@@ -896,21 +896,23 @@ func entryWords(h *journal.HistoryRow, notStarted string, tag func(string) strin
 // playing's list), naming no account.
 const playingOutageWords = "the debrid account did not answer"
 
-// playingHistoryWords are a playing row's words by its outcome kind (journal EvPlaying): what came of a file that
-// stopped working while someone played it.
+// playingHistoryWords are a playing row's heading and tone by its outcome kind (journal EvPlaying): the History
+// filter's own words for a file that stopped working while someone played it; what came of it is the row's detail
+// (historyReason).
 func playingHistoryWords(kind string) (words, tone string) {
 	switch kind {
-	case outcome.Replaced:
-		return "Replaced after it stopped working", "ok"
-	case outcome.SameRelease:
-		return "Readable again after it stopped working", "ok"
+	case outcome.Replaced, outcome.SameRelease:
+		return playingWords, "ok"
 	case outcome.Unavailable:
-		return "Stopped working, no other copy yet", "bad"
+		return playingWords, "bad"
 	case outcome.Restored:
 		return "Earlier copy put back", "ok"
 	}
-	return "Stopped working while playing", "warn"
+	return playingWords, "warn"
 }
+
+// playingWords head a playing History row, as the History filter names them.
+const playingWords = "Stopped working while playing"
 
 // historyReason is a History row's reason in plain words: why a download failed or stalled, why a release was blocked,
 // why a file was removed, what is left of a partial import, a copy's message when it says more than the words.
@@ -944,11 +946,20 @@ func historyReason(h *journal.HistoryRow, notStarted string, tag, label func(str
 		return removalWords(h, label)
 	case journal.EvPlaying:
 		// The row's release is the copy that broke.
-		if h.Source == outcome.Restored {
+		// What came of it, in words visible on a phone.
+		switch h.Source {
+		case outcome.Restored:
 			return "The copy that stopped working while playing works again and is better than its replacement"
-		}
-		if h.Source == outcome.Unavailable && h.Reason == "outage" {
-			return "It stopped working while playing: " + playingOutageWords
+		case outcome.Replaced:
+			return "Replaced: another release was imported in its place."
+		case outcome.SameRelease:
+			return "Readable again: the same release works again."
+		case outcome.Unavailable:
+			none := "No other copy yet"
+			if h.Reason == "outage" {
+				none += ": " + playingOutageWords
+			}
+			return none + ". A new release can still arrive through RSS."
 		}
 		return "It stopped working while playing"
 	case journal.EvCopyAdded, journal.EvCopyAlready, journal.EvCopyNotCached:

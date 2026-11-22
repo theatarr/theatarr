@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"fmt"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -121,18 +120,34 @@ func TestPlayingHistoryRows(t *testing.T) {
 	if code := e.getKey(APIBase+"/activity?state=history&title_id=9&events=playing", key, &hist); code != 200 {
 		t.Fatalf("history: %d", code)
 	}
-	words := map[string]string{}
+	// The row's heading is the filter's own words; the visible detail says what came of it.
+	rows := map[string]string{}
 	for _, h := range hist.History {
 		if h.Event != journal.EvPlaying || h.Release != "Alpha.2020.1080p-OLD" || h.Quality != "WEBDL-1080p" ||
 			h.Reason == "" || h.Entry != "" || h.Files != 0 {
 			t.Errorf("row %+v", h)
 		}
-		words[h.Words] = h.Tone
+		rows[h.Words+" / "+h.Tone] = h.Reason
 	}
-	want := map[string]string{"Replaced after it stopped working": "ok", "Readable again after it stopped working": "ok",
-		"Stopped working, no other copy yet": "bad", "Earlier copy put back": "ok"}
-	if fmt.Sprint(words) != fmt.Sprint(want) {
-		t.Errorf("words %v", words)
+	want := map[string]string{
+		"Stopped working while playing / ok":  "", // two rows: replaced and readable again (checked below)
+		"Stopped working while playing / bad": "No other copy yet. A new release can still arrive through RSS.",
+		"Earlier copy put back / ok":          "The copy that stopped working while playing works again and is better than its replacement",
+	}
+	for k, v := range want {
+		if got, ok := rows[k]; !ok || v != "" && got != v {
+			t.Errorf("%s: %q (rows %v)", k, got, rows)
+		}
+	}
+	reasons := map[string]bool{}
+	for _, h := range hist.History {
+		reasons[h.Reason] = true
+	}
+	for _, r := range []string{"Replaced: another release was imported in its place.",
+		"Readable again: the same release works again."} {
+		if !reasons[r] {
+			t.Errorf("no row says %q (rows %v)", r, rows)
+		}
 	}
 	// Only for those who see files: a household view gets neither the rows nor the filter.
 	var user ActivityPage
@@ -155,11 +170,18 @@ func TestPlayingHistoryRows(t *testing.T) {
 	if code := e.getKey(APIBase+"/activity?state=history&title_id=9&events=playing", key, &hist); code != 200 {
 		t.Fatalf("history: %d", code)
 	}
+	found := false
 	for _, h := range hist.History {
-		if h.Release == "Alpha.2020.2160p-OLD" && (h.Reason != "It stopped working while playing: the debrid account did not answer" ||
-			h.Words != "Stopped working, no other copy yet") {
-			t.Errorf("outage row %q %q", h.Words, h.Reason)
+		if h.Release == "Alpha.2020.2160p-OLD" {
+			found = true
+			if h.Reason != "No other copy yet: the debrid account did not answer. A new release can still arrive through RSS." ||
+				h.Words != "Stopped working while playing" {
+				t.Errorf("outage row %q %q", h.Words, h.Reason)
+			}
 		}
+	}
+	if !found {
+		t.Error("no outage row")
 	}
 }
 
