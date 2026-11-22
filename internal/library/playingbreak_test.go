@@ -388,7 +388,7 @@ func TestSettlePlayingWaitsForTheSiblingPass(t *testing.T) {
 
 // PlayingSearchable is the round's own eligibility for a file: a film whose title and version are monitored, or a
 // series file with at least one episode the round would search (title and version monitored, the episode monitored
-// in that version and not dropped), in a version whose library is in the settings.
+// in that version, aired and not dropped), in a version whose library is in the settings.
 func TestPlayingSearchable(t *testing.T) {
 	for _, c := range []struct {
 		name    string
@@ -405,8 +405,11 @@ func TestPlayingSearchable(t *testing.T) {
 		{"title unmonitored", `UPDATE title SET monitored = 0 WHERE id = 2`, 2, "tv", false},
 		{"removed from the arr view", `INSERT INTO arrview_removed_version (version_id, view, removed_at) VALUES (20, 'ui', 0)`, 2, "tv", false},
 		{"no such library", ``, 2, "nope", false},
+		{"not aired yet", `UPDATE episode SET air_date_utc_at = 9999999999999 WHERE id = 202`, 2, "tv", false},
+		{"no air date", `UPDATE episode SET air_date_utc_at = NULL WHERE id = 202`, 2, "tv", false},
 	} {
 		e := playingEnv(t)
+		e.exec(`UPDATE episode SET air_date_utc_at = 0`) // aired
 		if c.q != "" {
 			e.exec(c.q)
 		}

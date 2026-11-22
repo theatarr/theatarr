@@ -527,8 +527,9 @@ func (l *Library) PlayingNotStopped(ctx context.Context, incident int64, note st
 // PlayingSearchable reports whether the search a broken file would get could take anything: at least one of its
 // items is one the round searches in version (the version's library in the settings and writing; its title and
 // version monitored and not removed from the arr view; for a series file, one of its episodes monitored in that
-// version and not dropped). Now playing asks it before an incident opens and for each other file of the release; a
-// file it refuses is left to the hourly sweep (no mark, no message, nothing counted).
+// version, aired (the round searches aired episodes only) and not dropped). Now playing asks it before an incident
+// opens and for each other file of the release; a file it refuses is left to the hourly sweep (no mark, no message,
+// nothing counted).
 func (l *Library) PlayingSearchable(ctx context.Context, linkID int64, version string) (bool, error) {
 	if l.pol.Versions[version] == nil || !l.gate.Active(version) {
 		return false, nil
@@ -540,8 +541,9 @@ func (l *Library) PlayingSearchable(ctx context.Context, linkID int64, version s
 		AND NOT EXISTS (SELECT 1 FROM arrview_removed_version rv WHERE rv.version_id = v.id)
 		AND (t.kind <> 'series' OR EXISTS (SELECT 1 FROM link_episode le JOIN episode e ON e.id = le.episode_id
 			LEFT JOIN episode_version_state s ON s.episode_id = e.id AND s.version_id = v.id
-			WHERE le.link_id = k.id AND COALESCE(s.monitored, e.monitored) = 1 AND e.removed_at IS NULL)))`,
-		version, linkID).Scan(&ok)
+			WHERE le.link_id = k.id AND COALESCE(s.monitored, e.monitored) = 1 AND e.removed_at IS NULL
+			AND e.air_date_utc_at IS NOT NULL AND e.air_date_utc_at <= ?)))`,
+		version, linkID, store.Millis(l.now())).Scan(&ok)
 	return ok, err
 }
 

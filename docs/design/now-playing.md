@@ -192,7 +192,7 @@ broke while playing is searched at once").
   with no hash on either side, a release in another folder on the mount is another release (only for the
   account-free control).
 - **The repair.** A file the round would not search (`Library.PlayingSearchable`: its title or version not monitored
-  or removed from the arr view, or none of its episodes monitored there) gets no fast path at all, before anything is
+  or removed from the arr view, or none of its episodes monitored there and aired) gets no fast path at all, before anything is
   said or counted: no incident, no mark, no message; the hourly sweep treats it as it always has. The same holds for
   each of the release's other files. The bound first: one incident per title and library a day; a second one that
   day gets no fast path (the hourly path as today). Then the incident is recorded, and: **step 1**, the same release on another account
