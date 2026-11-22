@@ -52,6 +52,24 @@ func TestParseZurgLine(t *testing.T) {
 			t.Errorf("%q: file %q", c.line, ev.File)
 		}
 	}
+	// The line's own time, when it starts with one (zurg's RFC 3339 UTC stamp, tab-separated, the level perhaps
+	// coloured); none: zero.
+	for line, want := range map[string]string{
+		"2026-11-22T05:06:13.365Z\tWARN\tAccount rd is cooling down for 60s":                "2026-11-22T05:06:13.365Z",
+		"2026-11-22T05:06:13.365Z\t\x1b[33mWARN\x1b[0m\tAccount rd is cooling down for 60s": "2026-11-22T05:06:13.365Z",
+		"[2026-11-22 05:06:13] WARN Account rd is cooling down for 60s":                     "2026-11-22T05:06:13Z",
+		"2026-11-22T06:06:13+01:00 WARN Account rd is cooling down for 60s":                 "2026-11-22T05:06:13Z",
+		"WARN Account rd is cooling down for 60s":                                           "",
+	} {
+		ev, ok := parseZurgLine(line, files, at)
+		got := ""
+		if !ev.Logged.IsZero() {
+			got = ev.Logged.UTC().Format("2006-01-02T15:04:05.999Z07:00")
+		}
+		if !ok || got != want {
+			t.Errorf("%q: logged %q, want %q", line, got, want)
+		}
+	}
 	evs := []zurgEvent{{Kind: kindTransfer, File: "a.mkv", Account: "rd"}, {Kind: kindStarved, File: "a.mkv", Account: "rd"},
 		{Kind: kindCooldown, Account: "other"}}
 	if got := issue(evs, "a.mkv", "rd"); !strings.Contains(got, "starved read on rd") {

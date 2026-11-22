@@ -1553,46 +1553,41 @@ func TestRescueOutageLeavesSiblings(t *testing.T) {
 	}
 }
 
-// A zurg cooldown line of the serving account counts as an outage only when logged after the check's first failed
-// read; an older one means nothing, and the control read decides.
+// A zurg cooldown line of the serving account counts as an outage only when its own logged time is at or after the
+// check's first failed read: the log is polled, so a line logged before may arrive during the check. An older line,
+// or one whose time cannot be read, means nothing, and the control read decides.
 func TestRescueCooldownOnlySinceFirstFailure(t *testing.T) {
-	// Logged before the sign: the account's other release reads, so only this release is broken.
-	e := newRescueEnv(t, false, true)
-	e.play(2, "playing")
-	e.poll()
-	e.tr.ZurgLine("WARN Account rd is cooling down for 5m")
-	e.advance(5 * time.Minute)
-	e.tr.ZurgLine("INFO Large transfer: 512 MiB of __all__/Rel/S01E02.mkv from rd for 30s")
-	e.lib.setBroken("S01E02.mkv", -1)
-	e.play(2, "buffering")
-	e.poll()
-	if got := e.one(`SELECT out_account FROM playing_break WHERE link_id = 11`); got != "" {
-		t.Errorf("an old cooldown line made %q out", got)
+	stamp := func(at time.Time, level string) string {
+		return at.UTC().Format("2006-01-02T15:04:05.000Z") + "\t" + level + "\tAccount rd is cooling down for 5m"
 	}
-	if e.lib.readsOf("film.mkv") != 1 {
-		t.Errorf("control reads %d, want 1", e.lib.readsOf("film.mkv"))
-	}
-	if got := e.one(`SELECT group_concat(provider) FROM provider_cache WHERE source = 'router:playing'`); got != "rd" {
-		t.Errorf("misses on %q", got)
-	}
-	// Logged during the check: the account is out, with no control read.
-	e2 := newRescueEnv(t, false, true)
-	e2.play(2, "playing")
-	e2.poll()
-	e2.tr.ZurgLine("INFO Large transfer: 512 MiB of __all__/Rel/S01E02.mkv from rd for 30s")
-	e2.lib.setBroken("S01E02.mkv", -1)
-	e2.tr.sleep = func(ctx context.Context, d time.Duration) error {
-		e2.advance(d)
-		e2.tr.ZurgLine("WARN Account rd is cooling down for 5m")
-		return ctx.Err()
-	}
-	e2.play(2, "buffering")
-	e2.poll()
-	if got := e2.one(`SELECT out_account FROM playing_break WHERE link_id = 11`); got != "rd" {
-		t.Errorf("a cooldown during the check: out account %q", got)
-	}
-	if e2.lib.readsOf("film.mkv") != 0 {
-		t.Errorf("control reads %d during a cooldown", e2.lib.readsOf("film.mkv"))
+	for _, c := range []struct {
+		name string
+		line func(e *rescueEnv) string // the line arriving during the check
+		out  string
+	}{
+		{"logged before", func(e *rescueEnv) string { return stamp(e.now().Add(-time.Minute), "WARN") }, ""},
+		{"no time", func(*rescueEnv) string { return "WARN Account rd is cooling down for 5m" }, ""},
+		{"logged since", func(e *rescueEnv) string { return stamp(e.now(), "WARN") }, "rd"},
+		{"logged since, coloured level", func(e *rescueEnv) string { return stamp(e.now(), "\x1b[33mWARN\x1b[0m") }, "rd"},
+	} {
+		e := newRescueEnv(t, false, true)
+		e.play(2, "playing")
+		e.poll()
+		e.tr.ZurgLine("INFO Large transfer: 512 MiB of __all__/Rel/S01E02.mkv from rd for 30s")
+		e.lib.setBroken("S01E02.mkv", -1)
+		e.tr.sleep = func(ctx context.Context, d time.Duration) error {
+			e.advance(d)
+			e.tr.ZurgLine(c.line(e))
+			return ctx.Err()
+		}
+		e.play(2, "buffering")
+		e.poll()
+		if got := e.one(`SELECT out_account FROM playing_break WHERE link_id = 11`); got != c.out {
+			t.Errorf("%s: out account %q, want %q", c.name, got, c.out)
+		}
+		if n, want := e.lib.readsOf("film.mkv"), map[bool]int{true: 1, false: 0}[c.out == ""]; n != want {
+			t.Errorf("%s: control reads %d, want %d", c.name, n, want)
+		}
 	}
 }
 

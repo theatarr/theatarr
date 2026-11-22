@@ -453,8 +453,9 @@ type controlVerdict struct {
 // control decides where the break lies by reading another release through the mount (section 3 of the plan): one
 // held only by the serving account (zurg's servedBy, else the release's only complete holder), at mid-file. It reads:
 // only this release is broken. It fails: one held only by another account is read; it reads: the serving account is
-// out; it fails, or there is none: the mount. zurg saying the serving account cools down, in a line logged since the
-// check's first failed read (since), means it is out too; an older line means nothing. With no
+// out; it fails, or there is none: the mount. zurg saying the serving account cools down, in a line whose own time is
+// at or after the check's first failed read (since), means it is out too; an older line, or one without a time, means
+// nothing. With no
 // release held by the serving account alone any other release is read, and the serving account is kept (it fails: no
 // verdict, never an outage); with the
 // serving account unknown from the start any other release is read too, and the release counts as broken on each
@@ -514,12 +515,13 @@ func (t *Tracker) control(ctx context.Context, lib Rescuer, j *sign, hash string
 	return v
 }
 
-// coolingDown reports whether zurg's log says account cools down, in a line logged at or after since (t.mu taken).
+// coolingDown reports whether zurg's log says account cools down, in a line whose own time is at or after since (the
+// log is polled: a line may arrive after it was logged); a line without a time means nothing (t.mu taken).
 func (t *Tracker) coolingDown(account string, since time.Time) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return slices.ContainsFunc(t.events, func(e zurgEvent) bool {
-		return e.Kind == kindCooldown && e.Account == account && !e.At.Before(since)
+		return e.Kind == kindCooldown && e.Account == account && !e.Logged.IsZero() && !e.Logged.Before(since)
 	})
 }
 

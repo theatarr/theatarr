@@ -36,7 +36,9 @@ var zurgPatterns = []struct {
 
 // zurgEvent is one matched line.
 type zurgEvent struct {
-	At      time.Time
+	At time.Time // when it arrived (the log is polled: it may have been logged earlier)
+	// Logged is the line's own time, zero when it starts with none (loggedAt).
+	Logged  time.Time
 	Kind    string
 	File    string // base name; "" for an account event
 	Account string
@@ -53,7 +55,7 @@ func parseZurgLine(line string, files []string, at time.Time) (zurgEvent, bool) 
 		if m == nil {
 			continue
 		}
-		ev := zurgEvent{At: at, Kind: p.kind}
+		ev := zurgEvent{At: at, Logged: loggedAt(line), Kind: p.kind}
 		if i := p.re.SubexpIndex("file"); i > 0 && m[i] != "" {
 			ev.File, ev.Path = path.Base(m[i]), m[i]
 		}
@@ -72,6 +74,30 @@ func parseZurgLine(line string, files []string, at time.Time) (zurgEvent, bool) 
 		return zurgEvent{}, false
 	}
 	return zurgEvent{}, false
+}
+
+// loggedStamp is a leading RFC 3339 time, as zurg starts its lines ("2026-11-22T05:06:13.365Z<TAB>WARN<TAB>..."): T or
+// a space, fractions and zone optional, perhaps in brackets.
+var loggedStamp = regexp.MustCompile(`^\[?(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2}(?:\.\d+)?)(Z|[+-]\d{2}:?\d{2})?\]?(?:\s|$)`)
+
+// loggedAt is the time a log line starts with (UTC when it names no zone), zero when it starts with none.
+func loggedAt(line string) time.Time {
+	m := loggedStamp.FindStringSubmatch(line)
+	if m == nil {
+		return time.Time{}
+	}
+	zone := m[3]
+	switch {
+	case zone == "":
+		zone = "Z"
+	case len(zone) == 5: // +0100
+		zone = zone[:3] + ":" + zone[3:]
+	}
+	t, err := time.Parse(time.RFC3339Nano, m[1]+"T"+m[2]+zone)
+	if err != nil {
+		return time.Time{}
+	}
+	return t
 }
 
 // issue is the most telling provider problem among a file's recent events: what the health verdict names.
