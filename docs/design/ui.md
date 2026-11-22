@@ -216,7 +216,7 @@ The quality word, beside the status word of something with a file and never in i
 A file at the wanted quality whose format score is under the profile's score target stays `below_cutoff` on the
 server (searches, Wanted › Cutoff unmet and the lists' filters are unchanged); only the word changes. It keeps Why?
 ("The quality is reached, the score is not."), its episode tooltip has no quality word, and a series library row
-leaves out "N episodes under preferred quality" and the found line beside it.
+leaves out "N episodes under preferred quality" and the found line beside it. Where the quality judging is stored, N counts the episodes whose quality misses the cutoff (`below_quality`, as Wanted's Cutoff unmet counts them), not the score shortfalls too.
 
 A better release that was tried after it was seen and failed (on every provider, or refused) is no longer
 **Upgrade found** anywhere (title page, Home, the lists' Upgrade found filter); another untried better release still

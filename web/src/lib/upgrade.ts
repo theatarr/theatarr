@@ -196,8 +196,11 @@ export function plainUpgrade(u: UpgradeInfo | undefined | null): string {
  *  "" for a copy that reads Preferred quality met (scoreOnly): its count is of score-only shortfalls. */
 export function belowCount(u: UpgradeInfo | undefined | null): string {
   if (!u?.below || scoreOnly(u)) return "";
+  // Where the quality judging is stored, the episodes whose quality misses the cutoff (as Wanted's Cutoff unmet
+  // counts them), not the score shortfalls too.
+  const below = u.quality_met === false && u.below_quality ? u.below_quality : u.below;
   const seen = u.seen ? ` · ${fmtNumber(u.seen)} upgrade${u.seen === 1 ? "" : "s"} found` : "";
-  return `${fmtNumber(u.below)} episode${u.below === 1 ? "" : "s"} under preferred quality${seen}`;
+  return `${fmtNumber(below)} episode${below === 1 ? "" : "s"} under preferred quality${seen}`;
 }
 
 /** Why a control is off, or "" when it is on. */

@@ -237,6 +237,11 @@ func TestUpgradeEvidence(t *testing.T) {
 	if q := d.Versions[0].Upgrade.QualityMet; q == nil || *q {
 		t.Errorf("series with one episode below the quality cutoff: %v", q)
 	}
+	// The count of the episodes under the preferred quality is of those whose quality misses it, not of the score
+	// shortfalls too.
+	if u := d.Versions[0].Upgrade; u.Below != 2 || u.BelowQuality != 1 {
+		t.Errorf("below %d, below the quality %d; want 2 and 1", u.Below, u.BelowQuality)
+	}
 	var e102 EpisodeDetail
 	e.call("GET", APIBase+"/titles/10/episodes/102", nil, 200, &e102)
 	if q := e102.Versions[0].Upgrade.QualityMet; q == nil || !*q {

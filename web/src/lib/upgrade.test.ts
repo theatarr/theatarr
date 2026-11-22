@@ -43,6 +43,8 @@ describe("upgrade words", () => {
     expect(belowCount(u)).toBe("");
     expect(nextLine(u)).toBe("");
     expect(belowCount({ ...u, quality_met: false })).toBe("23 episodes under preferred quality");
+    // Where the quality judging is stored, only the episodes whose quality misses the cutoff are counted.
+    expect(belowCount({ ...u, quality_met: false, below_quality: 12 })).toBe("12 episodes under preferred quality");
     expect(whyLines(u, 8575, cutoff, null, new Date("2026-11-15T12:00:00Z"))).toEqual([
       "You have: Remux-2160p, score 8,575.",
       "Upgrades stop at: Remux-2160p and a score of 10,000.",

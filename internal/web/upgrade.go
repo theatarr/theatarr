@@ -87,6 +87,9 @@ type UpgradeInfo struct {
 	// Series: episodes below the cutoff, and how many of them have a better release seen.
 	Below int `json:"below,omitempty"`
 	Seen  int `json:"seen,omitempty"`
+	// BelowQuality (series, for callers who see files, where QualityMet is stored): the episodes of Below whose
+	// file's quality misses the cutoff quality itself; the rest fall short on the format score only.
+	BelowQuality int `json:"below_quality,omitempty"`
 	// For callers who see files: the file's format score, the best release seen and the last search that covered
 	// the item.
 	Score      *int64       `json:"score,omitempty"`
@@ -103,7 +106,7 @@ func redactUpgrade(u *UpgradeInfo) {
 	if u == nil {
 		return
 	}
-	u.Score, u.Next, u.LastSearch, u.QualityMet = nil, nil, nil, nil
+	u.Score, u.Next, u.LastSearch, u.QualityMet, u.BelowQuality = nil, nil, nil, nil, 0
 	if c := u.Cutoff; c != nil {
 		*c = Cutoff{Quality: c.Quality, Upgrades: c.Upgrades}
 	}
@@ -665,6 +668,9 @@ func (s *upgradeSet) explain(v upgradeVersion, episode int64) *UpgradeInfo {
 			}
 			u.Below++
 			belowQuality = belowQuality || e.belowQuality
+			if e.belowQuality {
+				u.BelowQuality++
+			}
 			k := qs{q: f.quality}
 			if f.score != nil {
 				k.s, k.has = *f.score, true
@@ -703,7 +709,7 @@ func (s *upgradeSet) explain(v upgradeVersion, episode int64) *UpgradeInfo {
 			}
 		}
 		if episode > 0 {
-			u.Below, u.Seen = 0, 0
+			u.Below, u.Seen, u.BelowQuality = 0, 0, 0
 			if f, ok := files[episode]; ok {
 				u.Quality, u.Score = f.quality, f.score
 			}
@@ -715,6 +721,8 @@ func (s *upgradeSet) explain(v upgradeVersion, episode int64) *UpgradeInfo {
 	if s.qualityJudged[v.id] && u.State != "none" && u.State != "cutoff_met" {
 		met := !belowQuality
 		u.QualityMet = &met
+	} else {
+		u.BelowQuality = 0
 	}
 	if lastSearch > 0 {
 		t := ts(lastSearch)
