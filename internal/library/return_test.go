@@ -312,6 +312,10 @@ func TestReplacementOfGoneFileIsNoUpgrade(t *testing.T) {
 	kind := func(e *env) string {
 		return e.one(`SELECT ` + store.JournalGrabKindSQL + ` FROM download d WHERE d.id = 1`)
 	}
+	// History's own kind is as before: an earlier import of the version's episodes.
+	historyKind := func(e *env) string {
+		return e.one(`SELECT ` + store.HistoryGrabKindSQL + ` FROM download d WHERE d.id = 1`)
+	}
 	t.Run("dead, lower", func(t *testing.T) {
 		e := importUpEnv(t, "")
 		p := filepath.Join(e.movies, "Amelie The Movie (2001)", "held.mkv")
@@ -345,6 +349,9 @@ func TestReplacementOfGoneFileIsNoUpgrade(t *testing.T) {
 		if got := kind(e); got != "grab" {
 			t.Errorf("kind %s", got)
 		}
+		if got := historyKind(e); got != "upgrade" {
+			t.Errorf("History's kind %s", got)
+		}
 	})
 	t.Run("failed, after an earlier import", func(t *testing.T) {
 		e := importUpEnv(t, "")
@@ -355,6 +362,9 @@ func TestReplacementOfGoneFileIsNoUpgrade(t *testing.T) {
 		if got := kind(e); got != "grab" {
 			t.Errorf("kind %s", got)
 		}
+		if got := historyKind(e); got != "upgrade" {
+			t.Errorf("History's kind %s", got)
+		}
 	})
 	t.Run("on its way, after an earlier import", func(t *testing.T) {
 		e := importUpEnv(t, "")
@@ -364,6 +374,9 @@ func TestReplacementOfGoneFileIsNoUpgrade(t *testing.T) {
 		if got := kind(e); got != "grab" {
 			t.Errorf("kind %s", got)
 		}
+		if got := historyKind(e); got != "upgrade" {
+			t.Errorf("History's kind %s", got)
+		}
 	})
 	t.Run("adopted", func(t *testing.T) {
 		e, _, _, _ := adoptedFilm(t)
@@ -372,6 +385,9 @@ func TestReplacementOfGoneFileIsNoUpgrade(t *testing.T) {
 		}
 		if got := kind(e); got != "upgrade" {
 			t.Errorf("kind %s", got)
+		}
+		if got := historyKind(e); got != "grab" {
+			t.Errorf("History's kind %s", got)
 		}
 	})
 }

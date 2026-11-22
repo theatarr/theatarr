@@ -190,9 +190,17 @@ func TestPutBack(t *testing.T) {
 		c.restored(t)
 	})
 	t.Run("search open", func(t *testing.T) {
+		// Asked first: while the search is open the files are not even loaded (a replacement whose facts cannot be
+		// read would otherwise keep the copy aside).
 		c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
-		wait(t, c, func() { c.exec(`UPDATE playing_break SET searched = 1, reported = '' WHERE id = ?`, c.id) },
-			func() { c.exec(`UPDATE playing_break SET reported = 'replaced' WHERE id = ?`, c.id) })
+		meta := c.one(`SELECT file_metadata FROM link WHERE id = 2`)
+		wait(t, c, func() {
+			c.exec(`UPDATE playing_break SET searched = 1, reported = '' WHERE id = ?`, c.id)
+			c.exec(`UPDATE link SET file_metadata = 'not json' WHERE id = 2`)
+		}, func() {
+			c.exec(`UPDATE playing_break SET reported = 'replaced' WHERE id = ?`, c.id)
+			c.exec(`UPDATE link SET file_metadata = ? WHERE id = 2`, meta)
+		})
 	})
 	t.Run("unclear session", func(t *testing.T) {
 		c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
