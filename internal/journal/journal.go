@@ -291,7 +291,10 @@ var (
 // flaggedHeadSQL lists the History rows by their entries, at the entries' own times (a grab's row is dated when a
 // provider took it, its entry when it was created), before a severity condition.
 const flaggedHeadSQL = `SELECT ` + entryOfRefSQL + ` AS id, CASE WHEN kind IN ('grab', 'upgrade') THEN COALESCE((SELECT
-	d.created_at FROM download d WHERE d.id = history.download_id), at) ELSE at END AS at, title_id, version_key, kind
+	d.created_at FROM download d WHERE d.id = history.download_id), at) ELSE at END AS at, title_id, version_key,
+	-- a download's kind as the journal's list gives it (grabKindSQL), not History's stored one
+	CASE WHEN kind IN ('grab', 'upgrade') THEN COALESCE((SELECT ` + grabKindSQL + ` FROM download d
+		WHERE d.id = history.download_id), kind) ELSE kind END AS kind
 	FROM history WHERE `
 
 // libHeadSQL is the library part without its filter.

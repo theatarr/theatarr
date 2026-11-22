@@ -464,6 +464,20 @@ func TestDownloadChecks(t *testing.T) {
 	if !ids["dl:3"] || !ids["dl:50"] || !ids["dl:63:fail"] || len(ids) != 3 {
 		t.Errorf("suspects: %v", ids)
 	}
+	// Flagged › Upgraded is the downloads that replaced a file, as All › Upgraded: dl:3, still on its way, is a grab.
+	flagged := func(kind string) map[string]bool {
+		out := map[string]bool{}
+		for _, it := range e.list(Filter{Suspect: true, Kinds: []string{kind}, Limit: 500}).Items {
+			out[it.ID] = true
+		}
+		return out
+	}
+	if got := flagged(KindUpgrade); got["dl:3"] {
+		t.Errorf("flagged upgrades: %v", got)
+	}
+	if got := flagged(KindGrab); !got["dl:3"] {
+		t.Errorf("flagged grabs: %v", got)
+	}
 	if p := e.list(Filter{Severity: SevError, Limit: 500}); len(p.Items) != 2 {
 		t.Errorf("errors: %d", len(p.Items))
 	}
