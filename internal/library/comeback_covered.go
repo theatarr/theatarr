@@ -24,21 +24,29 @@ const (
 	asideTrashNote = "; its dead link moved to the trash at "
 )
 
-// asideOldReplaced settles aside, unread, the open rows an import replaced more than 30 days ago.
+// asideOldReplaced settles aside, unread, the open rows an import replaced more than 30 days ago. A row whose copy is
+// in place (an active link at its path and old target, as the come-back scan reads it: an Undo of a later
+// replacement brought it back) is closed quietly instead, restored, with no action and no outcome.
 func (l *Library) asideOldReplaced(ctx context.Context) error {
-	rows, err := l.st.Reader().QueryContext(ctx, `SELECT id, incident, link_id, title_id, version_key, path, old_target,
-		info_hash FROM playing_break WHERE settled = '' AND fixed_by = 'replaced' AND broken_at < ? ORDER BY id`,
+	rows, err := l.st.Reader().QueryContext(ctx, `SELECT pb.id, pb.incident, pb.link_id, pb.title_id, pb.version_key,
+		pb.path, pb.old_target, pb.info_hash, EXISTS (SELECT 1 FROM link l WHERE l.path = pb.path
+			AND l.target = pb.old_target AND l.state = 'active')
+		FROM playing_break pb WHERE pb.settled = '' AND pb.fixed_by = 'replaced' AND pb.broken_at < ? ORDER BY pb.id`,
 		store.Millis(l.now().Add(-replacedAside)))
 	if err != nil {
 		return err
 	}
 	var old []returned
+	inPlace := map[int64]bool{}
 	for rows.Next() {
 		var r returned
-		if err := rows.Scan(&r.id, &r.incident, &r.linkID, &r.titleID, &r.version, &r.path, &r.old, &r.hash); err != nil {
+		var in bool
+		if err := rows.Scan(&r.id, &r.incident, &r.linkID, &r.titleID, &r.version, &r.path, &r.old, &r.hash,
+			&in); err != nil {
 			rows.Close()
 			return err
 		}
+		inPlace[r.id] = in
 		old = append(old, r)
 	}
 	rows.Close()
@@ -47,6 +55,15 @@ func (l *Library) asideOldReplaced(ctx context.Context) error {
 	}
 	for _, r := range old {
 		r.hash = "" // never read: it lifts no miss (its own aged out; one now is a later incident's)
+		if inPlace[r.id] {
+			now := store.Millis(l.now())
+			if err := l.st.WriteTx(ctx, func(tx *sql.Tx) error {
+				return settleReturnTx(ctx, tx, r.id, "", "restored", now)
+			}); err != nil {
+				return err
+			}
+			continue
+		}
 		if err := l.settleAside(ctx, r, asideOldWords); err != nil {
 			return err
 		}

@@ -774,6 +774,13 @@ func TestUndoSettlesThePlayingIncident(t *testing.T) {
 	if got := e.one(`SELECT settled FROM playing_break WHERE id = 50`); got != "restored" {
 		t.Errorf("after the sweep %s", got)
 	}
+	// The other incident on the same copy ages out while its file is in place: closed quietly, never "kept aside".
+	if got := e.one(`SELECT settled FROM playing_break WHERE id = 51`); got != "restored" {
+		t.Errorf("the other incident after the sweep %q", got)
+	}
+	if got := e.one(`SELECT COUNT(*) FROM library_action WHERE detail LIKE '%kept aside%'`); got != "0" {
+		t.Errorf("kept-aside actions %s", got)
+	}
 	if len(outcomes) != 0 {
 		t.Errorf("outcomes %v", outcomes)
 	}

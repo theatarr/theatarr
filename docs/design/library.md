@@ -1015,7 +1015,8 @@ before 00152 has no snapshot and gets no Undo; nor does one whose trash copy was
     no later sweep brings it back beside the files that hold its place. One library action records it, "the earlier copy
     works again; kept aside"; it is no removal by a person, so History shows no row for it. A replaced row older than 30
     days is kept aside without a read, in the words "not checked again after 30 days; kept aside", and lifts no miss
-    (its own aged out long ago). Nothing is deleted on any account.
+    (its own aged out long ago). One whose copy is in place by then (an active link at its path and old target, after an Undo
+    of a later replacement) is closed quietly instead, `restored`, with no action and no outcome. Nothing is deleted on any account.
   - **Put back.** A replaced copy that read twice is instead put back in place of the one file of its library that
     holds its film or episodes now (`putback.go`, through the same return as Undo: "Undo an upgrade"), with its row's
     own saved facts, when all hold: the library does not prefer SeaDex; neither file's quality is unknown (none, or
