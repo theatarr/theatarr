@@ -377,7 +377,8 @@ mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
      refusal of another release of the film (a `library` row of the same title, another blocklist key, whose reason
      starts with the same opening `Import refused: <languages> audio only; this library wants `, the languages by
      name, sorted), the file is taken and noted (`audio: French only, not what this library wants; taken because an
-     earlier release with the same audio was refused`); one torrent on several providers is one key, so it counts
+     earlier release with the same audio was refused`), and History's Imported row shows that note as its reason
+     (`Audio: French only, …`, from the plan's file note, `store.HistoryImport`); one torrent on several providers is one key, so it counts
      once. Unblocking the earlier row removes the evidence.
    - *An empty series slot*: refused every time, `...; this library wants English. Use Manual import to take it
      anyway.`

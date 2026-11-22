@@ -133,14 +133,19 @@ func HistoryFailure(ctx context.Context, ex Execer, ids ...int64) {
 }
 
 // HistoryImport writes download id's import row once it linked or partly linked (dl:<id>:import), with the episodes
-// its links held (recorded with each link action, else the link's current episodes), never the ones it asked for.
+// its links held (recorded with each link action, else the link's current episodes), never the ones it asked for. Its
+// reason is the wrong-audio rule's note when a file was taken although its audio is not the wanted one ("audio: ...",
+// as the plan and the journal say it).
 func HistoryImport(ctx context.Context, ex Execer, id int64) {
 	historyExec(ctx, ex, `INSERT INTO history (`+historyCols+`)
 		SELECT 'dl:' || d.id || ':import', li.updated_at, 'imported', 'import', `+historyDownloadFacts+`,
 			(SELECT json_group_array(DISTINCT j.value) FROM library_action a, json_each(COALESCE(a.episodes,
 				(SELECT json_group_array(le.episode_id) FROM link_episode le WHERE le.link_id = a.link_id))) j
 				WHERE a.kind = 'link' AND a.mode = 'applied' AND a.download_id = d.id),
-			0, NULL, COALESCE(d.provider, ''), '', '', li.state, '', ''
+			0, NULL, COALESCE(d.provider, ''), COALESCE((SELECT substr(n.note, instr(n.note, 'audio: '))
+				FROM (SELECT json_extract(f.value, '$.note') AS note FROM json_each(CASE WHEN json_valid(li.plan)
+					THEN li.plan ELSE '{}' END, '$.files') f) n WHERE instr(n.note, 'audio: ') > 0 LIMIT 1), ''), '',
+			li.state, '', ''
 		FROM library_import li JOIN download d ON d.id = li.download_id
 		WHERE li.state IN ('linked', 'partial') AND d.id = ?`+historyUpsert, id)
 }

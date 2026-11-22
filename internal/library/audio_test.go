@@ -325,6 +325,11 @@ func TestAudioRuleEmptyFilmSlotRefusedOnce(t *testing.T) {
 	if f := plannedFile(p, "movie.mkv"); f == nil || !strings.Contains(f.Note, "an earlier release with the same audio was refused") {
 		t.Errorf("note %+v", f)
 	}
+	// History's import row carries the note, in the journal's words.
+	if got := e.one(`SELECT reason FROM history WHERE ref = 'dl:4:import'`); got != "audio: French only, not what this "+
+		"library wants; taken because an earlier release with the same audio was refused" {
+		t.Errorf("history reason %q", got)
+	}
 }
 
 // An empty series slot is refused every time, the reason naming Manual import; a pack is one verdict: one

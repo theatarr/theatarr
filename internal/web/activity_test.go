@@ -1200,6 +1200,29 @@ func TestHistoryPartialUpgradeWords(t *testing.T) {
 	}
 }
 
+// A film taken although its audio is not the wanted one (the second release with the same languages) says so on its
+// Imported row, in the journal's words.
+func TestHistoryImportAudioNote(t *testing.T) {
+	h := &journal.HistoryRow{Event: journal.EvImported, Import: "linked",
+		Reason: "audio: French only, not what this library wants; taken because an earlier release with the same audio was refused"}
+	want := "Audio: French only, not what this library wants; taken because an earlier release with the same audio was refused"
+	if r := historyReason(h, "", strings.ToUpper, nil); r != want {
+		t.Errorf("reason %q", r)
+	}
+	// Whole through History's read.
+	o := newOpsEnv(t)
+	o.exec(`INSERT INTO history (ref, at, event, kind, title_id, version_key, release, quality, files, reason, import_state)
+		VALUES ('dl:9:import', ?, 'imported', 'import', 1, 'movie-remux', 'Alpha.2020.2160p.WEB-GRP', 'WEBDL-2160p', 1, ?,
+		'linked')`, store.Millis(testNow), h.Reason)
+	var page ActivityPage
+	if code := o.jsonCall("GET", APIBase+"/activity?state=history", nil, o.mc, "", &page); code != 200 {
+		t.Fatalf("history: %d", code)
+	}
+	if len(page.History) != 1 || page.History[0].Reason != want {
+		t.Errorf("history %+v", page.History)
+	}
+}
+
 // History's Blocked rows say the reason in the Blocklist's words: an arr blocklist's own text adds nothing, a ready
 // timeout reads as the failure it was.
 func TestHistoryBlockedReasonWords(t *testing.T) {

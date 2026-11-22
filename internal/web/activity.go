@@ -924,7 +924,8 @@ func playingHistoryWords(kind string) (words, tone string) {
 const playingWords = "Stopped working while playing"
 
 // historyReason is a History row's reason in plain words: why a download failed or stalled, why a release was blocked,
-// why a file was removed, what is left of a partial import, a copy's message when it says more than the words.
+// why a file was removed, what is left of a partial import, the audio note of a film taken with audio not wanted, a
+// copy's message when it says more than the words.
 func historyReason(h *journal.HistoryRow, notStarted string, tag, label func(string) string) string {
 	switch h.Event {
 	case journal.EvFailed:
@@ -939,6 +940,10 @@ func historyReason(h *journal.HistoryRow, notStarted string, tag, label func(str
 		// An upgrade's row carries its import's state.
 		if h.Import == "partial" {
 			return "Partly imported; the rest is tried again"
+		}
+		// A file taken although its audio is not the wanted one: the wrong-audio rule's note, as the journal says it.
+		if note, ok := strings.CutPrefix(h.Reason, "audio: "); ok && h.Event == journal.EvImported {
+			return "Audio: " + note
 		}
 	case journal.EvRemoved:
 		return removedByWords(h.Reason)
