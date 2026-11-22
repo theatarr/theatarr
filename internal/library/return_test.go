@@ -582,3 +582,31 @@ func TestUndoOfferEmptyFile(t *testing.T) {
 		t.Errorf("offered: %v", offers)
 	}
 }
+
+// A library that does not write offers no Undo, and the POST says why in the gate's words; a successor whose
+// symlink is gone is not offered either.
+func TestUndoAsksTheGate(t *testing.T) {
+	t.Parallel()
+	t.Run("library off", func(t *testing.T) {
+		e, _, _, action := adoptedFilm(t)
+		e.lib.gate.enabled = false
+		if offers, _ := e.lib.UndoOffers(e.ctx, []int64{action}); len(offers) != 0 {
+			t.Errorf("offered: %v", offers)
+		}
+		var rr *ReturnRefused
+		if _, err := e.lib.UndoUpgrade(e.ctx, action, ""); !errors.As(err, &rr) ||
+			rr.Sentence != "The library does not write now: library.enabled is false" {
+			t.Errorf("undo: %v", err)
+		}
+	})
+	t.Run("successor symlink gone", func(t *testing.T) {
+		e, _, _, action := adoptedFilm(t)
+		if err := os.Remove(e.one(`SELECT path FROM link WHERE download_id = 1`)); err != nil {
+			t.Fatal(err)
+		}
+		e.exec(`UPDATE link SET state = 'dead' WHERE download_id = 1`)
+		if offers, _ := e.lib.UndoOffers(e.ctx, []int64{action}); len(offers) != 0 {
+			t.Errorf("offered: %v", offers)
+		}
+	})
+}

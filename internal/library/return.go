@@ -238,11 +238,12 @@ func (l *Library) UndoOffers(ctx context.Context, ids []int64) (map[int64]string
 	}
 	idj, _ := json.Marshal(ids)
 	type offer struct {
-		id                       int64
-		version, target, release string
+		id                                             int64
+		version, target, release, succPath, succTarget string
 	}
 	var offers []offer
 	if err := scanRows(ctx, l.st.Reader(), `SELECT la.id, r.version_key, r.target,
+		json_extract(r.snapshot, '$.successor.path'), json_extract(r.snapshot, '$.successor.target'),
 		COALESCE((SELECT release_title FROM download WHERE id = json_extract(r.snapshot, '$.successor.download_id')),
 			(SELECT release_title FROM link WHERE id = json_extract(r.snapshot, '$.successor.link_id')), '')
 		FROM library_action la JOIN link_trash r ON r.trash_path = CASE WHEN la.detail LIKE '%' || ?1
@@ -253,15 +254,18 @@ func (l *Library) UndoOffers(ctx context.Context, ids []int64) (map[int64]string
 		AND `+slotHeldSQL+` AND NOT `+othersHoldSQL+` AND NOT `+importingSQL, []any{store.HistoryDeadLower, string(idj)},
 		func(rs *sql.Rows) error {
 			var o offer
-			err := rs.Scan(&o.id, &o.version, &o.target, &o.release)
+			err := rs.Scan(&o.id, &o.version, &o.target, &o.succPath, &o.succTarget, &o.release)
 			offers = append(offers, o)
 			return err
 		}); err != nil {
 		return nil, err
 	}
 	for _, o := range offers {
-		if l.pol.Versions[o.version] == nil {
+		if l.pol.Versions[o.version] == nil || !l.gate.Active(o.version) {
 			continue
+		}
+		if cur, err := os.Readlink(o.succPath); err != nil || cur != o.succTarget {
+			continue // the successor's symlink is gone or changed
 		}
 		p, ok := l.mount.FromLink(o.target)
 		if !ok {
@@ -301,6 +305,14 @@ func (l *Library) undoUpgrade(ctx context.Context, actionID int64, by string) (*
 	}
 	if l.pol.Versions[e.version] == nil {
 		return nil, &ReturnRefused{Sentence: returnChanged}
+	}
+	// The library's write gate, in its own words.
+	if err := l.gate.CheckVersion(e.version); err != nil {
+		var ref *Refused
+		if errors.As(err, &ref) {
+			return nil, &ReturnRefused{Sentence: "The library does not write now: " + ref.Detail}
+		}
+		return nil, err
 	}
 	var hash, release string
 	_ = l.st.Reader().QueryRowContext(ctx, `SELECT COALESCE(info_hash, ''), COALESCE(release_title, '') FROM download
