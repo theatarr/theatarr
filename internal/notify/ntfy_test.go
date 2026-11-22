@@ -160,8 +160,10 @@ func TestNtfyTargetGetsMessages(t *testing.T) {
 	e.n.Emit(ctx, Event{Kind: Download, TitleID: 1, Version: "movie-web"})
 	e.hlth = []HealthItem{{Source: "MountCheck", Type: "error", Message: "mount not readable"},
 		{Source: "DiskSpaceCheck", Type: "warning", Message: "disk 91% full"}}
-	if err := e.n.Scan(ctx); err != nil {
-		t.Fatal(err)
+	for range 2 { // announced once two check runs in a row failed
+		if err := e.n.Scan(ctx); err != nil {
+			t.Fatal(err)
+		}
 	}
 	got := e.ntfySent()
 	if len(got) != 1 || got[0].Title != "Health check failing: MountCheck" || got[0].Message != "mount not readable" || got[0].Priority != 4 {

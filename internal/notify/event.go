@@ -171,6 +171,9 @@ type HealthItem struct {
 	Source  string `json:"source"`
 	Type    string `json:"type"`
 	Message string `json:"message"`
+	// CheckedAt is when the check's run started (zero when the item comes from no check run); it tells two runs from
+	// two reads of one cached run. Not part of any payload.
+	CheckedAt time.Time `json:"-"`
 }
 
 // Payload is one arr-shaped body for one view.

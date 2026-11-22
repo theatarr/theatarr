@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/theatarr/theatarr/internal/policy"
 )
@@ -41,6 +42,43 @@ func (e *nenv) sentTitles(target string) (titles, raw []string) {
 
 // Health warnings go only to a message target that asks for them; a target without the option gets exactly the
 // error messages it got before, and a notice goes to nobody.
+// TestHealthAlertAfterTwoRuns: a check is announced once it failed on two distinct check runs in a row, not on two
+// reads of one cached run; one failed run followed by a pass sends nothing; recovery only follows an announced failure.
+func TestHealthAlertAfterTwoRuns(t *testing.T) {
+	t.Parallel()
+	e := newDiscordEnv(t, true, nil)
+	ctx := context.Background()
+	run := func(min int, level string) {
+		t.Helper()
+		e.hlth = nil
+		if level != "" {
+			e.hlth = []HealthItem{{Source: "MountCheck", Type: level, Message: "mount not readable",
+				CheckedAt: time.Date(2026, 10, 26, 12, min, 0, 0, time.UTC)}}
+		}
+		if err := e.n.Scan(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run(1, "error")
+	run(1, "error") // the same cached run read again
+	if got, _ := e.sentTitles("chan"); len(got) != 0 {
+		t.Fatalf("one failed run announced: %q", got)
+	}
+	run(2, "") // passes on the next run: nothing to recover from
+	run(3, "error")
+	if got, _ := e.sentTitles("chan"); len(got) != 0 {
+		t.Fatalf("a single failure or its pass announced: %q", got)
+	}
+	run(4, "error")
+	run(4, "error")
+	run(5, "error")
+	run(6, "")
+	want := []string{"Health check failing: MountCheck", "Health check OK again: MountCheck"}
+	if got, _ := e.sentTitles("chan"); !slices.Equal(got, want) {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
 func TestHealthWarningsOptIn(t *testing.T) {
 	t.Parallel()
 	e := newDiscordEnv(t, true, func(p *policy.Policy) {
@@ -63,8 +101,10 @@ func TestHealthWarningsOptIn(t *testing.T) {
 		{disk("notice", "disk 81% full"), version("warning")}, // warning to notice, notice to warning
 		nil} { // notice to ok, warning to ok
 		e.hlth = h
-		if err := e.n.Scan(ctx); err != nil {
-			t.Fatal(err)
+		for range 2 { // each state on two check runs: a new or worse type is announced on its second
+			if err := e.n.Scan(ctx); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	errorsOnly := []string{"Health check failing: DiskSpaceCheck", "Health check no longer failing, now warning: DiskSpaceCheck"}

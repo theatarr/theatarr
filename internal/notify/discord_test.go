@@ -173,8 +173,10 @@ func TestDiscordHealthGoesToDiscordOnly(t *testing.T) {
 	}
 	e.hlth = []HealthItem{{Source: "MountCheck", Type: "error", Message: "mount not readable"},
 		{Source: "DiskSpaceCheck", Type: "warning", Message: "disk 91% full"}}
-	if err := e.n.Scan(ctx); err != nil {
-		t.Fatal(err)
+	for range 2 { // announced once two check runs in a row failed
+		if err := e.n.Scan(ctx); err != nil {
+			t.Fatal(err)
+		}
 	}
 	e.hlth = []HealthItem{{Source: "DiskSpaceCheck", Type: "warning", Message: "disk 91% full"}}
 	if err := e.n.Scan(ctx); err != nil {
@@ -210,8 +212,10 @@ func TestDiscordHealthLeavingErrorThroughWarning(t *testing.T) {
 		{{Source: "DiskSpaceCheck", Type: "warning", Message: "disk 91% full"}},
 		nil} {
 		e.hlth = h
-		if err := e.n.Scan(ctx); err != nil {
-			t.Fatal(err)
+		for range 2 { // each state on two check runs: a new failure is announced on its second
+			if err := e.n.Scan(ctx); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	got := e.discordSent()
