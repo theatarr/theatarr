@@ -984,3 +984,30 @@ func TestRescueUntrackedSymlinkInRoot(t *testing.T) {
 		t.Errorf("an untracked symlink was checked: %d reads", n)
 	}
 }
+
+// zurg names the serving account and the release is complete on two accounts, with no other release held only by the
+// serving one: the serving account is kept. Another release reads, so only this release on that account is broken;
+// the other holder stays a candidate for the same release (step 1), and only the serving account gets the miss.
+func TestRescueKeepsKnownServingAccount(t *testing.T) {
+	e := newRescueEnv(t, false, true)
+	a, b := strings.Repeat("a", 40), strings.Repeat("b", 40)
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash, progress, state) VALUES
+		('ad', 'a50', ?, 100, 'downloaded'), ('ad', 'a60', ?, 100, 'downloaded'),
+		('tb', 't50', ?, 100, 'downloading')`, a, b, a)
+	e.pol.Versions["tv"].Providers = []string{"rd", "ad", "tb"}
+	e.play(2, "playing")
+	e.poll()
+	e.tr.ZurgLine("INFO Large transfer: 512 MiB of __all__/Rel/S01E02.mkv from rd for 30s")
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.play(2, "buffering")
+	e.poll()
+	if fmt.Sprint(e.copies) != "[ad tb]" {
+		t.Errorf("step 1 asked %v, want the other holder and the account still downloading it", e.copies)
+	}
+	if got := e.one(`SELECT group_concat(provider) FROM provider_cache WHERE info_hash = ? AND source = 'router:playing'`, a); got != "rd" {
+		t.Errorf("misses on %q", got)
+	}
+	if got := e.one(`SELECT state FROM link WHERE id = 11`); got != "dead" {
+		t.Errorf("link %s", got)
+	}
+}

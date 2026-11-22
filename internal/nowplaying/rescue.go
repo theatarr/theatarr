@@ -396,6 +396,10 @@ const (
 	whereNone     = ""         // no verdict
 )
 
+// completeSQL is a provider_torrent row of a release its account holds complete: state downloaded at 100 % (a
+// TorBox entry at 100 % still downloading, or one in error, is not).
+const completeSQL = `progress >= 100 AND state = 'downloaded'`
+
 type controlVerdict struct {
 	where   string
 	serving string   // the account serving the file, "" when unknown
@@ -405,13 +409,15 @@ type controlVerdict struct {
 // control decides where the break lies by reading another release through the mount (section 3 of the plan): one
 // held only by the serving account (zurg's servedBy, else the release's only complete holder), at mid-file. It reads:
 // only this release is broken. It fails: one held only by another account is read; it reads: the serving account is
-// out; it fails, or there is none: the mount. zurg saying the serving account cools down means it is out too. With the
-// serving account unknown any other release is read; it must pass.
+// out; it fails, or there is none: the mount. zurg saying the serving account cools down means it is out too. With no
+// release held by the serving account alone any other release is read, and the serving account is kept; with the
+// serving account unknown from the start any other release is read too, and the release counts as broken on each
+// holder (the repair's failed accounts).
 func (t *Tracker) control(ctx context.Context, lib Rescuer, j *sign, hash string) controlVerdict {
 	v := controlVerdict{serving: j.servedBy}
 	if hash != "" {
-		v.holders = t.strings(ctx, `SELECT DISTINCT provider FROM provider_torrent WHERE info_hash = ? AND progress >= 100
-			AND state <> 'error' ORDER BY provider`, hash)
+		v.holders = t.strings(ctx, `SELECT DISTINCT provider FROM provider_torrent WHERE info_hash = ?
+			AND `+completeSQL+` ORDER BY provider`, hash)
 	}
 	if v.serving == "" && len(v.holders) == 1 {
 		v.serving = v.holders[0]
@@ -423,12 +429,13 @@ func (t *Tracker) control(ctx context.Context, lib Rescuer, j *sign, hash string
 	folder := releaseFolder(j.src.Target, t.o.AllDir)
 	target, ok := t.otherRelease(ctx, j.src.LinkID, hash, folder, v.serving, true)
 	if !ok {
+		// Nothing held by the serving account alone: any other release must read. The serving account is kept: the
+		// break is then this release on it only.
 		target, ok = t.otherRelease(ctx, j.src.LinkID, hash, folder, "", false)
 		if !ok {
 			v.where = whereMount
 			return v
 		}
-		v.serving = "" // nothing held by it alone to tell its account from this release
 	}
 	switch t.readMid(ctx, lib, target) {
 	case readOK:
@@ -492,7 +499,7 @@ func (t *Tracker) otherRelease(ctx context.Context, linkID int64, hash, folder, 
 		if !only {
 			cmp = "<>"
 		}
-		q += ` AND h IN (SELECT info_hash FROM provider_torrent WHERE progress >= 100 AND state <> 'error'
+		q += ` AND h IN (SELECT info_hash FROM provider_torrent WHERE ` + completeSQL + `
 			GROUP BY info_hash HAVING COUNT(DISTINCT provider) = 1 AND MIN(provider) ` + cmp + ` ?)`
 		args = append(args, account)
 	} else {
