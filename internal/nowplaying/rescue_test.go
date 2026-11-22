@@ -274,6 +274,14 @@ func (e *rescueEnv) now() time.Time {
 	return e.clock
 }
 
+// settle runs the library's settle pass, as its maintenance does every 30 s.
+func (e *rescueEnv) settle() {
+	e.t.Helper()
+	if err := e.lib.SettlePlayingRuns(e.ctx); err != nil {
+		e.t.Fatal(err)
+	}
+}
+
 func (e *rescueEnv) advance(d time.Duration) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -581,8 +589,7 @@ func TestRescuePackSiblings(t *testing.T) {
 		t.Fatalf("searches %+v, outcomes %s while the first search is pending", jobs, e.kinds())
 	}
 	e.exec(`UPDATE job SET state = 'done'`)
-	e.advance(settleEvery)
-	e.poll()
+	e.settle() // the library's maintenance
 	jobs := e.playingJobs()
 	if len(jobs) != 2 || fmt.Sprint(jobs[1].Episodes) != "[3]" || jobs[1].Reason != router.ReasonPlaying {
 		t.Errorf("searches %+v", jobs)
@@ -591,8 +598,7 @@ func TestRescuePackSiblings(t *testing.T) {
 		t.Errorf("outcomes %q", e.kinds())
 	}
 	e.exec(`UPDATE job SET state = 'done'`)
-	e.advance(settleEvery)
-	e.poll()
+	e.settle()
 	if len(e.playingJobs()) != 2 || e.kinds() != outcome.Unavailable {
 		t.Errorf("settled again: %d searches, outcomes %q", len(e.playingJobs()), e.kinds())
 	}
@@ -676,8 +682,9 @@ func TestRescueSignsAndCertainty(t *testing.T) {
 	}
 }
 
-// The old copy comes back: after each sweep the worker reads it; read on two sweeps an hour apart with nothing else
-// holding its episode, it is revived (the uncovered case).
+// The old copy comes back through the library's own maintenance, never through the worker (a live check or an owed
+// message never waits behind come-back reads): polls after sweeps read nothing of it; the library's come-back pass,
+// read on two sweeps an hour apart with nothing else holding its episode, revives it (the uncovered case).
 func TestRescueComeBackAfterSweep(t *testing.T) {
 	e := newRescueEnv(t, false, false)
 	e.lib.setBroken("S01E02.mkv", -1)
@@ -695,8 +702,17 @@ func TestRescueComeBackAfterSweep(t *testing.T) {
 		if got := e.one(`SELECT state FROM link WHERE id = 11`); got != "dead" {
 			t.Fatalf("the sweep revived it by listing: %s", got)
 		}
-		e.advance(settleEvery)
+		e.advance(time.Minute)
 		e.poll()
+		e.advance(time.Hour)
+	}
+	if got := e.one(`SELECT state FROM link WHERE id = 11`) + " " + e.one(`SELECT back_since IS NULL FROM playing_break WHERE link_id = 11`); got != "dead 1" {
+		t.Fatalf("the worker read the old copy after the sweeps: %s", got)
+	}
+	for range 2 {
+		if err := e.lib.ComeBack(e.ctx); err != nil {
+			t.Fatal(err)
+		}
 		e.advance(time.Hour)
 	}
 	if got := e.one(`SELECT state FROM link WHERE id = 11`) + " " + e.one(`SELECT settled FROM playing_break WHERE link_id = 11`); got != "active revived" {

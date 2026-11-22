@@ -14,8 +14,8 @@ import (
 
 // The old copy of a file that broke while someone played it, when it comes back (docs/design/library.md "A file that
 // broke while playing"). While its incident is open the hourly sweep leaves its dead link alone (playingHeld): it comes
-// back only through a read. After each sweep now playing's worker calls ComeBack, which reads each open row's own file
-// at its saved range: a file that reads on two sweeps at least deadConfirm apart, whose film or episodes no other file
+// back only through a read. After each sweep the library's maintenance calls ComeBack, which reads each open row's own
+// file at its saved range, the least recently checked first (a read that times out ends the pass): a file that reads on two sweeps at least deadConfirm apart, whose film or episodes no other file
 // holds, is revived as the sweep would revive it. A file other files now hold (in part or whole), or that an import
 // replaced, is kept aside (comeback_covered.go).
 
@@ -25,6 +25,9 @@ const (
 	PlayingPiece      = 256 << 10
 	PlayingPieceLimit = 15 * time.Second
 )
+
+// comeBackLimit is a come-back read's time limit (tests shorten it).
+var comeBackLimit = PlayingPieceLimit
 
 // playingHeld are the open incidents' links by path, with the old target: a dead link still pointing there is the
 // incident's to bring back.
@@ -74,7 +77,8 @@ const replacedAside = 30 * 24 * time.Hour
 // own folder choice puts it and read at its saved range. A read starts or continues its streak (back_since), an
 // unlisted file or a failed read ends it; a read at least deadConfirm after the streak began decides: reviveReturned
 // for a dead link nothing else covers, settleAside (kept aside) for the rest. A replaced row older than 30 days is
-// settled aside unread. A mount that does not answer ends the pass.
+// settled aside unread. A mount that does not answer, or a read that times out, ends the pass; rows are read the least
+// recently checked first, so a file that always hangs comes last.
 func (l *Library) ComeBack(ctx context.Context) error {
 	if l.mount == nil {
 		return nil
@@ -96,7 +100,7 @@ func (l *Library) ComeBack(ctx context.Context) error {
 				SELECT 1 FROM link_episode oe WHERE oe.link_id = o.id
 				AND oe.episode_id IN (SELECT value FROM json_each(pb.episodes))))))
 		AND NOT (pb.fixed_by = 'replaced' AND pb.broken_at < ?) -- expired: settled unread (asideOldReplaced)
-		ORDER BY pb.id`, store.Millis(l.now().Add(-replacedAside)))
+		ORDER BY pb.updated_at, pb.id -- least recently checked first`, store.Millis(l.now().Add(-replacedAside)))
 	if err != nil {
 		return err
 	}
@@ -161,7 +165,7 @@ func (l *Library) ComeBack(ctx context.Context) error {
 			}
 			continue
 		}
-		_, err = l.ReadPiece(ctx, target, r.offset, PlayingPiece, PlayingPieceLimit)
+		_, err = l.ReadPiece(ctx, target, r.offset, PlayingPiece, comeBackLimit)
 		switch {
 		case errors.Is(err, ErrPieceNoVerdict):
 			continue
@@ -169,13 +173,16 @@ func (l *Library) ComeBack(ctx context.Context) error {
 			if err := l.setBack(ctx, r.id, false); err != nil {
 				return err
 			}
+			if errors.Is(err, errPieceTimedOut) {
+				// A read that hangs ends the pass: the next one goes on, this row last (stamped checked).
+				l.log.Info("library: a returned copy's read timed out; the rest wait for the next sweep", "link", r.path)
+				return nil
+			}
 			continue
-		case !r.backSince.Valid:
+		case !r.backSince.Valid || l.now().Sub(time.UnixMilli(r.backSince.Int64)) < deadConfirm:
 			if err := l.setBack(ctx, r.id, true); err != nil {
 				return err
 			}
-			continue
-		case l.now().Sub(time.UnixMilli(r.backSince.Int64)) < deadConfirm:
 			continue
 		}
 		if !r.dead {
@@ -191,13 +198,14 @@ func (l *Library) ComeBack(ctx context.Context) error {
 	return nil
 }
 
-// setBack starts (back) or ends a row's streak of reads.
+// setBack starts (back) or ends a row's streak of reads, and stamps the row checked now (updated_at: a pass reads the
+// least recently checked rows first).
 func (l *Library) setBack(ctx context.Context, id int64, back bool) error {
 	now := store.Millis(l.now())
-	q := `UPDATE playing_break SET back_since = NULL, updated_at = ? WHERE id = ? AND back_since IS NOT NULL`
+	q := `UPDATE playing_break SET back_since = NULL, updated_at = ? WHERE id = ?`
 	args := []any{now, id}
 	if back {
-		q = `UPDATE playing_break SET back_since = ?, updated_at = ? WHERE id = ? AND back_since IS NULL`
+		q = `UPDATE playing_break SET back_since = COALESCE(back_since, ?), updated_at = ? WHERE id = ?`
 		args = []any{now, now, id}
 	}
 	_, err := l.st.Writer().ExecContext(ctx, q, args...)

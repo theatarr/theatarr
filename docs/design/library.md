@@ -828,9 +828,11 @@ state and Cutoff unmet are its own. The journal records an `edit_file` action (m
   - **The release's other files** found broken with it are marked as they are found, without a search.
     `QueuePlayingSearch` queues one `playing` search for their episodes together once the watched file's search has
     ended.
-  - **When a search has ended** (`SettlePlayingRuns`): no search job for its episodes, due row, running search or
-    route of their season, failed download of them the router has not searched again yet, nor a download in flight
-    holding one of them, since the break. Another season's searches do not count.
+  - **When a search has ended** (`SettlePlayingRuns`, every 30 s in the library's own loop, whether or not now
+    playing runs or Plex answers): no search job for its episodes, due row, running search or route of their season,
+    failed download of them the router has not searched again yet, nor a download in flight holding one of them, since
+    the break. Another season's searches do not count. While now playing still reads the release's other files
+    (`HoldPlayingSiblings`, in memory) their search is not queued yet (`TestSettlePlayingWaitsForTheSiblingPass`).
   - **Replaced.** The import after which an open row's film, or every one of its episodes, has a file again notes it
     fixed (`fixed_by` `replaced`, the new release) in its transaction and, after the commit, reports the watched file's
     outcome `replaced` once (`TestPlayingReplacedByImport`). A row only partly covered stays open
@@ -839,10 +841,13 @@ state and Cutoff unmet are its own. The journal records an `edit_file` action (m
   - **The sweep leaves an open incident's dead link alone** while its target is still the old copy: no revive, move
     aside or repoint by a listing (`TestSweepLeavesUnsettledDeadLink`, `TestSweepDoesNotRepointUnsettledDeadLink`). A
     replacement at the same path (a new target) is an ordinary link (`TestSweepTreatsSamePathReplacementAsActive`).
-  - **It comes back only through a read.** After each hourly sweep that ended without error (`LastSweep`; not one a
-    zurg rename started) now playing's worker calls `ComeBack` for each open row whose old copy is not in place: its
-    link still dead at the old target, replaced by an import, or moved aside by a partial import while other files
-    hold some of its episodes. Before any read it asks the sweep's own folder choice
+  - **It comes back only through a read.** After each relink sweep that ended without error (not one a zurg rename
+    started) the relink task calls `ComeBack` for each open row whose old copy is not in place: its link still dead at
+    the old target, replaced by an import, or moved aside by a partial import while other files hold some of its
+    episodes. Now playing's worker never reads them, so a live check or an owed message never waits behind them
+    (`TestServeLibraryFinishesPlayingIncidents`). Rows are read the least recently checked first, and a read that
+    times out ends the pass with its row stamped checked, so one file that always hangs cannot hold the others back
+    (`TestComeBackEndsAtATimeOut`). Before any read it asks the sweep's own folder choice
     (`pickFolder`, with the incident's saved hash: a hash-suffixed folder over a reused bare name, decypharr's current
     name, zurg's and decypharr's confirmation; one listing and one cache of decypharr's file lists per pass) where each
     open row's file is now, and reads only there, at its saved range (`TestComeBackSkipsReusedBareName`,

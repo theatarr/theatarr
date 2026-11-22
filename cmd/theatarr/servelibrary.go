@@ -45,11 +45,17 @@ type serveLibrary struct {
 	readyWake <-chan struct{}
 	// afterImportPass, when set (tests), runs after each import pass with whether it armed the quick re-check.
 	afterImportPass func(rechecking bool)
+	// playingSettle, when set (tests), replaces playingSettleEvery.
+	playingSettle time.Duration
 }
 
 // readyRecheck is how soon the next import pass runs while a download that turned ready moments ago waits for its
 // release to show on the mount (library.ReadyRecheckWindow).
 var readyRecheck = 2 * time.Second
+
+// playingSettleEvery is how often the library looks whether the search of a file that broke while playing has ended
+// (library.SettlePlayingRuns).
+const playingSettleEvery = 30 * time.Second
 
 // newServeLibrary builds one generation's library service. Its mount metrics are not registered here: serve registers
 // them once, against the active generation's library (serveLibrary.current).
@@ -266,7 +272,14 @@ func (s *serveLibrary) Run(ctx context.Context, tb *tasks.Table) {
 				return tasks.ErrSkip
 			}
 			_, err := current.lib.Relink(ctx, "", false)
-			return err
+			if err != nil {
+				return err
+			}
+			// After each sweep the old copies of files that broke while playing are read, one at a time (ComeBack).
+			if err := current.lib.ComeBack(ctx); err != nil && ctx.Err() == nil {
+				s.log.Warn("library: reading returned copies", "err", err)
+			}
+			return nil
 		}}
 	dangling := tasks.Task{Key: "library.dangling", Name: "Report dangling links", Every: s.set.DanglingEvery,
 		Run: func(ctx context.Context) error {
@@ -295,6 +308,13 @@ func (s *serveLibrary) Run(ctx context.Context, tb *tasks.Table) {
 	relinkTick := time.NewTicker(s.set.RelinkInterval)
 	dailyTick := time.NewTicker(24 * time.Hour)
 	danglingTick := time.NewTicker(s.set.DanglingEvery)
+	settleEvery := playingSettleEvery
+	if s.playingSettle > 0 {
+		settleEvery = s.playingSettle
+	}
+	// Files that broke while playing are finished here whether or not now playing runs or Plex answers.
+	settleTick := time.NewTicker(settleEvery)
+	defer settleTick.Stop()
 	defer importTick.Stop()
 	defer relinkTick.Stop()
 	defer dailyTick.Stop()
@@ -332,6 +352,11 @@ func (s *serveLibrary) Run(ctx context.Context, tb *tasks.Table) {
 			return
 		case <-danglingTick.C:
 			_, _ = tb.Run(ctx, dangling.Key, time.Now().Add(s.set.DanglingEvery))
+		case <-settleTick.C:
+			ctx, current := s.forOperation(ctx)
+			if err := current.lib.SettlePlayingRuns(ctx); err != nil && ctx.Err() == nil {
+				s.log.Warn("library: settling broken files' searches", "err", err)
+			}
 		case <-importTick.C:
 			importPass(ctx)
 		case <-s.readyWake:

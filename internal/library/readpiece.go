@@ -24,6 +24,9 @@ var ErrPieceUnreadable = errors.New("library: the file did not read")
 // too many abandoned reads in this process, a cancelled context).
 var ErrPieceNoVerdict = errors.New("library: no verdict on the file")
 
+// errPieceTimedOut is the unreadable verdict of a read that missed its time limit (a come-back pass ends at it).
+var errPieceTimedOut = errors.New("no answer")
+
 // maxAbandonedPieces: without helper processes a piece read that misses its time limit is abandoned, its goroutine
 // perhaps blocked in the kernel; while this many are, no other starts.
 const maxAbandonedPieces = 2
@@ -63,7 +66,7 @@ func (m *Mount) pieceInHelper(ctx context.Context, pool *helperPool, path string
 	switch {
 	case err == nil:
 	case errors.Is(err, errHelperTimeout):
-		return 0, fmt.Errorf("%w: no answer in %v", ErrPieceUnreadable, limit)
+		return 0, fmt.Errorf("%w: %w in %v", ErrPieceUnreadable, errPieceTimedOut, limit)
 	default: // busy, held back, stuck, crashed, could not start, or ctx ended: nothing said about the file
 		return 0, fmt.Errorf("%w: %v", ErrPieceNoVerdict, err)
 	}
@@ -120,7 +123,7 @@ func (m *Mount) pieceHere(ctx context.Context, path string, off, n int64, limit 
 		return r.n, nil
 	case <-timer.C:
 		giveUp()
-		return 0, fmt.Errorf("%w: no answer in %v", ErrPieceUnreadable, limit)
+		return 0, fmt.Errorf("%w: %w in %v", ErrPieceUnreadable, errPieceTimedOut, limit)
 	case <-ctx.Done():
 		giveUp()
 		return 0, fmt.Errorf("%w: %v", ErrPieceNoVerdict, ctx.Err())

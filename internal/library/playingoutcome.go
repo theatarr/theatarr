@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sync"
 
 	"github.com/theatarr/theatarr/internal/outcome"
 	"github.com/theatarr/theatarr/internal/router"
@@ -150,7 +151,8 @@ func playingFixedTx(ctx context.Context, tx *sql.Tx, titleID, versionID int64, v
 // whose other broken files wait for their search): once nothing of its search is pending (no search job, due search
 // row, running search or route, nor a download in flight of its title's version since the break), the outcome is sent
 // (replaced when an import fixed it, else unavailable) and the other files' search is queued (QueuePlayingSearch).
-// Now playing's worker calls it; it holds no incident id anywhere else.
+// The library's maintenance calls it every 30 s; it holds no incident id anywhere else. While now playing's pass over
+// an incident's other files runs (HoldPlayingSiblings) their search is not queued yet.
 func (l *Library) SettlePlayingRuns(ctx context.Context) error {
 	rows, err := l.st.Reader().QueryContext(ctx, `SELECT pb.id, pb.title_id, pb.version_key, pb.broken_at, pb.episodes,
 		pb.fixed_by, pb.reported FROM playing_break pb WHERE pb.watched = 1 AND pb.settled = '' AND pb.searched = 1
@@ -195,6 +197,9 @@ func (l *Library) SettlePlayingRuns(ctx context.Context) error {
 			if err := l.ReportPlaying(ctx, o.id, kind); err != nil {
 				return err
 			}
+		}
+		if l.siblingsHeld(o.id) {
+			continue // its other files are still being read: their search waits for a later pass
 		}
 		if _, err := l.QueuePlayingSearch(ctx, o.id); err != nil {
 			return err
@@ -250,4 +255,42 @@ func (l *Library) playingPending(ctx context.Context, titleID int64, version str
 		return pending, err
 	}
 	return router.InFlight(ctx, db, titleID, versionID, eps)
+}
+
+// HoldPlayingSiblings notes that now playing's pass over an incident's other files is running: until release is
+// called, the settle pass does not queue those files' search. In memory only; release may be called more than once.
+// The hold is the process's, by store and incident: a settings save builds a new library on the same store, and the
+// settle pass of either sees the other's holds.
+func (l *Library) HoldPlayingSiblings(incident int64) (release func()) {
+	k := siblingHold{l.st, incident}
+	siblingHolds.Lock()
+	siblingHolds.m[k]++
+	siblingHolds.Unlock()
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			siblingHolds.Lock()
+			defer siblingHolds.Unlock()
+			if siblingHolds.m[k]--; siblingHolds.m[k] <= 0 {
+				delete(siblingHolds.m, k)
+			}
+		})
+	}
+}
+
+type siblingHold struct {
+	st       *store.Store
+	incident int64
+}
+
+var siblingHolds = struct {
+	sync.Mutex
+	m map[siblingHold]int
+}{m: map[siblingHold]int{}}
+
+// siblingsHeld reports whether an incident's sibling pass holds it (HoldPlayingSiblings).
+func (l *Library) siblingsHeld(incident int64) bool {
+	siblingHolds.Lock()
+	defer siblingHolds.Unlock()
+	return siblingHolds.m[siblingHold{l.st, incident}] > 0
 }

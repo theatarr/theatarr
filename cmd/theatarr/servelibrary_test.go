@@ -5,6 +5,7 @@ import (
 	"github.com/theatarr/theatarr/internal/tasks"
 	"io"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -252,5 +253,71 @@ func TestZurgLogURLLogsOriginOnly(t *testing.T) {
 		if got := logOrigin(raw); got != want {
 			t.Errorf("%s: %q, want %q", raw, got, want)
 		}
+	}
+}
+
+// The library's own loop finishes files that broke while playing, with no now playing tracker: the settle pass runs on
+// its short interval (an incident whose search ended is reported), and each relink sweep is followed by the come-back
+// pass (a replaced row older than 30 days is kept aside unread).
+func TestServeLibraryFinishesPlayingIncidents(t *testing.T) {
+	t.Parallel()
+	l := newImportLoop(t, false)
+	dir := t.TempDir()
+	mount := filepath.Join(dir, "zurg")
+	root := l.s.pol.Versions["movie"].Library
+	for _, d := range []string{filepath.Join(mount, "__all__", "Other"), root} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	l.s.pol.Library.Mount.Path = mount
+	l.s.pol.Router = &policy.Router{Enabled: true}
+	l.s.set = l.s.pol.LibrarySettings()
+	l.s.set.PollInterval, l.s.set.RelinkInterval, l.s.set.DanglingEvery = time.Hour, time.Hour, time.Hour
+	l.s.lib = library.New(library.Options{Store: l.st, Policy: l.s.pol, Logger: l.s.log})
+	l.s.playingSettle = 20 * time.Millisecond
+	l.exec(t, `INSERT INTO title (id, kind, name, year, created_at, updated_at) VALUES (2, 'movie', 'Film', 2002, 0, 0)`)
+	l.exec(t, `INSERT INTO version (id, title_id, policy_key, created_at, updated_at) VALUES (20, 2, 'movie', 0, 0)`)
+	now := store.Millis(time.Now())
+	// Incident 1: its search ended with nothing imported. Incident 2: replaced 40 days ago.
+	l.exec(t, `INSERT INTO playing_break (id, incident, watched, link_id, title_id, version_key, path, old_target, broken_at,
+		searched, updated_at) VALUES (1, 1, 1, 7, 2, 'movie', ?, ?, ?, 1, ?)`, filepath.Join(root, "a.mkv"),
+		filepath.Join(mount, "__all__", "A", "a.mkv"), now, now)
+	old := store.Millis(time.Now().Add(-40 * 24 * time.Hour))
+	l.exec(t, `INSERT INTO playing_break (id, incident, watched, link_id, title_id, version_key, path, old_target, broken_at,
+		fixed_by, reported, updated_at) VALUES (2, 2, 1, 8, 2, 'movie', ?, ?, ?, 'replaced', 'replaced', ?)`,
+		filepath.Join(root, "b.mkv"), filepath.Join(mount, "__all__", "B", "b.mkv"), old, old)
+	ctx, cancel := context.WithCancel(context.Background())
+	tb := tasks.New(ctx, nil, nil)
+	done := make(chan struct{})
+	go func() { defer close(done); l.s.Run(ctx, tb) }()
+	t.Cleanup(func() { cancel(); <-done })
+	one := func(q string) string {
+		var s string
+		if err := l.st.Reader().QueryRowContext(ctx, q).Scan(&s); err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for one(`SELECT reported FROM playing_break WHERE id = 1`) != "unavailable" {
+		if time.Now().After(deadline) {
+			t.Fatal("the settle pass did not run in the library's loop")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	for {
+		if ran, err := tb.Run(ctx, "library.relink", time.Now().Add(time.Hour)); err != nil {
+			t.Fatal(err)
+		} else if ran {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the relink task did not run")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := one(`SELECT settled FROM playing_break WHERE id = 2`); got != "aside" {
+		t.Errorf("after a sweep the come-back pass did not run: settled %q", got)
 	}
 }

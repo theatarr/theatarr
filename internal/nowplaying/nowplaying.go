@@ -117,14 +117,11 @@ type Tracker struct {
 	warming   bool
 	cached    map[string]bool // session key + link id: its caching read started
 	caching   *cacheJob       // the one caching read running, server-wide
-	// The check of a file that seems broken (rescue.go): the signs waiting, whether the worker runs, the copies (link
-	// and target, copyKey) not to check again before a time, and when the incidents were last settled.
-	signs     []sign
-	rescuing  bool
-	quiet     map[string]time.Time
-	settledAt time.Time
-	// comeBackAt is the sweep after which the old copies were last read (the worker's own).
-	comeBackAt time.Time
+	// The check of a file that seems broken (rescue.go): the signs waiting, whether the worker runs, and the copies
+	// (link and target, copyKey) not to check again before a time.
+	signs    []sign
+	rescuing bool
+	quiet    map[string]time.Time
 	// pending are the messages owed to playbacks still advancing, by session key; refusedOnce: Plex's first refusal
 	// was logged.
 	pending     map[string]*pendingTell

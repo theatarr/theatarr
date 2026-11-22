@@ -350,3 +350,38 @@ func TestSettlePlayingWaitsForBlocklistRetry(t *testing.T) {
 		t.Errorf("reported %q once nothing is pending", got)
 	}
 }
+
+// While now playing's sibling pass holds an incident, the settle pass sends its outcome but does not queue the
+// siblings' search (a sibling found later would miss it); once released, the next pass queues it.
+func TestSettlePlayingWaitsForTheSiblingPass(t *testing.T) {
+	e := playingEnv(t)
+	id, err := e.lib.OpenPlayingIncident(e.ctx, PlayingIncident{TitleID: 2, Version: "tv"}, PlayingFile{LinkID: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	release := e.lib.HoldPlayingSiblings(id)
+	if ok, err := e.lib.MarkBrokenPlaying(e.ctx, id, PlayingFile{LinkID: 2, Target: e.linkTarget(2)}, true, nil); err != nil || !ok {
+		t.Fatalf("marked %v: %v", ok, err)
+	}
+	if ok, err := e.lib.MarkBrokenPlaying(e.ctx, id, PlayingFile{LinkID: 1, Target: e.linkTarget(1)}, false, nil); err != nil || !ok {
+		t.Fatalf("sibling %v: %v", ok, err)
+	}
+	e.exec(`UPDATE job SET state = 'done'`)
+	if err := e.lib.SettlePlayingRuns(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.one(`SELECT reported FROM playing_break WHERE id = ?`, id); got != outcome.Unavailable {
+		t.Errorf("reported %q", got)
+	}
+	if jobs := e.playingJobs(); len(jobs) != 1 {
+		t.Fatalf("the siblings' search queued while the pass holds the incident: %+v", jobs)
+	}
+	release()
+	release() // a second call does nothing
+	if err := e.lib.SettlePlayingRuns(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if jobs := e.playingJobs(); len(jobs) != 2 || fmt.Sprint(jobs[1].Episodes) != "[201]" {
+		t.Errorf("after the release: %+v", jobs)
+	}
+}

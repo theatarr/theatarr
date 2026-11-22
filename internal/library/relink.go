@@ -552,8 +552,8 @@ func (l *Library) relink(ctx context.Context, version string, dryRun bool, hints
 	}
 	out, err := l.sweep(ctx, version, dryRun, hints)
 	if err == nil && !dryRun && hints == nil {
-		// now playing's worker reads returned copies after it (ComeBack); a sweep a zurg rename started is not one
-		// of those.
+		// LastSweep; the relink task reads returned copies after it (ComeBack). A sweep a zurg rename started is not
+		// one of those.
 		l.swept.Store(l.now().UnixMilli())
 	}
 	if errors.Is(err, ErrMountDown) && !dryRun {

@@ -40,8 +40,6 @@ const (
 	copyEvery = 10 * time.Second
 	copyFor   = 60 * time.Second
 	copyQuiet = 30 * time.Second
-	// settleEvery is how often the worker looks whether an incident's search has ended (SettlePlayingRuns).
-	settleEvery = 30 * time.Second
 	// stillFor: an owed message goes to a playing stream whose position has stayed the same this long. Plex reports a
 	// playing position about every 10 s, so two samples closer than that may show the same one while it plays.
 	stillFor = 15 * time.Second
@@ -87,11 +85,11 @@ type sign struct {
 	why      string
 }
 
-// rescueStart is the worker's next job: a check, or the incident settling.
+// rescueStart is the worker's next job: a check, or a message owed. (The incidents' settling and the old copies'
+// come-back are the library's maintenance, never this worker's.)
 type rescueStart struct {
-	check  *sign
-	settle bool
-	tell   *pendingTell
+	check *sign
+	tell  *pendingTell
 }
 
 // eligible reports whether a playing file may be checked: a certain Theatarr symlink into the mount (Source.certain).
@@ -199,8 +197,8 @@ func (t *Tracker) stopSign(se *session, now time.Time) {
 	}
 }
 
-// nextRescue picks the worker's next job (t.mu held): the first live check, else the first stopped one, else the
-// incidents' settling when it is due. One job runs at a time.
+// nextRescue picks the worker's next job (t.mu held): a message owed, else the first live check, else the first
+// stopped one. One job runs at a time.
 func (t *Tracker) nextRescue(now time.Time) *rescueStart {
 	if t.rescuing || t.rescuer() == nil {
 		return nil
@@ -221,10 +219,6 @@ func (t *Tracker) nextRescue(now time.Time) *rescueStart {
 		t.signs = slices.Delete(t.signs, i, i+1)
 		t.rescuing = true
 		return &rescueStart{check: &s}
-	}
-	if now.Sub(t.settledAt) >= settleEvery {
-		t.rescuing, t.settledAt = true, now
-		return &rescueStart{settle: true}
 	}
 	return nil
 }
@@ -261,19 +255,6 @@ func (t *Tracker) runRescue(ctx context.Context, j *rescueStart) {
 	}
 	if j.tell != nil {
 		t.tell(ctx, &j.tell.j, j.tell.msg, j.tell.incident)
-		return
-	}
-	if j.settle {
-		if err := lib.SettlePlayingRuns(ctx); err != nil && ctx.Err() == nil {
-			t.o.Logger.Warn("nowplaying: settling broken files' searches", "err", err)
-		}
-		// After each hourly sweep the old copies are read here, one at a time and off the sweep.
-		if swept := lib.LastSweep(); swept.After(t.comeBackAt) {
-			t.comeBackAt = swept
-			if err := lib.ComeBack(ctx); err != nil && ctx.Err() == nil {
-				t.o.Logger.Warn("nowplaying: reading returned copies", "err", err)
-			}
-		}
 		return
 	}
 	t.check(ctx, lib, j.check)

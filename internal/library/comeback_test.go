@@ -3,6 +3,7 @@ package library
 import (
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
@@ -296,5 +297,55 @@ func TestComeBackConfirmsTheOldFolder(t *testing.T) {
 	if got := e.one(`SELECT state FROM link WHERE id = 1`) + " " + e.one(`SELECT settled FROM playing_break WHERE id = ?`, id) +
 		" " + e.one(`SELECT back_since IS NULL FROM playing_break WHERE id = ?`, id); got != "dead  1" {
 		t.Errorf("got %q", got)
+	}
+}
+
+// A come-back read that times out ends the pass (the next pass goes on), and its row is stamped checked: the next pass
+// reads the others first, so one file that always hangs cannot hold them back.
+func TestComeBackEndsAtATimeOut(t *testing.T) {
+	e := playingEnv(t)
+	for _, id := range []int64{1, 2} {
+		inc, err := e.lib.OpenPlayingIncident(e.ctx, PlayingIncident{TitleID: 2, Version: "tv"}, PlayingFile{LinkID: id})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ok, err := e.lib.MarkBrokenPlaying(e.ctx, inc, PlayingFile{LinkID: id, Target: e.linkTarget(id)}, true,
+			nil); err != nil || !ok {
+			t.Fatalf("marked %v: %v", ok, err)
+		}
+	}
+	// e1 hangs (a FIFO with no writer blocks in open(2)); e2 reads.
+	hung := e.linkTarget(1)
+	if err := os.Remove(hung); err != nil {
+		t.Fatal(err)
+	}
+	if err := syscall.Mkfifo(hung, 0o644); err != nil {
+		t.Skip("mkfifo:", err)
+	}
+	defer func() {
+		if w, err := os.OpenFile(hung, os.O_WRONLY|syscall.O_NONBLOCK, 0); err == nil {
+			w.Close()
+		}
+		waitUntil(t, func() bool { return abandonedPieces.Load() == 0 })
+	}()
+	was := comeBackLimit
+	comeBackLimit = 100 * time.Millisecond
+	t.Cleanup(func() { comeBackLimit = was })
+	back := func() string {
+		return e.one(`SELECT group_concat(back_since IS NOT NULL) FROM (SELECT back_since FROM playing_break ORDER BY link_id)`)
+	}
+	e.now = e.now.Add(time.Minute)
+	if err := e.lib.ComeBack(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := back(); got != "0,0" {
+		t.Fatalf("after a pass that timed out on e1: %s (e2 read in the same pass)", got)
+	}
+	e.now = e.now.Add(time.Hour)
+	if err := e.lib.ComeBack(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := back(); got != "0,1" {
+		t.Errorf("the next pass: %s (e2 not read first)", got)
 	}
 }
