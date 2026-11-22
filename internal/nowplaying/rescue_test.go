@@ -1305,3 +1305,26 @@ func TestRescueOwedMessagePauseRestarts(t *testing.T) {
 		t.Errorf("not stopped after %v playing without moving: %q", stillFor, got)
 	}
 }
+
+// Pause saved during step 1's wait, then a read that passes: the check is cut short (nothing kept), not settled as
+// readable again.
+func TestRescuePauseDuringStepOneWait(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.lib.setBroken("S01E02.mkv", 3) // reads 1-3 fail; the re-read after step 1's first wait passes
+	e.copyOK["ad"] = true
+	e.pauseDuring()
+	paused := e.tr.sleep
+	waits := 0
+	e.tr.sleep = func(ctx context.Context, d time.Duration) error {
+		if waits++; waits < 2 {
+			e.advance(d)
+			return ctx.Err()
+		}
+		return paused(ctx, d) // Pause comes on during step 1's wait
+	}
+	e.play(2, "buffering")
+	e.poll()
+	if got := e.one(`SELECT COUNT(*) FROM playing_break`); got != "0" || e.kinds() != "" {
+		t.Errorf("%s rows, outcomes %q", got, e.kinds())
+	}
+}

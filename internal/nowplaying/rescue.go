@@ -725,6 +725,9 @@ func (t *Tracker) sameRelease(ctx context.Context, lib Rescuer, j *sign, id int6
 			if t.sleep(ctx, copyEvery) != nil {
 				return copyFailed, acct
 			}
+			if !t.sameCopy(ctx, &j.src) { // Pause, a library that stopped writing, or the link changed meanwhile
+				return copyStopped, ""
+			}
 			if t.read(ctx, lib, j.src.Target, off) == readOK {
 				// Who serves it now is named only on evidence: zurg logging a transfer of the file since the copy.
 				return copyReadable, t.servedSince(&j.src, start)
