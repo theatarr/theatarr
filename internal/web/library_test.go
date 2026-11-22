@@ -630,6 +630,36 @@ func TestAiredByInstant(t *testing.T) {
 			t.Errorf("episode air instant: %v", ep.AirAt)
 		}
 	}
+	// A date without a time: the refresh stored a made-up midnight in the series' zone (Tokyo, Oct 28 = 15:00 UTC on
+	// Oct 27). As on the calendar, no instant is given out, so the pages show the nominal date; the stored instant
+	// still decides aired.
+	e.exec(`INSERT INTO series_meta (title_id, time_zone) VALUES (4, 'Asia/Tokyo')
+		ON CONFLICT (title_id) DO UPDATE SET time_zone = excluded.time_zone`)
+	e.exec(`UPDATE episode SET air_date = '2026-10-28', air_date_utc_at = ? WHERE id = 43`,
+		store.Millis(time.Date(2026, 10, 27, 15, 0, 0, 0, time.UTC)))
+	l = EpisodeList{}
+	if code := e.getKey(APIBase+"/titles/4/episodes", key, &l); code != 200 {
+		t.Fatalf("episodes: %d", code)
+	}
+	for _, ep := range l.Episodes {
+		if ep.ID == 43 && (ep.AirAt != nil || ep.Aired) {
+			t.Errorf("placeholder midnight: air_at %v, aired %v", ep.AirAt, ep.Aired)
+		}
+	}
+	dv = Discover{}
+	e.getKey(APIBase+"/discover", key, &dv)
+	found := false
+	for _, it := range dv.Upcoming.Items {
+		if it.ID == 4 && strings.HasPrefix(it.Note, "S01E03") {
+			found = true
+			if it.At != nil || it.Date != "2026-10-28" {
+				t.Errorf("Home upcoming placeholder: %s at %v", it.Date, it.At)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("Home upcoming: no S01E03 in %+v", dv.Upcoming.Items)
+	}
 }
 
 // An episode with an air date and no instant (an import can leave it so, and no refresh has filled it) is aired from

@@ -247,8 +247,9 @@ func (w *Web) upcomingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 		return nil, err
 	}
 	coming, comingArgs := newAirClock(now).comingSQL("e")
-	err = scanAll(ctx, db, `SELECT title_id, season, number, name, air_date, air_date_utc_at FROM (
-		SELECT e.title_id, e.season, e.number, e.name, e.air_date, e.air_date_utc_at, ROW_NUMBER() OVER (PARTITION BY e.title_id
+	err = scanAll(ctx, db, `SELECT title_id, season, number, name, air_date, air_date_utc_at, zone, first_ms FROM (
+		SELECT e.title_id, e.season, e.number, e.name, e.air_date, e.air_date_utc_at,
+			`+activity.SeriesZoneSQL+` AS zone, `+activity.DayFirstAirSQL+` AS first_ms, ROW_NUMBER() OVER (PARTITION BY e.title_id
 			ORDER BY e.air_date, e.season, e.number) AS rn
 		FROM episode e JOIN title t ON t.id = e.title_id WHERE e.season > 0 AND e.removed_at IS NULL AND `+coming+`
 			AND e.air_date <= ?
@@ -258,10 +259,13 @@ func (w *Web) upcomingPicks(ctx context.Context, db *sql.DB) ([]pick, error) {
 			var season, number int64
 			var name string
 			var airAt sql.NullInt64
-			if err := r.Scan(&p.id, &season, &number, &name, &p.date, &airAt); err != nil {
+			var zone string
+			var firstMs int64
+			if err := r.Scan(&p.id, &season, &number, &name, &p.date, &airAt, &zone, &firstMs); err != nil {
 				return err
 			}
-			if airAt.Valid {
+			// A made-up midnight for a date without a time is not given out (activity.MadeUpAir).
+			if airAt.Valid && !activity.MadeUpAir(p.date, zone, firstMs) {
 				t := store.FromMillis(airAt.Int64)
 				p.at = &t
 			}

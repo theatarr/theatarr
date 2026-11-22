@@ -193,8 +193,7 @@ func Calendar(ctx context.Context, db *sql.DB, from, to string, unmonitored bool
 	}
 	rows, err = db.QueryContext(ctx, `SELECT t.id, t.name, COALESCE(t.year, 0), t.anime, `+EpisodeMonitoredSQL+`,
 		e.id, e.season, e.number, e.name, e.air_date, COALESCE(e.air_date_utc_at, 0), COALESCE(sm.time_zone, ''),
-		COALESCE((SELECT MIN(x.air_date_utc_at) FROM episode x WHERE x.title_id = e.title_id AND x.season = e.season
-			AND x.air_date = e.air_date), 0),
+		`+DayFirstAirSQL+`,
 		EXISTS (SELECT 1 FROM episode_version_state s WHERE s.episode_id = e.id AND s.state IN ('filled', 'cutoff_met')
 			AND NOT EXISTS (SELECT 1 FROM arrview_removed_version r WHERE r.version_id = s.version_id))
 	FROM episode e JOIN title t ON t.id = e.title_id LEFT JOIN series_meta sm ON sm.title_id = t.id
@@ -211,10 +210,7 @@ func Calendar(ctx context.Context, db *sql.DB, from, to string, unmonitored bool
 			rows.Close()
 			return nil, err
 		}
-		// The instant is the episode's own (an import brings real ones without a series air time). It is made up
-		// when the day's first episode of the season sits at the refresh's midnight: the refresh spaces the later
-		// ones of that day a runtime apart from it.
-		if mid, ok := tvrefresh.MidnightAir(it.Date, zone); !ok || firstMs != store.Millis(mid) {
+		if !MadeUpAir(it.Date, zone, firstMs) {
 			it.At = at(airMs)
 		}
 		out = append(out, it)
@@ -251,4 +247,22 @@ func typeRank(t string) int {
 		}
 	}
 	return len(CalendarTypes)
+}
+
+// DayFirstAirSQL is the earliest stored air instant of the episode's season and air date (an episode aliased e), 0
+// for none: MadeUpAir's firstMs.
+const DayFirstAirSQL = `COALESCE((SELECT MIN(x.air_date_utc_at) FROM episode x WHERE x.title_id = e.title_id
+	AND x.season = e.season AND x.air_date = e.air_date), 0)`
+
+// SeriesZoneSQL is the series' time zone of an episode aliased e (empty for none): MadeUpAir's zone.
+const SeriesZoneSQL = `COALESCE((SELECT sm.time_zone FROM series_meta sm WHERE sm.title_id = e.title_id), '')`
+
+// MadeUpAir reports whether an episode's stored instant was made up by the refresh for a date without a time, so a
+// page shows the nominal date rather than a moment. The instant is the episode's own (an import brings real ones
+// without a series air time); it is made up when the day's first episode of the season (firstMs) sits at the
+// refresh's midnight in the series' zone: the refresh spaces the later ones of that day a runtime apart from it.
+// The stored instant still decides whether the episode has aired.
+func MadeUpAir(date, zone string, firstMs int64) bool {
+	mid, ok := tvrefresh.MidnightAir(date, zone)
+	return ok && firstMs == store.Millis(mid)
 }
