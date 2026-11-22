@@ -182,9 +182,12 @@ func TestRetryKeepsItsScope(t *testing.T) {
 		(21, 10, 10, 'tv-2160p', ?, 'The.Show.S01E02', 'dmm', 'downloading', '[102]', 'rss', ?, ?, ?),
 		(22, 10, 10, 'tv-2160p', ?, 'The.Show.S01', 'dmm', 'downloading', '[101,102,103]', 'rss', ?, ?, ?),
 		(23, 10, 10, 'tv-2160p', ?, 'The.Show.S01E01E02', 'dmm', 'downloading', '[101,102]', 'rss', ?, ?, ?),
-		(24, 1, 2, 'movie-web', ?, 'Alpha.WEB', 'dmm', 'downloading', '[]', 'rss', ?, ?, ?)`,
+		(24, 1, 2, 'movie-web', ?, 'Alpha.WEB', 'dmm', 'downloading', '[]', 'rss', ?, ?, ?),
+		(25, 10, 10, 'tv-2160p', ?, 'The.Show.S01E03.S02E01', 'dmm', 'downloading', '[103,104]', 'rss', ?, ?, ?),
+		(26, 10, 10, 'tv-2160p', ?, 'The.Show.S01-S02', 'dmm', 'downloading', '[101,102,103,104]', 'rss', ?, ?, ?)`,
 		strings.Repeat("1", 40), at, at, at, strings.Repeat("2", 40), at, at, at,
-		strings.Repeat("3", 40), at, at, at, strings.Repeat("4", 40), at, at, at)
+		strings.Repeat("3", 40), at, at, at, strings.Repeat("4", 40), at, at, at,
+		strings.Repeat("7", 40), at, at, at, strings.Repeat("8", 40), at, at, at)
 	one := 1
 	for _, tc := range []struct {
 		name, path string
@@ -195,6 +198,9 @@ func TestRetryKeepsItsScope(t *testing.T) {
 			acquire.Selection{TitleIDs: []int64{10}, Season: &one}},
 		{"two episodes", "DELETE /v/tv-2160p/sonarr/api/v3/queue/23?blocklist=true", acquire.Selection{EpisodeIDs: []int64{101, 102}}},
 		{"movie", "DELETE /radarr/api/v3/queue/24?blocklist=true", acquire.Selection{TitleIDs: []int64{1}}},
+		// Parts of two seasons: its own episodes; the whole of both: those seasons together.
+		{"two seasons, parts", "DELETE /sonarr/api/v3/queue/25?blocklist=true", acquire.Selection{EpisodeIDs: []int64{103, 104}}},
+		{"two seasons, whole", "DELETE /sonarr/api/v3/queue/26?blocklist=true", acquire.Selection{TitleIDs: []int64{10}, Seasons: []int{1, 2}}},
 	} {
 		fs.sels = nil
 		method, path, _ := strings.Cut(tc.path, " ")
@@ -209,7 +215,7 @@ func TestRetryKeepsItsScope(t *testing.T) {
 		}
 		if !slices.Equal(got.Versions, []string{version}) || !got.NoJoin || !slices.Equal(got.EpisodeIDs, tc.want.EpisodeIDs) ||
 			(tc.want.Season == nil) != (got.Season == nil) || got.Season != nil && *got.Season != *tc.want.Season ||
-			tc.want.TitleIDs != nil && !slices.Equal(got.TitleIDs, tc.want.TitleIDs) {
+			tc.want.TitleIDs != nil && !slices.Equal(got.TitleIDs, tc.want.TitleIDs) || !slices.Equal(got.Seasons, tc.want.Seasons) {
 			t.Errorf("%s: %+v", tc.name, got)
 		}
 	}

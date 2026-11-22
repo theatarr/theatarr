@@ -204,8 +204,8 @@ func (s *Service) historyFailed(w http.ResponseWriter, r *request) {
 // redownload starts the search the arrs' failed-download handling starts for a failed download (Sonarr's
 // RedownloadFailedDownloadService), in the download's library (version) only, never another library of the title
 // (Selection.NoJoin): a movie its title (MoviesSearch); a series download its one episode (EpisodeSearch), its whole
-// season (SeasonSearch), else its episodes; several seasons those seasons together, as a series search of just
-// them; no episodes known the series (SeriesSearch).
+// season (SeasonSearch), else its own episodes; the whole of several seasons those seasons together, as a series
+// search of just them; no episodes known the series (SeriesSearch).
 func (s *Service) redownload(ctx context.Context, r *request, titleID int64, version string, episodes []int64) error {
 	name := "MoviesSearch"
 	body := map[string]any{"name": name, "movieIds": []any{float64(viewID(titleID))}}
@@ -225,36 +225,12 @@ func (s *Service) redownload(ctx context.Context, r *request, titleID int64, ver
 	return err
 }
 
-// retryScope fills body for a series download's retry (redownload) and names its command: EpisodeSearch for one
-// episode or part of one season, SeasonSearch for the whole of one season (every current episode of it), and
-// SeriesSearch with the seasons for several; SeriesSearch alone when no episode is known.
+// retryScope fills body for a series download's retry (redownload) and names its command: EpisodeSearch with the
+// download's own episodes, unless they are the whole of their seasons (every current episode): SeasonSearch for one
+// season, SeriesSearch with the seasons for several; SeriesSearch alone when no episode is known.
 func (s *Service) retryScope(ctx context.Context, titleID int64, episodes []int64, body map[string]any) (string, []int, error) {
 	if len(episodes) == 0 {
 		return "SeriesSearch", nil, nil
-	}
-	ids := make([]any, len(episodes))
-	for i, id := range episodes {
-		ids[i] = id
-	}
-	var seasons []int
-	rows, err := s.st.Reader().QueryContext(ctx, `SELECT DISTINCT season FROM episode WHERE id IN (`+
-		store.Placeholders(len(ids))+`) ORDER BY season`, ids...)
-	if err != nil {
-		return "", nil, err
-	}
-	for rows.Next() {
-		var n int
-		if err := rows.Scan(&n); err != nil {
-			rows.Close()
-			return "", nil, err
-		}
-		seasons = append(seasons, n)
-	}
-	if err := closeRows(rows); err != nil {
-		return "", nil, err
-	}
-	if len(seasons) > 1 {
-		return "SeriesSearch", seasons, nil
 	}
 	episodeSearch := func() (string, []int, error) {
 		delete(body, "seriesId")
@@ -265,16 +241,41 @@ func (s *Service) retryScope(ctx context.Context, titleID int64, episodes []int6
 		body["name"], body["episodeIds"] = "EpisodeSearch", list
 		return "EpisodeSearch", nil, nil
 	}
-	if len(episodes) == 1 || len(seasons) == 0 {
+	if len(episodes) == 1 {
 		return episodeSearch()
 	}
-	var inSeason int
-	if err := s.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM episode WHERE title_id = ? AND season = ?
-		AND removed_at IS NULL`, titleID, seasons[0]).Scan(&inSeason); err != nil {
+	eps := make([]any, len(episodes))
+	for i, id := range episodes {
+		eps[i] = id
+	}
+	args := append(append(append([]any{}, eps...), titleID), eps...)
+	// Per season of the download's episodes: how many current episodes it has, and how many the download holds.
+	var seasons []int
+	whole := true
+	rows, err := s.st.Reader().QueryContext(ctx, `SELECT season, COUNT(*), SUM(id IN (`+store.Placeholders(len(episodes))+`))
+		FROM episode WHERE title_id = ? AND removed_at IS NULL AND season IN (SELECT season FROM episode WHERE id IN (`+
+		store.Placeholders(len(episodes))+`)) GROUP BY season ORDER BY season`,
+		args...)
+	if err != nil {
 		return "", nil, err
 	}
-	if len(episodes) != inSeason {
+	for rows.Next() {
+		var n, all, held int
+		if err := rows.Scan(&n, &all, &held); err != nil {
+			rows.Close()
+			return "", nil, err
+		}
+		seasons = append(seasons, n)
+		whole = whole && held == all
+	}
+	if err := closeRows(rows); err != nil {
+		return "", nil, err
+	}
+	switch {
+	case len(seasons) == 0 || !whole:
 		return episodeSearch()
+	case len(seasons) > 1:
+		return "SeriesSearch", seasons, nil
 	}
 	body["name"], body["seasonNumber"] = "SeasonSearch", float64(seasons[0])
 	return "SeasonSearch", nil, nil
