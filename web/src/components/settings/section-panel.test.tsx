@@ -265,3 +265,41 @@ it("asks before leaving the page with unsaved changes, and leaves once confirmed
  fireEvent.click(await screen.findByRole("button", { name: "Leave without saving" }));
  await screen.findByText("Profiles page");
 });
+
+// A notification destination saves only what its final format takes, from a copy: a refused save leaves the draft's
+// URL and views, and the inline checks look at that copy.
+function notifySetup() {
+ return mockFetch([
+  { method: "GET", path: "/settings/schema", reply: schema },
+  { method: "GET", path: "/settings", reply: { switches: {} } },
+  { method: "GET", path: "/settings/sections", reply: { source: "db", generation: 4, sections: [{ key: "notify", config: { targets: { hook: { url: "http://hooks.example/", views: ["radarr"], native: true } } }, secrets: [] }] } },
+  { method: "PUT", path: "/settings/sections/notify", reply: { status: 422, body: { error: "invalid settings", fields: [{ path: "notify.targets[hook].url", message: "refused" }] } } },
+ ]);
+}
+for (const format of ["ntfy", "telegram"]) {
+ it(`keeps the URL and views in the draft after a refused save as ${format}`, async () => {
+  const fetch = notifySetup();
+  renderPage(<SectionPanel id="targets" title="Destinations" section="notify" keys={["targets"]} />);
+  fireEvent.click(await screen.findByText("hook", { selector: "summary" }));
+  fireEvent.change(screen.getByRole("combobox", { name: /Message format/ }), { target: { value: format } });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(fetch.calls("PUT", "/settings/sections/notify")).toHaveLength(1));
+  const sent = (fetch.calls("PUT", "/settings/sections/notify")[0].body as { config: { targets: Record<string, Record<string, unknown>> } }).config.targets.hook;
+  expect(sent.views).toBeUndefined();
+  expect("url" in sent).toBe(format !== "telegram");
+  await waitFor(() => expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.change(screen.getByRole("combobox", { name: /Message format/ }), { target: { value: "" } });
+  expect((screen.getByRole("textbox", { name: "Destination URL" }) as HTMLInputElement).value).toBe("http://hooks.example/");
+  expect(screen.getByDisplayValue("radarr")).toBeTruthy();
+ });
+}
+it("does not hold Save for an invalid URL that a switch to Telegram hides", async () => {
+ notifySetup();
+ renderPage(<SectionPanel id="targets" title="Destinations" section="notify" keys={["targets"]} />);
+ fireEvent.click(await screen.findByText("hook", { selector: "summary" }));
+ fireEvent.change(screen.getByRole("textbox", { name: "Destination URL" }), { target: { value: "htp:/bad" } });
+ expect(screen.getByTestId("save-blocked")).toBeTruthy();
+ fireEvent.change(screen.getByRole("combobox", { name: /Message format/ }), { target: { value: "telegram" } });
+ expect(screen.queryByTestId("save-blocked")).toBeNull();
+ expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(false);
+});

@@ -73,12 +73,13 @@ it("saves a Telegram destination without a URL or views, and each format without
   chan: { url: "https://discord.com/[redacted]", views: ["radarr"], format: "discord", warnings: true },
   hook: { url: "http://hooks.example/x", views: ["radarr"], native: true, warnings: true },
  } };
- notifySaveConfig(section);
- expect(section).toEqual({ targets: {
+ const before = structuredClone(section);
+ expect(notifySaveConfig(section)).toEqual({ targets: {
   tg: { format: "telegram", chat_id: "-100", native: true },
   chan: { url: "https://discord.com/[redacted]", format: "discord", warnings: true },
   hook: { url: "http://hooks.example/x", views: ["radarr"], native: true },
  } });
+ expect(section).toEqual(before);
 });
 it("drops an empty credential box that a format switch hides", async () => {
  mockFetch([]);

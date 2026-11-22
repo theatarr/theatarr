@@ -84,7 +84,7 @@ function PanelEditor({ id, title, help, section: key, keys, onSaved }: Props) {
  const changes = changedPaths(value, loaded).length + Object.values(secrets.actions).filter(a => a !== "keep").length;
  const dirty = changes > 0;
  // Values the server would refuse (a time, an address) are said under their field before Save.
- const problems = sectionProblems(value, loaded, key);
+ const problems = sectionProblems(key === "notify" ? notifySaveConfig(value) : value, loaded, key);
  const blocked = Object.keys(problems).length > 0;
  const readOnly = sections.data.source !== "db";
  const missingSecret = Object.entries(secrets.actions).some(([path, action]) => action === "replace" && !secrets.values[path]);
@@ -99,7 +99,7 @@ function PanelEditor({ id, title, help, section: key, keys, onSaved }: Props) {
     if (k in value && next !== undefined) latest[k] = next; else delete latest[k];
    }
    Object.assign(latest, withSecretParents(latest, key, scoped));
-   if (key === "notify") notifySaveConfig(latest);
+   if (key === "notify") Object.assign(latest, notifySaveConfig(latest));
   }, credentials.secrets, credentials.clear_secrets);
  };
  return <div ref={ref}><Card id={id} className={`mb-4 scroll-mt-6 ${highlight ? "ring-2 ring-primary" : ""}`}>

@@ -266,17 +266,19 @@ export function notifyTargetFields(fields: SchemaField[], format: unknown): Sche
   const hide = notifyHidden(format);
   return fields.filter((f) => !hide.includes(f.name));
 }
-/** The notify section as saved: each destination drops the hidden fields the server refuses for its final format (a
- * Telegram one's URL and views, a message destination's views, a JSON one's warnings). Switching formats in the
- * form keeps them until Save, so switching back loses nothing. */
-export function notifySaveConfig(section: Config): void {
-  const targets = objectValue(section.targets);
-  for (const [name, raw] of Object.entries(targets)) {
+/** A copy of the notify section as it is saved and checked: each destination without the hidden fields the server
+ * refuses for its final format (a Telegram one's URL and views, a message destination's views, a JSON one's
+ * warnings). The draft keeps them, so switching back, or after a refused save, loses nothing. */
+export function notifySaveConfig(section: Config): Config {
+  if (section.targets == null) return section;
+  const targets: Config = {};
+  for (const [name, raw] of Object.entries(objectValue(section.targets))) {
     const t = { ...objectValue(raw) };
     const format = typeof t.format === "string" ? t.format : "";
     for (const k of format === "telegram" ? ["url", "views"] : format ? ["views"] : ["warnings"]) delete t[k];
     targets[name] = t;
   }
+  return { ...section, targets };
 }
 /** A format switch that hides a credential whose Set box is open and empty drops that draft, so Save is not held by a
  * field nobody can see. */
