@@ -686,8 +686,17 @@ func TestSettingsNotifyAuthHeaderEnvNotStored(t *testing.T) {
 	if b, _ := json.Marshal(got); !strings.Contains(string(b), policy.EnvNameRefused) {
 		t.Errorf("refusal %s", b)
 	}
+	// An unquoted number pasted there is refused too.
+	numeric := strings.Replace(string(edited), "auth_header_env: "+pasted, "auth_header_env: 271828182845", 1)
+	if numeric == string(edited) {
+		t.Fatalf("no auth_header_env line in %s", edited)
+	}
+	se.want(se.call("PUT", "/sections/notify", map[string]any{"generation": se.generation(), "yaml": numeric}), 422, "pasted number")
 	se.want(se.call("GET", "/sections", nil), 200, "read after")
 	for i, b := range se.bodies {
+		if strings.Contains(b, "271828") {
+			t.Errorf("response %d shows the pasted number: %s", i, b)
+		}
 		if strings.Contains(b, "PastedHeader") {
 			t.Errorf("response %d shows the pasted value: %s", i, b)
 		}

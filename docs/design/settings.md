@@ -336,7 +336,7 @@ refused on save and preview: it could only point at another record's stored secr
 Plex token). An `*_env` field takes the NAME of an environment variable: a value that is not one (A-Z, 0-9, _) is
 refused with "This field takes the name of an environment variable, not the value itself" (`policy.EnvNameRefused`),
 which never quotes it, so a secret pasted there is in no error, log, row or answer. A section save checks every
-`*_env` field as submitted, before a stored credential's reference takes the field's place (`settings.SectionEnvNames`,
+`*_env` field as submitted and decoded (a number pasted unquoted too), before a stored credential's reference takes the field's place (`settings.SectionEnvNames`,
 one check for all of them; `TestSectionEnvNamesEveryField`, `TestSettingsNotifyAuthHeaderEnvNotStored`); YAML
 validation uses the same sentence. A stored credential wins
 over the environment variable the section names; clearing it falls back to that variable. Values never appear in

@@ -705,8 +705,8 @@ func TestSectionEnvNamesEveryField(t *testing.T) {
 	t.Parallel()
 	const pasted = "Bearer pasted-secret-0123456789"
 	// paths lists, for each *_env string field under typ, the JSON that sets only that field to value.
-	var build func(typ reflect.Type, value string, seen map[reflect.Type]bool) []any
-	build = func(typ reflect.Type, value string, seen map[reflect.Type]bool) []any {
+	var build func(typ reflect.Type, value any, seen map[reflect.Type]bool) []any
+	build = func(typ reflect.Type, value any, seen map[reflect.Type]bool) []any {
 		for typ.Kind() == reflect.Pointer {
 			typ = typ.Elem()
 		}
@@ -748,14 +748,20 @@ func TestSectionEnvNamesEveryField(t *testing.T) {
 		if !ok {
 			t.Fatalf("section %s", spec.Key)
 		}
-		for _, config := range build(f.Type(), pasted, map[reflect.Type]bool{}) {
-			fields++
-			raw, _ := json.Marshal(config)
-			err := SectionEnvNames(spec.Key, raw)
-			var errs *policy.Errors
-			if !errors.As(err, &errs) || len(errs.List) != 1 || errs.List[0].Msg != policy.EnvNameRefused ||
-				!strings.HasSuffix(errs.List[0].Path, "_env") || strings.Contains(err.Error(), "pasted") {
-				t.Errorf("%s %s: %v", spec.Key, raw, err)
+		// A pasted string, and a pasted number (unquoted in Edit as YAML), are refused alike.
+		for _, value := range []any{pasted, 271828182845} {
+			for _, config := range build(f.Type(), value, map[reflect.Type]bool{}) {
+				if value == pasted {
+					fields++
+				}
+				raw, _ := json.Marshal(config)
+				err := SectionEnvNames(spec.Key, raw)
+				var errs *policy.Errors
+				if !errors.As(err, &errs) || len(errs.List) != 1 || errs.List[0].Msg != policy.EnvNameRefused ||
+					!strings.HasSuffix(errs.List[0].Path, "_env") || strings.Contains(err.Error(), "pasted") ||
+					strings.Contains(err.Error(), "271828") {
+					t.Errorf("%s %s: %v", spec.Key, raw, err)
+				}
 			}
 		}
 		for _, config := range build(f.Type(), "THEATARR_SOME_KEY", map[reflect.Type]bool{}) {

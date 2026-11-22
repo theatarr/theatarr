@@ -279,51 +279,27 @@ func stripOwned(key string, m map[string]any) {
 	}
 }
 
-// SectionEnvNames refuses every *_env field of a submitted section that is not an environment variable name, as
-// submitted: before a stored credential's reference replaces the field (applySection), so a value pasted there is
-// never saved or shown, and the refusal (policy.EnvNameRefused) does not quote it.
+// SectionEnvNames refuses every *_env field of a submitted section that is not an environment variable name,
+// whatever its type (a number pasted unquoted decodes into the field too): read from the section as decoded
+// (envFields), before a stored credential's reference replaces the field (applySection), so a value pasted there is
+// never saved or shown, and the refusal (policy.EnvNameRefused) does not quote it. A section that does not decode is
+// left to the save's own decode error.
 func SectionEnvNames(key string, config json.RawMessage) error {
 	f, ok := policyField(&policy.Policy{}, key)
-	var value any
-	if !ok || json.Unmarshal(config, &value) != nil {
+	if !ok || nullSection(config) {
 		return nil
 	}
+	next := reflect.New(f.Type()).Elem()
+	if decodeSection(key, config, next) != nil {
+		return nil
+	}
+	fields := envFields(next, "")
 	var list []policy.FieldError
-	var walk func(path string, v any, t reflect.Type)
-	walk = func(path string, v any, t reflect.Type) {
-		for t.Kind() == reflect.Pointer {
-			t = t.Elem()
-		}
-		switch t.Kind() {
-		case reflect.Struct:
-			m, _ := v.(map[string]any)
-			for i := 0; i < t.NumField(); i++ {
-				name := yamlName(t.Field(i))
-				child, ok := m[name]
-				if name == "" || !ok {
-					continue
-				}
-				if s, isString := child.(string); isString && strings.HasSuffix(name, "_env") {
-					if s != "" && !policy.IsEnvName(s) {
-						list = append(list, policy.FieldError{Path: path + "." + name, Msg: policy.EnvNameRefused})
-					}
-					continue
-				}
-				walk(path+"."+name, child, t.Field(i).Type)
-			}
-		case reflect.Map:
-			m, _ := v.(map[string]any)
-			for _, k := range sortedPolicyKeys(m) {
-				walk(path+"["+k+"]", m[k], t.Elem())
-			}
-		case reflect.Slice:
-			items, _ := v.([]any)
-			for i, item := range items {
-				walk(fmt.Sprintf("%s[%d]", path, i), item, t.Elem())
-			}
+	for _, path := range sortedPolicyKeys(fields) {
+		if v := fields[path].String(); v != "" && !policy.IsEnvName(v) {
+			list = append(list, policy.FieldError{Path: key + "." + path + "_env", Msg: policy.EnvNameRefused})
 		}
 	}
-	walk(key, value, f.Type())
 	if len(list) > 0 {
 		return &policy.Errors{List: list}
 	}
@@ -408,17 +384,17 @@ func applySection(p *policy.Policy, s Section) error {
 	ref := "sections/" + s.Key
 	fields := envFields(f, "")
 	for _, path := range s.SecretsSet {
-		if set, ok := fields[path]; ok {
-			set(settingsSecretEnv(ref, path))
+		if field, ok := fields[path]; ok {
+			field.SetString(settingsSecretEnv(ref, path))
 		}
 	}
 	return nil
 }
 
 // envFields maps each *_env field under v, by its path without "_env" ("plex.token", "targets.discord.auth_header"),
-// to a setter.
-func envFields(v reflect.Value, path string) map[string]func(string) {
-	out := map[string]func(string){}
+// to the settable string field.
+func envFields(v reflect.Value, path string) map[string]reflect.Value {
+	out := map[string]reflect.Value{}
 	var walk func(v reflect.Value, path string)
 	walk = func(v reflect.Value, path string) {
 		switch v.Kind() {
@@ -442,7 +418,7 @@ func envFields(v reflect.Value, path string) map[string]func(string) {
 				}
 				if field.Kind() == reflect.String && strings.HasSuffix(name, "_env") {
 					if field.CanSet() {
-						out[joinPath(path, strings.TrimSuffix(name, "_env"))] = field.SetString
+						out[joinPath(path, strings.TrimSuffix(name, "_env"))] = field
 					}
 					continue
 				}
