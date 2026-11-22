@@ -9,7 +9,6 @@ import (
 
 	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/library/probe"
-	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/router"
 )
 
@@ -28,7 +27,7 @@ import (
 //     import is never refused, only noted. Files already in the library are never judged again.
 
 // audioRefusedPrefix starts every reason the rule gives.
-const audioRefusedPrefix = "Import refused: "
+const audioRefusedPrefix = decide.AudioRefusedPrefix
 
 // audioWanted is the version's wanted languages (three-letter codes, English first), or nil for no rule.
 func (l *Library) audioWanted(ctx context.Context, d *importDownload) ([]string, error) {
@@ -44,7 +43,7 @@ func (l *Library) audioWanted(ctx context.Context, d *importDownload) ([]string,
 	if err != nil {
 		return nil, err
 	}
-	return originalWanted(t.OriginalLanguage, t.OriginalLanguageMissing), nil
+	return originalWanted(t.NamedOriginalLanguage), nil
 }
 
 // profileWanted is what a film profile's language decides alone: nothing for any (or unset, or a language the
@@ -62,9 +61,9 @@ func profileWanted(kind, lang string) (want []string, decided bool) {
 }
 
 // originalWanted is English and the title's original language (by code or name); English alone for an original
-// language the table lacks, nil when nothing names it.
-func originalWanted(original string, missing bool) []string {
-	if missing {
+// language the table lacks, nil when nothing names it ("").
+func originalWanted(original string) []string {
+	if strings.TrimSpace(original) == "" {
 		return nil
 	}
 	want := []string{"eng"}
@@ -122,8 +121,10 @@ func audioOpening(langs []string) string {
 }
 
 // audioGuard runs the wrong-audio rule on the files the plan links: the reason the import is refused, "" when it
-// goes on. A refused file is put first among the rejected files; a manual import's file is only noted.
-func (l *Library) audioGuard(ctx context.Context, d *importDownload, plan *Plan) (string, error) {
+// goes on. A refused file is put first among the rejected files. An import a person chose (Manual import, an import
+// by path) and a preview (dryRun: Manual import's list) are never refused: the rule's finding is a note on the file.
+func (l *Library) audioGuard(ctx context.Context, d *importDownload, plan *Plan, dryRun bool) (string, error) {
+	noteOnly := dryRun || explicitImport(d)
 	var want []string
 	wantRead := false
 	for i := range plan.Links {
@@ -148,24 +149,28 @@ func (l *Library) audioGuard(ctx context.Context, d *importDownload, plan *Plan)
 		if sharesLanguage(langs, want) {
 			continue
 		}
-		replacing, old, err := l.replacedAudio(ctx, d, lk)
-		if err != nil {
-			return "", err
+		replacing, has := false, ""
+		for _, old := range displaced(plan.held, lk, d.Version.Title.Kind) {
+			replacing = true
+			if oldLangs := storedAudio(old.probe, old.media, old.adopted); !sharesLanguage(langs, oldLangs) {
+				has = "no known audio language"
+				if len(oldLangs) > 0 {
+					has = languageWords(oldLangs, "and")
+				}
+				break
+			}
 		}
 		var reason, note string
 		switch {
+		case replacing && has == "":
+			continue // it shares a language with every file it displaces
 		case replacing:
-			if sharesLanguage(langs, old) {
-				continue
-			}
-			has := "no known audio language"
-			if len(old) > 0 {
-				has = languageWords(old, "and")
-			}
 			reason = audioRefusedPrefix + languageWords(langs, "and") + " audio only; the file in the library has " +
 				has + "."
 		case d.Version.Title.Kind != "movie":
 			reason = audioOpening(langs) + languageWords(want, "or") + ". Use Manual import to take it anyway."
+		case noteOnly:
+			reason = audioOpening(langs) + languageWords(want, "or") + "."
 		default:
 			earlier, err := l.audioRefusedBefore(ctx, d, audioOpening(langs))
 			if err != nil {
@@ -176,14 +181,14 @@ func (l *Library) audioGuard(ctx context.Context, d *importDownload, plan *Plan)
 					"an earlier release with the same audio was refused"
 				break
 			}
-			reason = audioOpening(langs) + languageWords(want, "or") + "."
-			if len(d.Manual) == 0 && !strings.HasPrefix(d.Source, OtherSourcePrefix) && !policy.IsManualAdd(d.Indexer) {
-				reason += " Searching again; another release with the same audio would be taken."
-			}
+			reason = audioOpening(langs) + languageWords(want, "or") + ". Another release with the same audio would be taken."
 		}
 		f := plannedFile(plan, lk.File)
-		if len(d.Manual) > 0 && reason != "" {
-			note, reason = "not refused (manual import): "+reason, ""
+		if noteOnly && reason != "" {
+			// Manual import: the reason's own words, said as what the file holds (no refusal, no next step).
+			note, _, _ = strings.Cut(strings.Replace(reason, audioRefusedPrefix, "Manual import: ", 1), ". ")
+			note = strings.TrimSuffix(note, ".") + "."
+			reason = ""
 		}
 		if note != "" {
 			if f != nil {
@@ -203,6 +208,24 @@ func (l *Library) audioGuard(ctx context.Context, d *importDownload, plan *Plan)
 	return "", nil
 }
 
+// explicitImport says a person chose the import's files: Manual import (a client's chosen files), or an import that
+// named its path on the mount (the native import by path; a download client's completed download is not one).
+func explicitImport(d *importDownload) bool {
+	return len(d.Manual) > 0 || d.SourcePath != "" && d.Client == ""
+}
+
+// displaced are the version's files a link displaces, each judged on its own: for a film every file of the version
+// (one file replaces them all); for a series the files at the link's path or sharing an episode with it.
+func displaced(held []existingFile, lk *PlannedLink, kind string) []existingFile {
+	var out []existingFile
+	for _, old := range held {
+		if kind == "movie" || old.Path == lk.Path || overlaps(old.Episodes, lk.Episodes) {
+			out = append(out, old)
+		}
+	}
+	return out
+}
+
 func plannedFile(plan *Plan, rel string) *PlannedFile {
 	for i := range plan.Files {
 		if plan.Files[i].Rel == rel {
@@ -210,30 +233,6 @@ func plannedFile(plan *Plan, rel string) *PlannedFile {
 		}
 	}
 	return nil
-}
-
-// replacedAudio says whether the link replaces a file of the version (one it moves aside, or the one at its own
-// path) and the replaced files' known audio languages: the stored probe, else an adopted file's arr media info.
-func (l *Library) replacedAudio(ctx context.Context, d *importDownload, lk *PlannedLink) (bool, []string, error) {
-	replacing := false
-	var langs []string
-	for _, path := range append([]string{lk.Path}, lk.Replaces...) {
-		var pr, media sql.NullString
-		var adopted bool
-		err := l.st.Reader().QueryRowContext(ctx, `SELECT cf.probe, l.adopted_media, l.download_id IS NULL FROM link l
-			JOIN link_version lv ON lv.link_id = l.id AND lv.version_id = ? LEFT JOIN content_file cf ON cf.id = l.content_file_id
-			WHERE l.path = ? AND l.title_id = ? AND l.state IN ('active', 'dead')`, d.Version.VersionID, path,
-			d.Version.Title.ID).Scan(&pr, &media, &adopted)
-		if err == sql.ErrNoRows {
-			continue
-		}
-		if err != nil {
-			return false, nil, err
-		}
-		replacing = true
-		langs = append(langs, storedAudio(pr, media, adopted)...)
-	}
-	return replacing, sortedLanguages(langs), nil
 }
 
 // storedAudio is a library file's known audio languages, from its stored probe, else (an adopted file) the arr's
@@ -258,7 +257,7 @@ func storedAudio(pr, media sql.NullString, adopted bool) []string {
 			out = append(out, c)
 		}
 	}
-	return out
+	return sortedLanguages(out)
 }
 
 // audioRefusedBefore says whether this library refused another release of the title with an empty-slot refusal

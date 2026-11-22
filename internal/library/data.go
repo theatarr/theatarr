@@ -317,52 +317,43 @@ func loadEpisodes(ctx context.Context, db *sql.DB, titleID int64, ids []int64) (
 	return out, rows.Err()
 }
 
-// existingFile is a file the version has now: our link.
+// existingFile is a file the version has now: our link. Its stored media (the content file's probe, else for an
+// adopted link the arr's media info) is read for the wrong-audio rule (audio.go).
 type existingFile struct {
 	LinkID   int64
 	Path     string
 	Target   string
 	Episodes []int64
+	probe    sql.NullString
+	media    sql.NullString
+	adopted  bool
 }
 
 // existingFiles lists the version's current files for a title: its active links.
 func existingFiles(ctx context.Context, db *sql.DB, versionID, titleID int64) ([]existingFile, error) {
-	var out []existingFile
-	rows, err := db.QueryContext(ctx, `
-		SELECT l.id, l.path, l.target, COALESCE((SELECT json_group_array(le.episode_id) FROM link_episode le WHERE le.link_id = l.id), '[]')
-		FROM link l JOIN link_version lv ON lv.link_id = l.id
-		WHERE lv.version_id = ? AND l.title_id = ? AND l.state = 'active' ORDER BY l.id`, versionID, titleID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var f existingFile
-		var eps string
-		if err := rows.Scan(&f.LinkID, &f.Path, &f.Target, &eps); err != nil {
-			return nil, err
-		}
-		_ = json.Unmarshal([]byte(eps), &f.Episodes)
-		out = append(out, f)
-	}
-	return out, rows.Err()
+	return versionFiles(ctx, db, versionID, titleID, "active")
 }
 
 // deadFiles lists the version's dead links for a title: links whose file left the mount (relink's dead mark).
 func deadFiles(ctx context.Context, db *sql.DB, versionID, titleID int64) ([]existingFile, error) {
+	return versionFiles(ctx, db, versionID, titleID, "dead")
+}
+
+func versionFiles(ctx context.Context, db *sql.DB, versionID, titleID int64, state string) ([]existingFile, error) {
+	var out []existingFile
 	rows, err := db.QueryContext(ctx, `
-		SELECT l.id, l.path, l.target, COALESCE((SELECT json_group_array(le.episode_id) FROM link_episode le WHERE le.link_id = l.id), '[]')
-		FROM link l JOIN link_version lv ON lv.link_id = l.id
-		WHERE lv.version_id = ? AND l.title_id = ? AND l.state = 'dead' ORDER BY l.id`, versionID, titleID)
+		SELECT l.id, l.path, l.target, COALESCE((SELECT json_group_array(le.episode_id) FROM link_episode le WHERE le.link_id = l.id), '[]'),
+			cf.probe, l.adopted_media, l.download_id IS NULL
+		FROM link l JOIN link_version lv ON lv.link_id = l.id LEFT JOIN content_file cf ON cf.id = l.content_file_id
+		WHERE lv.version_id = ? AND l.title_id = ? AND l.state = ? ORDER BY l.id`, versionID, titleID, state)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []existingFile
 	for rows.Next() {
 		var f existingFile
 		var eps string
-		if err := rows.Scan(&f.LinkID, &f.Path, &f.Target, &eps); err != nil {
+		if err := rows.Scan(&f.LinkID, &f.Path, &f.Target, &eps, &f.probe, &f.media, &f.adopted); err != nil {
 			return nil, err
 		}
 		_ = json.Unmarshal([]byte(eps), &f.Episodes)

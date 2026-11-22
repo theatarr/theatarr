@@ -2,6 +2,7 @@ package library
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -107,7 +108,7 @@ func TestAudioRuleVerdicts(t *testing.T) {
 		{"an original outside the table: English alone", "Flemish", []string{"jpn"}, true},
 		{"an original outside the table, English file", "Flemish", []string{"eng"}, false},
 	} {
-		want := originalWanted(tc.original, false)
+		want := originalWanted(tc.original)
 		langs, judged := fileAudio(&probe.Result{Audio: tracks(tc.tags...)})
 		if refused := judged && !sharesLanguage(langs, want); refused != tc.emptyRefused {
 			t.Errorf("%s: empty slot refused %v, want %v (want %v, file %v)", tc.name, refused, tc.emptyRefused, want, langs)
@@ -126,7 +127,7 @@ func TestAudioRuleVerdicts(t *testing.T) {
 	if _, judged := fileAudio(&probe.Result{}); judged {
 		t.Errorf("a file with no audio track is judged")
 	}
-	if w := originalWanted("", true); w != nil {
+	if w := originalWanted(""); w != nil {
 		t.Errorf("a missing original language wants %v", w)
 	}
 	if w, decided := profileWanted("movie", "any"); !decided || w != nil {
@@ -259,7 +260,10 @@ func TestAudioRuleSamePathReplacement(t *testing.T) {
 	if err != nil || len(dry.Links) != 1 {
 		t.Fatalf("dry run %+v %v", dry, err)
 	}
-	e.audio(movieRelease, tracks("fre"))
+	// Only the language changes: the file's name (its audio codec and channels) stays the one the dry run planned,
+	// so the held file is at the link's own path and in no Replaces.
+	a := &e.probes[filepath.Join(e.mount, "__all__", movieRelease, "movie.mkv")].Audio[0]
+	a.Language, a.Tagged = "fre", true
 	e.heldFilm(dry.Links[0].Path, "eng")
 	plan, err := e.lib.Import(e.ctx, 1, false)
 	if err != nil {
@@ -274,7 +278,7 @@ func TestAudioRuleSamePathReplacement(t *testing.T) {
 	}
 }
 
-// An empty film slot: the first French-only release is refused (searching again); the same torrent held on another
+// An empty film slot: the first French-only release is refused; the same torrent held on another
 // provider and a release with other audio do not count; a second different release with the same audio is taken,
 // noted for the journal.
 func TestAudioRuleEmptyFilmSlotRefusedOnce(t *testing.T) {
@@ -282,8 +286,8 @@ func TestAudioRuleEmptyFilmSlotRefusedOnce(t *testing.T) {
 	e := newEnv(t, true)
 	e.audioFilm("Japanese")
 	plan := e.filmImport(1, hashA, movieRelease, tracks("fre", "fra"))
-	first := "Import refused: French audio only; this library wants English or Japanese. Searching again; another " +
-		"release with the same audio would be taken."
+	first := "Import refused: French audio only; this library wants English or Japanese. Another release with the " +
+		"same audio would be taken."
 	if e.state(1) != "failed" || plan.Why != first {
 		t.Fatalf("first: %s %q", e.state(1), plan.Why)
 	}
@@ -387,8 +391,8 @@ func TestAudioRuleManualImportLinks(t *testing.T) {
 	if e.state(1) != "imported" || len(p.Links) != 1 {
 		t.Fatalf("%s %q", e.state(1), p.Why)
 	}
-	if f := plannedFile(p, "movie.mkv"); f == nil || !strings.Contains(f.Note, "not refused (manual import): Import refused: French audio only; this "+
-		"library wants English or Japanese.") || strings.Contains(f.Note, "Searching") {
+	if f := plannedFile(p, "movie.mkv"); f == nil || !strings.Contains(f.Note, "Manual import: French audio only; this library wants English or Japanese.") ||
+		strings.Contains(f.Note, "Import refused") || strings.Contains(f.Note, "Another release") {
 		t.Errorf("note %+v", f)
 	}
 }
@@ -430,7 +434,8 @@ func TestAudioRulePartnerLibrary(t *testing.T) {
 	if got := e.webLinks(); got != "0" {
 		t.Errorf("movie-web links %s", got)
 	}
-	want := "Import refused: French audio only; this library wants English or Japanese."
+	want := "Import refused: French audio only; this library wants English or Japanese. Another release with the same audio " +
+		"would be taken."
 	if got := e.one(`SELECT COUNT(*) || '|' || group_concat(source || '|' || reason || '|' || (download_id IS NULL) || '|' ||
 		(researched_at IS NOT NULL)) FROM router_blocklist WHERE version_key = 'movie-web'`); got != "1|library|"+want+"|1|1" {
 		t.Errorf("movie-web blocklist %s", got)
@@ -454,5 +459,123 @@ func TestAudioRuleNoOriginalLanguage(t *testing.T) {
 	}
 	if e.state(1) != "imported" {
 		t.Errorf("%s: %s", e.state(1), e.one(`SELECT COALESCE(error, '') FROM download WHERE id = 1`))
+	}
+}
+
+// Each displaced file is judged on its own (episode overlap): a French-only E01-E02 file over an English E01 and a
+// French E02 is refused (it would take English away from E01); two Spanish files over one Spanish E01-E02 file
+// import (each shares Spanish with the file it displaces, though only the last carries its path).
+func TestAudioRuleEachDisplacedFile(t *testing.T) {
+	t.Parallel()
+	held := func(e *env, id int64, name string, langs []string, eps ...int64) {
+		e.t.Helper()
+		pr, _ := json.Marshal(probe.Result{Container: "matroska", RunTimeSeconds: 2700, Audio: tracks(langs...)})
+		e.exec(`INSERT INTO content (id, info_hash, first_seen_at, last_seen_at) VALUES (?, ?, 0, 0)`, id, fmt.Sprint("held", id))
+		e.exec(`INSERT INTO content_file (id, content_id, path, size_bytes, probe) VALUES (?, ?, 'f.mkv', 1, ?)`, id, id, string(pr))
+		e.heldLink(id, "WEBDL-1080p", name, eps...)
+		e.exec(`UPDATE link SET content_file_id = ? WHERE id = ?`, id, id)
+	}
+	t.Run("French double episode over English and French", func(t *testing.T) {
+		t.Parallel()
+		e := newEnv(t, true)
+		e.exec(`UPDATE title SET original_language = 'Japanese' WHERE id = 2`)
+		held(e, 1, "Show.S01E01.1080p.WEB-DL-OLD", []string{"eng"}, 201)
+		held(e, 2, "Show.S01E02.1080p.WEB-DL-OLD", []string{"fra"}, 202)
+		const rel = "Show.S01E01E02.2160p.BluRay.REMUX-NEW"
+		e.release(rel, map[string]float64{"Show.S01E01E02.2160p.BluRay.REMUX-NEW.mkv": 5400})
+		e.audio(rel, tracks("fra"))
+		e.seriesDownload(1, 2, 20, hashA, rel, "[201, 202]", nil)
+		p, err := e.lib.Import(e.ctx, 1, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := "Import refused: French audio only; the file in the library has English."; e.state(1) != "failed" || p.Why != want {
+			t.Fatalf("%s %q", e.state(1), p.Why)
+		}
+	})
+	t.Run("two Spanish files over one Spanish double episode", func(t *testing.T) {
+		t.Parallel()
+		e := newEnv(t, true)
+		e.exec(`UPDATE title SET original_language = 'Japanese' WHERE id = 2`)
+		held(e, 1, "Show.S01E01E02.1080p.WEB-DL-OLD", []string{"spa"}, 201, 202)
+		const rel = "Show.S01.2160p.BluRay.REMUX-NEW"
+		e.release(rel, map[string]float64{"Show.S01E01.2160p.BluRay.REMUX-NEW.mkv": 2700,
+			"Show.S01E02.2160p.BluRay.REMUX-NEW.mkv": 2700})
+		e.audio(rel, tracks("spa"))
+		e.seriesDownload(1, 2, 20, hashA, rel, "[201, 202]", nil)
+		p, err := e.lib.Import(e.ctx, 1, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if e.state(1) != "imported" || len(p.Links) != 2 {
+			t.Fatalf("%s %q %d links", e.state(1), p.Why, len(p.Links))
+		}
+	})
+}
+
+// A series whose stored original language is Unknown takes the metadata's: a Japanese episode imports.
+func TestAudioRuleSeriesUnknownOriginal(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.exec(`UPDATE title SET original_language = 'Unknown' WHERE id = 2`)
+	e.exec(`INSERT INTO series_meta (title_id, original_language) VALUES (2, 'ja')`)
+	const pack = "Show.S01.2160p.WEB-DL.DDP5.1.H.265-ONE"
+	e.release(pack, map[string]float64{"Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-ONE.mkv": 2700})
+	e.audio(pack, tracks("jpn"))
+	e.seriesDownload(1, 2, 20, hashA, pack, "[201]", nil)
+	if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+		t.Fatal(err)
+	}
+	if e.state(1) != "imported" {
+		t.Errorf("%s: %s", e.state(1), e.one(`SELECT COALESCE(error, '') FROM download WHERE id = 1`))
+	}
+}
+
+// An import by path (the native import naming a folder on the mount, no files chosen) is the caller's choice: it
+// links, with a note, and nothing is blocklisted.
+func TestAudioRulePathImportNotRefused(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.audioFilm("Japanese")
+	e.release(movieRelease, map[string]float64{"movie.mkv": 7000})
+	e.audio(movieRelease, tracks("fre"))
+	e.download(1, "movie-remux", 1, 10, movieRelease, movieRelease, "[]")
+	e.exec(`UPDATE download SET source_path = ? WHERE id = 1`, filepath.Join(e.mount, "__all__", movieRelease))
+	p, err := e.lib.Import(e.ctx, 1, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.state(1) != "imported" || len(p.Links) != 1 {
+		t.Fatalf("%s %q", e.state(1), p.Why)
+	}
+	if got := e.one(`SELECT COUNT(*) FROM router_blocklist`); got != "0" {
+		t.Errorf("blocklist rows %s", got)
+	}
+	if f := plannedFile(p, "movie.mkv"); f == nil || !strings.Contains(f.Note, "Manual import: French audio only") {
+		t.Errorf("note %+v", f)
+	}
+}
+
+// Manual import's list (a dry run) keeps every assignment of a pack with one wrong-audio file: E01 stays matched,
+// and E02's audio is a note.
+func TestAudioRulePreviewKeepsAssignments(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	e.exec(`UPDATE title SET original_language = 'English' WHERE id = 2`)
+	const pack = "Show.S01.2160p.WEB-DL.DDP5.1.H.265-ONE"
+	e2 := "Show.S01E02.2160p.WEB-DL.DDP5.1.H.265-ONE.mkv"
+	e.release(pack, map[string]float64{"Show.S01E01.2160p.WEB-DL.DDP5.1.H.265-ONE.mkv": 2700, e2: 2700})
+	e.audio(pack, tracks("eng"))
+	e.probes[filepath.Join(e.mount, "__all__", pack, e2)].Audio = tracks("fra")
+	e.seriesDownload(1, 2, 20, hashA, pack, "[201, 202]", nil)
+	p, err := e.lib.Import(e.ctx, 1, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Links) != 2 || p.Why != "" {
+		t.Fatalf("preview links %d, why %q", len(p.Links), p.Why)
+	}
+	if f := plannedFile(p, e2); f == nil || !strings.Contains(f.Note, "Manual import: French audio only; this library wants English.") {
+		t.Errorf("note %+v", f)
 	}
 }

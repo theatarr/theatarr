@@ -11,6 +11,17 @@ import (
 // arrs' language table (Radarr's IsoLanguages): "eng", "fra", "kor", "nor". A code the table lacks (und, zxx, mul,
 // mis, a private qaa-qtz code, myn, ...) is unknown.
 
+// AudioRefusedPrefix starts every reason the import's wrong-audio rule gives. The places that shorten a stored
+// failure for a list (History, Why, the journal) leave such a reason whole: its languages are the point.
+const AudioRefusedPrefix = "Import refused: "
+
+// IsAudioRefusal says a stored text holds a wrong-audio refusal (it may carry a prefix such as "library: "):
+// "Import refused: <languages> audio only; ...".
+func IsAudioRefusal(s string) bool {
+	_, rest, ok := strings.Cut(s, AudioRefusedPrefix)
+	return ok && strings.Contains(rest, " audio only; ")
+}
+
 // AudioLanguage reads an audio track's language tag (ISO 639-1, 639-2/B or /T, or a BCP 47 tag whose region is cut:
 // ja-JP is Japanese): the table's three-letter code, or false when the tag is empty or the table lacks it. Norwegian
 // Bokmål and Nynorsk (nb, nn, nob, nno) are Norwegian.

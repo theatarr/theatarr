@@ -160,7 +160,12 @@ func clean(s string) string {
 
 // cleanMessage is clean for provider and error messages: provider.CleanMessage first (HTML, e-mail addresses,
 // length).
-func cleanMessage(s string) string { return clean(provider.CleanMessage(s)) }
+func cleanMessage(s string) string {
+	if decide.IsAudioRefusal(s) {
+		return clean(provider.NormalizeMessage(s)) // whole: the import's wrong-audio refusal names its languages
+	}
+	return clean(provider.CleanMessage(s))
+}
 
 // cleanText is cleanMessage, cut to the short form unless full (the entry page shows a message in full; the
 // redaction is the same either way).

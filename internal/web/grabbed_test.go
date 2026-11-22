@@ -13,7 +13,13 @@ import (
 	"github.com/theatarr/theatarr/internal/store"
 )
 
+const audioRefusal = "Import refused: French and Spanish audio only; this library wants English or Japanese. " +
+	"Another release with the same audio would be taken."
+
 func TestShortReason(t *testing.T) {
+	if activityMessage("library: "+audioRefusal) != "library: "+audioRefusal {
+		t.Errorf("the activity list cuts the wrong-audio refusal: %q", activityMessage("library: "+audioRefusal))
+	}
 	t.Parallel()
 	for _, c := range []struct{ err, provider, want string }{
 		{"provider status error", "rd", "RD reported an error"},
@@ -23,6 +29,8 @@ func TestShortReason(t *testing.T) {
 		{"no video file in the torrent; the finished torrent was kept on rd", "rd", "No video file in the torrent; the finished torrent was kept on rd"},
 		{"library: no file passed the sample guard", "rd", "Not imported: no file passed the library's checks"},
 		{"", "rd", ""},
+		// The import's wrong-audio refusal arrives whole (it is longer than maxReason).
+		{"library: " + audioRefusal, "rd", audioRefusal},
 	} {
 		if got := shortReason(c.err, c.provider, strings.ToUpper); got != c.want {
 			t.Errorf("shortReason(%q, %q) = %q, want %q", c.err, c.provider, got, c.want)

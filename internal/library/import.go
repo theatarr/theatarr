@@ -52,8 +52,10 @@ type Plan struct {
 	seaDexVeto map[string]string // files markVeto marked (upgrade.go)
 	// packRefused is why a claimed pack's numbering cannot be trusted (animepack.go): the import is rejected.
 	packRefused string
-	// audioRefused: the wrong-audio rule rejected the import (audio.go).
+	// audioRefused: the wrong-audio rule rejected the import (audio.go). held are the version's files when the plan
+	// was made (active, then dead), which the rule's displaced files are found among.
 	audioRefused bool
+	held         []existingFile
 }
 
 // PlannedFile is a video file of the release.
@@ -666,7 +668,7 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 		return l.reject(ctx, d, plan, dryRun, "pack numbering: "+plan.packRefused)
 	}
 	// The wrong-audio rule judges the files the plan links as one: one refused file rejects the import (audio.go).
-	if reason, err := l.audioGuard(ctx, d, plan); err != nil {
+	if reason, err := l.audioGuard(ctx, d, plan, dryRun); err != nil {
 		return nil, err
 	} else if reason != "" {
 		plan.Links = nil
@@ -1289,6 +1291,7 @@ func (l *Library) planMovie(ctx context.Context, d *importDownload, vn *VersionN
 	if err != nil {
 		return err
 	}
+	plan.held = append(slices.Clone(existing), dead...)
 	for _, e := range dead {
 		if e.Path != path {
 			lk.Replaces = append(lk.Replaces, e.Path)
@@ -1531,6 +1534,7 @@ func (l *Library) planSeries(ctx context.Context, d *importDownload, vn *Version
 	if err != nil {
 		return err
 	}
+	plan.held = append(slices.Clone(existing), dead...)
 	planDeadReplacements(plan, dead)
 	return nil
 }

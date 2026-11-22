@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/theatarr/theatarr/internal/activity"
+	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/journal"
 	"github.com/theatarr/theatarr/internal/journal/snapshot"
 	"github.com/theatarr/theatarr/internal/library"
@@ -417,14 +418,16 @@ func notUpgradeDetail(r string) string {
 	return nothingReplaced
 }
 
-// storedWords is a stored text as a headline: its first letter in upper case, cut to maxReason.
+// storedWords is a stored text as a headline: its first letter in upper case, cut to maxReason (a wrong-audio
+// refusal is not cut).
 func storedWords(s string) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return ""
 	}
 	r := []rune(s)
-	if len(r) > maxReason {
+	// The import's wrong-audio refusal arrives whole: its languages and what the library wants are the point.
+	if len(r) > maxReason && !decide.IsAudioRefusal(s) {
 		r = append(r[:maxReason], '…')
 	}
 	return strings.ToUpper(string(r[:1])) + string(r[1:])

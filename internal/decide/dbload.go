@@ -458,9 +458,15 @@ func scanTitle(rows *sql.Rows) (Title, error) {
 	}
 	t.Kind, t.Anime = policy.Kind(kind), anime == 1
 	unnamed := func(s string) bool { s = strings.TrimSpace(s); return s == "" || strings.EqualFold(s, "unknown") }
-	t.OriginalLanguageMissing = unnamed(lang) && unnamed(metaLang)
+	missing := unnamed(lang) && unnamed(metaLang)
 	if t.Kind == policy.KindSeries {
 		t.Runtime, t.OriginalLanguage = runtime, lang
+		switch {
+		case !unnamed(lang):
+			t.NamedOriginalLanguage = lang
+		case !unnamed(metaLang):
+			t.NamedOriginalLanguage = metaLang
+		}
 		if lang == "" {
 			t.OriginalLanguage, t.OriginalLanguageResolved = seriesOriginalLanguage(metaLang), true
 		}
@@ -472,7 +478,7 @@ func scanTitle(rows *sql.Rows) (Title, error) {
 	}
 	if d := gunzipDetails(body); d != nil {
 		t.OriginalTitle, t.OriginalLanguage = d.OriginalTitle, tmdbOriginalLanguage(d.OriginalLanguage)
-		t.OriginalLanguageMissing = t.OriginalLanguageMissing && unnamed(d.OriginalLanguage)
+		missing = missing && unnamed(d.OriginalLanguage)
 		if d.Runtime > 0 {
 			t.Runtime = d.Runtime
 		}
@@ -485,6 +491,9 @@ func scanTitle(rows *sql.Rows) (Title, error) {
 	}
 	if original != "" {
 		t.OriginalTitle = original
+	}
+	if !missing {
+		t.NamedOriginalLanguage = t.OriginalLanguage
 	}
 	return t, nil
 }

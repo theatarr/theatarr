@@ -376,11 +376,13 @@ func (b *builder) expectedLanguages(e *Entry, ti *titleInfo) (langs []string, st
 	return langs, false
 }
 
-// languageName is the arr's name of a language held by code or name (decide.LanguageCode, the mapping the import's
-// wrong-audio rule uses): "ko" is Korean; a value the table lacks passes through.
+// languageName turns an ISO 639-1 code into the arr's language name; names pass through (a release label such as
+// "Spanish (Latino)" is compared as it is). The file audio check reads codes and names with decide.LanguageCode.
 func languageName(s string) string {
-	if c, ok := decide.LanguageCode(s); ok {
-		return decide.LanguageName(c)
+	if len(s) == 2 {
+		if iso := radarr.FindIsoLanguage(strings.ToLower(s)); iso != nil {
+			return iso.Language.Name
+		}
 	}
 	return s
 }
@@ -503,24 +505,32 @@ func (b *builder) checkFile(e *Entry, ti *titleInfo) {
 				codes = append(codes, c)
 			}
 		}
-		known := false
+		var heard []string // the file's known languages, by name
 		for _, a := range e.f.fileAudio {
 			a, ok := decide.AudioLanguage(a)
 			if !ok {
 				continue
 			}
-			known = true
 			if slices.Contains(codes, a) {
 				return
 			}
+			if n := decide.LanguageName(a); !slices.Contains(heard, n) {
+				heard = append(heard, n)
+			}
 		}
-		if known && len(codes) > 0 {
+		if len(heard) > 0 && len(codes) > 0 {
 			sev := SevInfo // English or the original language: TMDb's original language is sometimes not the spoken one
 			if strict {
 				sev = SevWarn
 			}
-			e.flag(CheckFileAudio, sev, "the file's audio is %s; wanted %s", strings.Join(e.f.fileAudio, "/"),
-				strings.Join(codes, " or "))
+			var names []string
+			for _, c := range codes {
+				if n := decide.LanguageName(c); !slices.Contains(names, n) {
+					names = append(names, n)
+				}
+			}
+			e.flag(CheckFileAudio, sev, "the file's audio is %s; wanted %s", strings.Join(heard, "/"),
+				strings.Join(names, " or "))
 		}
 	}
 }

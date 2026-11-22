@@ -12,6 +12,7 @@ import (
 	"github.com/theatarr/theatarr/internal/activity"
 	"github.com/theatarr/theatarr/internal/arr"
 	"github.com/theatarr/theatarr/internal/auth"
+	"github.com/theatarr/theatarr/internal/decide"
 	"github.com/theatarr/theatarr/internal/journal"
 	"github.com/theatarr/theatarr/internal/provider"
 	"github.com/theatarr/theatarr/internal/store"
@@ -107,7 +108,11 @@ func closeActivityRows(rows *sql.Rows) error {
 }
 
 func activityMessage(s string) string {
-	s = provider.CleanMessage(s)
+	if decide.IsAudioRefusal(s) {
+		s = provider.NormalizeMessage(s) // whole, as storedWords leaves it
+	} else {
+		s = provider.CleanMessage(s)
+	}
 	if arr.UnsafeValue(s) {
 		return "[redacted]"
 	}
