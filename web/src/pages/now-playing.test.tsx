@@ -53,6 +53,16 @@ describe("Now playing with a Plex sentence and its detail", () => {
     expect(detail.className.split(/\s+/).some((c) => c === "truncate" || /^line-clamp-/.test(c))).toBe(false);
   });
 
+  it("adds no second prefix to a lowercase plex: error (fix round 2)", async () => {
+    mockFetch([
+      { method: "GET", path: "/auth/me", reply: { id: 9, username: "someone", permissions: ["browse", "see_files", "manage"], csrf_token: "t" } },
+      { method: "GET", path: "/nowplaying", reply: { enabled: true, sessions: [], error: "plex: GET /status/sessions: 500" } },
+    ]);
+    renderPage(<NowPlayingPage />, "/now-playing");
+    expect(await screen.findByText("plex: GET /status/sessions: 500")).toBeTruthy();
+    expect(screen.queryByText(/Plex: plex:/)).toBeNull();
+  });
+
   it("keeps a member's short Plex words as they are, with no detail line", async () => {
     mockFetch([
       { method: "GET", path: "/auth/me", reply: { id: 9, username: "someone", permissions: ["browse"], csrf_token: "t" } },
