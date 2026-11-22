@@ -1,12 +1,14 @@
 package web
 
 import (
+	"cmp"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/theatarr/theatarr/internal/auth"
 	"github.com/theatarr/theatarr/internal/nowplaying"
+	"github.com/theatarr/theatarr/internal/uipages"
 )
 
 // NowPlayingSource gives the now playing tracker's state (docs/design/now-playing.md), nil while it is off.
@@ -33,7 +35,16 @@ func (w *Web) apiNowPlaying(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if w.permsOf(r).SeeFiles {
-		writeJSON(rw, http.StatusOK, snap)
+		out := *snap
+		if out.Error != "" {
+			// What to fix first; Plex's own error follows as the detail.
+			at := ""
+			if w.pol != nil && w.pol.Library != nil && w.pol.Library.Plex != nil {
+				at = w.pol.Library.Plex.URL
+			}
+			out.Error, out.ErrorDetail = uipages.Fix(uipages.FixPlex, "", at, cmp.Or(out.ErrorClass, uipages.FailConnectivity)), out.Error
+		}
+		writeJSON(rw, http.StatusOK, out)
 		return
 	}
 	out := nowplaying.Snapshot{Enabled: snap.Enabled, UpdatedAt: snap.UpdatedAt, Sessions: []nowplaying.SessionView{}}

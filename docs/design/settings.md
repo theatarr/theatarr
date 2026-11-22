@@ -584,7 +584,11 @@ Indexers run the first probe they support (recent releases, then an IMDb movie q
 only an IMDb movie query (tt0133093, ten results) on its configured path, since its RSS reads only the path's rd/ad
 providers. Providers read the account. Results carry categories only (ok, auth, credential, http, connectivity,
 timeout, unsupported, `dmm_provider_key` for DMM's error 102, no key linked at DMM for a provider in the path, or the
-gateway's refusal reason), HTTP status, latency, the release count or premium/expiry, never upstream text.
+gateway's refusal reason), HTTP status, latency, the release count or premium/expiry, never upstream text. A failed
+or timed-out test's `message` is the sentence that says what to fix, from the one mapping of these categories in
+`uipages.Fix` (shared with the health checks, the rclone test and Now playing): "Real-Debrid refused the key: paste
+a new API token under Settings › Download clients", "<indexer> cannot be reached: check its URL under Settings ›
+Indexers, and that the site is up"; a refusal keeps its own words (`web.TestSettingsAPITestSaysWhatToFix`).
 `web.SettingsTestLimits`, shared by every generation's web layer, bounds them: 20 s per source (and at most 20 s
 waiting for a slot), at most 4 running across all requests, and a 30 s cooldown (429 with `Retry-After`; test-all
 reports the source as `cooldown` without calling it). The cooldown of a saved source is keyed on its record; a

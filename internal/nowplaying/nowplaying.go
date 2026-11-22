@@ -23,6 +23,7 @@ import (
 	"github.com/theatarr/theatarr/internal/plex"
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
+	"github.com/theatarr/theatarr/internal/uipages"
 )
 
 // Polling: every activeEvery while someone looked at the page (or the API) within viewedWithin, else idleEvery.
@@ -108,6 +109,7 @@ type Tracker struct {
 	sess      map[string]*session
 	updatedAt time.Time
 	err       string
+	errClass  string
 	viewedAt  time.Time
 	events    []zurgEvent
 	stats     *library.ZurgStats
@@ -225,10 +227,15 @@ type SessionView struct {
 
 // Snapshot is the API's answer.
 type Snapshot struct {
-	Enabled   bool          `json:"enabled"`
-	UpdatedAt *time.Time    `json:"updated_at,omitempty"`
-	Error     string        `json:"error,omitempty"`
-	Sessions  []SessionView `json:"sessions"`
+	Enabled   bool       `json:"enabled"`
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+	Error     string     `json:"error,omitempty"`
+	// ErrorDetail is the raw error under Error, which the web API turns into a sentence for admins.
+	ErrorDetail string `json:"error_detail,omitempty"`
+	// ErrorClass is Error's failure class (uipages.FailAuth when Plex refused the token, else
+	// uipages.FailConnectivity), for that sentence.
+	ErrorClass string        `json:"-"`
+	Sessions   []SessionView `json:"sessions"`
 	// Cache is the mount's disk cache (rclone rc vfs/stats), when rclone_rc is set.
 	Cache *Cache `json:"cache,omitempty"`
 	// ZurgStreams is zurg's open streams (/stats), when zurg_api is set.
@@ -421,7 +428,10 @@ func (t *Tracker) poll(ctx context.Context) {
 		if t.err != err.Error() {
 			t.o.Logger.Warn("nowplaying: plex sessions", "err", err)
 		}
-		t.err, t.updatedAt = err.Error(), now
+		t.err, t.errClass, t.updatedAt = err.Error(), uipages.FailConnectivity, now
+		if se := (*plex.StatusError)(nil); errors.As(err, &se) {
+			t.errClass = uipages.HTTPClass(se.Status)
+		}
 		t.mu.Unlock()
 		return
 	}
@@ -718,7 +728,7 @@ func (t *Tracker) Snapshot() Snapshot {
 		t.poke()
 	}
 	t.viewedAt = now
-	out := Snapshot{Enabled: true, Error: t.err, Sessions: []SessionView{}, Cache: t.cache}
+	out := Snapshot{Enabled: true, Error: t.err, ErrorClass: t.errClass, Sessions: []SessionView{}, Cache: t.cache}
 	if !t.updatedAt.IsZero() {
 		at := t.updatedAt
 		out.UpdatedAt = &at

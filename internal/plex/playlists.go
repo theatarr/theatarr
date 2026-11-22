@@ -62,6 +62,16 @@ func (f *flexString) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// StatusError is a Plex answer with a status other than 2xx.
+type StatusError struct {
+	Method, Path string
+	Status       int
+}
+
+func (e *StatusError) Error() string {
+	return fmt.Sprintf("plex: %s %s: HTTP %d", e.Method, e.Path, e.Status)
+}
+
 // call sends one request and decodes the container (nil out: discard).
 func (c *Client) call(ctx context.Context, method, path string, q url.Values, out *container) error {
 	u := *c.base
@@ -83,7 +93,7 @@ func (c *Client) call(ctx context.Context, method, path string, q url.Values, ou
 		return err
 	}
 	if resp.StatusCode/100 != 2 {
-		return fmt.Errorf("plex: %s %s: HTTP %d", method, path, resp.StatusCode)
+		return &StatusError{Method: method, Path: path, Status: resp.StatusCode}
 	}
 	if out == nil || len(strings.TrimSpace(string(body))) == 0 {
 		return nil

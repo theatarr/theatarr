@@ -1,6 +1,7 @@
 package web
 
 import (
+	"cmp"
 	"context"
 	"crypto/hmac"
 	"crypto/rand"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/theatarr/theatarr/internal/settings"
+	"github.com/theatarr/theatarr/internal/uipages"
 )
 
 // SettingsTester makes one outbound check of a source in a settings snapshot (saved or candidate) through the
@@ -277,6 +279,9 @@ func (w *Web) runTest(ctx context.Context, item testItem) SettingsTestResult {
 	res := SettingsTestResult{ID: item.id, Entity: item.req.Entity, Key: item.req.Key, Candidate: item.req.Candidate(), TestedAt: l.Now().UTC()}
 	finish := func(status, category string) SettingsTestResult {
 		res.Status, res.Category, res.Message = status, category, testMessages[category]
+		if status == "failed" || status == "timeout" {
+			res.Message = cmp.Or(sourceFix(item.req, category), res.Message)
+		}
 		return res
 	}
 	if category, retry, ok := l.reserve(item.ref, item.req.Candidate()); !ok {
@@ -326,6 +331,22 @@ func (w *Web) runTest(ctx context.Context, item testItem) SettingsTestResult {
 		res.LatencyMS = time.Since(start).Milliseconds()
 		return finish("timeout", "timeout")
 	}
+}
+
+// sourceFix is the sentence that says what to fix for a failed test of category (uipages.Fix): the source by name
+// and the setting to change. "" for a category it has none for.
+func sourceFix(req SettingsTestRequest, category string) string {
+	switch req.Entity {
+	case entityProviders:
+		name := req.Key
+		if req.Snapshot != nil && req.Snapshot.Policy != nil && req.Snapshot.Policy.Providers[req.Key] != nil {
+			name = cmp.Or(req.Snapshot.Policy.Providers[req.Key].Kind, name)
+		}
+		return uipages.Fix(uipages.FixProvider, uipages.ProviderName(name), "", category)
+	case entityIndexers:
+		return uipages.Fix(uipages.FixIndexer, req.Key, "", category)
+	}
+	return ""
 }
 
 func (w *Web) testsReady(rw http.ResponseWriter) bool {

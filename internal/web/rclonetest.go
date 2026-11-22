@@ -1,14 +1,18 @@
 package web
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/nowplaying"
 	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/uipages"
 )
 
 // RcloneTestGateway builds a temporary gateway over the current runtime, sharing
@@ -85,10 +89,18 @@ func (w *Web) apiRcloneTest(rw http.ResponseWriter, r *http.Request) {
 	client := nowplaying.RC{URL: body.URL, User: body.Username, Password: body.Password, GW: gw}
 	version, err := client.Version(ctx)
 	if err != nil {
-		if ctx.Err() != nil {
+		// Reachability and a refusal get different advice: an outage is not fixed by entering credentials again.
+		var status *nowplaying.RCStatusError
+		var refused *gateway.Refused
+		switch {
+		case ctx.Err() != nil:
 			reply("No answer within 5 seconds.")
-		} else {
-			reply("Connection failed. Check the URL and credentials.")
+		case errors.As(err, &refused):
+			reply("The test was " + cmp.Or(testMessages[string(refused.Reason)], "refused") + ".")
+		case errors.As(err, &status):
+			reply(uipages.Fix(uipages.FixRclone, "", body.URL, uipages.HTTPClass(status.Status)) + ".")
+		default:
+			reply(uipages.Fix(uipages.FixRclone, "", body.URL, uipages.FailConnectivity))
 		}
 		return
 	}

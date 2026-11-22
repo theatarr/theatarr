@@ -77,6 +77,11 @@ func TestRcloneConnectionTest(t *testing.T) {
 			if mode == "timeout" && !strings.Contains(result.Error, "5 seconds") {
 				t.Fatalf("%+v", result)
 			}
+			// A refusal names the credentials; it is not the advice for an rclone that does not answer.
+			if mode == "auth" && (!strings.Contains(result.Error, "rclone refused the username or password") ||
+				strings.Contains(result.Error, "does not answer")) {
+				t.Fatalf("%+v", result)
+			}
 			for _, secret := range []string{"fixture-user", "fixture-password"} {
 				if strings.Contains(rec.Body.String()+logs.String(), secret) {
 					t.Fatal("credential leaked")
@@ -85,6 +90,27 @@ func TestRcloneConnectionTest(t *testing.T) {
 		})
 	}
 }
+
+// An rclone that does not answer is told apart from one that refuses the credentials (uisweep8 F26).
+func TestRcloneTestUnreachable(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.NotFoundHandler())
+	url := server.URL
+	server.Close()
+	e := newEnvWith(t, func(c *Config) {
+		c.RcloneTestGateway = func(ctx context.Context, p *policy.Policy, secrets []string) (nowplaying.Doer, error) {
+			return gateway.New(ctx, p, gateway.Options{Secrets: secrets})
+		}
+	})
+	r := httptest.NewRequest("POST", APIBase+"/nowplaying/rclone/test", strings.NewReader(`{"url":"`+url+`"}`))
+	r.Header.Set(auth.APIKeyHeader, e.apiKey())
+	rec := e.do(r)
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "rclone does not answer at "+url+": is rclone running") ||
+		strings.Contains(rec.Body.String(), "credentials") {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+}
+
 func TestRcloneTestRequiresAdmin(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)

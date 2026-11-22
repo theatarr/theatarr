@@ -22,6 +22,7 @@ import (
 	"github.com/theatarr/theatarr/internal/plex"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/store/storetest"
+	"github.com/theatarr/theatarr/internal/uipages"
 )
 
 func TestParseZurgLine(t *testing.T) {
@@ -164,14 +165,15 @@ func openStore(t *testing.T) *store.Store {
 }
 
 type fakePlex struct {
-	mu sync.Mutex
-	ss []plex.Session
+	mu  sync.Mutex
+	ss  []plex.Session
+	err error
 }
 
 func (f *fakePlex) Sessions(context.Context) ([]plex.Session, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return append([]plex.Session(nil), f.ss...), nil
+	return append([]plex.Session(nil), f.ss...), f.err
 }
 
 func (f *fakePlex) Notifications(ctx context.Context, _ func(plex.PlayEvent)) error {
@@ -865,5 +867,23 @@ func TestCacheNextFinishesAfterStop(t *testing.T) {
 		if len(m.cached) != 1 || len(reports) != 0 || m.stopped {
 			t.Errorf("after %v: cached %v reports %v stopped %v", after, m.cached, reports, m.stopped)
 		}
+	}
+}
+
+// A Plex that refuses the token is told apart from one that does not answer, for the sentence the web API shows.
+func TestPlexErrorClass(t *testing.T) {
+	t.Parallel()
+	c := &clock{t: time.Date(2026, 10, 15, 20, 0, 0, 0, time.UTC)}
+	var reports []Problem
+	p := &fakePlex{err: &plex.StatusError{Method: "GET", Path: "/status/sessions", Status: 401}}
+	tr := newTracker(t, p, nil, &fakeMount{}, c, &reports)
+	tr.poll(context.Background())
+	if s := tr.Snapshot(); s.ErrorClass != uipages.FailAuth || s.Error != "plex: GET /status/sessions: HTTP 401" {
+		t.Fatalf("refused: %q %q", s.ErrorClass, s.Error)
+	}
+	p.err = errors.New("dial tcp: connection refused")
+	tr.poll(context.Background())
+	if s := tr.Snapshot(); s.ErrorClass != uipages.FailConnectivity {
+		t.Fatalf("down: %q", s.ErrorClass)
 	}
 }

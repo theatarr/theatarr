@@ -85,7 +85,7 @@ func TestCheckerCachesAndBounds(t *testing.T) {
 func TestMount(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
-	if r := Mount(dir, time.Second)(ctx); r.Type != Error || !strings.Contains(r.Message, "empty") {
+	if r := Mount(dir, time.Second)(ctx); r.Type != Error || r.Message != "The mount at "+dir+" lists nothing: is rclone running?" {
 		t.Errorf("empty: %+v", r)
 	}
 	os.WriteFile(filepath.Join(dir, "a"), nil, 0o644)
@@ -101,7 +101,7 @@ func TestMount(t *testing.T) {
 	probe = func(string) (int, error) { probes.Add(1); <-release; return 1, nil }
 	t.Cleanup(func() { probe = probeDir })
 	f := Mount(dir, 20*time.Millisecond)
-	if r := f(ctx); r.Type != Error || !strings.Contains(r.Message, "did not answer") {
+	if r := f(ctx); r.Type != Error || r.Message != "The mount at "+dir+" does not answer: is rclone running? (no answer in 20ms)" {
 		t.Errorf("hung: %+v", r)
 	}
 	if r := f(ctx); r.Type != Error || !strings.Contains(r.Message, "still blocked") || probes.Load() != 1 {
@@ -159,7 +159,7 @@ func TestMetadata(t *testing.T) {
 		t.Errorf("stale: %+v", r)
 	}
 	if r := Metadata(st, MetadataOptions{Now: now})(ctx); r.Type != Warning ||
-		r.Message != "Metadata: No TMDb key is set: titles get no new metadata" {
+		r.Message != "Metadata: No TMDb key is set: add one under "+uipages.Metadata {
 		t.Errorf("off: %+v", r)
 	}
 }
@@ -391,11 +391,11 @@ func TestMountAnsweringAndHelper(t *testing.T) {
 	if r := MountAnswering("/m", answer(1, nil))(ctx); r.Type != OK {
 		t.Errorf("ok: %+v", r)
 	}
-	if r := MountAnswering("/m", answer(0, nil))(ctx); r.Type != Error || !strings.Contains(r.Message, "empty") {
+	if r := MountAnswering("/m", answer(0, nil))(ctx); r.Type != Error || r.Message != "The mount at /m lists nothing: is rclone running?" {
 		t.Errorf("empty: %+v", r)
 	}
 	if r := MountAnswering("/m", answer(0, errors.New("library: mount unhealthy: no answer")))(ctx); r.Type != Error ||
-		!strings.Contains(r.Message, "not answering") {
+		r.Message != "The mount at /m does not answer: is rclone running? (library: mount unhealthy: no answer)" {
 		t.Errorf("down: %+v", r)
 	}
 	state := func(s *MountHelperState) func() *MountHelperState { return func() *MountHelperState { return s } }
@@ -502,7 +502,7 @@ func TestAccounts(t *testing.T) {
 		{"expired", map[string]AccountReader{"ad": expired}, Error, "Debrid account needs attention: AD: premium ended Oct 25"},
 		{"free", map[string]AccountReader{"ad": free}, Error, "Debrid account needs attention: AD: not premium"},
 		{"refused", map[string]AccountReader{"rd": refused, "tb": far}, Error,
-			"Debrid account needs attention: RD: key refused (realdebrid: provider: authentication refused). Check the key in " + uipages.Providers},
+			"Debrid account needs attention: Real-Debrid refused the key: paste a new API token under " + uipages.Providers},
 		{"down", map[string]AccountReader{"rd": far, "tb": down}, Warning,
 			"Debrid account needs attention: TB: account not readable (dial tcp: connection refused)"},
 		{"hung", map[string]AccountReader{"tb": hung}, Warning,

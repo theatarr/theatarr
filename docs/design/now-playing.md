@@ -274,7 +274,9 @@ broke while playing is searched at once").
 source, fetch and pre-warm, the cause detail, zurg's stream count and the rclone cache. Users get only their own
 playbacks, matched on the Plex account linked to their Theatarr account (plex.tv id or name), with the verdict and cause
 but no detail, and of the source only the title (for the link to its page). Plex's error text is replaced by "Plex
-does not answer". Of the files that stopped working while playing, managers and admins get every incident with its
+does not answer". Managers and admins get a sentence that says what to fix in `error` ("Plex does not answer at
+<address>: check the address under Settings › Plex & playback", or "Plex refused the token: sign in to Plex again"
+for a 401/403) and Plex's own error in `error_detail`. Of the files that stopped working while playing, managers and admins get every incident with its
 releases and what Plex answered; users get only the incidents of their own playbacks (the viewer matched on their
 linked Plex name), with what came of each, their player and the message their player showed, but no release names and
 not why Plex refused. While the tracker is off the answer is `{"enabled": false, "sessions": []}` and the page says what
@@ -323,6 +325,9 @@ covers the redaction for users, `web/src/lib/now-playing.test.ts` the page's lab
 Admins see **Connect rclone** on Now playing when no rc connection is configured, or a compact host and Edit
 link when one exists. It adds fetch speed and cache state of the playing file. Enter the rc URL, username and
 password, then **Test connection** or **Save**. Credentials are never pre-filled; blank fields keep stored values.
+The test tells an rclone that does not answer ("rclone does not answer at <url>: is rclone running with --rc, and is
+the URL right?") from one that refuses the credentials (HTTP 401/403: "rclone refused the username or password")
+and from another HTTP error, so an outage does not send the admin to re-enter credentials (`TestRcloneTestUnreachable`).
 Saving patches `library.mount.rclone_rc.url` while keeping its budget and other library settings. Credentials
 travel as section secrets in the same PUT as the parent object; no `_env` fallback names are required.
 Changing the address requires re-entering each stored credential or selecting **Remove saved credentials**

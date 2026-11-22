@@ -50,6 +50,16 @@ type Cache struct {
 	OutOfSpace   bool  `json:"outOfSpace"`
 }
 
+// RCStatusError is an rc answer with a status other than 200.
+type RCStatusError struct {
+	Method string
+	Status int
+}
+
+func (e *RCStatusError) Error() string {
+	return fmt.Sprintf("nowplaying: rclone rc %s: HTTP %d", e.Method, e.Status)
+}
+
 func (r *RC) call(ctx context.Context, method string, out any) error {
 	return r.callWith(ctx, method, struct{}{}, out)
 }
@@ -79,7 +89,7 @@ func (r *RC) callWith(ctx context.Context, method string, in, out any) error {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
-		return fmt.Errorf("nowplaying: rclone rc %s: HTTP %d", method, resp.StatusCode)
+		return &RCStatusError{Method: method, Status: resp.StatusCode}
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(out); err != nil {
 		return fmt.Errorf("nowplaying: rclone rc %s: %w", method, err)

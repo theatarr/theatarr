@@ -66,7 +66,7 @@ func Mount(dir string, timeout time.Duration) Func {
 		detail := map[string]any{"path": dir}
 		if !busy.CompareAndSwap(false, true) {
 			return Result{Type: Error, Detail: detail,
-				Message: "The mount at " + dir + " is not answering: an earlier check is still blocked on it"}
+				Message: uipages.Fix(uipages.FixMount, "", dir, uipages.FailUnreadable) + " (an earlier check is still blocked on it)"}
 		}
 		type answer struct {
 			names int
@@ -84,16 +84,17 @@ func Mount(dir string, timeout time.Duration) Func {
 		case a := <-ch:
 			switch {
 			case a.err != nil:
-				return Result{Type: Error, Detail: detail, Message: "The mount at " + dir + " is not readable: " + short(a.err.Error())}
+				return Result{Type: Error, Detail: detail, Message: uipages.Fix(uipages.FixMount, "", dir, uipages.FailUnreadable) +
+					" (" + short(a.err.Error()) + ")"}
 			case a.names == 0:
-				return Result{Type: Error, Detail: detail, Message: "The mount at " + dir + " is empty: is it mounted?"}
+				return Result{Type: Error, Detail: detail, Message: uipages.Fix(uipages.FixMount, "", dir, uipages.FailEmpty)}
 			}
 			return Result{Type: OK, Detail: detail, Message: "The mount at " + dir + " answers"}
 		case <-t.C:
 		case <-ctx.Done():
 		}
 		return Result{Type: Error, Detail: detail,
-			Message: fmt.Sprintf("The mount at %s did not answer in %v", dir, timeout)}
+			Message: fmt.Sprintf("%s (no answer in %v)", uipages.Fix(uipages.FixMount, "", dir, uipages.FailTimeout), timeout)}
 	}
 }
 
@@ -105,9 +106,10 @@ func MountAnswering(dir string, answer func(ctx context.Context) (int, error)) F
 		n, err := answer(ctx)
 		switch {
 		case err != nil:
-			return Result{Type: Error, Detail: detail, Message: "The mount at " + dir + " is not answering: " + short(err.Error())}
+			return Result{Type: Error, Detail: detail, Message: uipages.Fix(uipages.FixMount, "", dir, uipages.FailUnreadable) +
+				" (" + short(err.Error()) + ")"}
 		case n == 0:
-			return Result{Type: Error, Detail: detail, Message: "The mount at " + dir + " is empty: is it mounted?"}
+			return Result{Type: Error, Detail: detail, Message: uipages.Fix(uipages.FixMount, "", dir, uipages.FailEmpty)}
 		}
 		return Result{Type: OK, Detail: detail, Message: "The mount at " + dir + " answers"}
 	}
@@ -236,7 +238,7 @@ func Metadata(st *store.Store, o MetadataOptions) Func {
 		}
 		switch {
 		case !o.TMDb && titles > 0:
-			raise(Warning, "No TMDb key is set: titles get no new metadata")
+			raise(Warning, uipages.Fix(uipages.FixMetadata, "TMDb", "", uipages.FailCredential))
 		case missing == 1:
 			raise(Warning, "1 title has no metadata an hour after it was added")
 		case missing > 0:
@@ -814,7 +816,6 @@ func Accounts(accounts func(ctx context.Context) map[string]AccountSource, o Acc
 		now := o.Now()
 		typ := OK
 		var issues, fine []string
-		var refused bool
 		detail := map[string]any{}
 		for i, k := range keys {
 			r := reads[i]
@@ -823,7 +824,7 @@ func Accounts(accounts func(ctx context.Context) map[string]AccountSource, o Acc
 			t, line, name := OK, "", providerLabel(k)
 			switch a := r.account; {
 			case errors.Is(r.err, provider.ErrAuth):
-				t, line, refused = Error, name+": key refused ("+short(r.err.Error())+")", true
+				t, line = Error, uipages.Fix(uipages.FixProvider, uipages.ProviderName(k), "", uipages.FailAuth)
 			case r.err != nil:
 				t, line = Warning, name+": account not readable ("+short(r.err.Error())+")"
 			case !a.Expires.IsZero() && !a.Expires.After(now):
@@ -860,11 +861,7 @@ func Accounts(accounts func(ctx context.Context) map[string]AccountSource, o Acc
 		if typ == OK {
 			return Result{Type: OK, Detail: detail, Message: "Debrid accounts: " + strings.Join(fine, "; ")}
 		}
-		msg := "Debrid account needs attention: " + strings.Join(issues, "; ")
-		if refused {
-			msg += ". Check the key in " + uipages.Providers
-		}
-		return Result{Type: typ, Detail: detail, Message: msg}
+		return Result{Type: typ, Detail: detail, Message: "Debrid account needs attention: " + strings.Join(issues, "; ")}
 	}
 }
 

@@ -63,6 +63,11 @@ func TestNowPlayingAPI(t *testing.T) {
 			t.Errorf("admin does not see %q: %s", m, admin)
 		}
 	}
+	// Admins read what to fix first; Plex's own error follows as the detail.
+	if !strings.Contains(admin, `"error":"Plex does not answer at http://plex:32400: check the address under Settings › Plex \u0026 playback"`) ||
+		!strings.Contains(admin, `"error_detail":"plex: HTTP 500 from 10.1.2.3"`) {
+		t.Errorf("admin error: %s", admin)
+	}
 	user := get(ukey)
 	if !strings.Contains(user, `"title_id":3`) || !strings.Contains(user, `"verdict":"buffering"`) ||
 		!strings.Contains(user, `"cause":"provider"`) || !strings.Contains(user, "Plex does not answer") {

@@ -475,6 +475,31 @@ func TestSettingsAPIKeepsSecretOnUpdate(t *testing.T) {
 	se.noSecretAnywhere()
 }
 
+// A failed test names the source and the setting to fix (uipages.Fix); a refusal keeps its own words.
+func TestSettingsAPITestSaysWhatToFix(t *testing.T) {
+	t.Parallel()
+	se := newSettingsEnv(t, &SettingsTestLimits{Cooldown: -1}, nil)
+	for _, c := range []struct{ path, category, want string }{
+		{fmt.Sprintf("/providers/%d/test", se.id(entityProviders, "rd")), "auth",
+			"Real-Debrid refused the key: paste a new API token under Settings › Download clients"},
+		{fmt.Sprintf("/indexers/%d/test", se.id(entityIndexers, "dmm")), "connectivity",
+			"dmm cannot be reached: check its URL under Settings › Indexers, and that the site is up"},
+		{fmt.Sprintf("/indexers/%d/test", se.id(entityIndexers, "dmm")), "backoff",
+			"refused: the source is backing off after errors or rate limits"},
+	} {
+		status := "failed"
+		if c.category == "backoff" {
+			status = "refused"
+		}
+		se.tester.fn = func(context.Context) SettingsTestOutcome {
+			return SettingsTestOutcome{Status: status, Category: c.category}
+		}
+		if rec := se.want(se.call("POST", c.path, nil), http.StatusOK, c.category); rec["message"] != c.want {
+			t.Errorf("%s: %v", c.category, rec["message"])
+		}
+	}
+}
+
 func TestSettingsAPITestBounds(t *testing.T) {
 	t.Run("timeout and concurrency", func(t *testing.T) {
 		limits := &SettingsTestLimits{Timeout: 80 * time.Millisecond, Concurrency: 2, Cooldown: -1}
