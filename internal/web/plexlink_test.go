@@ -113,7 +113,7 @@ func TestPlexLink(t *testing.T) {
 	if got := get("/titles/803/plex?version=movie-pl"); got.Found || got.Message != "Not found in Plex yet" {
 		t.Errorf("not listed %+v", got)
 	}
-	if got := get("/titles/801/plex?version=none-pl"); got.Found || got.Message != "Not found in Plex yet" {
+	if got := get("/titles/801/plex?version=none-pl"); got.Found || got.Message != "This library has no Plex section." {
 		t.Errorf("no section %+v", got)
 	}
 	if listings != 4 {

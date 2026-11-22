@@ -33,6 +33,9 @@ type PlexLink struct {
 
 const plexNotFound = "Not found in Plex yet"
 
+// plexNoSection: the library names no Plex section (library.versions.<key>.plex_section), so nothing is looked up.
+const plexNoSection = "This library has no Plex section."
+
 // apiPlexLink looks the title up in Plex on demand, in the section of library ?version=: one identity call and one
 // listing of the section's items by file, matched on the library's own files of the title (a series by the show of
 // one of its episodes). Nothing is stored or polled. A title in two libraries is two Plex items, asked one by one.
@@ -64,8 +67,12 @@ func (w *Web) apiPlexLink(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	lv := pol.Library.Versions[key]
-	if lv == nil || lv.PlexSection <= 0 {
+	if lv == nil {
 		notFoundYet()
+		return
+	}
+	if lv.PlexSection <= 0 {
+		writeJSON(rw, http.StatusOK, PlexLink{Message: plexNoSection})
 		return
 	}
 	rows, err := w.st.Reader().QueryContext(r.Context(), `SELECT l.path FROM link l
