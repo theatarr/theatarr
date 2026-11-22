@@ -17,8 +17,8 @@ func (e *env) playingRun(run, title, version int64, key string, runEps, incident
 		created_at, updated_at) VALUES (?, 'wanted', ?, ?, ?, 's01', ?, 'playing', 'routed', 0, 0)`, run, title, version,
 		key, runEps)
 	e.exec(`INSERT INTO playing_break (incident, watched, link_id, title_id, version_key, path, old_target, episodes,
-		broken_at, out_account, searched, updated_at) VALUES (1, 1, 1, ?, ?, '/lib/x.mkv', '/mnt/x.mkv', ?, 0, ?, 1, 0)`,
-		title, key, incidentEps, out)
+		broken_at, out_account, searched, updated_at) VALUES (1, 1, 1, ?, ?, '/lib/x.mkv', '/mnt/x.mkv', ?, ?, ?, 1, 0)`,
+		title, key, incidentEps, e.clock.UnixMilli(), out)
 }
 
 // The search for a broken watched episode runs for its season (the run's episodes), yet its route takes only a
@@ -189,6 +189,23 @@ func TestPlayingRouteSkipsBrokenReleaseOnItsAccount(t *testing.T) {
 	}
 	if res.Outcome != OutcomeAdded || res.Provider != "tb" || e.ad["ad"].writes() != 0 ||
 		!strings.Contains(steps(res), "aaaa/ad/skipped/miss") {
+		t.Errorf("route %+v: %s", res, steps(res))
+	}
+}
+
+// An account found out by an incident older than a day steers nothing: a later search of the title takes it again.
+func TestPlayingRouteOldOutAccountIgnored(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	freshMovie(e)
+	e.exec(`UPDATE version SET state = 'wanted' WHERE id = 10`)
+	e.playingRun(7, 1, 10, "movie", "[]", "[]", "ad")
+	e.exec(`UPDATE playing_break SET broken_at = ?`, e.clock.Add(-25*time.Hour).UnixMilli())
+	res, err := e.r.Route(e.ctx, freshReq(cand(h("a"), "Movie.2024.2160p.WEB-DL-GRP"), "acquire:7"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Outcome != OutcomeAdded || res.Provider != "ad" || strings.Contains(steps(res), codeProviderDone) {
 		t.Errorf("route %+v: %s", res, steps(res))
 	}
 }
