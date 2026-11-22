@@ -156,7 +156,8 @@ func HistoryHeld(ctx context.Context, ex Execer, id int64) {
 }
 
 // HistoryBlocklist writes the blocked row of the blocklist entry (version, key), as router.Blocklist stored it: the
-// release as blocked, with the blocked download's indexer, size, quality and score.
+// release as blocked, with the blocked download's indexer, size, quality and score. An Undo's entry (source
+// undo:<who>) writes none: its "Upgrade undone" row says it, one row for one Undo.
 func HistoryBlocklist(ctx context.Context, ex Execer, version, key string) {
 	historyExec(ctx, ex, `INSERT INTO history (`+historyCols+`)
 		SELECT 'bl:' || b.rowid, b.created_at, 'blocked', 'blocklist', COALESCE(b.title_id, 0), b.version_key,
@@ -164,7 +165,7 @@ func HistoryBlocklist(ctx context.Context, ex Execer, version, key string) {
 			COALESCE(d.quality, ''), CASE WHEN d.formats IS NOT NULL OR d.score <> 0 THEN d.score END, NULL, '[]', 0,
 			NULL, '', b.reason, b.source, '', '', ''
 		FROM router_blocklist b LEFT JOIN download d ON d.id = b.download_id
-		WHERE b.version_key = ? AND b.info_hash = ?`+historyUpsert, version, key)
+		WHERE b.version_key = ? AND b.info_hash = ? AND b.source NOT LIKE 'undo:%'`+historyUpsert, version, key)
 }
 
 // HistoryUnblock keeps the blocked row of the blocklist entry (version, key) about to be deleted under a ref of its

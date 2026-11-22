@@ -875,7 +875,8 @@ before 00152 has no snapshot and gets no Undo; nor does one whose trash copy was
   worked out again at once. While the replacing download is still being imported in that library (a partial import
   waiting for its retry) Undo is not offered and refused ("That download is still being imported; try again when it
   has finished"); a put-back waits for a later sweep. Its actions' details start "upgrade undone by <who>": History shows one "Upgrade undone" row
-  (event `undone`) with the undone release, never "Removed"; the journal labels both actions "Upgrade undone".
+  (event `undone`) with the undone release, never "Removed", and no "Blocked" row beside it (`store.HistoryBlocklist`
+  writes none for an `undo:` entry; the blocklist entry stays); the journal labels both actions "Upgrade undone".
 - A replacement of a gone (dead) file by a lower quality is no upgrade: its replace action's detail ends "its file
   was gone, and a lower quality took its place", History says "Replaced" and the journal "Replaced", and the journal
   kind is `grab`. The journal's `upgrade` kind (its Upgraded filter) is exactly a download whose import replaced another

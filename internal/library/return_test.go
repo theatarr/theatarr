@@ -123,6 +123,10 @@ func TestUndoAdoptedFilm(t *testing.T) {
 	if got := e.one(`SELECT release FROM history WHERE event = 'undone'`); got != movieRelease {
 		t.Errorf("undone row's release %s", got)
 	}
+	// One History row for one Undo: no "Blocked" row beside it (the blocklist entry stays).
+	if got := e.one(`SELECT COUNT(*) FROM history WHERE event = 'blocked'`); got != "0" {
+		t.Errorf("blocked rows %s", got)
+	}
 	// Twice: refused, nothing changes.
 	if offers, _ := e.lib.UndoOffers(e.ctx, []int64{action}); offers[action] != "" {
 		t.Errorf("offered again: %q", offers[action])
