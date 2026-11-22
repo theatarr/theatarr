@@ -54,7 +54,7 @@ func (l *Library) putBackOrAside(ctx context.Context, r returned, target, newFol
 // when all hold: the library does not prefer SeaDex; the old file wins strictly under today's profile
 // (ImportUpgrade accepts it over the current file and refuses the current file over it; a tie, an unknown quality
 // or any error keeps it aside); today's profile still allows its quality and minimum score; the wrong-audio rule
-// would not refuse it over the current file. It waits (wait, nothing settled) while Pause is on or the library does
+// would not refuse it over the current file; no earlier incident put the same copy back in this library. It waits (wait, nothing settled) while Pause is on or the library does
 // not write, while the incident's search is open, and while the replacement is playing or Plex does not answer.
 // The facts are the row's own; the return's checks still apply (a refusal keeps it aside). aside: it is kept aside
 // (settleAside); else it was put back or waits.
@@ -72,6 +72,17 @@ func (l *Library) putBackCopy(ctx context.Context, r returned, target, newFolder
 	}
 	vp := l.pol.Versions[r.version]
 	if vp == nil || vp.PreferSeaDex || l.engine == nil {
+		return true, nil
+	}
+	// Once: a copy an earlier incident already put back in this library (its file, by content file or target) that
+	// broke again stays aside.
+	var before bool
+	if err := db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM playing_break pb JOIN playing_break e
+		ON e.id <> pb.id AND e.title_id = pb.title_id AND e.version_key = pb.version_key AND e.settled = 'restored'
+		AND (e.content_file_id = pb.content_file_id OR e.old_target = pb.old_target) WHERE pb.id = ?)`, r.id).Scan(&before); err != nil {
+		return false, err
+	}
+	if before {
 		return true, nil
 	}
 	// The row's copy as it was.

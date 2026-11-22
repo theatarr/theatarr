@@ -112,6 +112,23 @@ func TestPutBack(t *testing.T) {
 		c.twoReads()
 		c.restored(t)
 	})
+	t.Run("put back once before", func(t *testing.T) {
+		// An earlier incident put the same copy back in this library: it broke again, so it stays aside.
+		c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
+		c.exec(`INSERT INTO playing_break (incident, link_id, title_id, version_key, path, old_target, content_file_id,
+			broken_at, fixed_by, settled, updated_at) SELECT incident + 1000, link_id, title_id, version_key, path, old_target,
+			content_file_id, broken_at - 86400, 'replaced', 'restored', updated_at FROM playing_break WHERE id = ?`, c.id)
+		aside(t, c)
+	})
+	t.Run("another copy put back before", func(t *testing.T) {
+		// Another file of the film that an earlier incident put back does not count.
+		c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
+		c.exec(`INSERT INTO playing_break (incident, link_id, title_id, version_key, path, old_target, broken_at, fixed_by,
+			settled, updated_at) SELECT incident + 1000, 9, title_id, version_key, path, '/elsewhere/other.mkv', broken_at - 86400,
+			'replaced', 'restored', updated_at FROM playing_break WHERE id = ?`, c.id)
+		c.twoReads()
+		c.restored(t)
+	})
 	t.Run("renamed folder", func(t *testing.T) {
 		c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
 		renamed := "Name {" + hashA[:6] + "}"
