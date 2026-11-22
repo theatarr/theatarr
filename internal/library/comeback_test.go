@@ -474,3 +474,23 @@ func TestRemovedVersionKeepsItsDeadLinkOutOfTheSweep(t *testing.T) {
 		t.Errorf("after a rename: %s", got)
 	}
 }
+
+// A dead link whose symlink was removed from the library folder by hand is settled unread: its mount file reading
+// again does not make a link without a library path active.
+func TestComeBackSettlesRemovedSymlinkUnread(t *testing.T) {
+	e, id := brokenWhilePlaying(t)
+	e.exec(`UPDATE version SET monitored = 0 WHERE id = 10`)
+	if err := os.Remove(filepath.Join(e.movies, "Movie (2001)", "Movie.mkv")); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if err := e.lib.ComeBack(e.ctx); err != nil {
+			t.Fatal(err)
+		}
+		e.now = e.now.Add(time.Hour)
+	}
+	if got := e.one(`SELECT settled || ' ' || (back_since IS NULL) FROM playing_break WHERE id = ?`, id) + " " +
+		e.one(`SELECT state FROM link WHERE id = 1`); got != "aside 1 dead" {
+		t.Errorf("got %s", got)
+	}
+}

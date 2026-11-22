@@ -869,7 +869,8 @@ state and Cutoff unmet are its own. The journal records an `edit_file` action (m
     the settle pass reports it once as readable again when that search has ended, then queues the search of the
     release's other broken files (`TestComeBackRevivedWatchedIsReportedAndKeepsMiss`). While paused it stays as it is
     (`TestComeBackLeavesStoppedCopy`). A row that would never be read again (its title or version gone or removed from
-    the arr view, or its link removed by hand with nothing else holding its film or episodes) is settled aside at the
+    the arr view, its link removed by hand with nothing else holding its film or episodes, or its dead link's
+    symlink deleted from the library folder: `TestComeBackSettlesRemovedSymlinkUnread`) is settled aside at the
     start of the pass without a read, an action or a lifted miss, and a symlink the removal kept is left where it is
     (`TestComeBackSettlesRemovedRowsUnread`).
   - **Kept aside.** A copy that works again while other files hold its film or some of its episodes, or that an import

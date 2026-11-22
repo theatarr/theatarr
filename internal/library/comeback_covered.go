@@ -55,7 +55,8 @@ func (l *Library) asideOldReplaced(ctx context.Context) error {
 
 // settleGone settles aside, unread and with nothing else done, the open rows that would never be read again: the
 // title or its version gone (or removed from the arr view), or a link removed by hand (unlinked or deleted, its
-// symlink left as the removal left it) whose film or episodes no other active file holds now. The release's miss
+// symlink left as the removal left it) whose film or episodes no other active file holds now. (A dead link whose
+// symlink was deleted by hand is found by ComeBack before its read: settleUnread.) The release's miss
 // stays (nothing was read); no action is recorded (the removal is the person's own).
 func (l *Library) settleGone(ctx context.Context) error {
 	_, err := l.st.Writer().ExecContext(ctx, `UPDATE playing_break SET settled = 'aside', updated_at = ?
@@ -70,6 +71,13 @@ func (l *Library) settleGone(ctx context.Context) error {
 			JOIN title t ON t.id = v.title_id WHERE o.state = 'active' AND (t.kind <> 'series' OR EXISTS (
 				SELECT 1 FROM link_episode oe WHERE oe.link_id = o.id
 				AND oe.episode_id IN (SELECT value FROM json_each(playing_break.episodes))))))`, store.Millis(l.now()))
+	return err
+}
+
+// settleUnread settles one open row aside, unread and with nothing else done (settleGone's end for one row).
+func (l *Library) settleUnread(ctx context.Context, id int64) error {
+	_, err := l.st.Writer().ExecContext(ctx, `UPDATE playing_break SET settled = 'aside', updated_at = ?
+		WHERE id = ? AND settled = ''`, store.Millis(l.now()), id)
 	return err
 }
 

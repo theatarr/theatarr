@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -138,6 +140,14 @@ func (l *Library) ComeBack(ctx context.Context) error {
 	}
 	db, lists := l.st.Reader(), relinkLists{}
 	for _, r := range todo {
+		if _, err := os.Lstat(r.path); r.dead && errors.Is(err, fs.ErrNotExist) {
+			// Its symlink was removed from the library by hand: never read again (a link without a library path
+			// does not come back).
+			if err := l.settleUnread(ctx, r.id); err != nil {
+				return err
+			}
+			continue
+		}
 		read, ok := l.mount.FromLink(r.old)
 		if !ok {
 			continue
