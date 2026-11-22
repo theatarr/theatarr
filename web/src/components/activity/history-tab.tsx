@@ -118,6 +118,15 @@ function ReplacedToggle({ e }: { e: ActivityEvent }) {
   );
 }
 
+/** Where Undo goes on a row, decided once: with one replaced file the server offers it for, in the row's actions;
+ *  with several, beside each of them in the opened list. */
+type HistoryFile = NonNullable<ActivityEvent["replaced"]>[number];
+
+function undoPlacement(e: ActivityEvent): { row?: HistoryFile; perFile: ReadonlySet<HistoryFile> } {
+  const eligible = (e.replaced ?? []).filter((f) => f.undo && f.id);
+  return eligible.length === 1 ? { row: eligible[0], perFile: new Set() } : { perFile: new Set(eligible) };
+}
+
 /** The first episode a file held as [season, episode]; files without one go last. */
 function episodeKey(eps: readonly string[] | undefined): [number, number] {
   const m = eps?.length ? /^S(\d+)E(\d+)/i.exec(eps[0]) : null;
@@ -136,8 +145,7 @@ function ReplacedList({ e }: { e: ActivityEvent }) {
     return as - bs || ae - be || a.path.localeCompare(b.path);
   });
   const named = files.some((f) => f.release);
-  // Several files the server offers Undo for: each has its own (one file at a time).
-  const several = files.filter((f) => f.undo && f.id).length > 1;
+  const undo = undoPlacement(e);
   return (
     <div className="text-xs text-muted-foreground" data-testid="history-replaced">
       {e.grabbed_at ? <p className="mb-2 tabular-nums" data-testid="history-grabbed"><GrabbedWords e={e} /></p> : null}
@@ -153,7 +161,7 @@ function ReplacedList({ e }: { e: ActivityEvent }) {
               {scoreWords(f.score) ? <><dt>Score</dt><dd className="tabular-nums">{scoreWords(f.score)}</dd></> : null}
               {f.episodes?.length ? <><dt>Episodes</dt><dd>{episodesWords(f.episodes)}</dd></> : null}
             </dl>
-            {several && f.undo ? <UndoReplaced file={f} titleId={e.title.id} /> : null}
+            {undo.perFile.has(f) ? <UndoReplaced file={f} titleId={e.title.id} /> : null}
           </li>
         ))}
       </ul>
@@ -286,12 +294,12 @@ function HistoryActions({ e }: { e: ActivityEvent }) {
   // to another provider, a release unblocked since) has none.
   const admin = usePerms().admin;
   const journal = e.entry ? adminLink(admin, journalLink(e.entry)) : undefined;
-  const undoable = (e.replaced ?? []).filter((f) => f.undo && f.id);
+  const undo = undoPlacement(e);
   return (
     <span className="inline-flex items-center gap-1.5">
       <HistoryRetry e={e} />
       {/* Undo on the row when the server offers it for one replaced file; for several, on each file in the list. */}
-      {undoable.length === 1 ? <UndoReplaced file={undoable[0]} titleId={e.title.id} /> : null}
+      {undo.row ? <UndoReplaced file={undo.row} titleId={e.title.id} /> : null}
       {journal ? (
         <Link to={journal} className="inline-flex size-6 items-center justify-center text-primary hover:underline" aria-label="Journal entry">
           <NotebookPen className="size-3.5" />

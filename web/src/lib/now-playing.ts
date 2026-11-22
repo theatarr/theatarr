@@ -96,11 +96,18 @@ export function prewarmText(p: NowPlayingSession["prewarm"]): { text: string; to
 
 /** A file that stopped working while playing: its state's dot colour (looking, replaced, readable, unavailable,
  *  restored); removed from the library is neutral (nothing was repaired). */
+const INCIDENT_TONES: Record<string, "ok" | "warn" | "bad" | "neutral"> = {
+  looking: "warn",
+  replaced: "ok",
+  readable: "ok",
+  restored: "ok", // an earlier copy put back
+  unavailable: "bad",
+  removed: "neutral",
+};
+
+/** The dot of an incident's outcome; a state the page does not know is neutral, not repaired. */
 export function incidentTone(state: string): "ok" | "warn" | "bad" | "neutral" {
-  if (state === "unavailable") return "bad";
-  if (state === "looking") return "warn";
-  if (state === "removed") return "neutral";
-  return "ok";
+  return INCIDENT_TONES[state] ?? "neutral";
 }
 
 /** What the player was told, or why Plex refused, as a sentence; "" while the incident is open and nothing was sent

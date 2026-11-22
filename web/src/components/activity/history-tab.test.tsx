@@ -372,3 +372,18 @@ it("says who undid an upgrade on the phone card too", async () => {
   expect((await screen.findByTestId("history-by")).textContent).toBe("By ann");
   expect(screen.queryByRole("table")).toBeNull();
 });
+
+it("puts Undo beside each eligible file when a row replaced several, not in the row's actions", async () => {
+  const s = (n: number) => `Undo upgrade: puts the earlier file back and blocks R${n} in this library`;
+  const row = { ...link, replaced: [{ id: 41, undo: s(1), path: "/tv/a.mkv" }, { id: 42, undo: s(2), path: "/tv/b.mkv" }, { id: 43, path: "/tv/c.mkv" }] };
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: me },
+    { method: "GET", path: "/titles/facets", reply: {} },
+    { method: "GET", path: "/activity", reply: { state: "history", admin: true, history: [row] } },
+  ]);
+  renderPage(<HistoryTab admin />, "/activity/history");
+  const [r] = await screen.findAllByTestId("history-row");
+  expect(within(r).queryByRole("button", { name: "Undo" })).toBeNull();
+  await userEvent.setup().click(within(r).getByTestId("history-replaced-toggle"));
+  expect(within(await screen.findByTestId("history-replaced")).getAllByRole("button", { name: "Undo" })).toHaveLength(2);
+});

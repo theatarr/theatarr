@@ -46,8 +46,11 @@ describe("now playing", () => {
   it("dots a removed incident neutral, not like a repaired one", () => {
     expect(incidentTone("removed")).toBe("neutral");
     expect(incidentTone("replaced")).toBe("ok");
-    // An earlier copy put back (Undo or the put-back) is a good outcome.
+    // An earlier copy put back (Undo or the put-back) is a good outcome, named as one: a state the page does not
+    // know is not dotted as repaired.
     expect(incidentTone("restored")).toBe("ok");
+    expect(incidentTone("readable")).toBe("ok");
+    expect(incidentTone("some-later-state")).toBe("neutral");
     expect(incidentTone("unavailable")).toBe("bad");
   });
 });
