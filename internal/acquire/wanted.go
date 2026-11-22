@@ -53,12 +53,16 @@ type WantedRun struct {
 	Accepted   int       `json:"accepted"`
 	Downloaded bool      `json:"downloaded"`
 	// DownloadID and DownloadState sum up the downloads the run started (with Downloaded): the newest one in flight,
-	// else the newest failed one, else the newest imported one, else the newest candidate every provider missed
-	// (activity.MissedSQL: never grabbed, so an import of the same run wins over it).
+	// else the newest failed one, else the newest imported one. A run whose downloads all are candidates every
+	// provider missed (activity.MissedSQL: never grabbed) has none: its State is RunMissed.
 	DownloadID    *int64 `json:"download_id,omitempty"`
 	DownloadState string `json:"download_state,omitempty"`
 	Message       string `json:"message"`
 }
+
+// RunMissed is the State Wanted gives a run whose every candidate every provider missed before any took it: nothing
+// was added, so nothing was grabbed (Downloaded false, Message "No release was cached").
+const RunMissed = "missed"
 
 // Waiting states of a Wanted row.
 const (
@@ -716,7 +720,8 @@ func (a *Acquirer) wantedRuns(ctx context.Context, items []WantedRow) error {
  FROM page p JOIN version v ON v.title_id = p.title AND v.policy_key = p.key
  JOIN acquire_run r ON r.version_id = v.id AND COALESCE(r.season, -1) = p.season)
  SELECT idx,id,created_at,state,results,accepted,message,downloaded,
- COALESCE((SELECT state FROM download WHERE download.id = downloaded), '') FROM ranked WHERE rank = 1`, args...)
+ COALESCE((SELECT state FROM download WHERE download.id = downloaded), ''),
+ COALESCE((SELECT `+activity.MissedSQL("download")+` FROM download WHERE download.id = downloaded), 0) FROM ranked WHERE rank = 1`, args...)
 	if err != nil {
 		return err
 	}
@@ -727,12 +732,16 @@ func (a *Acquirer) wantedRuns(ctx context.Context, items []WantedRow) error {
 		var download sql.NullInt64
 		run := &WantedRun{}
 		var downloadState string
+		var missed bool
 		if err := rows.Scan(&i, &run.ID, &at, &run.State, &run.Results, &run.Accepted, &run.Message, &download,
-			&downloadState); err != nil {
+			&downloadState, &missed); err != nil {
 			rows.Close()
 			return err
 		}
-		if download.Valid {
+		if missed {
+			// Misses rank last: the run's downloads all are candidates no provider ever took.
+			run.State, run.Message = RunMissed, "No release was cached"
+		} else if download.Valid {
 			run.Downloaded, run.DownloadID, run.DownloadState = true, &download.Int64, downloadState
 		}
 		run.At = time.UnixMilli(at).UTC()

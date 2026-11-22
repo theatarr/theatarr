@@ -661,9 +661,10 @@ func TestWantedTitleFilterSortAndDates(t *testing.T) {
 	if r := season1(); r == nil || r.DownloadID == nil || *r.DownloadID != 42 || r.DownloadState != "imported" {
 		t.Errorf("a miss then an import: %+v", r)
 	}
-	// Only misses: the run still names its newest miss.
+	// Only misses: nothing was ever added, so nothing was grabbed: the run says no release was cached.
 	e.exec(`DELETE FROM download WHERE id = 42`)
-	if r := season1(); r == nil || r.DownloadID == nil || *r.DownloadID != 44 || r.DownloadState != "failed" {
+	if r := season1(); r == nil || r.Downloaded || r.DownloadID != nil || r.DownloadState != "" || r.State != RunMissed ||
+		r.Message != "No release was cached" {
 		t.Errorf("misses only: %+v", r)
 	}
 }
