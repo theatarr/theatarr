@@ -457,4 +457,10 @@ func TestUpgradeLeavesOutABlockedRelease(t *testing.T) {
 	if u := explain(); u.State != "below_cutoff" || u.Next != nil {
 		t.Fatalf("both blocked: %+v", u)
 	}
+	// A candidate with a hash that the library blocks by its name is blocked too, as the router reads it.
+	e.exec(`DELETE FROM router_blocklist`)
+	block("movie-remux", router.BlocklistKey("", "Best"))
+	if u := explain(); u.State != "upgrade_available" || u.Next.Release != "Second" {
+		t.Fatalf("blocked by name: %+v", u)
+	}
 }

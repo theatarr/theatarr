@@ -334,40 +334,25 @@ func loadFailedHashes(ctx context.Context, db *sql.DB, titleIDs []int64) (map[ti
 }
 
 // dropBlocked leaves out of the evidence every candidate on its library's blocklist (any source: an Undo, a
-// refused import, a person), by the key the router honours (router.BlocklistKey): a blocked release is never taken,
-// so it is no upgrade found and Why does not name it. A record keeps its scope and time.
+// refused import, a person), matched as the router matches it (router.BlockedSet.Has: the hash, else the release
+// name): a blocked release is never taken, so it is no upgrade found and Why does not name it. A record keeps its
+// scope and time. One read per library with evidence.
 func dropBlocked(ctx context.Context, db *sql.DB, ev map[titleKey][]evRecord) error {
-	keys := map[string][]string{}
+	sets := map[string]router.BlockedSet{}
 	for k, recs := range ev {
-		for _, r := range recs {
-			for _, c := range r.cands {
-				if bk := router.BlocklistKey(c.InfoHash, c.Release); bk != "" {
-					keys[k.key] = append(keys[k.key], bk)
-				}
+		set, ok := sets[k.key]
+		if !ok {
+			var err error
+			if set, err = router.VersionBlocklist(ctx, db, k.key); err != nil {
+				return err
 			}
+			sets[k.key] = set
 		}
-	}
-	blocked := map[[2]string]bool{}
-	for library, list := range keys {
-		lj, _ := json.Marshal(list)
-		if err := scanAll(ctx, db, `SELECT info_hash FROM router_blocklist WHERE version_key = ?
-			AND info_hash IN (SELECT value FROM json_each(?))`, []any{library, string(lj)}, func(r *sql.Rows) error {
-			var h string
-			err := r.Scan(&h)
-			blocked[[2]string{library, h}] = true
-			return err
-		}); err != nil {
-			return err
+		if len(set) == 0 {
+			continue
 		}
-	}
-	if len(blocked) == 0 {
-		return nil
-	}
-	for k, recs := range ev {
 		for i := range recs {
-			recs[i].cands = slices.DeleteFunc(recs[i].cands, func(c evCand) bool {
-				return blocked[[2]string{k.key, router.BlocklistKey(c.InfoHash, c.Release)}]
-			})
+			recs[i].cands = slices.DeleteFunc(recs[i].cands, func(c evCand) bool { return set.Has(c.InfoHash, c.Release) })
 		}
 	}
 	return nil
