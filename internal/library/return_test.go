@@ -439,3 +439,38 @@ func TestUndoSuccessorIdentity(t *testing.T) {
 		}
 	})
 }
+
+// Two files took one earlier file's place (E01 and E02 over an E01-E02 file): a one-file Undo would leave two files
+// on one episode, so it is neither offered nor done.
+func TestUndoSplitUpgradeRefused(t *testing.T) {
+	t.Parallel()
+	e := importUpEnv(t, "")
+	old := e.heldLink(1, "WEBDL-1080p", "Show.S01E01E02.1080p.WEB-DL.H.264-OLD", 201, 202)
+	target, _ := os.Readlink(old)
+	e.readable(target)
+	e.release(packRelease, map[string]float64{"Show.S01E01.2160p.WEB-DL.H.265-GRP.mkv": 2700,
+		"Show.S01E02.2160p.BluRay.REMUX.HEVC-GRP.mkv": 2700})
+	e.seriesDownload(1, 2, 20, hashA, packRelease, "[201, 202]", nil)
+	e.exec(`UPDATE download SET quality = 'WEBDL-2160p' WHERE id = 1`)
+	if _, err := e.lib.Import(e.ctx, 1, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.one(`SELECT COUNT(*) FROM link WHERE download_id = 1 AND state = 'active'`); got != "2" {
+		t.Fatalf("links %s", got)
+	}
+	var action int64
+	if err := e.st.Reader().QueryRow(`SELECT id FROM library_action WHERE kind = 'replace' AND download_id = 1`).Scan(&action); err != nil {
+		t.Fatal(err)
+	}
+	if offers, _ := e.lib.UndoOffers(e.ctx, []int64{action}); len(offers) != 0 {
+		t.Errorf("offered: %v", offers)
+	}
+	var rr *ReturnRefused
+	if _, err := e.lib.UndoUpgrade(e.ctx, action, ""); !errors.As(err, &rr) ||
+		rr.Sentence != "More than one file took the earlier file's place; nothing was undone" {
+		t.Fatalf("undo: %v", err)
+	}
+	if _, err := os.Lstat(old); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("old path: %v", err)
+	}
+}

@@ -184,16 +184,29 @@ const slotHeldSQL = `(EXISTS (SELECT 1 FROM link s JOIN link_version sv ON sv.li
 	AND (r.path = json_extract(r.snapshot, '$.successor.path')
 		OR NOT EXISTS (SELECT 1 FROM link WHERE path = r.path AND state = 'active')))`
 
-// holdsSlot is slotHeldSQL for this entry.
-func (e *undoEntry) holdsSlot(ctx context.Context, q rowQuerier) (bool, error) {
+// othersHoldSQL says whether another active link of the return r's library, besides the successor, holds the film or
+// an episode of the returning file: more than one file took its place, and a one-file return would leave two files on
+// one episode.
+const othersHoldSQL = `EXISTS (SELECT 1 FROM link o JOIN link_version ov ON ov.link_id = o.id
+	JOIN version v ON v.id = ov.version_id AND v.policy_key = r.version_key AND v.title_id = o.title_id
+	JOIN title t ON t.id = o.title_id
+	WHERE o.state = 'active' AND o.id <> json_extract(r.snapshot, '$.successor.link_id') AND o.path <> r.path
+	AND o.title_id = (SELECT title_id FROM link WHERE id = json_extract(r.snapshot, '$.successor.link_id'))
+	AND (t.kind <> 'series' OR EXISTS (SELECT 1 FROM link_episode oe WHERE oe.link_id = o.id
+		AND oe.episode_id IN (SELECT value FROM json_each(r.snapshot, '$.episodes')))))`
+
+// returnOthers is the refusal when more than one file took the earlier file's place.
+const returnOthers = "More than one file took the earlier file's place; nothing was undone"
+
+// slot is slotHeldSQL and othersHoldSQL for this entry.
+func (e *undoEntry) slot(ctx context.Context, q rowQuerier) (held, others bool, err error) {
 	snap, err := json.Marshal(&e.snap)
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
-	var ok bool
-	err = q.QueryRowContext(ctx, `WITH r (version_key, path, snapshot) AS (SELECT ?, ?, ?) SELECT `+slotHeldSQL+` FROM r`,
-		e.version, e.path, string(snap)).Scan(&ok)
-	return ok, err
+	err = q.QueryRowContext(ctx, `WITH r (version_key, path, snapshot) AS (SELECT ?, ?, ?) SELECT `+slotHeldSQL+`, `+
+		othersHoldSQL+` FROM r`, e.version, e.path, string(snap)).Scan(&held, &others)
+	return held, others, err
 }
 
 // UndoWords is the sentence the Undo button shows before it acts.
@@ -221,9 +234,9 @@ func (l *Library) UndoOffers(ctx context.Context, ids []int64) (map[int64]string
 		if l.pol.Versions[e.version] == nil {
 			continue
 		}
-		if ok, err := e.holdsSlot(ctx, l.st.Reader()); err != nil {
+		if held, others, err := e.slot(ctx, l.st.Reader()); err != nil {
 			return nil, err
-		} else if !ok {
+		} else if !held || others {
 			continue
 		}
 		p, ok := l.mount.FromLink(e.target)
@@ -447,10 +460,12 @@ func cmpOr(s, or string) string {
 func (l *Library) returnChecks(ctx context.Context, e *undoEntry, v *importVersion) error {
 	db := l.st.Reader()
 	s := e.snap.Successor
-	if ok, err := e.holdsSlot(ctx, db); err != nil {
+	if held, others, err := e.slot(ctx, db); err != nil {
 		return err
-	} else if !ok {
+	} else if !held {
 		return &ReturnRefused{Sentence: returnChanged}
+	} else if others {
+		return &ReturnRefused{Sentence: returnOthers}
 	}
 	if cur, err := os.Readlink(s.Path); err != nil || cur != s.Target {
 		return &ReturnRefused{Sentence: returnChanged}
