@@ -672,6 +672,7 @@ func (s *Service) manualFromFolder(ctx context.Context, r *request, folder strin
 	} else if err := walk(folder, 0); err != nil {
 		return nil, err
 	}
+	versions := map[int64]int64{} // one version lookup per title for the whole listing
 	for _, f := range files {
 		name := strings.TrimSuffix(filepath.Base(f.path), filepath.Ext(f.path))
 		m, err := s.decideFile(ctx, r.v, f.path, filepath.Base(folder), name, f.size, 0, nil, "")
@@ -680,9 +681,9 @@ func (s *Service) manualFromFolder(ctx context.Context, r *request, folder strin
 		}
 		// The title the listing matched the file to: the audio note for it.
 		if m.Movie != nil {
-			m.Note = s.audioNote(ctx, r.v, resolveID(m.Movie.ID), f.path, nil)
+			m.Note = s.audioNote(ctx, r.v, resolveID(m.Movie.ID), f.path, nil, versions)
 		} else if m.Series != nil {
-			m.Note = s.audioNote(ctx, r.v, resolveID(m.Series.ID), f.path, episodeIDs(m.Episodes))
+			m.Note = s.audioNote(ctx, r.v, resolveID(m.Series.ID), f.path, episodeIDs(m.Episodes), versions)
 		}
 		out = append(out, m)
 	}
@@ -801,6 +802,7 @@ func (s *Service) manualImportReprocess(w http.ResponseWriter, r *request) {
 		return
 	}
 	out := make([]manualImportResource, 0, len(items))
+	versions := map[int64]int64{}
 	for _, it := range items {
 		p, _ := it["path"].(string)
 		key := "movieId"
@@ -849,7 +851,7 @@ func (s *Service) manualImportReprocess(w http.ResponseWriter, r *request) {
 		if f, ok := it["id"].(float64); ok {
 			m.ID = int64(f)
 		}
-		m.Note = s.audioNote(ctx, r.v, tid, p, eps)
+		m.Note = s.audioNote(ctx, r.v, tid, p, eps, versions)
 		out = append(out, m)
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -858,7 +860,8 @@ func (s *Service) manualImportReprocess(w http.ResponseWriter, r *request) {
 // audioNote is the wrong-audio rule's note on a file on the mount for a title of a one-library view ("Manual import:
 // French audio only; ..."): the same read-only preview as a download's list (a dry run under library.ManualPreview,
 // as an import by path), "" when there is none, the file is not on the mount, or nothing can be planned.
-func (s *Service) audioNote(ctx context.Context, v *View, titleID int64, path string, episodes []int64) string {
+// versions caches each title's version id in the view's library for the files of one listing (nil: none kept).
+func (s *Service) audioNote(ctx context.Context, v *View, titleID int64, path string, episodes []int64, versions map[int64]int64) string {
 	if s.library == nil || titleID <= 0 || len(v.Versions) != 1 {
 		return ""
 	}
@@ -871,9 +874,17 @@ func (s *Service) audioNote(ctx context.Context, v *View, titleID int64, path st
 	if vp == nil {
 		return ""
 	}
-	var versionID int64
-	if err := s.st.Reader().QueryRowContext(ctx, `SELECT id FROM version WHERE title_id = ? AND policy_key = ?`,
-		titleID, key).Scan(&versionID); err != nil {
+	versionID, known := versions[titleID]
+	if !known {
+		if err := s.st.Reader().QueryRowContext(ctx, `SELECT id FROM version WHERE title_id = ? AND policy_key = ?`,
+			titleID, key).Scan(&versionID); err != nil {
+			versionID = 0
+		}
+		if versions != nil {
+			versions[titleID] = versionID
+		}
+	}
+	if versionID == 0 {
 		return ""
 	}
 	rel := strings.TrimSuffix(filepath.Base(at.Rel), filepath.Ext(at.Rel))
