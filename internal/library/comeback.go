@@ -270,7 +270,7 @@ func (l *Library) setBack(ctx context.Context, id int64, back bool) error {
 // or whose title is gone was settled unread before: settleGone). In place it is the sweep's revive: active again, its items filled, Plex scanned, the row settled revived,
 // and the release's router:playing miss lifted. In a renamed folder it is the sweep's repoint (repointReturned).
 func (l *Library) reviveReturned(ctx context.Context, r returned, target, newFolder string) error {
-	if !l.PlayingWritable(r.version) {
+	if !l.writableNow(r.version) {
 		return nil
 	}
 	db := l.st.Reader()
@@ -414,4 +414,15 @@ func partlyCovered(ctx context.Context, db *sql.DB, linkID int64) (bool, error) 
 			ON oe.episode_id = me.episode_id WHERE me.link_id = ? AND oe.link_id = o.id)))`, linkID, linkID,
 		linkID).Scan(&held)
 	return held, err
+}
+
+// SetLiveWritable sets how the come-back asks whether it may write now (PlayingWritable of the settings in force):
+// a pass keeps the library it started with, and a settings save meanwhile (Pause on) must stop its writes. nil: this
+// library's own PlayingWritable.
+func (l *Library) SetLiveWritable(f func(version string) bool) { l.liveWritable = f }
+
+// writableNow is whether the come-back may write for version now: the settings in force (SetLiveWritable) and this
+// library's own (PlayingWritable). Asked right before each revive or aside.
+func (l *Library) writableNow(version string) bool {
+	return l.PlayingWritable(version) && (l.liveWritable == nil || l.liveWritable(version))
 }

@@ -465,6 +465,10 @@ func runServe(args []string) error {
 	// gets it in wireRuntimeExtras.
 	playing := &playingOutcomes{st: st}
 	lb.lib.OnPlayingOutcome(playing.report)
+	// A come-back pass keeps the library it started with: before each write it asks the generation in force, so a
+	// save that turns Pause on stops it (library SetLiveWritable).
+	liveWritable := func(version string) bool { return lb.current().PlayingWritable(version) }
+	lb.lib.SetLiveWritable(liveWritable)
 	// After an import from a debrid provider: the automatic "Add to other providers" (providers set to also add, where
 	// the torrent is known cached; torrents.md).
 	autoCopy := func(ctx context.Context, from, hash string) {
@@ -536,6 +540,7 @@ func runServe(args []string) error {
 		runtime.Library.lib.SetRecordChanged(torrentUsage.Signal)
 		runtime.Library.lib.SetImported(autoCopy)
 		runtime.Library.lib.OnPlayingOutcome(playing.report)
+		runtime.Library.lib.SetLiveWritable(liveWritable)
 		// The mount guard, helpers and listing floor carry over from the generation being replaced (the startup
 		// library before the first save), so a save neither resets an open breaker nor keeps old mount settings.
 		prevLib := lb.lib

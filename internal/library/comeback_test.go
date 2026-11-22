@@ -557,3 +557,40 @@ func TestComeBackLeavesRowOpenWhileRootAway(t *testing.T) {
 		t.Errorf("after the share came back: %s", got)
 	}
 }
+
+// A come-back pass that outlives a settings save asks the live settings before it writes: with Pause saved meanwhile
+// (the pass's own library still says it may write), nothing is revived or moved; the next pass on writable settings
+// does it.
+func TestComeBackAsksLiveSettingsBeforeWriting(t *testing.T) {
+	for _, covered := range []bool{false, true} {
+		e, id := brokenWhilePlaying(t)
+		e.exec(`UPDATE playing_break SET reported = 'unavailable' WHERE id = ?`, id) // its search has ended
+		if covered {                                                                 // another file holds the film: the copy would be kept aside (its dead link to the trash)
+			e.exec(`INSERT INTO link (id, path, target, title_id, state, created_at, updated_at) VALUES (5, '/media/other.mkv',
+				'/mnt/other.mkv', 1, 'active', 0, 0)`)
+			e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (5, 10)`)
+		}
+		paused := true
+		e.lib.SetLiveWritable(func(string) bool { return !paused })
+		for range 2 {
+			if err := e.lib.ComeBack(e.ctx); err != nil {
+				t.Fatal(err)
+			}
+			e.now = e.now.Add(time.Hour)
+		}
+		if got := e.one(`SELECT state FROM link WHERE id = 1`) + " " + e.one(`SELECT settled FROM playing_break WHERE id = ?`, id); got != "dead " {
+			t.Errorf("covered %v, Pause saved: %s", covered, got)
+		}
+		paused = false
+		if err := e.lib.ComeBack(e.ctx); err != nil {
+			t.Fatal(err)
+		}
+		want := "active revived"
+		if covered {
+			want = "unlinked aside" // its dead link moved to the trash
+		}
+		if got := e.one(`SELECT state FROM link WHERE id = 1`) + " " + e.one(`SELECT settled FROM playing_break WHERE id = ?`, id); got != want {
+			t.Errorf("covered %v, Pause off again: %s", covered, got)
+		}
+	}
+}

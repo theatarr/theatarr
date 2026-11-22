@@ -127,6 +127,8 @@ type Library struct {
 	beforeSweepWrite func()
 	// onPlaying is told the outcome of each incident of a file that broke while playing (OnPlayingOutcome).
 	onPlaying func(outcome.Outcome)
+	// liveWritable asks the settings in force whether the come-back may write (SetLiveWritable); nil: none.
+	liveWritable func(version string) bool
 	// swept is when a relink sweep last ended without error (Unix ms; LastSweep).
 	swept atomic.Int64
 }

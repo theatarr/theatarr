@@ -96,7 +96,7 @@ const playingRemoved = "removed"
 // link aside (moveDeadAside, under the path's link lease). With Pause on, the version's library not writing, or the
 // incident's search still open (as SettlePlayingRuns sees it) nothing is settled: a later sweep.
 func (l *Library) settleAside(ctx context.Context, r returned, words string) error {
-	if !l.PlayingWritable(r.version) { // Pause on or the library not writing: a later sweep
+	if !l.writableNow(r.version) { // Pause on or the library not writing (in the settings in force): a later sweep
 		return nil
 	}
 	// The incident's search still open (the settle pass has not reported it, or a sibling's search is not queued

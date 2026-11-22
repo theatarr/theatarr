@@ -870,8 +870,10 @@ state and Cutoff unmet are its own. The journal records an `edit_file` action (m
     the same rule when a copy is kept aside). A watched copy revived while its search is still open is revived at once;
     the settle pass reports it once as readable again when that search has ended, then queues the search of the
     release's other broken files (`TestComeBackRevivedWatchedIsReportedAndKeepsMiss`). While paused it stays as it is
-    (`TestComeBackLeavesStoppedCopy`). A row that would never be read again (its title or version gone or removed from
-    the arr view, its link removed by hand with nothing else holding its film or episodes, or its dead link's
+    (`TestComeBackLeavesStoppedCopy`); a pass that outlives a settings save asks the settings in force right
+    before each revive or aside, so Pause saved meanwhile defers it to the next pass
+    (`TestComeBackAsksLiveSettingsBeforeWriting`). A row that would never be read again (its title or version gone
+    or removed from the arr view, its link removed by hand with nothing else holding its film or episodes, or its dead link's
     symlink deleted from the library folder, which counts only when the library root answers and is listable and the
     path's bounded check says it is missing; a share that is away leaves the row for the next pass:
     `TestComeBackSettlesRemovedSymlinkUnread`, `TestComeBackLeavesRowOpenWhileRootAway`) is settled aside at the
