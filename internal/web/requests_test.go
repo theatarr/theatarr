@@ -1051,6 +1051,55 @@ func TestSeasonRequestAvailableDespiteOtherSeasonGap(t *testing.T) {
 	}
 }
 
+// TestSeasonRequestWithFutureSeason: a request naming a season none of whose episodes has aired is not available
+// while an aired season it names is complete (each requested season needs an aired, held episode), and its detail
+// says when that season starts, also for a request of the future season alone.
+func TestSeasonRequestWithFutureSeason(t *testing.T) {
+	t.Parallel()
+	e := newAddEnv(t, nil)
+	ctx := context.Background()
+	annID, _ := e.user("ann", auth.RoleUser)
+	_, mgr := e.user("mgr", auth.RoleManager)
+	now := store.Millis(addNow)
+	e.exec(`INSERT INTO request (id, user_id, kind, title_id, name, versions, seasons, status, created_at, updated_at)
+		VALUES (503, ?, 'series', 10, 'The Show', '["tv-2160p"]', '[1,3]', 'approved', ?, ?),
+		(504, ?, 'series', 10, 'The Show', '["tv-2160p"]', '[3]', 'approved', ?, ?)`, annID, now, now, annID, now, now)
+	e.exec(`UPDATE episode SET air_date = '2020-01-01' WHERE id IN (101, 102, 103)`)
+	e.exec(`UPDATE episode_version_state SET state = 'filled' WHERE episode_id IN (101, 102)`)
+	e.exec(`INSERT INTO link (id, path, target, title_id, state, created_at, updated_at) VALUES
+		(80, '/tv/S/S01E01.mkv', '/t1', 10, 'active', ?, ?), (81, '/tv/S/S01E02.mkv', '/t2', 10, 'active', ?, ?)`,
+		now, now, now, now)
+	e.exec(`INSERT INTO link_version (link_id, version_id) VALUES (80, 10), (81, 10)`)
+	e.exec(`INSERT INTO link_episode (link_id, episode_id) VALUES (80, 101), (81, 102)`)
+	e.exec(`INSERT INTO episode (id, title_id, season, number, name, monitored, air_date, created_at, updated_at)
+		VALUES (107, 10, 3, 1, 'Return', 1, '2099-03-21', ?, ?), (108, 10, 3, 2, 'After', 1, '2099-03-28', ?, ?)`,
+		now, now, now, now)
+	e.exec(`INSERT INTO episode_version_state (version_id, episode_id, monitored, state, updated_at)
+		VALUES (10, 107, 1, 'wanted', ?), (10, 108, 1, 'wanted', ?)`, now, now)
+	for range 2 {
+		if err := e.web.syncRequests(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, id := range []int64{503, 504} {
+		if s := e.requestStatus(id); s == ReqAvailable {
+			t.Errorf("request %d with a future season: %s", id, s)
+		}
+		var page RequestPage
+		e.callAs(mgr, "GET", APIBase+"/requests?status=all", nil, 200, &page)
+		for _, r := range page.Items {
+			if r.ID == id && r.Versions[0].Available {
+				t.Errorf("request %d: list badge available", id)
+			}
+		}
+		var d RequestDetail
+		e.callAs(mgr, "GET", fmt.Sprintf("%s/requests/%d", APIBase, id), nil, 200, &d)
+		if len(d.Progress) != 1 || d.Progress[0].Words != "Season 3 starts 21 March 2099" {
+			t.Errorf("request %d: progress %+v", id, d.Progress)
+		}
+	}
+}
+
 // TestRequestNewSeriesSeasonChoices: a request for season 1 of a series not in the library stores the series' other
 // seasons off, by the series' own seasons (the add sheet's source), so a season TVDB has and TMDb lacks (3 here; the
 // TMDb fake names none) is not monitored by default when the first refresh brings it.

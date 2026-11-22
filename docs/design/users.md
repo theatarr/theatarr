@@ -176,7 +176,8 @@ and no other-requester list or count.
   included, as Activity counts them; for a series request
   naming seasons, one for those seasons or the whole series, the season match the request detail uses) → `available` (every
   requested version has its file; for a series request naming seasons, every aired episode (the pages' air clock: the
-  instant, else the day) of those seasons, so a
+  instant, else the day) of those seasons, each with at least one, so a season none of whose episodes has aired keeps
+  the request from `available` and its detail says "Season 3 starts 21 March 2099" (its first known air date); so a
   version filled before the request does not count and a gap in another season does not hold it back; the library's
   available badge on such a request follows the same seasons) or `failed` (a download counted as above failed since the
   approval, a candidate every provider missed before any took it not counted; for a series, only one for the whole series or naming a current, aired episode of the request still

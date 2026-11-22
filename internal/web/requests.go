@@ -1638,24 +1638,26 @@ func (w *Web) requestFailures(ctx context.Context, r *Request, vids []int64) (ma
 	return out, err
 }
 
-// seasonsFilled reports whether a version holds every aired episode (airClock) of these seasons (and at least one).
+// seasonsFilled reports whether a version holds every aired episode (airClock) of these seasons, each of them with at
+// least one: a requested season none of whose episodes has aired yet is not there, whatever the other seasons hold.
 func (w *Web) seasonsFilled(ctx context.Context, versionID int64, seasons []int) (bool, error) {
 	aired, airedArgs := newAirClock(w.now()).airedSQL("e")
 	args := append([]any{versionID, versionID}, airedArgs...)
 	for _, n := range seasons {
 		args = append(args, n)
 	}
-	var n, held int
-	err := w.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(s.state IN ('filled', 'cutoff_met')), 0)
+	var complete int
+	err := w.st.Reader().QueryRowContext(ctx, `SELECT COUNT(*) FROM (SELECT e.season
 		FROM episode e LEFT JOIN episode_version_state s ON s.episode_id = e.id AND s.version_id = ?
 		WHERE e.title_id = (SELECT title_id FROM version WHERE id = ?) AND e.removed_at IS NULL
-		AND `+aired+` AND e.season IN (`+store.Placeholders(len(seasons))+`)`, args...).Scan(&n, &held)
-	return n > 0 && held == n, err
+		AND `+aired+` AND e.season IN (`+store.Placeholders(len(seasons))+`) GROUP BY e.season
+		HAVING COUNT(*) = SUM(s.state IN ('filled', 'cutoff_met')))`, args...).Scan(&complete)
+	return complete == len(slices.Compact(slices.Sorted(slices.Values(seasons)))), err
 }
 
 // requestSeasonsFilled is seasonsFilled for every decided series request naming seasons, in one query: per
-// request, per library, whether the library holds every aired episode (airClock) of the request's seasons (and at
-// least one).
+// request, per library, whether the library holds every aired episode (airClock) of each of the request's seasons
+// (and at least one in each).
 func (w *Web) requestSeasonsFilled(ctx context.Context, items []Request) (map[int64]map[string]bool, error) {
 	type ask struct {
 		ID      int64 `json:"id"`
@@ -1674,26 +1676,42 @@ func (w *Web) requestSeasonsFilled(ctx context.Context, items []Request) (map[in
 	if len(asks) == 0 {
 		return out, nil
 	}
+	// wantSeasons: each request's distinct seasons, every one of which must be complete; complete counts them.
+	wantSeasons := map[int64]int{}
+	for _, a := range asks {
+		wantSeasons[a.ID] = len(slices.Compact(slices.Sorted(slices.Values(a.Seasons))))
+	}
+	complete := map[int64]map[string]int{}
 	b, _ := json.Marshal(asks)
 	aired, airedArgs := newAirClock(w.now()).airedSQL("e")
 	err := scanAll(ctx, w.st.Reader(), `WITH q AS (SELECT json_extract(a.value, '$.id') AS rid,
 			json_extract(a.value, '$.t') AS tid, s.value AS season
 			FROM json_each(?) a, json_each(json_extract(a.value, '$.s')) s)
-		SELECT q.rid, v.policy_key, COUNT(*), COALESCE(SUM(st.state IN ('filled', 'cutoff_met')), 0)
+		SELECT q.rid, v.policy_key, q.season, COUNT(*), COALESCE(SUM(st.state IN ('filled', 'cutoff_met')), 0)
 		FROM q JOIN episode e ON e.title_id = q.tid AND e.season = q.season
 		JOIN version v ON v.title_id = q.tid
 		LEFT JOIN episode_version_state st ON st.episode_id = e.id AND st.version_id = v.id
 		WHERE e.removed_at IS NULL AND `+aired+`
-		GROUP BY q.rid, v.policy_key`, append([]any{string(b)}, airedArgs...), func(rows *sql.Rows) error {
+		GROUP BY q.rid, v.policy_key, q.season`, append([]any{string(b)}, airedArgs...), func(rows *sql.Rows) error {
 		var id int64
 		var key string
-		var aired, held int
-		if err := rows.Scan(&id, &key, &aired, &held); err != nil {
+		var season, aired, held int
+		if err := rows.Scan(&id, &key, &season, &aired, &held); err != nil {
 			return err
 		}
-		out[id][key] = aired > 0 && held == aired
+		if complete[id] == nil {
+			complete[id] = map[string]int{}
+		}
+		if aired > 0 && held == aired {
+			complete[id][key]++
+		}
 		return nil
 	})
+	for id, byKey := range complete {
+		for key, n := range byKey {
+			out[id][key] = n == wantSeasons[id]
+		}
+	}
 	return out, err
 }
 

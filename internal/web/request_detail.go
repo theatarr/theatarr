@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"time"
 
@@ -91,6 +92,7 @@ func (w *Web) requestDetail(ctx context.Context, r *Request) (*RequestDetail, er
 			}
 			p.Have, p.Total = &have, &total
 		}
+		upcoming := upcomingSeason(episodes, r.Seasons)
 		// Keep all concurrent acquisitions: a series can be downloading several requested episodes at once.
 		// failed is the latest failure the status counts against this library (requestFailures).
 		var failed *activity.Download
@@ -139,10 +141,43 @@ func (w *Web) requestDetail(ctx context.Context, r *Request) (*RequestDetail, er
 			continue
 		case failed != nil:
 			p.Words, p.Updated = failed.Words(""), &failed.Updated
+		case upcoming != "" && (p.Total == nil || *p.Have == *p.Total):
+			p.Words = upcoming
 		case episodes != nil && (p.Total == nil || *p.Total == 0):
 			p.Words = "Waiting for episode information"
 		}
 		out.Progress = append(out.Progress, p)
 	}
 	return out, nil
+}
+
+// upcomingSeason says when the first requested season none of whose episodes has aired starts ("Season 3 starts 21
+// March 2099"), by its first known air date; "" when every requested season has aired, or the request names none.
+func upcomingSeason(episodes *EpisodeList, seasons []int) string {
+	if episodes == nil || len(seasons) == 0 {
+		return ""
+	}
+	first := map[int]string{}
+	aired := map[int]bool{}
+	for _, e := range episodes.Episodes {
+		n := int(e.Season)
+		if e.Removed || !slices.Contains(seasons, n) {
+			continue
+		}
+		if e.Aired {
+			aired[n] = true
+		}
+		if e.AirDate != "" && (first[n] == "" || e.AirDate < first[n]) {
+			first[n] = e.AirDate
+		}
+	}
+	for _, n := range slices.Sorted(slices.Values(seasons)) {
+		if aired[n] || first[n] == "" {
+			continue
+		}
+		if d, err := time.Parse(time.DateOnly, first[n]); err == nil {
+			return fmt.Sprintf("Season %d starts %s", n, d.Format("2 January 2006"))
+		}
+	}
+	return ""
 }
