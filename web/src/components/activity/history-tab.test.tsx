@@ -278,3 +278,18 @@ it("wraps a row's title and episodes in full on a phone, in the admin rows and t
     cleanup();
   }
 });
+
+it("shows a playing row's outcome whole in the desktop table, the RSS sentence included", async () => {
+  const reason = "No other copy yet: the debrid account did not answer. A new release can still arrive through RSS.";
+  const row = { ...grab, id: "pb:3:unavailable", kind: "playing", event: "playing", words: "Stopped working while playing", tone: "bad", reason };
+  mockFetch([
+    { method: "GET", path: "/auth/me", reply: me },
+    { method: "GET", path: "/titles/facets", reply: {} },
+    { method: "GET", path: "/activity", reply: { state: "history", admin: true, history: [row] } },
+  ]);
+  renderPage(<HistoryTab admin />, "/activity/history");
+  const [got] = await screen.findAllByTestId("history-row");
+  const detail = got.querySelector('[data-testid="history-reason"]');
+  expect(detail?.textContent).toBe(reason);
+  expect(detail!.className.split(/\s+/).some((c) => /line-clamp-\d|truncate/.test(c))).toBe(false);
+});

@@ -211,7 +211,8 @@ function EventCell({ e, episodes, except }: { e: ActivityEvent; episodes: boolea
       <EventWords e={e} />
       <GrabbedLine e={e} />
       {episodes ? <Episodes e={e} except={except} /> : null}
-      <Reason e={e} className="mt-0.5 max-sm:break-words sm:line-clamp-2" />
+      {/* A playing row's detail is what came of it: whole, as on the phone card. */}
+      <Reason e={e} className={cn("mt-0.5", e.event === "playing" ? "break-words" : "max-sm:break-words sm:line-clamp-2")} />
       <ReplacedToggle e={e} />
     </div>
   );
