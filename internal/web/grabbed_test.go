@@ -1217,4 +1217,20 @@ func TestChosenLine(t *testing.T) {
 	if want := "Chosen over Alpha.2020.2160p.WEB-THREE: higher quality (Remux-2160p over WEBDL-2160p)"; r.Chosen != want {
 		t.Errorf("chosen %q, want %q", r.Chosen, want)
 	}
+	// An RSS read whose shown download failed before any provider took it: no line, though a later download of the
+	// same hash from that read was taken.
+	e.exec(`INSERT INTO journal_decision (id, source, title_id, version_key, target, results, accepted, candidates,
+		created_at) VALUES (92, 'rss', 1, 'movie-web', 'movie', 4, 4, ?, ?)`, cands, now-4000)
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, provider,
+		state, error, source, created_at, updated_at, added_at) VALUES
+		(3, 1, 2, 'movie-web', ?, 'Alpha.2020.2160p.REMUX-TWO', 'idx', NULL, 'failed', 'miss on every provider: not cached', 'rss', ?, ?, NULL),
+		(4, 1, 2, 'movie-web', ?, 'Alpha.2020.2160p.REMUX-TWO', 'idx', 'ad', 'failed', 'stalled', 'rss', ?, ?, ?)`,
+		h2, now-3900, now-3900, h2, now-3000, now-2800, now-3000)
+	r = Releases{}
+	if code := e.getKey(APIBase+"/titles/1/releases?version=movie-web", key, &r); code != 200 {
+		t.Fatalf("releases %d", code)
+	}
+	if r.Chosen != "" {
+		t.Errorf("rss: chosen %q for a download no provider took (grabbed %q)", r.Chosen, r.Grabbed)
+	}
 }

@@ -294,31 +294,6 @@ func Record(ctx context.Context, db Execer, s Search) error {
 	return err
 }
 
-// Taken says whether the route of a stored search took the release hash for that title and library: a download of
-// the search's source (an acquire run's, or an RSS read's since at) that a provider added.
-func Taken(ctx context.Context, db Querier, source string, at, titleID int64, version, hash string) (bool, error) {
-	if hash == "" || source == "" {
-		return false, nil
-	}
-	q := `SELECT 1 FROM download WHERE source = ? AND title_id = ? AND version_key = ? AND lower(info_hash) = ?
-		AND added_at IS NOT NULL`
-	args := []any{source, titleID, version, strings.ToLower(hash)}
-	if source == "rss" {
-		q, args = q+` AND created_at >= ?`, append(args, at)
-	}
-	rows, err := db.QueryContext(ctx, q+` LIMIT 1`, args...)
-	if err != nil {
-		return false, err
-	}
-	defer rows.Close()
-	return rows.Next(), rows.Err()
-}
-
-// Querier is a *sql.DB or *sql.Tx.
-type Querier interface {
-	QueryContext(ctx context.Context, q string, args ...any) (*sql.Rows, error)
-}
-
 // ChosenLine is the one explanation of a stored search's choice, for the release its route took (Last search, the
 // journal's grab entry; the caller checks it was taken): "Chosen over <next>: <reason>", the reason recorded when
 // the search was ranked. It says nothing about releases ranked above it. "" when nothing was ranked after it.

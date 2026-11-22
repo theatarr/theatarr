@@ -533,7 +533,7 @@ func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt6
 		}
 		// A merged search's member: the downloads of the root's route that hold its episodes.
 		err = scanAll(ctx, db, `SELECT download.id, info_hash, release_title, COALESCE(provider, ''), download.state,
-			COALESCE(error, '') FROM download JOIN acquire_run r ON r.id = ? WHERE `+snapshot.RunDownloadsSQL("download", "r")+`
+			COALESCE(error, ''), download.added_at IS NOT NULL FROM download JOIN acquire_run r ON r.id = ? WHERE `+snapshot.RunDownloadsSQL("download", "r")+`
 			AND (? = 0 OR EXISTS (SELECT 1 FROM json_each(download.episodes) j WHERE j.value = ?)) ORDER BY download.id`,
 			[]any{run.Int64, episode, episode}, scan)
 		if err != nil {
@@ -546,8 +546,8 @@ func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt6
 				hashes[strings.ToLower(c.InfoHash)] = true
 			}
 		}
-		err := scanAll(ctx, db, `SELECT id, info_hash, release_title, COALESCE(provider, ''), state, COALESCE(error, '')
-			FROM download WHERE title_id = ? AND version_key = ? AND source = 'rss' AND created_at >= ?
+		err := scanAll(ctx, db, `SELECT id, info_hash, release_title, COALESCE(provider, ''), state, COALESCE(error, ''),
+			added_at IS NOT NULL FROM download WHERE title_id = ? AND version_key = ? AND source = 'rss' AND created_at >= ?
 			AND (? = 0 OR EXISTS (SELECT 1 FROM json_each(download.episodes) j WHERE j.value = ?)) ORDER BY id`,
 			[]any{out.TitleID, out.Version, at, episode, episode}, func(r *sql.Rows) error {
 				var d runDownload
@@ -592,15 +592,9 @@ func (w *Web) storedGrabbed(ctx context.Context, out *Releases, run sql.NullInt6
 	}
 	pick := pickDownload(dls, current)
 	out.Grabbed = searchSummary(dls, pick, current, candidatesOf(out.Candidates), oc, state, message, w.providerTag)
-	if len(dls) > 0 {
-		// Only for the release its route took for this title and library.
-		taken, err := snapshot.Taken(ctx, db, source, at, out.TitleID, out.Version, dls[pick].hash)
-		if err != nil {
-			return err
-		}
-		if taken {
-			out.Chosen = snapshot.ChosenLine(candidatesOf(out.Candidates), dls[pick].hash)
-		}
+	// Only for the download shown, and only when a provider took it (its own added_at), as the Journal says it.
+	if len(dls) > 0 && dls[pick].added {
+		out.Chosen = snapshot.ChosenLine(candidatesOf(out.Candidates), dls[pick].hash)
 	}
 	return nil
 }
@@ -620,9 +614,9 @@ func nothingLine(results, infra int, scope string) string {
 	return s
 }
 
-// scanRunDownload reads id, info_hash, release_title, provider, state and error.
+// scanRunDownload reads id, info_hash, release_title, provider, state, error and whether a provider took it.
 func scanRunDownload(r *sql.Rows, d *runDownload) error {
-	return r.Scan(&d.id, &d.hash, &d.release, &d.provider, &d.state, &d.err)
+	return r.Scan(&d.id, &d.hash, &d.release, &d.provider, &d.state, &d.err, &d.added)
 }
 
 // sourceWord names what a stored decision came from, after "From": "RSS", "a search", "a search for S01".

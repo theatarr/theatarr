@@ -846,6 +846,8 @@ func episodeFiles(ctx context.Context, db *sql.DB, titleID int64, version string
 type runDownload struct {
 	id                                  int64
 	hash, release, provider, state, err string
+	// added: a provider took it (added_at set); Last search's "Chosen over" is for such a download only.
+	added bool
 	// episodes are the download's stored episodes (versionHistory: a merged search's member reads its own).
 	episodes []int64
 }
