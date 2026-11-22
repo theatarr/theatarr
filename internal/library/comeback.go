@@ -30,7 +30,7 @@ const (
 // playingHeld are the open incidents' links by path, with the old target: a dead link still pointing there is the
 // incident's to bring back.
 func playingHeld(ctx context.Context, db *sql.DB) (map[string]string, error) {
-	rows, err := db.QueryContext(ctx, `SELECT path, old_target FROM playing_break WHERE settled = '' AND released = 0`)
+	rows, err := db.QueryContext(ctx, `SELECT path, old_target FROM playing_break WHERE settled = ''`)
 	if err != nil {
 		return nil, err
 	}
@@ -71,13 +71,10 @@ func (l *Library) ComeBack(ctx context.Context) error {
 	if l.mount == nil {
 		return nil
 	}
-	if err := l.settleRepointed(ctx); err != nil {
-		return err
-	}
 	rows, err := l.st.Reader().QueryContext(ctx, `SELECT pb.id, pb.link_id, pb.title_id, pb.version_key, pb.path,
 		pb.old_target, pb.info_hash, pb.inner_file, pb.read_offset, pb.back_since FROM playing_break pb
 		JOIN link l ON l.id = pb.link_id AND l.path = pb.path AND l.target = pb.old_target AND l.state = 'dead'
-		WHERE pb.settled = '' AND pb.released = 0 ORDER BY pb.id`)
+		WHERE pb.settled = '' ORDER BY pb.id`)
 	if err != nil {
 		return err
 	}
@@ -95,12 +92,22 @@ func (l *Library) ComeBack(ctx context.Context) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
+	var ix *mountIndex // the release root's listing, read once when a renamed folder is looked for
 	for _, r := range todo {
-		target, renamed := r.old, false
+		target, newFolder := r.old, ""
 		_, err := l.MountFileSize(ctx, target)
 		if errors.Is(err, fs.ErrNotExist) {
-			if alt := l.renamedTarget(ctx, r); alt != "" {
-				target, renamed = alt, true
+			if ix == nil {
+				if ix, err = l.newMountIndex(ctx); err != nil {
+					return nil // a mount that does not list: no verdict this pass
+				}
+			}
+			alt, folder, perr := l.renamedPlace(ctx, ix, r)
+			if perr != nil {
+				return perr
+			}
+			if alt != "" {
+				target, newFolder = alt, folder
 				_, err = l.MountFileSize(ctx, target)
 			}
 		}
@@ -130,7 +137,7 @@ func (l *Library) ComeBack(ctx context.Context) error {
 		case l.now().Sub(time.UnixMilli(r.backSince.Int64)) < deadConfirm:
 			continue
 		}
-		if err := l.reviveReturned(ctx, r, renamed); err != nil {
+		if err := l.reviveReturned(ctx, r, target, newFolder); err != nil {
 			return err
 		}
 	}
@@ -150,32 +157,63 @@ func (l *Library) setBack(ctx context.Context, id int64, back bool) error {
 	return err
 }
 
-// renamedTarget is where a row's file is when its release folder was renamed: the folder the registry records for its
-// saved hash, with the saved inner file name; "" when that is not known or not another folder.
-func (l *Library) renamedTarget(ctx context.Context, r returned) string {
-	if r.hash == "" || r.inner == "" {
-		return ""
+// renamedPlace is where a row's file is when its release folder was renamed, found as the sweep finds a renamed
+// folder (candidates, identityFolders, zurg's and decypharr's confirmation): the target there and the folder's name,
+// or "" when no such folder holds the file.
+func (l *Library) renamedPlace(ctx context.Context, ix *mountIndex, r returned) (string, string, error) {
+	read, ok := l.mount.FromLink(r.old)
+	if !ok {
+		return "", "", nil
 	}
-	var folder string
-	if err := l.st.Reader().QueryRowContext(ctx, `SELECT COALESCE(mount_folder, '') FROM content WHERE lower(info_hash) = ?`,
-		r.hash).Scan(&folder); err != nil || folder == "" || strings.ContainsAny(folder, "/\x00") {
-		return ""
+	rel, err := filepath.Rel(l.mount.AllPath(), read)
+	if err != nil || escapes(rel) {
+		return "", "", nil
 	}
-	alt := l.mount.ToLink(filepath.Join(l.mount.AllPath(), folder, r.inner))
-	if alt == r.old {
-		return ""
+	folder, inner, _ := strings.Cut(rel, string(filepath.Separator))
+	ml := mountLink{path: r.path, target: r.old, folder: folder, inner: inner}
+	db := l.st.Reader()
+	hash, names, err := l.candidates(ctx, db, ml)
+	if err != nil {
+		return "", "", err
 	}
-	return alt
+	identity := hash
+	if m := hash6Suffix.FindStringSubmatch(folder); identity == "" && m != nil {
+		identity = m[2]
+	}
+	if identity == "" {
+		return "", "", nil
+	}
+	if names, err = identityFolders(ctx, db, ix, identity, append([]string{folder}, names...)); err != nil {
+		return "", "", err
+	}
+	lists := relinkLists{}
+	for _, n := range names {
+		if n == folder {
+			continue
+		}
+		found, err := ix.has(n, inner)
+		if errors.Is(err, errFolderUnreadable) || err == nil && !found {
+			continue
+		}
+		if err != nil {
+			return "", "", err
+		}
+		if len(hash) == 40 {
+			if _, ok := l.zurgConfirm(ctx, hash, n, inner); !ok || !l.relinkHolds(ctx, db, lists, ml, hash, n) {
+				continue
+			}
+		}
+		return l.mount.ToLink(filepath.Join(l.mount.AllPath(), n, inner)), n, nil
+	}
+	return "", "", nil
 }
 
 // reviveReturned brings back an old copy that read on two sweeps, when nothing else holds any of its film or
 // episodes (a file held in part or whole by another is the later comparison's: left as it is), and only with Pause off,
 // the version's library writing, and its title and version still there and monitored (a deliberate removal stays
 // removed). In place it is the sweep's revive: active again, its items filled, Plex scanned, the row settled revived,
-// and the release's router:playing miss lifted. In a renamed folder the row is released to the sweep, whose ordinary
-// repoint revives the link; the row is settled and the miss lifted on the next pass that sees the link active
-// (settleRepointed).
-func (l *Library) reviveReturned(ctx context.Context, r returned, renamed bool) error {
+// and the release's router:playing miss lifted. In a renamed folder it is the sweep's repoint (repointReturned).
+func (l *Library) reviveReturned(ctx context.Context, r returned, target, newFolder string) error {
 	if !l.PlayingWritable(r.version) {
 		return nil
 	}
@@ -194,6 +232,9 @@ func (l *Library) reviveReturned(ctx context.Context, r returned, renamed bool) 
 	if held, err := partlyCovered(ctx, db, r.linkID); err != nil || held {
 		return err
 	}
+	if newFolder != "" {
+		return l.repointReturned(ctx, r, target, newFolder)
+	}
 	lctx, unlock, err := l.lockLinks(ctx, r.path)
 	defer unlock()
 	if err != nil {
@@ -205,11 +246,6 @@ func (l *Library) reviveReturned(ctx context.Context, r returned, renamed bool) 
 	err = l.st.WriteTx(lctx, func(tx *sql.Tx) error {
 		revived = nil
 		if err := l.linksHeldTx(lctx, tx); err != nil {
-			return err
-		}
-		if renamed {
-			// Handed to the sweep's ordinary repoint; settled once its link is active again (settleRepointed).
-			_, err := tx.ExecContext(lctx, `UPDATE playing_break SET released = 1, updated_at = ? WHERE id = ?`, now, r.id)
 			return err
 		}
 		res, err := tx.ExecContext(lctx, `UPDATE link SET state = 'active', missing_since = NULL, last_checked_at = ?,
@@ -234,11 +270,6 @@ func (l *Library) reviveReturned(ctx context.Context, r returned, renamed bool) 
 	}
 	if err != nil {
 		return err
-	}
-	if renamed {
-		l.log.Info("library: the copy that broke while playing reads again in a renamed folder; left to the sweep's repoint",
-			"link", r.path, "incident_row", r.id)
-		return nil
 	}
 	l.log.Info("library: the copy that broke while playing reads again; revived", "link", r.path, "incident_row", r.id)
 	if err := l.EnqueueScan(ctx, r.version, filepath.Dir(r.path)); err != nil {
@@ -266,39 +297,55 @@ func settleRevivedTx(ctx context.Context, tx *sql.Tx, id int64, hash string, now
 	return err
 }
 
-// settleRepointed settles the rows handed to the sweep's repoint whose link is active again.
-func (l *Library) settleRepointed(ctx context.Context) error {
-	return l.st.WriteTx(ctx, func(tx *sql.Tx) error {
-		rows, err := tx.QueryContext(ctx, `SELECT pb.id, pb.info_hash FROM playing_break pb JOIN link l
-			ON l.id = pb.link_id AND l.path = pb.path AND l.state = 'active' WHERE pb.settled = '' AND pb.released = 1`)
-		if err != nil {
-			return err
+// repointReturned brings back an old copy that read on two sweeps in a renamed folder: the sweep's own repoint
+// (under the link lease, compare and swap, the symlink rewritten, the dead row active again), and only once its link
+// points there and is active, the row settled revived and the release's miss lifted.
+func (l *Library) repointReturned(ctx context.Context, r returned, target, newFolder string) error {
+	root := ""
+	for _, rt := range l.gate.Roots(r.version) {
+		if p := filepath.Clean(rt) + string(filepath.Separator); strings.HasPrefix(r.path, p) {
+			root = rt
 		}
-		type done struct {
-			id   int64
-			hash string
-		}
-		var ds []done
-		for rows.Next() {
-			var d done
-			if err := rows.Scan(&d.id, &d.hash); err != nil {
-				rows.Close()
-				return err
-			}
-			ds = append(ds, d)
-		}
-		rows.Close()
-		if err := rows.Err(); err != nil {
-			return err
-		}
-		for _, d := range ds {
-			if err := settleRevivedTx(ctx, tx, d.id, d.hash, store.Millis(l.now())); err != nil {
-				return err
-			}
-			l.log.Info("library: the copy that broke while playing works again after its repoint", "incident_row", d.id)
-		}
+	}
+	if root == "" {
 		return nil
-	})
+	}
+	read, _ := l.mount.FromLink(r.old)
+	rel, _ := filepath.Rel(l.mount.AllPath(), read)
+	folder, inner, _ := strings.Cut(rel, string(filepath.Separator))
+	sc := &LinkScan{Version: r.version, Root: root, Causes: map[string]int{}}
+	var recompute []stateVersion
+	if err := l.repoint(ctx, sc, r.version, root, mountLink{path: r.path, target: r.old, folder: folder, inner: inner},
+		DanglingLink{Path: r.path, Target: r.old, NewTarget: target, Hash: r.hash}, r.hash, newFolder, &recompute); err != nil {
+		return err
+	}
+	now := store.Millis(l.now())
+	settled := false
+	if err := l.st.WriteTx(ctx, func(tx *sql.Tx) error {
+		settled = false
+		var ok bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM link WHERE id = ? AND path = ? AND target = ?
+			AND state = 'active')`, r.linkID, r.path, target).Scan(&ok); err != nil || !ok {
+			return err
+		}
+		settled = true
+		return settleRevivedTx(ctx, tx, r.id, r.hash, now)
+	}); err != nil {
+		return err
+	}
+	if !settled {
+		l.log.Info("library: the copy that broke while playing reads again in a renamed folder, but was not repointed",
+			"link", r.path, "folder", newFolder)
+		return nil
+	}
+	l.log.Info("library: the copy that broke while playing reads again in a renamed folder; repointed and revived",
+		"link", r.path, "folder", newFolder, "incident_row", r.id)
+	for _, v := range recompute {
+		if _, err := l.recomputeVersion(ctx, v); err != nil {
+			l.log.Warn("library: state not recomputed after a revive", "version", v.key, "title", v.titleID, "err", err)
+		}
+	}
+	return nil
 }
 
 // partlyCovered reports whether another active link of any of a link's versions holds its film, or any one of its

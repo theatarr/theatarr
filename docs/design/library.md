@@ -831,15 +831,15 @@ state and Cutoff unmet are its own. The journal records an `edit_file` action (m
   (`TestSweepLeavesUnsettledDeadLink`, `TestSweepDoesNotRepointUnsettledDeadLink`); a replacement at the same path (a
   new target) is an ordinary link (`TestSweepTreatsSamePathReplacementAsActive`). **It comes back only through a
   read**: after each sweep that ended without error (`LastSweep`) now playing's worker calls `ComeBack`, which reads each
-  open row's own file at its saved range (at its old target, or by its saved hash's recorded folder when the folder
-  was renamed). A read starts the file's streak (`back_since`), an unlisted file or a failed read ends it, and a read at
+  open row's own file at its saved range (at its old target, or, when its folder was renamed, where the sweep's own
+  rename evidence finds it: `candidates`, `identityFolders`, zurg's and decypharr's confirmation). A read starts the file's streak (`back_since`), an unlisted file or a failed read ends it, and a read at
   least 30 min (`deadConfirm`) after the streak began decides: with Pause off, the library writing, the title and
   version still there and monitored, and no other active file holding its film or any one of its episodes, the link is
   revived as the sweep revives one (action `relink`, "revived: the copy that broke while playing reads again"), the
-  row is settled `revived` and the release's `router:playing` miss is lifted; in a renamed folder the row is released to
-  the next sweep, whose ordinary repoint revives the link, and it is settled (the miss lifted) on the first pass that
-  sees the link active (`TestComeBackRevivesUncoveredCopy`, `TestComeBackRenamedWaitsForRepoint`). Only an hourly
-  sweep counts, not one a zurg rename started. A copy another file now holds, in part or
+  row is settled `revived` and the release's `router:playing` miss is lifted; in a renamed folder the come-back runs
+  the sweep's repoint itself and settles the row only once the link points there and is active
+  (`TestComeBackRevivesUncoveredCopy`, `TestComeBackRenamedFolder`). Only an hourly sweep counts, not one a zurg
+  rename started. A copy another file now holds, in part or
   whole, is left as it is for the comparison that puts it back or keeps it aside; so is one while paused or of a
   version no longer monitored (`TestComeBackLeavesCoveredOrStoppedCopy`). The import after which an open row's film,
   or every one of its episodes, has a file again notes it fixed (`fixed_by` `replaced`, the new release) in its
