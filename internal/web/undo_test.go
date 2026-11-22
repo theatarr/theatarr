@@ -86,4 +86,9 @@ func TestBlockWordsUndo(t *testing.T) {
 	if got := blockWords(library.UndoBlockSource("key:auto")); got != "Upgrade undone by auto (API key)" {
 		t.Errorf("words %q", got)
 	}
+	// The words say it once: no reason line under them, as an arr's row has none.
+	if got := blockedReasonWords(library.UndoBlockSource("ann"), "the upgrade was undone by ann", "",
+		func(s string) string { return s }); got != "" {
+		t.Errorf("reason %q", got)
+	}
 }

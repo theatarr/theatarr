@@ -1038,7 +1038,7 @@ func removalWords(h *journal.HistoryRow, label func(string) string) string {
 
 // blockedReason is a blocklist row's reason in plain words (failureWords: headline and detail), under its words
 // (blockWords); a row taken over from an arr's blocklist has none ("arr blocklist (<instance>)" says no more than its
-// words).
+// words), nor has an Undo's ("Upgrade undone by <who>" says it once).
 func (w *Web) blockedReason(b activity.Blocked) string {
 	return blockedReasonWords(b.Source, b.Reason, b.Provider, w.providerTag)
 }
@@ -1046,7 +1046,7 @@ func (w *Web) blockedReason(b activity.Blocked) string {
 // blockedReasonWords is blockedReason from a block's source, stored reason and provider, for the Blocklist and
 // History's Blocked rows alike.
 func blockedReasonWords(source, reason, provider string, tag func(string) string) string {
-	if strings.HasPrefix(source, "arr:") && strings.HasPrefix(reason, "arr blocklist") {
+	if strings.HasPrefix(source, "arr:") && strings.HasPrefix(reason, "arr blocklist") || strings.HasPrefix(source, "undo:") {
 		return ""
 	}
 	h, d := failureWords(failureFacts{Blocked: reason, Provider: provider}, tag)
