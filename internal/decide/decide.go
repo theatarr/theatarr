@@ -53,7 +53,11 @@ type Title struct {
 	// resolved at load (metadata, else English): its held files with no known language then take it, as an untagged
 	// release does.
 	OriginalLanguageResolved bool
-	Anime                    bool
+	// OriginalLanguageMissing is set when nothing stored names the original language (the title's, the metadata's
+	// and the cached details' are empty or Unknown): OriginalLanguage is then the English fallback. The import's
+	// wrong-audio rule does not apply to such a title.
+	OriginalLanguageMissing bool
+	Anime                   bool
 
 	// Series (Sonarr's Series): the TVDB id, the series type (standard, daily, anime; "" is standard), whether the
 	// series has scene numbering, whether it is monitored, its scene mappings, and its episodes with the version's

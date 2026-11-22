@@ -340,6 +340,43 @@ mount never lengthen that back-off (`TestPartialAfterWaitsStartsBackoffAgain`).
    `TestImportMislabelGuardPassesHonestRemux`, `TestImportMislabelSeriesAndManual`, `TestImportMislabelPartPack`,
    `journal.TestImportPartPackRefusal`, `probe.TestEncoderSEI`,
    `TestMatroskaEncoderSEI`, `TestHvcCEncoderSEI`.
+
+   **Wrong-audio guard** (`internal/library/audio.go`; no setting). A file's audio tracks, not the release name, say
+   what it holds: a French-only "Hercules (1997) [UHD].mkv" once replaced an English remux as an upgrade. After the
+   plan is made, every file it would link is judged (a file it would not link cannot veto); one refused file rejects
+   the whole import before anything is applied, through the ordinary reject: the download fails, the release is
+   blocklisted for the library (`router_blocklist`, source `library`) and the poll searches again. No hold.
+   - *Judged only on clear audio*: the probe succeeded, the file has an audio track, and every track's language was
+     in the file (`probe.Audio.Tagged`, kept in memory and carried across the mount helper, not stored: a Matroska
+     track without a Language element reads `eng` but is not tagged; MP4 `und` is no tag) and is in the language
+     table. One untagged track, or `und`, `zxx`, `mul`, `mis`, a private code or any code the table lacks (`myn`):
+     no verdict. Tags read through `decide.AudioLanguage`, the one mapping the journal's `file_audio_language` check
+     uses too: region subtags are cut (`ja-JP`), `fre`/`fra` are French, `nob`/`nb`/`nn` Norwegian.
+   - *Wanted*: a film profile's named language; a film profile set to `original`, and every series library, the
+     title's original language **or** English (the original read by name or code, `ko` is Korean; one the table
+     lacks gives English alone). No rule for profile `any`, nor when nothing stores the title's original language
+     (`decide.Title.OriginalLanguageMissing`; LoadTitle's English fallback is not a named language).
+   - *Replacing a file* (one the link moves aside, or the version's file at the link's own path): refused unless the
+     new file shares an audio language with the replaced files (their stored probe, else an adopted file's arr media
+     info); unknown audio shares none. `Import refused: French audio only; the file in the library has English.`
+   - *An empty film slot*: refused once, `Import refused: French audio only; this library wants English or Japanese.
+     Searching again; another release with the same audio would be taken.` ("Searching again" only when the poll will
+     search: not for a release added by hand, nor in a partner library). When this library already holds such a
+     refusal of another release of the film (a `library` row of the same title, another blocklist key, whose reason
+     starts with the same opening `Import refused: <languages> audio only; this library wants `, the languages by
+     name, sorted), the file is taken and noted (`audio: French only, not what this library wants; taken because an
+     earlier release with the same audio was refused`); one torrent on several providers is one key, so it counts
+     once. Unblocking the earlier row removes the evidence.
+   - *An empty series slot*: refused every time, `...; this library wants English. Use Manual import to take it
+     anyway.`
+   Manual import is never refused (`not refused (manual import): ...` on the file); an Interactive hand grab is
+   judged like any grab. A partner library's refusal (`tryOther`) keeps its blocklist row, without the deleted
+   download and marked researched, so it starts no search there. Files already in the library are never judged again.
+   Tests: `TestAudioRuleVerdicts`, `TestAudioOpening`, `TestAudioRuleUnknownImports`,
+   `TestAudioRuleRefusesDowngradeOfAudio`, `TestAudioRuleReplacementSharesLanguage`, `TestAudioRuleSamePathReplacement`,
+   `TestAudioRuleEmptyFilmSlotRefusedOnce`, `TestAudioRuleSeries`, `TestAudioRuleUnlinkedFileNoVeto`,
+   `TestAudioRuleManualImportLinks`, `TestAudioRuleProfileAny`, `TestAudioRulePartnerLibrary`,
+   `TestAudioRuleNoOriginalLanguage`, `decide.TestAudioLanguage`, `decide.TestLanguageCode`.
 5. **What each file is** (`decide.AggregateSeriesFile`, `AggregateMovieFile`, `library/facts.go`): the
    arrs' import aggregation, per file, with the version's Sonarr parser dialect. Quality (`AggregateQuality`: the
    file's name, the release folder, the download client item, the probe's frame size and container title, the grabbed

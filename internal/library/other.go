@@ -184,10 +184,19 @@ func (l *Library) tryOther(ctx context.Context, d *importDownload, t decide.Titl
 			return err
 		}
 		if !linked {
-			for _, q := range []string{`DELETE FROM history WHERE ref IN ('dl:' || ?1, 'dl:' || ?1 || ':held',
+			qs := []string{`DELETE FROM history WHERE ref IN ('dl:' || ?1, 'dl:' || ?1 || ':held',
 				'dl:' || ?1 || ':import', 'dl:' || ?1 || ':fail') OR ref IN (SELECT 'bl:' || rowid FROM router_blocklist
 				WHERE download_id = ?1)`, `DELETE FROM router_blocklist WHERE download_id = ?1`,
-				`DELETE FROM library_action WHERE download_id = ?1`, `DELETE FROM download WHERE id = ?1`} {
+				`DELETE FROM library_action WHERE download_id = ?1`, `DELETE FROM download WHERE id = ?1`}
+			if plan != nil && plan.audioRefused {
+				// The wrong-audio rule's refusal is B's verdict on the release: its blocklist row (and History line)
+				// stays, without the download, so B never takes it and a second release can count it.
+				qs = []string{`DELETE FROM history WHERE ref IN ('dl:' || ?1, 'dl:' || ?1 || ':held',
+					'dl:' || ?1 || ':import', 'dl:' || ?1 || ':fail')`,
+					`UPDATE router_blocklist SET download_id = NULL WHERE download_id = ?1`,
+					`DELETE FROM library_action WHERE download_id = ?1`, `DELETE FROM download WHERE id = ?1`}
+			}
+			for _, q := range qs {
 				if _, err := tx.ExecContext(ctx, q, id); err != nil {
 					return err
 				}

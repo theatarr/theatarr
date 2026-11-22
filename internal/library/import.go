@@ -52,6 +52,8 @@ type Plan struct {
 	seaDexVeto map[string]string // files markVeto marked (upgrade.go)
 	// packRefused is why a claimed pack's numbering cannot be trusted (animepack.go): the import is rejected.
 	packRefused string
+	// audioRefused: the wrong-audio rule rejected the import (audio.go).
+	audioRefused bool
 }
 
 // PlannedFile is a video file of the release.
@@ -663,6 +665,13 @@ func (l *Library) importDownload(ctx context.Context, d *importDownload, dryRun 
 		plan.Links = nil
 		return l.reject(ctx, d, plan, dryRun, "pack numbering: "+plan.packRefused)
 	}
+	// The wrong-audio rule judges the files the plan links as one: one refused file rejects the import (audio.go).
+	if reason, err := l.audioGuard(ctx, d, plan); err != nil {
+		return nil, err
+	} else if reason != "" {
+		plan.Links = nil
+		return l.reject(ctx, d, plan, dryRun, reason)
+	}
 	if len(plan.Links) == 0 {
 		reason := "no file passed the sample guard"
 		switch {
@@ -1109,6 +1118,13 @@ func (l *Library) reject(ctx context.Context, d *importDownload, plan *Plan, dry
 		if err := router.Blocklist(ctx, tx, d.Version.Key, d.InfoHash, d.Version.Title.ID, d.ID, d.ReleaseTitle,
 			why, router.BlocklistLibrary, now); err != nil {
 			return err
+		}
+		if plan.audioRefused && strings.HasPrefix(d.Source, OtherSourcePrefix) {
+			// A partner library's refusal starts no search there (tryOther keeps the row).
+			if _, err := tx.ExecContext(ctx, `UPDATE router_blocklist SET researched_at = ? WHERE version_key = ?
+				AND info_hash = ?`, now, d.Version.Key, router.BlocklistKey(d.InfoHash, d.ReleaseTitle)); err != nil {
+				return err
+			}
 		}
 		return l.record(ctx, tx, action{Kind: "reject", Mode: "applied", Version: d.Version.Key, DownloadID: d.ID,
 			Path: plan.Folder, Detail: reason})
