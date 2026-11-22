@@ -241,3 +241,29 @@ func TestHealthAlertAcrossLevels(t *testing.T) {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 }
+
+// Pause's warning comes from no check run: it counts the notifier's scans, two in a row, so a brief Pause sends
+// nothing.
+func TestHealthPauseTwoScans(t *testing.T) {
+	t.Parallel()
+	e := newDiscordEnv(t, true, func(p *policy.Policy) {
+		p.Notify.Targets["loud"] = &policy.NotifyTarget{URL: discordHook, Format: policy.NotifyFormatDiscord, Warnings: true}
+	})
+	ctx := context.Background()
+	pause := []HealthItem{{Source: "RouterDisabledCheck", Type: "warning", Message: "Paused"}}
+	for _, h := range [][]HealthItem{pause, nil, pause} {
+		e.hlth = h
+		if err := e.n.Scan(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got, _ := e.sentTitles("loud"); len(got) != 0 {
+		t.Fatalf("a brief Pause sent %q", got)
+	}
+	if err := e.n.Scan(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := e.sentTitles("loud"); !slices.Equal(got, []string{"Health warning: RouterDisabledCheck"}) {
+		t.Fatalf("Pause on two scans: %q", got)
+	}
+}

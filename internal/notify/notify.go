@@ -861,7 +861,7 @@ const healthAlertRuns = 2
 
 // scanHealth announces health changes. A check that turns bad or worse is announced once it reported that type on
 // healthAlertRuns completed check runs in a row (HealthItem.Runs, counted where the run completes, internal/health);
-// an item from no check run (Runs 0: Pause) at once. Easing and recovery go out at once, and only for a type that was
+// an item from no check run (Runs 0: Pause) on two notifier scans in a row (notify_state health_scans). Easing and recovery go out at once, and only for a type that was
 // announced. notify_state keeps what was announced (health_checks). While notifications are off nothing is marked
 // announced.
 func (n *Notifier) scanHealth(ctx context.Context) error {
@@ -869,22 +869,35 @@ func (n *Notifier) scanHealth(ctx context.Context) error {
 		return nil
 	}
 	items := n.health(ctx)
-	var raw string
-	err := n.st.Reader().QueryRowContext(ctx, `SELECT value FROM notify_state WHERE key = 'health_checks'`).Scan(&raw)
-	if err != nil && err != sql.ErrNoRows {
-		return err
-	}
 	var previous []HealthItem
-	if raw != "" {
-		if err := json.Unmarshal([]byte(raw), &previous); err != nil {
+	scans := map[string]string{} // items from no check run (Pause): their type on the previous scan
+	for key, dst := range map[string]any{"health_checks": &previous, "health_scans": &scans} {
+		var raw string
+		err := n.st.Reader().QueryRowContext(ctx, `SELECT value FROM notify_state WHERE key = ?`, key).Scan(&raw)
+		if err != nil && err != sql.ErrNoRows {
 			return err
+		}
+		if raw != "" {
+			if err := json.Unmarshal([]byte(raw), dst); err != nil {
+				return err
+			}
 		}
 	}
 	current, old := map[string]HealthItem{}, map[string]HealthItem{}
+	nextScans := map[string]string{}
 	for _, h := range items {
-		if h.Type != "ok" {
-			current[h.Source] = h
+		if h.Type == "ok" {
+			continue
 		}
+		if h.Runs == 0 {
+			// No check run behind it: the notifier's scans count, two in a row.
+			nextScans[h.Source] = h.Type
+			h.Runs = 1
+			if scans[h.Source] != "" {
+				h.Runs = 2
+			}
+		}
+		current[h.Source] = h
 	}
 	for _, h := range previous {
 		old[h.Source] = h
@@ -897,7 +910,7 @@ func (n *Notifier) scanHealth(ctx context.Context) error {
 		switch {
 		case ok && p.Type == h.Type:
 			announced[source] = h // the latest counts and ages, for the recovery message
-		case ok && healthRank[h.Type] < healthRank[p.Type], h.Runs == 0 || h.Runs >= healthAlertRuns:
+		case ok && healthRank[h.Type] < healthRank[p.Type], h.Runs >= healthAlertRuns:
 			ev := Event{Kind: Health, Health: []HealthItem{h}, At: n.now()}
 			if ok {
 				ev.HealthWas = &p
@@ -921,6 +934,10 @@ func (n *Notifier) scanHealth(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	scanData, err := json.Marshal(nextScans)
+	if err != nil {
+		return err
+	}
 	var ds []delivery
 	for _, ev := range events {
 		out, err := n.deliveries(ctx, ev)
@@ -933,10 +950,14 @@ func (n *Notifier) scanHealth(ctx context.Context) error {
 		if err := n.recordTx(ctx, tx, ds); err != nil {
 			return err
 		}
-		_, err := tx.ExecContext(ctx, `INSERT INTO notify_state (key, value, updated_at) VALUES ('health_checks', ?, ?)
-			ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-			string(data), store.Millis(n.now()))
-		return err
+		for key, value := range map[string][]byte{"health_checks": data, "health_scans": scanData} {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO notify_state (key, value, updated_at) VALUES (?, ?, ?)
+				ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+				key, string(value), store.Millis(n.now())); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 

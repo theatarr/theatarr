@@ -160,7 +160,7 @@ SignalR, Sonarr v5, `downloadclient`.
     level; a later change of level is announced at once. The count is kept where a run completes
     (`health.Result.Runs`; a cached read is no new run, nor is a failed provider read the account check replays),
     so it does not depend on how often the notifier looks; one failed run followed by a pass sends nothing. The
-    router-disabled item, from no check run, goes out at once. Easing and recovery go out at once, and only for a
+    router-disabled item (Pause), from no check run, counts the notifier's scans instead, two in a row (`notify_state` `health_scans`), so a brief Pause sends nothing. Easing and recovery go out at once, and only for a
     level that was announced (`notify_state` `health_checks`); while notifications are off nothing is marked
     announced (`notify.TestHealthAlertAfterTwoRuns`, `health.TestCheckerCountsRuns`). The daily digest is unchanged. Installed
     targets require `onHealthIssue` or `onHealthRestored`; warnings also require `includeHealthWarnings`, including
