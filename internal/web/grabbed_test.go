@@ -1186,7 +1186,7 @@ func TestStoredPlayingSearchWordsInAnotherEpisode(t *testing.T) {
 }
 
 // TestChosenLine: Last search says why the release its run took for this library beat the next accepted one (the
-// reason recorded with the search), after one fixed sentence when better-ranked ones were not taken.
+// reason recorded with the search), with no claim about better-ranked ones.
 func TestChosenLine(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
@@ -1214,7 +1214,7 @@ func TestChosenLine(t *testing.T) {
 	if code := e.getKey(APIBase+"/titles/1/releases?version=movie-web", key, &r); code != 200 {
 		t.Fatalf("releases %d", code)
 	}
-	if want := "Better-ranked releases were not cached or failed. Chosen over Alpha.2020.2160p.WEB-THREE: higher quality (Remux-2160p over WEBDL-2160p)"; r.Chosen != want {
+	if want := "Chosen over Alpha.2020.2160p.WEB-THREE: higher quality (Remux-2160p over WEBDL-2160p)"; r.Chosen != want {
 		t.Errorf("chosen %q, want %q", r.Chosen, want)
 	}
 }

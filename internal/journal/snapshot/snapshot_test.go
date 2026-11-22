@@ -114,12 +114,12 @@ func TestDropPublicVolumeFlags(t *testing.T) {
 	}
 }
 
-// TestChosenLine: the one explanation of a search's choice: the recorded reason against the next one, after one
-// fixed sentence when a better-ranked accepted release of its episodes was not the one taken; nothing without one.
+// TestChosenLine: the one explanation of a search's choice: the recorded reason against the next one, with no claim
+// about releases ranked above it; nothing without one.
 func TestChosenLine(t *testing.T) {
 	over := &Over{Release: "A.WEB-THREE", Reason: "higher quality (Remux-2160p over WEBDL-2160p)"}
 	cands := []Candidate{{Accepted: true, InfoHash: "h1"}, {Accepted: true, InfoHash: "h3", Over: over}, {Accepted: true, InfoHash: "h4"}}
-	if got := ChosenLine(cands, "H3"); got != "Better-ranked releases were not cached or failed. Chosen over A.WEB-THREE: higher quality (Remux-2160p over WEBDL-2160p)" {
+	if got := ChosenLine(cands, "H3"); got != "Chosen over A.WEB-THREE: higher quality (Remux-2160p over WEBDL-2160p)" {
 		t.Errorf("lower one taken: %q", got)
 	}
 	if got := ChosenLine(cands[1:], "h3"); got != "Chosen over A.WEB-THREE: higher quality (Remux-2160p over WEBDL-2160p)" {

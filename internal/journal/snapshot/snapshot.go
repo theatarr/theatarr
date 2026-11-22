@@ -319,29 +319,13 @@ type Querier interface {
 	QueryContext(ctx context.Context, q string, args ...any) (*sql.Rows, error)
 }
 
-// betterNotTaken is said when a lower-ranked release was taken: the router takes the first release in rank order a
-// provider has, so the better ones were not cached or failed.
-const betterNotTaken = "Better-ranked releases were not cached or failed."
-
 // ChosenLine is the one explanation of a stored search's choice, for the release its route took (Last search, the
-// journal's grab entry; the caller checks Taken): "Chosen over <next>: <reason>", after "Better-ranked releases
-// were not cached or failed." when an accepted release of its episodes ranked above it. "" when nothing was ranked
-// after it.
+// journal's grab entry; the caller checks it was taken): "Chosen over <next>: <reason>", the reason recorded when
+// the search was ranked. It says nothing about releases ranked above it. "" when nothing was ranked after it.
 func ChosenLine(cands []Candidate, taken string) string {
 	i := slices.IndexFunc(cands, func(c Candidate) bool { return c.Accepted && taken != "" && strings.EqualFold(c.InfoHash, taken) })
 	if i < 0 || cands[i].Over == nil || cands[i].Over.Reason == "" {
 		return ""
 	}
-	line := "Chosen over " + cands[i].Over.Release + ": " + cands[i].Over.Reason
-	eps := cands[i].Episodes
-	for _, c := range cands[:i] {
-		if !c.Accepted || strings.EqualFold(c.InfoHash, taken) {
-			continue
-		}
-		if len(eps) > 0 && len(c.Episodes) > 0 && !slices.ContainsFunc(c.Episodes, func(e string) bool { return slices.Contains(eps, e) }) {
-			continue
-		}
-		return betterNotTaken + " " + line
-	}
-	return line
+	return "Chosen over " + cands[i].Over.Release + ": " + cands[i].Over.Reason
 }

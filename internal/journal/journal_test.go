@@ -1343,3 +1343,35 @@ func TestChosenOverRedacted(t *testing.T) {
 		t.Errorf("over %q", c.Over.Release)
 	}
 }
+
+// TestChosenOverOnlyForTheShownDownload: the grab entry says why its release was chosen only when that download was
+// itself taken by a provider (its own added_at): an earlier failed RSS grab of the same hash does not inherit the
+// line from a later grab that was.
+func TestChosenOverOnlyForTheShownDownload(t *testing.T) {
+	e := newEnv(t)
+	at := testNow.Add(-3 * time.Hour)
+	a, b := dec("R0", true, "WEBDL-2160p", 100), dec("R1", true, "WEBDL-2160p", 90)
+	if err := snapshot.Record(context.Background(), e.st.Writer(), snapshot.Search{Source: "rss", TitleID: 1,
+		Version: "movie-remux", Ranked: []*decide.Decision{a, b}, CreatedAt: at}); err != nil {
+		t.Fatal(err)
+	}
+	var cands string
+	e.st.Reader().QueryRow(`SELECT candidates FROM journal_decision WHERE source = 'rss'`).Scan(&cands)
+	var cs []map[string]any
+	json.Unmarshal([]byte(cands), &cs)
+	cs[0]["info_hash"], cs[1]["info_hash"] = hashA, strings.Repeat("b", 40)
+	cs[0]["over"] = map[string]any{"release": "R1", "reason": "higher score (100 over 90)"}
+	out, _ := json.Marshal(cs)
+	e.exec(`UPDATE journal_decision SET candidates = ? WHERE source = 'rss'`, string(out))
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, source,
+		created_at, updated_at, added_at) VALUES (1, 1, 1, 'movie-remux', ?, 'R0', 'dmm', 'failed', 'rss', ?, ?, NULL),
+		(2, 1, 1, 'movie-remux', ?, 'R0', 'dmm', 'imported', 'rss', ?, ?, ?)`, hashA,
+		msOf(at.Add(time.Minute)), msOf(at.Add(time.Minute)), hashA, msOf(at.Add(2*time.Hour)), msOf(at.Add(2*time.Hour)),
+		msOf(at.Add(2*time.Hour)))
+	if g := e.get("dl:2"); g.Reasoning == nil || g.Reasoning.ChosenOver != "Chosen over R1: higher score (100 over 90)" {
+		t.Errorf("taken grab: %+v", g.Reasoning)
+	}
+	if g := e.get("dl:1"); g.Reasoning == nil || g.Reasoning.ChosenOver != "" {
+		t.Errorf("failed grab inherits the line: %+v", g.Reasoning)
+	}
+}

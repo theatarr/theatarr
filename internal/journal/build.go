@@ -459,12 +459,9 @@ func (b *builder) decisionFor(e *Entry, d *dlRow) error {
 	}
 	r.pickChosen(d.hash, clean(d.release))
 	if r.Chosen != nil {
-		// The search's explanation of its choice, as Last search says it: for a download a provider took.
-		taken, err := snapshot.Taken(b.ctx, b.db, d.source, d.created, d.titleID, d.version, d.hash)
-		if err != nil {
-			return err
-		}
-		if taken {
+		// The search's explanation of its choice, as Last search says it: only when this download was itself taken
+		// by a provider.
+		if d.added.Valid {
 			ranked := slices.SortedStableFunc(slices.Values(append([]snapshot.Candidate{*r.Chosen}, r.RunnersUp...)),
 				func(a, b snapshot.Candidate) int { return a.Rank - b.Rank })
 			r.ChosenOver = snapshot.ChosenLine(ranked, d.hash)
