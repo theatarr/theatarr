@@ -655,6 +655,14 @@ func TestUpgradeWhyChosenOver(t *testing.T) {
 	if rec.Code != 200 || strings.Contains(rec.Body.String(), "Chosen over") || strings.Contains(rec.Body.String(), "chosen_over") {
 		t.Errorf("Why says the choice: %d %s", rec.Code, rec.Body.String())
 	}
+	// The release found is still in the answer.
+	var d TitleDetail
+	if err := json.Unmarshal(rec.Body.Bytes(), &d); err != nil {
+		t.Fatal(err)
+	}
+	if u := d.Versions[0].Upgrade; u == nil || u.Next == nil || u.Next.Release != "Alpha.2020.2160p.BluRay.REMUX-BEST" {
+		t.Errorf("next release: %+v", u)
+	}
 }
 
 // TestUpgradeWhyNamesThePacksFile: a pack's reason names the file it was judged against (the decision's

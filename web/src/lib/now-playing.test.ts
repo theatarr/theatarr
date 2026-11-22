@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fmtClock, fmtMbps, healthBadge, incidentTone, itemLabel, placeLabel, prewarmText, progress, streamLabel } from "./now-playing";
+import { fmtClock, fmtMbps, healthBadge, INCIDENT_TONES, incidentTone, itemLabel, placeLabel, prewarmText, progress, streamLabel } from "./now-playing";
 
 describe("now playing", () => {
   it("clock and progress", () => {
@@ -51,6 +51,8 @@ describe("now playing", () => {
     expect(incidentTone("restored")).toBe("ok");
     expect(incidentTone("readable")).toBe("ok");
     expect(incidentTone("some-later-state")).toBe("neutral");
+    // Every outcome the server sends has its own tone (NowPlayingIncident.state's enum): none reaches the fallback.
+    expect(Object.keys(INCIDENT_TONES).sort()).toEqual(["looking", "readable", "removed", "replaced", "restored", "unavailable"]);
     expect(incidentTone("unavailable")).toBe("bad");
   });
 });

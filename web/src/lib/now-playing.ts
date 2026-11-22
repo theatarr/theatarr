@@ -96,7 +96,7 @@ export function prewarmText(p: NowPlayingSession["prewarm"]): { text: string; to
 
 /** A file that stopped working while playing: its state's dot colour (looking, replaced, readable, unavailable,
  *  restored); removed from the library is neutral (nothing was repaired). */
-const INCIDENT_TONES: Record<string, "ok" | "warn" | "bad" | "neutral"> = {
+export const INCIDENT_TONES: Record<string, "ok" | "warn" | "bad" | "neutral"> = {
   looking: "warn",
   replaced: "ok",
   readable: "ok",
