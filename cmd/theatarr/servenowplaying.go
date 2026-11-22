@@ -130,7 +130,7 @@ func (l serveLoops) nowPlayingOptions(ctx context.Context, rt *serveRuntime) (no
 	}
 	if l.torrents != nil {
 		// Step 1 of the repair of a file that broke while playing: the release on one other account, as the automatic
-		// "Add to other providers" adds it; it counts when the account now holds it complete.
+		// "Add to other providers" adds it; it counts only when it was added there now (freshCopy).
 		o.Copy = func(ctx context.Context, hash, pk string) (bool, error) {
 			m, err := l.torrents(ctx)
 			if err != nil {
@@ -140,12 +140,7 @@ func (l serveLoops) nowPlayingOptions(ctx context.Context, rt *serveRuntime) (no
 			if err != nil {
 				return false, err
 			}
-			for _, je := range out {
-				if je.Provider == pk && (je.Outcome == torrents.CopyAdded || je.Outcome == torrents.CopyPresent && je.Detail == "") {
-					return true, nil
-				}
-			}
-			return false, nil
+			return freshCopy(out, pk), nil
 		}
 	}
 	// library.plex.stop_with_message of the settings in force: a save turns it on or off without restarting the tracker.
@@ -164,4 +159,15 @@ func (l serveLoops) nowPlayingOptions(ctx context.Context, rt *serveRuntime) (no
 		}
 	}
 	return o, nil
+}
+
+// freshCopy reports whether a copy's journal says the release was added on account pk just now. One the account held
+// complete already (present) is not a fresh copy: zurg had it there before and still served the broken one.
+func freshCopy(out []torrents.JournalEntry, pk string) bool {
+	for _, je := range out {
+		if je.Provider == pk && je.Outcome == torrents.CopyAdded {
+			return true
+		}
+	}
+	return false
 }

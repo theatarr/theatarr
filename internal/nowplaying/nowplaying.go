@@ -91,8 +91,8 @@ type Options struct {
 	Now                         func() time.Time
 	Readlink                    func(string) (string, error)
 	// Copy adds a release (hash) to one provider account the way the automatic "Add to other providers" does, and
-	// reports whether the account now has it: added, or there complete (internal/torrents Manager.Copy). It is step 1
-	// of the repair of a file that broke while playing (rescue.go). nil: no step 1.
+	// reports whether it was added there now (one the account held already adds nothing; internal/torrents
+	// Manager.Copy). It is step 1 of the repair of a file that broke while playing (rescue.go). nil: no step 1.
 	Copy func(ctx context.Context, hash, provider string) (bool, error)
 	// StopWithMessage says whether a playback of a confirmed broken file is stopped with a message its player shows
 	// (Plex's terminate; the Plex client must be a PlexStopper). nil: on. Off: nothing is ever sent to Plex.

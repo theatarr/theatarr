@@ -209,3 +209,43 @@ func TestPlayingRouteOldOutAccountIgnored(t *testing.T) {
 		t.Errorf("route %+v: %s", res, steps(res))
 	}
 }
+
+// A playing search never takes the incident's own release again, on any account (E4, E12): the route leaves that hash
+// out for this search only, with no miss written, so other libraries may still use it. Hashes of older unsettled
+// incidents of the title are not left out.
+func TestPlayingRouteLeavesOutIncidentRelease(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, true)
+	freshMovie(e)
+	e.exec(`UPDATE version SET state = 'wanted' WHERE id = 10`)
+	e.playingRun(7, 1, 10, "movie", "[]", "[]", "")
+	e.exec(`UPDATE playing_break SET info_hash = ?`, h("a"))
+	res, err := e.r.Route(e.ctx, Request{TitleID: 1, VersionID: 10, Version: "movie", Source: "acquire:7",
+		Candidates: []Candidate{cand(h("a"), "Movie.2024.2160p.WEB-DL-GRP"), cand(h("b"), "Movie.2024.2160p.WEB-DL-OTHER")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Outcome != OutcomeAdded || res.Hash != h("b") || !strings.Contains(steps(res), "aaaa//skipped/playing_same_release") {
+		t.Errorf("route %+v: %s", res, steps(res))
+	}
+	if n := e.count(`SELECT COUNT(*) FROM provider_cache WHERE info_hash = ?`, h("a")); n != 0 {
+		t.Errorf("%d cache rows for the incident's release", n)
+	}
+	// An older open incident of the title (another release) is not this search's: its hash may be taken.
+	e2 := newEnv(t, true)
+	freshMovie(e2)
+	e2.exec(`UPDATE version SET state = 'wanted' WHERE id = 10`)
+	e2.playingRun(7, 1, 10, "movie", "[]", "[]", "")
+	e2.exec(`UPDATE playing_break SET info_hash = ?, broken_at = ?`, h("b"), e2.clock.Add(-72*time.Hour).UnixMilli())
+	e2.exec(`INSERT INTO playing_break (incident, watched, link_id, title_id, version_key, path, old_target, info_hash,
+		episodes, broken_at, searched, updated_at) VALUES (2, 1, 1, 1, 'movie', '/lib/x.mkv', '/mnt/y.mkv', ?, '[]', ?, 1, 0)`,
+		h("a"), e2.clock.UnixMilli())
+	res, err = e2.r.Route(e2.ctx, Request{TitleID: 1, VersionID: 10, Version: "movie", Source: "acquire:7",
+		Candidates: []Candidate{cand(h("b"), "Movie.2024.2160p.WEB-DL-OTHER")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Outcome != OutcomeAdded || res.Hash != h("b") {
+		t.Errorf("older incident's release: route %+v: %s", res, steps(res))
+	}
+}

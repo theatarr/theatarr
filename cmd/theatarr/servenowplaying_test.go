@@ -15,6 +15,7 @@ import (
 	"github.com/theatarr/theatarr/internal/policy"
 	"github.com/theatarr/theatarr/internal/store"
 	"github.com/theatarr/theatarr/internal/store/storetest"
+	"github.com/theatarr/theatarr/internal/torrents"
 )
 
 func TestNowPlayingStartupMasksURLPath(t *testing.T) {
@@ -107,5 +108,23 @@ func TestNowPlayingStartDropsUnfinishedIncident(t *testing.T) {
 			t.Fatal("the unfinished incident was not dropped at start")
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// Step 1 of a file that broke while playing counts only a fresh add on the account: one that held the release complete
+// already (present) adds nothing, so zurg serves what it served before, and step 1 goes on without waiting on it.
+func TestPlayingCopyCountsOnlyAFreshAdd(t *testing.T) {
+	for _, c := range []struct {
+		je   torrents.JournalEntry
+		want bool
+	}{
+		{torrents.JournalEntry{Provider: "ad", Outcome: torrents.CopyAdded}, true},
+		{torrents.JournalEntry{Provider: "ad", Outcome: torrents.CopyPresent}, false},
+		{torrents.JournalEntry{Provider: "ad", Outcome: torrents.CopyPresent, Detail: "still downloading (40%)"}, false},
+		{torrents.JournalEntry{Provider: "tb", Outcome: torrents.CopyAdded}, false},
+	} {
+		if got := freshCopy([]torrents.JournalEntry{c.je}, "ad"); got != c.want {
+			t.Errorf("%+v: %v, want %v", c.je, got, c.want)
+		}
 	}
 }

@@ -189,23 +189,33 @@ const PlayingOutFor = 24 * time.Hour
 // playingIncident reads the open incident of a title's version (internal/library playing_break, found by title and
 // version: no incident id travels with the search): the episodes its route must take one of (the open rows not
 // fixed yet whose search was queued, and not the watched file's once its search has ended and been reported, so the
-// release's other files' search does not take the watched episode again) and the accounts it found out within
-// PlayingOutFor, which the route skips (an old outage steers nothing).
+// release's other files' search does not take the watched episode again), the accounts it found out within
+// PlayingOutFor, which the route skips (an old outage steers nothing), and the release that broke (the newest open
+// incident's hash, "" when unknown), which the route leaves out on every account.
 func (r *Router) playingIncident(ctx context.Context, titleID int64, version string) (eps []int64, out []string,
-	err error) {
-	rows, err := r.st.Writer().QueryContext(ctx, `SELECT episodes, CASE WHEN broken_at > ? THEN out_account ELSE '' END,
+	hash string, err error) {
+	rows, err := r.st.Writer().QueryContext(ctx, `SELECT incident, info_hash,
+		episodes, CASE WHEN broken_at > ? THEN out_account ELSE '' END,
 		searched, CASE WHEN watched = 1 AND reported <> '' THEN 'ended' ELSE fixed_by END FROM playing_break
 		WHERE title_id = ? AND version_key = ? AND settled = ''`, store.Millis(r.now().Add(-PlayingOutFor)), titleID,
 		version)
 	if err != nil {
-		return nil, nil, fmt.Errorf("router: playing incident: %w", err)
+		return nil, nil, "", fmt.Errorf("router: playing incident: %w", err)
 	}
 	defer rows.Close()
+	newest := int64(0)
 	for rows.Next() {
-		var js, account, fixed string
+		var incident int64
+		var rowHash, js, account, fixed string
 		var searched bool
-		if err := rows.Scan(&js, &account, &searched, &fixed); err != nil {
-			return nil, nil, err
+		if err := rows.Scan(&incident, &rowHash, &js, &account, &searched, &fixed); err != nil {
+			return nil, nil, "", err
+		}
+		if incident > newest {
+			newest, hash = incident, ""
+		}
+		if incident == newest && hash == "" {
+			hash = strings.ToLower(rowHash)
 		}
 		if account != "" && !slices.Contains(out, account) {
 			out = append(out, account)
@@ -221,7 +231,7 @@ func (r *Router) playingIncident(ctx context.Context, titleID int64, version str
 			}
 		}
 	}
-	return eps, out, rows.Err()
+	return eps, out, hash, rows.Err()
 }
 
 // manualAdd reports whether a route's candidates are a release a person added by magnet or hash (arrview.AddRelease,

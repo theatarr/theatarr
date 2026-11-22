@@ -714,7 +714,8 @@ const (
 
 // sameRelease is step 1: the same release added on another account with it cached, one account at a time in the
 // library's provider order ("Add to other providers", automatic: Pause, pacing, capacity and ownership as for the
-// automatic copy). An account counts only when the release was added there or is there complete; the same range is
+// automatic copy). An account counts only when the release was added there now (one that held it already serves
+// nothing new: the next account is tried); the same range is
 // then read every copyEvery for copyFor (the viewer is told after copyQuiet). Still failing: that account gets the
 // miss too (no other is tried), and step 2 follows.
 func (t *Tracker) sameRelease(ctx context.Context, lib Rescuer, j *sign, id int64, hash string, off int64,
