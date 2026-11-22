@@ -1500,3 +1500,92 @@ func TestIncidentStateRemoved(t *testing.T) {
 		t.Errorf("%s %s", state, words)
 	}
 }
+
+// An outage touches only the watched file: the release's other files are not read, marked or searched (the hourly
+// sweep sees them later).
+func TestRescueOutageLeavesSiblings(t *testing.T) {
+	e := newRescueEnv(t, false, false)
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.lib.setBroken("S01E03.mkv", -1)
+	e.lib.setBroken("film.mkv", -1)
+	e.play(2, "buffering")
+	e.poll()
+	if got := e.one(`SELECT out_account FROM playing_break WHERE link_id = 11`); got != "rd" {
+		t.Fatalf("out account %q", got)
+	}
+	if got := e.one(`SELECT group_concat(state) FROM (SELECT state FROM link WHERE id IN (10, 11, 12) ORDER BY id)`); got !=
+		"active,dead,active" {
+		t.Errorf("links %s", got)
+	}
+	if n := e.lib.readsOf("S01E01.mkv") + e.lib.readsOf("S01E03.mkv"); n != 0 {
+		t.Errorf("%d reads of the release's other files", n)
+	}
+	if got := e.one(`SELECT COUNT(*) FROM playing_break`); got != "1" {
+		t.Errorf("%s incident rows", got)
+	}
+}
+
+// A zurg cooldown line of the serving account counts as an outage only when logged after the check's first failed
+// read; an older one means nothing, and the control read decides.
+func TestRescueCooldownOnlySinceFirstFailure(t *testing.T) {
+	// Logged before the sign: the account's other release reads, so only this release is broken.
+	e := newRescueEnv(t, false, true)
+	e.play(2, "playing")
+	e.poll()
+	e.tr.ZurgLine("WARN Account rd is cooling down for 5m")
+	e.advance(5 * time.Minute)
+	e.tr.ZurgLine("INFO Large transfer: 512 MiB of __all__/Rel/S01E02.mkv from rd for 30s")
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.play(2, "buffering")
+	e.poll()
+	if got := e.one(`SELECT out_account FROM playing_break WHERE link_id = 11`); got != "" {
+		t.Errorf("an old cooldown line made %q out", got)
+	}
+	if e.lib.readsOf("film.mkv") != 1 {
+		t.Errorf("control reads %d, want 1", e.lib.readsOf("film.mkv"))
+	}
+	if got := e.one(`SELECT group_concat(provider) FROM provider_cache WHERE source = 'router:playing'`); got != "rd" {
+		t.Errorf("misses on %q", got)
+	}
+	// Logged during the check: the account is out, with no control read.
+	e2 := newRescueEnv(t, false, true)
+	e2.play(2, "playing")
+	e2.poll()
+	e2.tr.ZurgLine("INFO Large transfer: 512 MiB of __all__/Rel/S01E02.mkv from rd for 30s")
+	e2.lib.setBroken("S01E02.mkv", -1)
+	e2.tr.sleep = func(ctx context.Context, d time.Duration) error {
+		e2.advance(d)
+		e2.tr.ZurgLine("WARN Account rd is cooling down for 5m")
+		return ctx.Err()
+	}
+	e2.play(2, "buffering")
+	e2.poll()
+	if got := e2.one(`SELECT out_account FROM playing_break WHERE link_id = 11`); got != "rd" {
+		t.Errorf("a cooldown during the check: out account %q", got)
+	}
+	if e2.lib.readsOf("film.mkv") != 0 {
+		t.Errorf("control reads %d during a cooldown", e2.lib.readsOf("film.mkv"))
+	}
+}
+
+// A verdict from a fallback control (no release held by the serving account alone, so a release on any account was
+// read) repairs the watched file only: the release's other files are not read.
+func TestRescueFallbackControlLeavesSiblings(t *testing.T) {
+	e := newRescueEnv(t, false, true)
+	e.exec(`INSERT INTO provider_torrent (provider, torrent_id, info_hash, progress, state) VALUES
+		('ad', 'a60', ?, 100, 'downloaded')`, strings.Repeat("b", 40))
+	e.play(2, "playing")
+	e.poll()
+	e.tr.ZurgLine("INFO Large transfer: 512 MiB of __all__/Rel/S01E02.mkv from rd for 30s")
+	e.lib.setBroken("S01E02.mkv", -1)
+	e.lib.setBroken("S01E03.mkv", -1)
+	e.play(2, "buffering")
+	e.poll()
+	if got := e.one(`SELECT group_concat(state) FROM (SELECT state FROM link WHERE id IN (10, 11, 12) ORDER BY id)`); got !=
+		"active,dead,active" {
+		t.Errorf("links %s", got)
+	}
+	if n := e.lib.readsOf("S01E01.mkv") + e.lib.readsOf("S01E03.mkv"); n != 0 {
+		t.Errorf("%d reads of the release's other files", n)
+	}
+}

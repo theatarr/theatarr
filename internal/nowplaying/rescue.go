@@ -358,6 +358,8 @@ func (t *Tracker) check(ctx context.Context, lib Rescuer, j *sign) {
 		passed(r)
 		return
 	}
+	// A zurg cooldown line counts only when logged from here on (control).
+	failedAt := t.o.Now()
 	log.Info("nowplaying: a playing file did not read; reading it again", "offset", off)
 	if t.sleep(ctx, retryGap) != nil {
 		fine()
@@ -383,7 +385,7 @@ func (t *Tracker) check(ctx context.Context, lib Rescuer, j *sign) {
 		fine()
 		return
 	}
-	verdict := t.control(ctx, lib, j, hash)
+	verdict := t.control(ctx, lib, j, hash, failedAt)
 	if verdict.where == whereMount || verdict.where == whereNone {
 		log.Info("nowplaying: a playing file did not read, nor did the control read: not judged",
 			"control", verdict.where)
@@ -421,17 +423,21 @@ type controlVerdict struct {
 	where   string
 	serving string   // the account serving the file, "" when unknown
 	holders []string // the accounts holding the release complete per the record
+	// sameAccount: the verdict "release" rests on a control read of a release only the serving account holds (the
+	// release's other files are then read too).
+	sameAccount bool
 }
 
 // control decides where the break lies by reading another release through the mount (section 3 of the plan): one
 // held only by the serving account (zurg's servedBy, else the release's only complete holder), at mid-file. It reads:
 // only this release is broken. It fails: one held only by another account is read; it reads: the serving account is
-// out; it fails, or there is none: the mount. zurg saying the serving account cools down means it is out too. With no
+// out; it fails, or there is none: the mount. zurg saying the serving account cools down, in a line logged since the
+// check's first failed read (since), means it is out too; an older line means nothing. With no
 // release held by the serving account alone any other release is read, and the serving account is kept (it fails: no
 // verdict, never an outage); with the
 // serving account unknown from the start any other release is read too, and the release counts as broken on each
 // holder (the repair's failed accounts).
-func (t *Tracker) control(ctx context.Context, lib Rescuer, j *sign, hash string) controlVerdict {
+func (t *Tracker) control(ctx context.Context, lib Rescuer, j *sign, hash string, since time.Time) controlVerdict {
 	v := controlVerdict{serving: j.servedBy}
 	if hash != "" {
 		v.holders = t.strings(ctx, `SELECT DISTINCT provider FROM provider_torrent WHERE info_hash = ?
@@ -440,7 +446,7 @@ func (t *Tracker) control(ctx context.Context, lib Rescuer, j *sign, hash string
 	if v.serving == "" && len(v.holders) == 1 {
 		v.serving = v.holders[0]
 	}
-	if v.serving != "" && t.coolingDown(v.serving) {
+	if v.serving != "" && t.coolingDown(v.serving, since) {
 		v.where = whereProvider
 		return v
 	}
@@ -458,7 +464,7 @@ func (t *Tracker) control(ctx context.Context, lib Rescuer, j *sign, hash string
 	}
 	switch t.readMid(ctx, lib, target) {
 	case readOK:
-		v.where = whereRelease
+		v.where, v.sameAccount = whereRelease, v.serving != "" && !fallback
 		return v
 	case readNoVerdict:
 		return v
@@ -486,11 +492,13 @@ func (t *Tracker) control(ctx context.Context, lib Rescuer, j *sign, hash string
 	return v
 }
 
-// coolingDown reports whether zurg's log says account cools down (t.mu taken).
-func (t *Tracker) coolingDown(account string) bool {
+// coolingDown reports whether zurg's log says account cools down, in a line logged at or after since (t.mu taken).
+func (t *Tracker) coolingDown(account string, since time.Time) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	return slices.ContainsFunc(t.events, func(e zurgEvent) bool { return e.Kind == kindCooldown && e.Account == account })
+	return slices.ContainsFunc(t.events, func(e zurgEvent) bool {
+		return e.Kind == kindCooldown && e.Account == account && !e.At.Before(since)
+	})
 }
 
 // readMid reads a piece at the middle of a link target.
@@ -547,7 +555,7 @@ func (t *Tracker) otherRelease(ctx context.Context, linkID int64, hash, folder, 
 }
 
 // repair acts on a confirmed break: the bound, the incident, the same release from another account (step 1), else the
-// dead mark and its search (step 2), then the release's other files.
+// dead mark and its search (step 2), then, when the release is proven broken on its serving account, its other files.
 func (t *Tracker) repair(ctx context.Context, lib Rescuer, j *sign, hash string, off int64, v controlVerdict) {
 	src := &j.src
 	log := t.o.Logger.With("title", src.Title, "version", src.version, "link_id", src.LinkID)
@@ -600,9 +608,11 @@ func (t *Tracker) repair(ctx context.Context, lib Rescuer, j *sign, hash string,
 			if err := lib.ReportPlaying(ctx, id, outcome.SameRelease); err != nil {
 				log.Warn("nowplaying: outcome not sent", "err", err)
 			}
-			t.siblings(ctx, lib, j, id)
-			if _, err := lib.QueuePlayingSearch(ctx, id); err != nil {
-				log.Warn("nowplaying: search of the release's other files not queued", "err", err)
+			if v.sameAccount {
+				t.siblings(ctx, lib, j, id)
+				if _, err := lib.QueuePlayingSearch(ctx, id); err != nil {
+					log.Warn("nowplaying: search of the release's other files not queued", "err", err)
+				}
 			}
 			return
 		}
@@ -629,7 +639,12 @@ func (t *Tracker) repair(ctx context.Context, lib Rescuer, j *sign, hash string,
 	if !told {
 		t.tell(ctx, j, msgLooking, id)
 	}
-	t.siblings(ctx, lib, j, id)
+	// The release's other files are read only when this release is proven broken on the account serving it; an
+	// outage, or a verdict from a release on another account, repairs the watched file only (the hourly sweep sees
+	// the others as it always has).
+	if v.sameAccount {
+		t.siblings(ctx, lib, j, id)
+	}
 }
 
 // servedSince is the account zurg last logged serving a file from ("Large transfer") at or after since, matched by
