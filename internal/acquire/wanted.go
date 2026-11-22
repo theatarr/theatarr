@@ -53,7 +53,8 @@ type WantedRun struct {
 	Accepted   int       `json:"accepted"`
 	Downloaded bool      `json:"downloaded"`
 	// DownloadID and DownloadState sum up the downloads the run started (with Downloaded): the newest one in flight,
-	// else the newest failed one, else the newest imported one.
+	// else the newest failed one, else the newest imported one, else the newest candidate every provider missed
+	// (activity.MissedSQL: never grabbed, so an import of the same run wins over it).
 	DownloadID    *int64 `json:"download_id,omitempty"`
 	DownloadState string `json:"download_state,omitempty"`
 	Message       string `json:"message"`
@@ -709,7 +710,7 @@ func (a *Acquirer) wantedRuns(ctx context.Context, items []WantedRow) error {
  SELECT p.idx, r.id, r.created_at, r.state, r.results, r.accepted, r.message,
  (SELECT download.id FROM download WHERE `+snapshot.RunDownloadsSQL("download", "r")+`
    AND NOT (download.state = 'failed' AND `+activity.NotStartedSQL+`)
-   ORDER BY CASE WHEN download.state = 'imported' THEN 2 WHEN download.state = 'failed' THEN 1 ELSE 0 END, download.id DESC
+   ORDER BY CASE WHEN `+activity.MissedSQL("download")+` THEN 3 WHEN download.state = 'imported' THEN 2 WHEN download.state = 'failed' THEN 1 ELSE 0 END, download.id DESC
    LIMIT 1) AS downloaded,
  ROW_NUMBER() OVER (PARTITION BY p.idx ORDER BY r.created_at DESC, r.id DESC) AS rank
  FROM page p JOIN version v ON v.title_id = p.title AND v.policy_key = p.key

@@ -184,6 +184,14 @@ const triedColumnSQL = "CASE WHEN d.state = 'failed' THEN EXISTS (SELECT 1 FROM 
 // as strings.CutPrefix is.
 var NotStartedSQL = notStartedSQL("download")
 
+// MissedSQL selects, on the download table or alias t, a failed download every provider missed before any took it
+// (router.MissOnEveryProvider, never added): a candidate the router passed over for the next one, not a grab that
+// failed. Activity's queue, Wanted's Last search, the indexer statistics, the arr views' History and a request's
+// failure read it so.
+func MissedSQL(t string) string {
+	return "(" + t + ".state = 'failed' AND " + t + ".added_at IS NULL AND COALESCE(" + t + ".error, '') GLOB 'miss on every provider*')"
+}
+
 // notStartedSQL is NotStartedSQL on the download table or alias t.
 func notStartedSQL(t string) string {
 	return "((COALESCE(" + t + ".error, '') GLOB 'route ended: router: *' OR COALESCE(" + t + ".error, '') GLOB 'route stopped: router: *')" +

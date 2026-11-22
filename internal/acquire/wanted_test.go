@@ -655,4 +655,15 @@ func TestWantedTitleFilterSortAndDates(t *testing.T) {
 	if r := season1(); r == nil || r.DownloadID == nil || *r.DownloadID != 42 || r.DownloadState != "imported" {
 		t.Errorf("imported only: %+v", r)
 	}
+	// A candidate every provider missed (never added) is not a grab: the import of the same run is what it says.
+	e.exec(`INSERT INTO download (id, title_id, version_id, version_key, info_hash, release_title, indexer, state, error, source,
+		created_at, updated_at) VALUES (44, 10, 201, 'series', ?, 'm', 'pub', 'failed', 'miss on every provider', 'acquire:600', 0, 0)`, h("e"))
+	if r := season1(); r == nil || r.DownloadID == nil || *r.DownloadID != 42 || r.DownloadState != "imported" {
+		t.Errorf("a miss then an import: %+v", r)
+	}
+	// Only misses: the run still names its newest miss.
+	e.exec(`DELETE FROM download WHERE id = 42`)
+	if r := season1(); r == nil || r.DownloadID == nil || *r.DownloadID != 44 || r.DownloadState != "failed" {
+		t.Errorf("misses only: %+v", r)
+	}
 }
