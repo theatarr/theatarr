@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"sync/atomic"
+	"time"
 
 	"github.com/theatarr/theatarr/internal/gateway"
 	"github.com/theatarr/theatarr/internal/nowplaying"
@@ -25,6 +26,27 @@ func nowPlayingSnapshot() *nowplaying.Snapshot {
 	s := t.Snapshot()
 	s.Incidents = t.Incidents()
 	return &s
+}
+
+// nowPlayingFiles is what Plex plays now for the library's put-back (library.PlayingNow): each session's link and
+// target, and whether the tracker runs and its last poll of Plex, within two minutes, answered.
+func nowPlayingFiles() ([]int64, []string, bool) {
+	t := serveNowPlaying.Load()
+	if t == nil {
+		return nil, nil, false
+	}
+	s := t.Snapshot()
+	if s.Error != "" || s.UpdatedAt == nil || time.Since(*s.UpdatedAt) > 2*time.Minute {
+		return nil, nil, false
+	}
+	var links []int64
+	var targets []string
+	for _, v := range s.Sessions {
+		if v.Source != nil {
+			links, targets = append(links, v.Source.LinkID), append(targets, v.Source.Target)
+		}
+	}
+	return links, targets, true
 }
 
 // nowPlayingLine forwards a zurg log line to the tracker.

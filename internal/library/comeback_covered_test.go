@@ -23,6 +23,9 @@ type coveredEnv struct {
 	newTgt   string
 	mu       sync.Mutex
 	outcomes []string
+	// playing is what Plex plays now (link ids); silent: Plex does not answer (the put-back's check).
+	playing []int64
+	silent  bool
 }
 
 func newCoveredEnv(t *testing.T, old, nw string, samePath bool) *coveredEnv {
@@ -36,6 +39,7 @@ func newCoveredEnv(t *testing.T, old, nw string, samePath bool) *coveredEnv {
 		c.outcomes = append(c.outcomes, o.Kind)
 		c.mu.Unlock()
 	})
+	e.lib.SetPlayingNow(func() ([]int64, []string, bool) { return c.playing, nil, !c.silent })
 	e.exec(`UPDATE link SET quality = ? WHERE id = 1`, old)
 	e.exec(`UPDATE playing_break SET quality = ?, fixed_by = 'replaced', new_release = 'Other', reported = 'replaced'
 		WHERE id = ?`, old, id)
@@ -99,13 +103,16 @@ func (e *env) actions() int {
 	return n
 }
 
-// An old copy that reads again on two sweeps while an import replaced it is kept aside, whether it is better, equal
-// or worse: nothing in the library changes, the release's miss is lifted (ordinary searches may take it again), and
+// An old copy that reads again on two sweeps while an import replaced it is kept aside when it is equal or worse
+// (a better one is put back: putback_test.go): nothing in the library changes, the release's miss is lifted (ordinary searches may take it again), and
 // one relink action says so; History has no removed row and no outcome is reported.
 func TestComeBackKeepsReplacedCopyAside(t *testing.T) {
 	for _, samePath := range []bool{true, false} {
 		for _, old := range []string{"Remux-2160p", "WEBDL-1080p"} {
 			for _, nw := range []string{"WEBDL-1080p", "Remux-2160p"} {
+				if old == "Remux-2160p" && nw == "WEBDL-1080p" {
+					continue // a strict win: put back (TestPutBack)
+				}
 				name := old + " over " + nw
 				c := newCoveredEnv(t, old, nw, samePath)
 				before := c.actions()
@@ -158,7 +165,7 @@ func TestComeBackReplacementGoneAside(t *testing.T) {
 
 // With Pause on, nothing is settled; the next sweep after it keeps the copy aside.
 func TestComeBackAsideWaitsForPause(t *testing.T) {
-	c := newCoveredEnv(t, "Remux-2160p", "WEBDL-1080p", false)
+	c := newCoveredEnv(t, "WEBDL-1080p", "Remux-2160p", false)
 	c.pol.Router.Enabled = false
 	c.twoReads()
 	if c.settled() != "" {

@@ -209,7 +209,7 @@ func (l *Library) ComeBack(ctx context.Context) error {
 			continue
 		}
 		if !r.dead {
-			if err := l.settleAside(ctx, r, asideWords); err != nil {
+			if err := l.putBackOrAside(ctx, r, target); err != nil {
 				return err
 			}
 			continue

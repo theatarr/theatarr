@@ -989,8 +989,20 @@ before 00152 has no snapshot and gets no Undo; nor does one whose trash copy was
     no later sweep brings it back beside the files that hold its place. One library action records it, "the earlier copy
     works again; kept aside"; it is no removal by a person, so History shows no row for it. A replaced row older than 30
     days is kept aside without a read, in the words "not checked again after 30 days; kept aside", and lifts no miss
-    (its own aged out long ago). Putting a better old copy back in place automatically is not built yet. Nothing is
-    deleted on any account.
+    (its own aged out long ago). Nothing is deleted on any account.
+  - **Put back.** A replaced copy that read twice is instead put back in place of the one file of its library that
+    holds its film or episodes now (`putback.go`, through the same return as Undo: "Undo an upgrade"), with its row's
+    own saved facts, when all hold: the library does not prefer SeaDex; it wins strictly under today's profile
+    (`ImportUpgrade` accepts it over the current file and refuses the current file over it; a tie, an unknown quality
+    or any error keeps it aside); today's profile still allows its quality and its format score reaches the minimum;
+    the wrong-audio rule would not refuse it over the current file; and the return's own checks pass. It waits for a
+    later sweep, settling nothing, while Pause is on or the library does not write, while the incident's search is
+    open, while the replacement is being played (a session's link or target) or while Plex has not answered lately
+    (the now playing tracker off, or its last poll failed or is over two minutes old). Then the row is settled
+    `restored`, the miss lifted, and the outcome `restored` ("Earlier copy put back") is sent once by its own
+    transition (ReportPlaying would send nothing after "replaced"). Its actions' details start "earlier copy put
+    back": the journal says so, and History has the playing row only, no "Removed". No blocklist, no search, no
+    provider call; one Plex scan per changed folder. Else it is kept aside exactly as above (`TestPutBack`).
 - **An implausible listing is a mount that is down** (`Mount.checkListing`). `Healthy` only stats
   `__all__`, and a zurg that restarted can serve it present but empty or half-loaded. So relink, the dangling report,
   and `Verify` refuse with `ErrMountDown` (nothing marked dead or missing, no title flipped to

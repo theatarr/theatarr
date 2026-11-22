@@ -129,6 +129,8 @@ type Library struct {
 	onPlaying func(outcome.Outcome)
 	// liveWritable asks the settings in force whether the come-back may write (SetLiveWritable); nil: none.
 	liveWritable func(version string) bool
+	// playingNow answers what Plex plays now, for the put-back (SetPlayingNow); nil: no answer.
+	playingNow PlayingNow
 	// swept is when a relink sweep last ended without error (Unix ms; LastSweep).
 	swept atomic.Int64
 }

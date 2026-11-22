@@ -14,7 +14,8 @@ import (
 // on two sweeps while other files hold its film or some of its episodes, or that an import replaced. It is kept aside:
 // nothing in the library is swapped, its release's router:playing miss is lifted (ordinary searches may take it
 // again), and a dead symlink of it still in the library goes to the trash so no sweep revives it beside the files
-// holding its place. Putting it back automatically is not built yet. Nothing is deleted on any account.
+// holding its place. A replaced copy that wins strictly over its replacement is put back instead (putback.go).
+// Nothing is deleted on any account.
 
 // Words of the aside's action.
 const (

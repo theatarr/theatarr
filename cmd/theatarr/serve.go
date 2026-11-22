@@ -469,6 +469,7 @@ func runServe(args []string) error {
 	// save that turns Pause on stops it (library SetLiveWritable).
 	liveWritable := func(version string) bool { return lb.current().PlayingWritable(version) }
 	lb.lib.SetLiveWritable(liveWritable)
+	lb.lib.SetPlayingNow(nowPlayingFiles)
 	// After an import from a debrid provider: the automatic "Add to other providers" (providers set to also add, where
 	// the torrent is known cached; torrents.md).
 	autoCopy := func(ctx context.Context, from, hash string) {
@@ -541,6 +542,7 @@ func runServe(args []string) error {
 		runtime.Library.lib.SetImported(autoCopy)
 		runtime.Library.lib.OnPlayingOutcome(playing.report)
 		runtime.Library.lib.SetLiveWritable(liveWritable)
+		runtime.Library.lib.SetPlayingNow(nowPlayingFiles)
 		// The mount guard, helpers and listing floor carry over from the generation being replaced (the startup
 		// library before the first save), so a save neither resets an open breaker nor keeps old mount settings.
 		prevLib := lb.lib

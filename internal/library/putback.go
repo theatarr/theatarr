@@ -1,0 +1,227 @@
+package library
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"slices"
+
+	"github.com/theatarr/theatarr/internal/decide"
+	"github.com/theatarr/theatarr/internal/decide/format"
+	"github.com/theatarr/theatarr/internal/decide/profile"
+	"github.com/theatarr/theatarr/internal/outcome"
+	"github.com/theatarr/theatarr/internal/policy"
+	"github.com/theatarr/theatarr/internal/store"
+)
+
+// The put-back (docs/design/now-playing.md "A file that stops working while it plays"): a copy that broke while
+// someone played it, replaced since and read again on two sweeps, comes back in place of its replacement through the
+// same return as Undo (return.go), when it is a strict win under today's profile; else it is kept aside as before.
+
+// PlayingNow answers what Plex is playing now: each session's link (its id) and link target, and whether Plex
+// answered lately (false: nothing can be said).
+type PlayingNow func() (links []int64, targets []string, answered bool)
+
+// SetPlayingNow sets the answer the put-back asks before it displaces a file (nil: Plex never answers, so nothing is
+// put back).
+func (l *Library) SetPlayingNow(f PlayingNow) { l.playingNow = f }
+
+// heldNow is the file of a version that holds a returned copy's film or episodes now.
+type heldNow struct {
+	id                                int64
+	path, target, meta, release, qual string
+	probe, media                      sql.NullString
+	adopted                           bool
+	download                          sql.NullInt64
+}
+
+// putBackPrefix starts the detail of a put-back's actions.
+const putBackPrefix = store.HistoryPutBackPrefix + ": "
+
+// putBackOrAside settles a replaced copy that read again: put back (putBackCopy), left for a later sweep, or kept aside
+// exactly as before.
+func (l *Library) putBackOrAside(ctx context.Context, r returned, target string) error {
+	done, wait, err := l.putBackCopy(ctx, r, target)
+	if err != nil || done || wait {
+		return err
+	}
+	return l.settleAside(ctx, r, asideWords)
+}
+
+// putBackCopy puts the row's copy back in place of the one file of its version that holds its film or episodes now,
+// when all hold: the library does not prefer SeaDex; the old file wins strictly under today's profile
+// (ImportUpgrade accepts it over the current file and refuses the current file over it; a tie, an unknown quality
+// or any error keeps it aside); today's profile still allows its quality and minimum score; the wrong-audio rule
+// would not refuse it over the current file. It waits (wait, nothing settled) while Pause is on or the library does
+// not write, while the incident's search is open, and while the replacement is playing or Plex does not answer.
+// The facts are the row's own; the return's checks still apply (a refusal keeps it aside).
+func (l *Library) putBackCopy(ctx context.Context, r returned, target string) (done, wait bool, err error) {
+	vp := l.pol.Versions[r.version]
+	if vp == nil || vp.PreferSeaDex || l.engine == nil {
+		return false, false, nil
+	}
+	if !l.writableNow(r.version) {
+		return false, true, nil
+	}
+	db := l.st.Reader()
+	var open bool
+	if err := db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM playing_break pb WHERE pb.id = ? AND `+
+		playingSearchOpenSQL+`)`, r.incident).Scan(&open); err != nil || open {
+		return false, open, err
+	}
+	// The row's copy as it was.
+	e := &undoEntry{version: r.version, path: r.path, target: target}
+	s := &e.snap
+	var kind, eps, meta string
+	var cf, dl, score sql.NullInt64
+	var rel, q, from, source, media, hash sql.NullString
+	var versionID int64
+	if err := db.QueryRowContext(ctx, `SELECT t.kind, v.id, pb.content_file_id, pb.download_id, pb.release_title,
+		pb.quality, pb.score, pb.file_metadata, pb.adopted, pb.adopted_from, pb.adopted_source, pb.adopted_media,
+		pb.folder_hash, pb.episodes FROM playing_break pb JOIN title t ON t.id = pb.title_id
+		JOIN version v ON v.title_id = pb.title_id AND v.policy_key = pb.version_key WHERE pb.id = ?`, r.id).Scan(&kind,
+		&versionID, &cf, &dl, &rel, &q, &score, &meta, &s.Adopted, &from, &source, &media, &hash, &eps); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, false, nil
+		}
+		return false, false, err
+	}
+	s.ContentFileID, s.DownloadID, s.Score = nullInt(cf), nullInt(dl), nullInt(score)
+	s.Release, s.Quality, s.FileMetadata = nullStr(rel), nullStr(q), &meta
+	s.AdoptedFrom, s.AdoptedSource, s.AdoptedMedia, s.FolderHash = nullStr(from), nullStr(source), nullStr(media),
+		nullStr(hash)
+	s.Episodes = []int64{}
+	if err := json.Unmarshal([]byte(eps), &s.Episodes); err != nil {
+		return false, false, nil
+	}
+	// The one file of the version that holds its film or some of its episodes now.
+	var succ []heldNow
+	if err := scanRows(ctx, db, `SELECT l.id, l.path, l.target, COALESCE(l.file_metadata, '{}'),
+		COALESCE(l.release_title, ''), COALESCE(l.quality, ''), cf.probe, l.adopted_media, l.adopted = 1, l.download_id
+		FROM link l JOIN link_version lv ON lv.link_id = l.id AND lv.version_id = ?
+		LEFT JOIN content_file cf ON cf.id = l.content_file_id
+		WHERE l.state = 'active' AND l.title_id = ? AND (? <> 'series' OR EXISTS (SELECT 1 FROM link_episode le
+			WHERE le.link_id = l.id AND le.episode_id IN (SELECT value FROM json_each(?))))`,
+		[]any{versionID, r.titleID, kind, eps}, func(rs *sql.Rows) error {
+			var x heldNow
+			err := rs.Scan(&x.id, &x.path, &x.target, &x.meta, &x.release, &x.qual, &x.probe, &x.media, &x.adopted,
+				&x.download)
+			succ = append(succ, x)
+			return err
+		}); err != nil {
+		return false, false, err
+	}
+	if len(succ) != 1 {
+		return false, false, nil
+	}
+	cur := succ[0]
+	s.Successor = successor{LinkID: cur.id, Path: cur.path, Target: cur.target, DownloadID: cur.download.Int64}
+	// A strict win under today's profile.
+	v := &importVersion{VersionID: versionID, Key: r.version, Policy: vp, Title: titleInfo{ID: r.titleID, Kind: kind}}
+	t, err := l.cutoffTitle(ctx, r.titleID, versionID, vp)
+	if err != nil {
+		return false, false, nil
+	}
+	oldF, err := decide.LinkFileInputs([]byte(meta), kind, rel.String, q.String)
+	if err != nil {
+		return false, false, nil
+	}
+	curF, err := decide.LinkFileInputs([]byte(cur.meta), kind, cur.release, cur.qual)
+	if err != nil {
+		return false, false, nil
+	}
+	dv := decide.Version{ID: versionID, Key: r.version, Policy: vp}
+	if ok, _, err := l.engine.ImportUpgrade(t, dv, &oldF, &curF); err != nil || !ok {
+		return false, false, nil
+	}
+	if ok, _, err := l.engine.ImportUpgrade(t, dv, &curF, &oldF); err != nil || ok {
+		return false, false, nil
+	}
+	if !l.profileAllows(t, dv, kind, oldF) {
+		return false, false, nil
+	}
+	// The wrong-audio rule, the old file over the current one (audio.go): its known languages share none with what
+	// the library wants and none with the current file's.
+	var oldProbe sql.NullString
+	if s.ContentFileID != nil {
+		_ = db.QueryRowContext(ctx, `SELECT probe FROM content_file WHERE id = ?`, *s.ContentFileID).Scan(&oldProbe)
+	}
+	if langs := storedAudio(oldProbe, media, s.Adopted); len(langs) > 0 {
+		want, err := l.audioWanted(ctx, &importDownload{Version: *v})
+		if err != nil {
+			return false, false, err
+		}
+		if want != nil && !sharesLanguage(langs, want) && !sharesLanguage(langs, storedAudio(cur.probe, cur.media, cur.adopted)) {
+			return false, false, nil
+		}
+	}
+	// Nobody plays the file it would displace, and Plex says so.
+	if l.playingNow == nil {
+		return false, true, nil
+	}
+	links, targets, answered := l.playingNow()
+	if !answered {
+		return false, true, nil
+	}
+	if slices.Contains(links, cur.id) || slices.Contains(targets, cur.target) {
+		l.log.Info("library: put-back waits: its replacement is playing", "link", r.path, "playing", cur.path)
+		return false, true, nil
+	}
+	reported := false
+	rf := &returnFile{entry: e, prefix: putBackPrefix}
+	rf.endTx = func(ctx context.Context, tx *sql.Tx, _ *importVersion, now int64) error {
+		reported = false
+		if err := settleReturnTx(ctx, tx, r.id, r.hash, "restored", now); err != nil {
+			return err
+		}
+		// Its own outcome, once: ReportPlaying would send nothing after the import's "replaced".
+		res, err := tx.ExecContext(ctx, `UPDATE playing_break SET reported = ?, updated_at = ? WHERE id = ? AND watched = 1
+			AND reported <> ?`, outcome.Restored, now, r.id, outcome.Restored)
+		if err != nil {
+			return err
+		}
+		n, _ := res.RowsAffected()
+		reported = n > 0
+		return nil
+	}
+	if _, err := l.returnOne(ctx, rf); err != nil {
+		var rr *ReturnRefused
+		if errors.As(err, &rr) {
+			l.log.Info("library: the copy that broke while playing is not put back", "link", r.path, "why", rr.Sentence)
+			return false, false, nil
+		}
+		return false, false, err
+	}
+	if reported {
+		if o, err := l.playingOutcome(ctx, r.id, outcome.Restored); err != nil {
+			l.log.Warn("library: outcome of a file put back not sent", "incident", r.id, "err", err)
+		} else if l.onPlaying != nil {
+			l.onPlaying(o)
+		}
+	}
+	return true, false, nil
+}
+
+// profileAllows says whether today's profile of the version still allows the file's quality and its format score
+// reaches the profile's minimum.
+func (l *Library) profileAllows(t *decide.Title, v decide.Version, kind string, f decide.ExistingFile) bool {
+	fl := format.Radarr
+	if policy.Kind(kind) == policy.KindSeries {
+		fl = format.Sonarr
+	}
+	p := l.engine.Profile(v.Policy.Profile, fl)
+	if p == nil || p.Profile == nil {
+		return false
+	}
+	qf, ok := profile.QualityByName(fl, f.Quality)
+	if !ok || !slices.ContainsFunc(p.Profile.AllowedQualities(), func(q profile.Quality) bool { return q.ID == qf.ID }) {
+		return false
+	}
+	x := f
+	if err := l.engine.ScoreFile(t, v, &x); err != nil || x.Score == nil {
+		return false
+	}
+	pr := l.pol.Profiles[v.Policy.Profile]
+	return pr == nil || *x.Score >= pr.MinScore
+}

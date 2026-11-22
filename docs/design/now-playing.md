@@ -177,7 +177,10 @@ broke while playing is searched at once").
   poll (the poll, the websocket and the sweep never wait for it); a live playback's check goes before a stopped one's;
   a file that read fine (or gave no verdict) is not checked again for 2 minutes. Finishing an incident (its search
   ended, the old copy read again) is the library's own maintenance (`docs/design/library.md`), never this worker's,
-  so it goes on with now playing off or Plex not answering, and no check or message waits behind it.
+  so it goes on with now playing off or Plex not answering, and no check or message waits behind it. The one
+  exception: an old copy that wins over its replacement is put back only while the tracker's last poll of Plex
+  answered within two minutes and no session plays the replacement (its link or target); else a later sweep
+  (`docs/design/library.md` "Put back"). Its outcome is `restored`: "Earlier copy put back".
 - **The reads** (`Library.ReadPiece`): 256 KiB through the mount, never from a provider, at the play position plus
   64 MiB but never into the second half of what is left (players read the tail on open, so it is cached), with a 15 s
   limit. A read error, zero bytes where the file has them, or no answer in time is a failure; a time-out kills only
