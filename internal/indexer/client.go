@@ -151,9 +151,17 @@ func (b *base) apiKey() (string, error) {
 
 // get sends one GET through the gateway and returns the body of a 2xx answer.
 func (b *base) get(ctx context.Context, rawURL, accept string) ([]byte, error) {
+	return b.getWith(ctx, rawURL, accept, nil)
+}
+
+// getWith is get with further request headers.
+func (b *base) getWith(ctx context.Context, rawURL, accept string, header http.Header) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("indexer %s: bad URL", b.key) // the URL may hold a key: don't echo it
+	}
+	for k, v := range header {
+		req.Header[k] = v
 	}
 	if accept != "" {
 		req.Header.Set("Accept", accept)

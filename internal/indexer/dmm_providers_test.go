@@ -198,7 +198,7 @@ func TestDMMRSSUsesRdAdEndpoint(t *testing.T) {
 	}
 	q := reqs[0].URL.Query()
 	if reqs[0].URL.Path != "/api/torznab/rd/ad/cached/api" || q.Get("t") != "search" || q.Get("limit") != "100" ||
-		q.Get("offset") != "" || q.Get("q") != "" || q.Get("apikey") != dmmKey {
+		q.Get("offset") != "" || q.Get("q") != "" || q.Has("apikey") || reqs[0].Header.Get("x-api-key") != dmmKey {
 		t.Fatalf("RSS request %s %v", reqs[0].URL.Path, q)
 	}
 	// tb is in the indexer's path but not in the RSS endpoint's: an item's tb is not kept.

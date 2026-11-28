@@ -454,7 +454,7 @@ func TestDebridKeysOnlyGoToTheirProvider(t *testing.T) {
 		t.Errorf("requests by host %v", hosts)
 	}
 	for _, r := range dmmRec.all() {
-		if r.URL.Query().Get("apikey") != dmmKey {
+		if r.Header.Get("x-api-key") != dmmKey || r.URL.Query().Has("apikey") {
 			t.Errorf("DMM asked without its own key: %s", r.URL.Path)
 		}
 	}

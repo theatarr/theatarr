@@ -42,7 +42,7 @@ func newProbeServer(t *testing.T) *probeServer {
 		}
 		ps.requests.Add(1)
 		ps.mu.Lock()
-		ps.keys = append(ps.keys, r.URL.Query().Get("apikey"))
+		ps.keys = append(ps.keys, r.Header.Get("x-api-key"))
 		ps.mu.Unlock()
 		switch {
 		case r.URL.Path == "/api/torznab/rd/ad/tb/cached/api":

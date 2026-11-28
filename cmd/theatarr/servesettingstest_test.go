@@ -145,7 +145,7 @@ func TestSettingsTesterUsesLiveGatewayState(t *testing.T) {
 			return
 		}
 		requests.Add(1)
-		lastKey.Store(r.URL.Query().Get("apikey"))
+		lastKey.Store(r.Header.Get("x-api-key"))
 		lastPath.Store(r.URL.Path)
 		io.WriteString(w, `<rss version="2.0"><channel><item><title>A.Movie.1994.1080p</title></item></channel></rss>`)
 	}))

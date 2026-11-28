@@ -65,8 +65,8 @@ func TestTorznabMovie(t *testing.T) {
 			t.Errorf("param %s = %q, want %q", k, q.Get(k), v)
 		}
 	}
-	if q.Has("q") || q.Has("offset") {
-		t.Errorf("unexpected params %v", q)
+	if q.Has("q") || q.Has("offset") || reqs[1].Header.Get("x-api-key") != "" {
+		t.Errorf("unexpected params %v or x-api-key header", q)
 	}
 	if reqs[1].URL.Path != "/1/api" {
 		t.Errorf("path %s", reqs[1].URL.Path)
@@ -214,8 +214,13 @@ func TestDMM(t *testing.T) {
 		}
 	}
 	q := reqs[0].URL.Query()
-	if reqs[0].URL.Path != "/api/torznab/rd/cached/api" || q.Get("t") != "movie" || q.Get("imdbid") != "0133093" || q.Get("apikey") != dmmKey {
+	if reqs[0].URL.Path != "/api/torznab/rd/cached/api" || q.Get("t") != "movie" || q.Get("imdbid") != "0133093" {
 		t.Errorf("first request %s %v", reqs[0].URL.Path, q)
+	}
+	for i, r := range reqs {
+		if r.Header.Get("x-api-key") != dmmKey || r.URL.Query().Has("apikey") {
+			t.Errorf("page %d: x-api-key %q, query %v", i, r.Header.Get("x-api-key"), r.URL.Query())
+		}
 	}
 	r := res.Releases[0]
 	if r.Title != "Release.0.2160p" || r.IMDb != "tt0133093" || r.Extras["cached_on"] != "rd" || r.Kind != "dmm" {

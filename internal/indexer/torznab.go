@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"regexp"
 	"slices"
@@ -424,13 +425,20 @@ func cleanRadarrTitle(s string) string {
 // newsnabifyTitle mirrors NewznabRequestGenerator.NewsnabifyTitle (Radarr src/NzbDrone.Core/Indexers/Newznab/NewznabRequestGenerator.cs:206-210).
 func newsnabifyTitle(s string) string { return strings.ReplaceAll(s, "+", " ") }
 
+// fetch sends one feed request. DMM takes its key in the x-api-key header, which keeps it out of URLs and proxy
+// logs; Prowlarr's feeds take it as the apikey parameter.
 func (t *torznab) fetch(ctx context.Context, endpoint *url.URL, key string, p url.Values) ([]byte, error) {
-	if key != "" {
+	var h http.Header
+	switch {
+	case key == "":
+	case t.dmm:
+		h = http.Header{"X-Api-Key": {key}}
+	default:
 		p.Set("apikey", key)
 	}
 	u := *endpoint
 	u.RawQuery = p.Encode()
-	return t.get(ctx, u.String(), "application/rss+xml, application/xml, text/xml")
+	return t.getWith(ctx, u.String(), "application/rss+xml, application/xml, text/xml", h)
 }
 
 // params builds the Torznab query the way Radarr's and Sonarr's NewznabRequestGenerator choose: ids the caps

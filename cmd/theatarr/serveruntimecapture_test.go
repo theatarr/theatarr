@@ -303,7 +303,7 @@ func TestStartupWiredSearchUsesRotatedIndexerCredential(t *testing.T) {
 			io.WriteString(w, "127.0.0.1")
 			return
 		}
-		key.Store(r.URL.Query().Get("apikey"))
+		key.Store(r.Header.Get("x-api-key"))
 		io.WriteString(w, `<rss version="2.0"><channel></channel></rss>`)
 	}))
 	defer server.Close()
